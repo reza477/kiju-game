@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1c2b29" />
+  <meta name="description" content="A local single-player city-building game prototype." />
+  <title>Colossus Wake</title>
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+  <canvas id="world" aria-label="3D game world. Drag to orbit, scroll to zoom. Use the world map buttons to travel and district buttons to build."></canvas>
+  <div class="vignette" aria-hidden="true"></div>
+  <div id="markers"></div>
+  <div id="loading"><span class="eyebrow">WAKING THE OLD WORLD</span><p>Raising the city…</p></div>
+  <div id="error" class="hidden" role="alert"></div>
+
+  <section id="intro" aria-label="Choose your city">
+    <div class="intro-top"><span class="seal">CW</span><span>AN EARTH AFTER EARTH</span></div>
+    <div class="intro-copy">
+      <div class="eyebrow"><i></i> LOCAL PLAYABLE PROTOTYPE · 0.1</div>
+      <h1>COLOSSUS<br/><em>WAKE</em></h1>
+      <div class="rule"></div>
+      <p class="intro-lead">The world stood still.<br/>Our cities learned to move.</p>
+      <p class="intro-description">Build a home above the ruins. Follow the resources. Outlive the cities that hunt you.</p>
+      <button id="begin" class="primary large">Begin expedition <span>↗</span></button>
+      <button id="continue" class="text-button hidden">Continue saved expedition →</button>
+      <div class="local-note"><span>◉</span> Single player · Saves on this PC</div>
+    </div>
+    <div class="intro-bottom">OLD EARTH, 2179 <span>PC FIRST · TOUCH READY</span></div>
+  </section>
+  <section id="faction-select" aria-label="City type">
+    <div id="faction-description"></div>
+    <div class="faction-options">
+      <button data-faction="kaiju" class="faction active"><span class="faction-symbol">♜</span><span><small>01 / KAIJU</small><strong>Thornbound</strong></span></button>
+      <button data-faction="crawler" class="faction"><span class="faction-symbol">▥</span><span><small>02 / CRAWLER</small><strong>Commonwealth</strong></span></button>
+      <button data-faction="airship" class="faction"><span class="faction-symbol">⌁</span><span><small>03 / AIRSHIP</small><strong>Saffron Courts</strong></span></button>
+    </div>
+    <p class="orbit-hint">DRAG TO ORBIT <span>•</span> SCROLL TO LOOK CLOSER</p>
+  </section>
+
+  <main id="hud" class="hidden">
+    <header class="topbar panel">
+      <button id="menu" class="brand" title="Pause and open menu"><span class="seal small">CW</span><span>COLOSSUS<br/><b>WAKE</b></span></button>
+      <div class="resources">
+        <div class="resource"><span class="resource-icon timber">♧</span><div><small>WOOD</small><strong id="wood">160</strong></div></div>
+        <div class="resource"><span class="resource-icon iron">⬡</span><div><small>IRON</small><strong id="iron">135</strong></div></div>
+        <div class="resource"><span class="resource-icon food">❧</span><div><small>FOOD</small><strong id="food">160</strong></div><span id="food-rate" class="rate"></span></div>
+        <div class="resource population"><span class="resource-icon">♙</span><div><small>CITIZENS</small><strong id="population">24 / 30</strong></div></div>
+      </div>
+      <div class="time-controls"><span id="day">DAY 01</span><button id="pause" aria-label="Pause game" title="Pause (P)">Ⅱ</button><button id="speed" aria-label="Change game speed">1×</button></div>
+    </header>
+    <nav id="views" class="view-switch panel" aria-label="Camera view"><button data-view="city" class="active">City view <kbd>1</kbd></button><button data-view="world">World map <kbd>2</kbd></button></nav>
+    <aside class="left-stack">
+      <section class="city-card panel"><div class="eyebrow" id="city-type">KAIJU CITY</div><h2 id="city-name">Vesper Bastion</h2><div class="hull-label"><span>HULL INTEGRITY</span><strong id="hull-number"></strong></div><div class="bar"><i id="hull-bar"></i></div><div id="travel-status" class="status-line"></div><button id="repair" class="minor">Repair hull <span>15 wood · 20 iron</span></button></section>
+      <section id="objective" class="objective panel"><div class="eyebrow">THE FIRST EXPEDITION</div><h3>A home that endures</h3><div id="objectives"></div></section>
+      <section id="selection" class="panel selection"></section>
+    </aside>
+    <aside class="right-stack">
+      <section id="map-card" class="panel map-card"><div class="section-heading"><span>THE ASHEN REACH</span><span class="north">N ↑</span></div><canvas id="minimap" width="230" height="190" aria-label="World minimap. Click to travel."></canvas><div class="map-legend"><span>● Your city</span><span>◆ Rival</span></div><button id="destinations-toggle" class="text-button">Resource destinations <span>⌄</span></button><div id="destinations" class="hidden"></div></section>
+      <section class="journal panel"><div class="eyebrow">CAPTAIN’S LOG</div><div id="journal"></div></section>
+    </aside>
+    <section id="build-tray" class="panel build-tray"><div class="tray-heading"><span class="eyebrow">GROW YOUR CITY</span><span id="build-hint">Choose a building, then an empty district</span><button id="cancel-build" class="hidden">Cancel ×</button></div><div id="buildings" class="buildings"></div></section>
+    <div id="control-hint" class="control-hint"><span><kbd>W A S D</kbd> Move</span><span><kbd>Drag</kbd> Orbit</span><span><kbd>Scroll</kbd> Zoom</span><span><kbd>P</kbd> Pause</span><button id="help" class="text-button">Controls & help</button></div>
+    <div class="utility"><button id="save" title="Save locally">Save</button><button id="quality" title="Toggle lower-resolution PS2-style rendering">Visuals: balanced</button><button id="sound" title="Toggle synthesized game audio">Sound: off</button></div>
+    <div id="touch-pad" aria-label="Touch movement"><button data-move="up" aria-label="Move forward">↑</button><div><button data-move="left" aria-label="Move left">←</button><button data-move="down" aria-label="Move backward">↓</button><button data-move="right" aria-label="Move right">→</button></div></div>
+    <section id="battle-hud" class="hidden">
+      <div class="battle-title panel"><span class="eyebrow">CITY AGAINST CITY</span><h2 id="enemy-name"></h2><div class="hull-label"><span id="enemy-type"></span><strong id="enemy-hp"></strong></div><div class="bar enemy"><i id="enemy-bar"></i></div><div id="battle-distance"></div></div>
+      <div class="battle-actions panel"><div class="battle-tactics"><button data-command="approach">↗ Approach</button><button data-command="hold">◈ Hold position</button><button data-command="retreat">↙ Keep distance</button><button id="autofire">Auto-fire: on</button></div><div class="weapons"><button id="fire" class="primary">Fire battery <kbd>Space</kbd></button><button id="ability" class="primary secondary"></button><button id="withdraw" class="minor">Withdraw<br/><small>20 food</small></button></div><div id="battle-advice"></div></div>
+    </section>
+    <div id="paused-banner" class="hidden">PAUSED <span>Press P or the pause button to resume</span></div>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="dialog"><button id="close-dialog" class="dialog-close" aria-label="Close dialog">×</button><div id="dialog-content"></div></dialog>
+</body>
+</html>
