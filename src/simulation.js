@@ -1,3 +1,5 @@
+import {kaijuSlotPosition} from './city-layout.js';
+import {batterySolution,defaultFacing,normalizeAngle} from './weapon-layout.js';
 export const SAVE_KEY = 'colossus-wake-save-v1';
 export const FACTIONS = {
   kaiju: {name:'The Thornbound', city:'Vesper Bastion', type:'Kaiju city', subtitle:'A cathedral on a living titan.', description:'Gothic spires, stone battlements, and a bond older than memory. Close the distance. Let the creature do the talking.', hp:540, speed:11, range:54, damage:15, melee:42, reload:3.3, ability:'Titan rush', abilityHint:'Surge forward. Deal 85 damage in reach.', color:'#b8c989', tag:'MELEE / LIVING CITY'},
@@ -10,7 +12,7 @@ export const BUILDINGS = {
   farm:{name:'Hanging gardens',cost:{wood:30,iron:15},time:7,icon:'❧',description:'+0.8 food per second. Keeps your citizens fed.'},
   sawmill:{name:'Timber guild',cost:{wood:25,iron:20},time:7,icon:'⚒',description:'Doubles timber gathering near woodland per level.'},
   foundry:{name:'Ironworks',cost:{wood:35,iron:25},time:8,icon:'⬡',description:'Doubles iron gathering near ruins per level.'},
-  cannon:{name:'Gun battery',cost:{wood:25,iron:45},time:9,icon:'✣',description:'+9 ranged damage per level in city battles.'},
+  cannon:{name:'Gun battery',cost:{wood:25,iron:45},time:9,icon:'✣',description:'+9 ranged damage per level when its firing arc reaches the target. Buildings can block cannon fire; outer positions have clearer lines.'},
   armor:{name:'Bulwark',cost:{wood:30,iron:50},time:8,icon:'◇',description:'+120 maximum hull and repairs that much on completion.'}
 };
 export const WORLD_NODES = [
@@ -36,15 +38,27 @@ export function createGame(faction='kaiju') {
  enemies:[{id:'rival1',name:'The Ash Collector',faction:faction==='crawler'?'kaiju':'crawler',x:105,z:8,defeated:false},
  {id:'rival2',name:'The Pale Armada',faction:faction==='airship'?'crawler':'airship',x:-92,z:-80,defeated:false},
  {id:'rival3',name:'The Last Sovereign',faction:faction==='kaiju'?'airship':'kaiju',x:75,z:-145,defeated:false}],
- battle:null,log:[],stats:{gathered:0,built:0,victories:0},paused:false,speed:1,gathering:null,starving:false};
+ battle:null,log:[],stats:{gathered:0,built:0,victories:0},paused:false,speed:1,gathering:null,starving:false,rings:faction==='kaiju'?1:2,ringConstruction:null,worldDamage:{expedition:[],battle:[]}};
  s.buildings[7]={type:'keep',level:1,remaining:0};s.buildings[11]={type:'housing',level:1,remaining:0};s.buildings[13]={type:'farm',level:1,remaining:0};
  note(s,'Your city wakes. Set a course for the Sunken Grove.'); return s;
 }
 function pay(s,cost){if(Object.entries(cost).some(([k,v])=>s.resources[k]<v))return false;for(const [k,v]of Object.entries(cost))s.resources[k]-=v;return true;}
+export const ringCost={wood:90,iron:65};
+export const slotUnlocked=(s,i)=>s.faction!=='kaiju'||kaijuSlotPosition(i).ring<=(s.rings??1);
+export function expandRing(s){
+ if(s.mode!=='expedition'||s.faction!=='kaiju'||s.rings>=2||s.ringConstruction)return {ok:false,message:'The outer ward cannot be added right now.'};
+ if(!pay(s,ringCost))return {ok:false,message:'An outer ring needs 90 wood and 65 iron.'};
+ s.ringConstruction={remaining:12,target:2};note(s,'Building the outer ward around the inner castle.');return {ok:true};
+}
+export function setBatteryFacing(s,slot,angle){
+ const b=s.buildings[slot];if(s.mode!=='expedition'||b?.type!=='cannon'||!Number.isFinite(angle))return {ok:false,message:'Select a battery between battles to change its direction.'};
+ b.facing=normalizeAngle(angle);return {ok:true};
+}
 export function build(s,type,slot) {
  const b=BUILDINGS[type];if(s.mode!=='expedition'||!b||type==='keep'||!Number.isInteger(slot)||slot<0||slot>=20||s.buildings[slot])return {ok:false,message:'Choose an empty district on the city deck.'};
+ if(!slotUnlocked(s,slot))return {ok:false,message:'Build the outer ring before placing a district here.'};
  if(!pay(s,b.cost))return {ok:false,message:'More wood or iron is needed.'};
- s.buildings[slot]={type,level:1,remaining:b.time};note(s,`${b.name} construction started.`);return {ok:true};
+ s.buildings[slot]={type,level:1,remaining:b.time,...(type==='cannon'?{facing:defaultFacing(s.faction,slot)}:{})};note(s,`${b.name} construction started.`);return {ok:true};
 }
 export function upgradeCost(b){return {wood:30*b.level,iron:35*b.level};}
 export function upgrade(s,slot){const b=s.buildings[slot];if(s.mode!=='expedition'||!b||b.remaining>0||b.level>=3)return {ok:false,message:'This district cannot be upgraded yet.'};
@@ -59,15 +73,22 @@ export function startBattle(s,id){const rival=s.enemies.find(e=>e.id===id);if(s.
  s.battle={enemyId:id,enemyFaction:rival.faction,enemyName:rival.name,enemyMaxHp:hp,enemyHp:hp,player:{x:-52,z:0,angle:Math.PI/2},enemy:{x:52,z:0,angle:-Math.PI/2},reload:0,enemyReload:2.4,abilityCooldown:0,command:'hold',autoFire:true,time:0,events:[],seq:0,result:null,damage:0};
  s.target=null;s.mode='battle';s.paused=false;note(s,`${rival.name} prepares for battle.`);return true;
 }
-function event(b,kind,from,to,damage){b.events.push({id:++b.seq,kind,from:{...from},to:{...to},damage,time:b.time});b.events=b.events.slice(-30);}
+function event(b,kind,from,to,damage,details={}){b.events.push({id:++b.seq,kind,from:{...from},to:{...to},damage,time:b.time,...details});b.events=b.events.slice(-30);}
 function outcome(s){const b=s.battle;if(!b||b.result)return;
  if(s.hp<=0){s.hp=0;b.result='defeat';note(s,'The city has fallen. Your people need a new beginning.');}
  else if(b.enemyHp<=0){b.enemyHp=0;b.result='victory';s.enemies.find(e=>e.id===b.enemyId).defeated=true;s.stats.victories++;s.resources.wood+=95;s.resources.iron+=100;s.resources.food+=65;note(s,'Victory. Salvaged 95 wood, 100 iron, and 65 food.');}}
-export function fire(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.reload>0||s.paused)return false;const f=FACTIONS[s.faction],d=distance(b.player,b.enemy);if(d>f.range)return false;
- const melee=d<26;const damage=(melee?f.melee:f.damage)+levelOf(s,'cannon')*9+(levelOf(s,'keep')-1)*5;b.enemyHp-=damage;b.damage+=damage;b.reload=f.reload;event(b,melee?'impact':'shot',b.player,b.enemy,damage);outcome(s);return true;}
+export function weaponStatus(s){
+ const b=s.battle;if(!b)return {batteries:[],active:0,total:0,baseInRange:false,canFire:false};
+ const batteries=s.buildings.flatMap((building,slot)=>building?.type==='cannon'?[batterySolution(s,slot,b.player,b.enemy,FACTIONS[s.faction].range)]:[]);
+ const active=batteries.filter(m=>m.active).length,baseInRange=distance(b.player,b.enemy)<=FACTIONS[s.faction].range;
+ return {batteries,active,total:batteries.length,baseInRange,canFire:baseInRange||active>0};
+}
+export function fire(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.reload>0||s.paused)return false;const f=FACTIONS[s.faction],d=distance(b.player,b.enemy),status=weaponStatus(s);if(!status.canFire)return false;
+ const melee=d<26,mounts=melee?[]:status.batteries.filter(m=>m.active).map(m=>m.slot);
+ const damage=(status.baseInRange?(melee?f.melee:f.damage)+(levelOf(s,'keep')-1)*5:0)+mounts.reduce((sum,slot)=>sum+s.buildings[slot].level*9,0);b.enemyHp-=damage;b.damage+=damage;b.reload=f.reload;event(b,melee?'impact':'shot',b.player,b.enemy,damage,{source:'player',mounts,base:status.baseInRange});outcome(s);return true;}
 export function ability(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.abilityCooldown>0||s.paused)return {ok:false,message:'Ability is not ready.'};const f=s.faction;let d=distance(b.player,b.enemy);
- if(f==='airship'){if(d>FACTIONS[f].range)return {ok:false,message:'Move within missile range first.'};b.enemyHp-=70;event(b,'salvo',b.player,b.enemy,70);}
- else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-22),1,100);b.enemyHp-=f==='kaiju'?85:60;event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60);}
+ if(f==='airship'){if(d>FACTIONS[f].range)return {ok:false,message:'Move within missile range first.'};b.enemyHp-=70;event(b,'salvo',b.player,b.enemy,70,{source:'player',mounts:weaponStatus(s).batteries.filter(m=>m.active).map(m=>m.slot)});}
+ else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-22),1,100);b.enemyHp-=f==='kaiju'?85:60;event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60,{source:'player'});}
  b.abilityCooldown=13;outcome(s);return {ok:true};}
 export function leaveBattle(s,retreat=false){const b=s.battle;if(!b)return false;if(b.result==='defeat')return false;if(!b.result&&!retreat)return false;
  if(retreat&&!b.result){s.resources.food=Math.max(0,s.resources.food-20);note(s,'Withdrew from battle. The evacuation used 20 food.');}
@@ -80,11 +101,12 @@ function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;b
  if(b.enemyFaction==='airship'){if(d<80)move(b.enemy,{x:b.enemy.x+(b.enemy.x-b.player.x),z:b.enemy.z+(b.enemy.z-b.player.z)},enemy.speed*.72,dt,100);else if(d>103)move(b.enemy,b.player,enemy.speed*.65,dt,100);}
  else if(d>(b.enemyFaction==='kaiju'?22:50))move(b.enemy,b.player,enemy.speed*.70,dt,100);
  if(b.autoFire)fire(s);if(b.result)return;
- const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const damage=(now<26?enemy.melee:enemy.damage)*.75;s.hp-=damage;b.enemyReload=enemy.reload+0.65;event(b,now<26?'impact':'enemyShot',b.enemy,b.player,damage);outcome(s);}
+ const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const damage=(now<26?enemy.melee:enemy.damage)*.75;s.hp-=damage;b.enemyReload=enemy.reload+0.65;event(b,now<26?'impact':'enemyShot',b.enemy,b.player,damage,{source:'enemy'});outcome(s);}
 }
 export function tick(s,dt,input={x:0,z:0}){
  if(s.paused)return;dt=clamp(dt,0,.25)*s.speed;s.time+=dt;s.day=1+Math.floor(s.time/90);
  if(s.mode==='battle'){tickBattle(s,dt,input);return;}
+ if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,'The outer ring is ready. Thirteen new district plots are available.');}}
  for(const b of s.buildings){if(!b||b.remaining<=0)continue;b.remaining=Math.max(0,b.remaining-dt);if(b.remaining===0){if(b.upgrading){b.level++;delete b.upgrading;}s.stats.built++;if(b.type==='armor')s.hp=Math.min(maxHull(s),s.hp+120);if(b.type==='keep')s.hp=Math.min(maxHull(s),s.hp+80);note(s,`${BUILDINGS[b.type].name} is ready.`);}}
  s.resources.food=Math.max(0,s.resources.food+income(s).food*dt);s.starving=s.resources.food<=0;
  if(s.starving)s.population=Math.max(8,s.population-.08*dt);else if(s.population<capacity(s))s.population=Math.min(capacity(s),s.population+.055*dt);
@@ -101,9 +123,16 @@ export function deserialize(raw){
  for(const k of ['x','z','angle','time','hp','population'])if(!Number.isFinite(s[k]))return null;
  if(!['expedition','battle'].includes(s.mode))return null;
  if(s.buildings.some(b=>b&&(!BUILDINGS[b.type]||!Number.isInteger(b.level)||b.level<1||b.level>3||!Number.isFinite(b.remaining)||b.remaining<0)))return null;
+ if(s.buildings.some(b=>b?.facing!==undefined&&!Number.isFinite(b.facing)))return null;
+ const requiredRing=s.faction==='kaiju'?Math.max(1,...s.buildings.flatMap((b,i)=>b?[kaijuSlotPosition(i).ring]:[])):2;
+ if(s.rings!==undefined&&(!Number.isInteger(s.rings)||s.rings<0||s.rings>2))return null;
+ s.rings=Math.max(s.rings??requiredRing,requiredRing);
+ if(s.ringConstruction!=null&&(s.faction!=='kaiju'||s.rings>=2||!Number.isFinite(s.ringConstruction.remaining)||s.ringConstruction.remaining<0||s.ringConstruction.remaining>12||s.ringConstruction.target!==2))return null;
+ s.ringConstruction??=null;s.worldDamage??={expedition:[],battle:[]};
+ if(!s.worldDamage||['expedition','battle'].some(mode=>!Array.isArray(s.worldDamage[mode])||s.worldDamage[mode].length>512||s.worldDamage[mode].some(id=>typeof id!=='string'||id.length>80)))return null;
  if(s.nodes.some(n=>!WORLD_NODES.some(w=>w.id===n.id)||!['wood','iron','food'].includes(n.kind)||![n.x,n.z,n.amount].every(Number.isFinite)||n.amount<0))return null;
  if(s.enemies.some(e=>!FACTIONS[e.faction]||![e.x,e.z].every(Number.isFinite)))return null;
- if(s.mode==='battle'&&(!s.battle||!FACTIONS[s.battle.enemyFaction]||!s.enemies.some(e=>e.id===s.battle.enemyId)||!['player','enemy'].every(k=>[s.battle[k]?.x,s.battle[k]?.z].every(Number.isFinite))||!['enemyHp','enemyMaxHp','time','reload','enemyReload','abilityCooldown'].every(k=>Number.isFinite(s.battle[k]))))return null;
+ if(s.mode==='battle'&&(!s.battle||!FACTIONS[s.battle.enemyFaction]||!s.enemies.some(e=>e.id===s.battle.enemyId)||!['player','enemy'].every(k=>[s.battle[k]?.x,s.battle[k]?.z,s.battle[k]?.angle].every(Number.isFinite))||!['enemyHp','enemyMaxHp','time','reload','enemyReload','abilityCooldown'].every(k=>Number.isFinite(s.battle[k]))))return null;
  s.paused=false;s.speed=1;return s;
  }catch{return null;}
 }

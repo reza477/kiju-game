@@ -1,5 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial as material, box, cylinder, sphere, beam, batchStatic } from './materials.js';
+import { KAIJU_CENTER } from './city-layout.js';
 
 const UP = new T.Vector3(0, 1, 0);
 
@@ -248,23 +249,18 @@ function backpackHarness(frame, m) {
     const clasp = box(frame, 1.16, 1.55, .24, buckle, side * 3.75, 41.65, 4.58); clasp.rotation.z = side * .04;
     box(frame, .66, 1.03, .12, strap, side * 3.75, 41.65, 4.74);
     for (const y of [40.2, 43.2]) cylinder(frame, .11, .11, .12, buckle, side * 3.82, y, 4.63, 12).rotation.x = Math.PI / 2;
-    // Steel packing-frame rails and diagonal braces transfer the castle's load to
-    // shoulders and hips. They terminate behind the body, beneath the terraces.
-    beam(frame, [side * 4.5, 22, -6.5], [side * 4.5, 44.2, -6.5], .42, strap);
-    beam(frame, [side * 2.9, 26, -2.0], [side * 4.5, 24, -6.5], .54, strap);
-    beam(frame, [side * 4.05, 43.2, -2.65], [side * 4.5, 43, -6.5], .45, strap);
-    for (const y of [22, 29, 36, 43]) {
-      beam(frame, [side * 4.5, y + 2.1, -6.5], [side * 7.4, y - .55, -10.5], .28, strap);
-      beam(frame, [side * 4.5, y - .35, -6.5], [side * 7.4, y - .55, -10.5], .31, buckle);
-      box(frame, 1.25, .37, 1.4, strap, side * 7.4, y - .47, -10.5);
-      cylinder(frame, .28, .28, .52, buckle, side * 4.5, y, -6.34, 16).rotation.x = Math.PI / 2;
-    }
-    cable(frame, [[side * 2.8, 25.9, -1.9], [side * 4.5, 25.6, -5.9], [side * 5.9, 29.1, -8.3], [side * 7.1, 29.3, -10.5]], .14, m.cable);
+    // One main diagonal mount per side supports the flat circular foundation.
+    // These end in its central drum; expanding a ring never adds another tier.
+    const mountZ = KAIJU_CENTER.z + 2.078;
+    const brace = [[side * 4.2, 42.3, -5.5], [side * 4.2, 43.1, KAIJU_CENTER.z + 6.8], [side * 3.15, 42.7, KAIJU_CENTER.z + 5.456], [side * 2.4, 36.1, KAIJU_CENTER.z + 4.157], [side * 1.2, 32.15, mountZ]];
+    cable(frame, brace, .27, strap);
+    cable(frame, brace.map(([x, y, z]) => [x + side * .18, y, z]), .05, buckle);
+    box(frame, 1.15, .38, 1.3, strap, side * 1.2, 32.04, mountZ);
+    cylinder(frame, .23, .23, .4, buckle, side * 1.2, 32.3, mountZ, 16);
+    cable(frame, [[side * 2.8, 25.9, -1.9], [side * 3.4, 26.3, -5.9], [side * 2.4, 29.1, KAIJU_CENTER.z + 4.2], [side * 1.2, 31.7, mountZ]], .21, m.cable);
   }
   waistBelt(frame, strap, buckle);
-  for (const y of [22.2, 29.2, 36.2, 43.2]) beam(frame, [-4.5, y, -6.5], [4.5, y, -6.5], .29, strap);
-  beam(frame, [-4.5, 23, -6.5], [4.5, 35.6, -6.5], .21, buckle);
-  beam(frame, [4.5, 23, -6.5], [-4.5, 35.6, -6.5], .21, buckle);
+  beam(frame, [-1.5, 31.86, KAIJU_CENTER.z + 2.078], [1.5, 31.86, KAIJU_CENTER.z + 2.078], .19, strap);
 }
 
 /** Original, upright biomechanical carrier; the caller adds the castle behind it. */

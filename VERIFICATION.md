@@ -1,39 +1,36 @@
-# Prototype 0.3 verification — September 7, 2026
+# Prototype 0.4 verification — September 7, 2026
 
-## Humanoid and castle backpack
+The playable local URL is **http://127.0.0.1:4178/**, served from the Kiju Game workspace. `Play.cmd` opens this game in the default browser. Source is backed up to the existing private `reza477/kiju-game` GitHub repository; no public website is deployed.
 
-- The local game URL `http://127.0.0.1:4178/` returns Colossus Wake from the Kiju Game workspace. The default-browser launcher opens that game URL.
-- The upright humanoid and castle together occupy approximately 21.3 m in width and 66.6 m in height. The castle sits behind the torso, with a visible shoulder/waist harness and four ascending terraces. Local geometry checks found finite positions/normals and clear static build envelopes at all twenty plots.
-- The backpack browser audit covers twenty stable plot IDs, four heights with five plots each, actual canvas selection on every terrace, construction on all four tiers, upgrades, and a version 1 save/reload with unchanged buildings and plot coordinates.
-- Actual City/Titan camera buttons and keys 1/3 work; Titan controls are hidden for crawler and airship cities. Front, side, rear, starting, and developed-city screenshots are under `artifacts/backpack-final/`.
-- The other two factions retain their flat deck layout and construction controls. The 390px layout has no horizontal overflow. The audit reported zero browser errors, remote requests, or WebGL context loss.
-- Cameras, enemy selection bounds, district selection rings, citizen paths, and combat effect heights account for the taller carrier and elevated plots. City and Titan framing was checked against the on-screen controls.
+## Circular backpack and carrier scale
 
-The simulation and save schema are unchanged. Citizens remain visual agents, moving along the terrace promenades; the staircases are scenery. The new art has been verified on this PC in Chrome, without a new calibrated performance benchmark or physical iPhone test.
+- The kaiju is scaled to 0.55 of the previous model: about 30 world units tall. The crawler and airship have maximum dimensions of about 39 units; all three now have comparable overall scale while retaining different proportions.
+- All twenty kaiju district positions share the same foundation elevation. The central keep and six inner plots are available initially. Thirteen outer plots stay locked until the ring is paid for (90 wood / 65 iron) and its twelve seconds of construction complete.
+- The browser audit used the actual expansion control and disabled/enabled plot controls. Geometry checks covered all twenty occupied, rotated building envelopes against the foundation and harness.
+- Existing saves with occupied outer plots automatically receive the outer ring without changing their building IDs, levels, resources, or construction progress. Pending expansion also survives save/load.
 
-## Version 0.2 graphics audit (earlier baseline)
+## People, weapons, and living world
 
-- All three factions rendered in title, starting city, world, developed city, and close district views at 1440×960 and 1920×1080. The developed-city fixture contains twelve districts across all seven building types and three upgrade levels.
-- The actual Detail button cycled high → balanced → performance → high; the Light button cycled day → dusk → night → day. No WebGL context loss, browser errors, or remote network requests occurred.
-- The 390×844 title and city layouts have no horizontal document overflow, and construction controls remain visible. This is a desktop viewport check, not a physical phone performance test.
-- Forty-eight canvas clicks across the three factions selected the expected districts during the integration audit.
-- The disposal regression check covered nine carriers and eighteen resource sites across three cycles: all 132 instanced meshes emitted their GPU cleanup event, while shared materials remained intact. Browser GPU allocation stability was not measured.
-- Final screenshots cover textured architecture, articulated carriers, smoother foliage, terrain, day/dusk/night lighting, selective illuminated windows, and graphics presets. Evidence is in `artifacts/graphics-final/`; baseline images are in `artifacts/graphics-before/`. Both directories are local and excluded from Git.
-- Shared geometry/material caches and merged static meshes reduce submission overhead. The final 1440×960 kaiju world observation submitted 833 draws / 3,535,636 triangles across scene and shadow passes, compared with 1,696 draws / 58,986 triangles in the original prototype. The final developed kaiju scene submitted 436 draws / 3,034,750 triangles on high and 236 draws / 1,598,048 triangles on performance.
+- Each faction has eight wardrobes. Browser checks found twenty-four visible citizens in a starting city, fifteen instanced batches per faction, articulated movement, and consistent 0.760–0.832 world-unit human height. Separate isolated checks covered forty-eight citizens and finite animation matrices across all factions.
+- Actual Streets controls show Gothic, Victorian British, and Eastern-inspired clothing. Screenshots were visually inspected for all three factions.
+- The same level-one cannon, set through the actual direction buttons, dealt 15 total damage facing backward and 24 facing forward. The displayed active count changed from 0/1 to 1/1. Its projectile started within 0.001 world units of the authored muzzle marker.
+- Unit checks cover firing arcs, rotated/scaled mount coordinates, tall-building obstruction, lofted airship missiles, mounted range beyond the base guns, unfinished batteries, and melee separation. Twenty-four additional CPU integration cases checked turret transforms and survival through static batching.
+- Actual movement across an unprotected tree produced three crushed objects and twelve ground marks for the kaiju, sixteen crushed objects and twenty-six tread marks for the crawler, and no crushing or ground marks for the airship in the audit route.
+- A crushed tree remained a visible stump after manual save, browser reload, and Continue. Resource amounts and site meshes survived rural movement; travel to the protected grove still gathered wood.
+- The world includes fifty-seven ambient life actors. Ground marks are capped at 400 and saved damage IDs at 512 per world mode. Standalone checks covered stationary actors, tiny position jitter, fast travel, reset, mode isolation, bounded storage, and resource protection.
+- Terrain height and surface normals are shared by cities, scenery, selection markers, travel paths, and ground marks. Resource buildings sit on level clearings. Crawlers tilt with the surface; the kaiju stays upright.
+- A final terrain pass added broad interior ridges, gullies, and exposed rock coloring. The sampled playable terrain spans -1.2 to 31.1 units, with a 23.4-degree 95th-percentile slope and a 31.8-degree maximum. Normal and low-angle game screenshots in `artifacts/terrain-relief/` confirm visible relief, with no browser errors or remote requests.
 
-Frame observations used headless Chrome 152 on this Windows PC (Core i7-14700F, 32 GB RAM, RTX 4070 Ti SUPER). In 2.5-second samples, the final kaiju world had a 10.1 ms median / 30.1 ms p95 animation-frame interval; the developed city had 10.1 / 30.0 ms on high and 10.0 / 19.9 ms on performance. These are uncalibrated browser scheduling observations, not guaranteed gameplay frame rates or mobile results. High detail adds substantial GPU work; performance mode is available for slower systems.
+## Regression results
 
-## Gameplay and local runtime
+- **34 Node tests pass** (`npm test`): economy, buildings, upgrades, movement, gathering, combat, complete expeditions, save validation, ring expansion/migration, firing geometry, and terrain invariants.
+- **13 browser smoke checks pass**: title previews, UI construction, travel/gathering, save, world view, rival selection, battle movement/ability, withdrawal, reload/resume, pause, and narrow layout.
+- The integrated living-world browser audit passed with twenty-six screenshots. It reported **zero browser errors, remote requests, WebGL context losses, or horizontal overflow at 390px**.
+- Targeted follow-up screenshots verified the airship hull stays below its plaza, and both complete carriers remain visible at the actual 104-metre battle entry and 40/100-metre fixtures. The camera chooses its initial angle relative to the two combatants. These captures hide only the transient toast/pause overlays and retain the normal controls.
+- Browser tests run in isolated Chrome contexts, so they do not change the player's normal browser save. They use the explicit local `?test=1` development interface and no GPU instrumentation.
 
-- 16 simulation tests: faction differences, construction transactions and timing, invalid orders, upgrades, hull improvements, travel/arrival, finite gathering, resource production, food/population economy, pause, movement speed, engagement distance, retreat, weapon range/reload, special abilities, enemy tactics, victory/defeat, repairs, and save validation.
-- All three playable factions completed a simulated three-rival expedition with one affordable gun battery and one bulwark, their appropriate combat tactics, special abilities, and paid repairs between battles.
-- 13 browser checks in installed Chrome via Playwright: three title previews, building through the UI, resource travel and gathering, manual save, world camera, rival selection and battle transition, battle movement and special ability, withdrawal, reload/resume, pause, 390px layout overflow, and browser/network errors.
-- Zero browser JavaScript/console errors and zero remote game network requests during the browser session.
-- Local server: JavaScript and PowerShell syntax checks plus 14 health/access checks, including GET/HEAD, rejected unsupported methods, private root paths, traversal attempts, malformed encoding, dotfiles, and invalid Host headers.
-- Screenshots inspected for the title screen, city models, management view, battle, and narrow layout. Resource destinations stop the city within gathering range alongside the resource scenery.
+Evidence is local and excluded from Git: `artifacts/living-world-final/living-world-results.json`, its screenshots, and `artifacts/browser-results.json`. The old `backpack-audit.mjs` command now forwards to the current living-world audit; the obsolete four-terrace assertions were removed.
 
-Browser evidence and screenshots are under `artifacts/`. The browser test uses an isolated temporary browser context, so test progress does not alter the player's normal browser save.
+## Boundaries
 
-## Remaining boundaries
-
-No physical iPhone, Safari, native iOS package, native Windows installer, multiplayer, or production performance benchmark was tested. The current release is a local browser prototype for PC playtesting. See README.md for current simplifications and controls.
+This release was checked in Chrome on this Windows PC. These checks do not establish physical iPhone/Safari support, native packaging, stable GPU allocation, or a calibrated frame-rate guarantee. Citizens remain visual agents, plots are fixed, only two kaiju rings and three building levels are available, and combat does not yet simulate terrain occlusion or individual building damage. See README.md for controls and scope.

@@ -1,8 +1,11 @@
 import * as T from '../vendor/three.module.js';
-import {getMaterial as m,box,cylinder as cyl,cone,sphere,beam,batchStatic} from './materials.js';
+import {getMaterial as m,box,cylinder as cyl,cone,sphere,beam,batchStatic,disposeGroup} from './materials.js';
 import {createPerimeterQuarter,createStreetDetails} from './architecture.js';
 import {createHumanoidKaiju} from './kaiju.js';
 import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
+import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
+import {createCitizens,animateCitizens} from './citizens.js';
+import {addCarrierWeapons} from './armaments.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -39,9 +42,6 @@ function crawler(frame,rig,spinners){
   const prow=box(frame,13,2.3,2.1,steel,0,3.2,12.1);prow.rotation.x=-.27;
   for(let x=-6;x<=6;x+=1.4){cone(frame,.54,2.2,dark,x,2.1,13.6,4).rotation.x=Math.PI/2;box(frame,.08,2.2,2.2,brass,x,3.8,12.2);}
   for(const side of [-1,1]){
-    cyl(frame,1.35,1.6,1.1,armour,side*5.2,6.3,9.5,24);
-    const barrel=cyl(frame,.35,.49,5.5,dark,side*5.2,6.95,12,24);barrel.rotation.x=Math.PI/2;
-    for(const z of [10.3,11.5,13.9]){const collar=cyl(frame,.48,.48,.25,brass,side*5.2,6.95,z,24);collar.rotation.x=Math.PI/2;}
     const lamp=sphere(frame,.3,m('window',0xffda91),side*7,5.9,11.65,1,1,.4);
     ring(frame,.37,.065,brass,side*7,5.9,11.7);
   }
@@ -49,7 +49,7 @@ function crawler(frame,rig,spinners){
 
 function airship(frame,rig,spinners){
   const brass=m('gold',0xc09d61),wood=m('wood',0x725445),cloth=m('fabric',0xe2d4b1),teal=m('copper',0x538f8e);
-  sphere(frame,1,wood,0,15.9,0,9,2.4,11);box(frame,17,.5,18.5,brass,0,17.3,0);
+  sphere(frame,1,wood,0,15.2,0,9,2.4,11);box(frame,17,.5,18.5,brass,0,17.3,0);
   for(const side of [-1,1])for(const z of [-6.8,6.6]){
     sphere(frame,1,cloth,side*13.2,19.4,z,3.2,3.1,7.5);
     for(let t=-2;t<=2;t++){
@@ -76,21 +76,18 @@ function airship(frame,rig,spinners){
   for(let z=-7;z<=7;z+=3.5)beam(frame,[-8,16.8,z],[8,16.8,z],.14,brass);
 }
 
-function population(rig,deckY,faction){
-  const group=new T.Group();group.position.y=deckY+.16;rig.add(group);
-  const bodyGeometry=new T.BoxGeometry(.19,.33,.15),headGeometry=new T.SphereGeometry(.105,10,8),limbGeometry=new T.BoxGeometry(.06,.22,.075);
-  const material=m('fabric',0xffffff);const bodies=new T.InstancedMesh(bodyGeometry,material,40),heads=new T.InstancedMesh(headGeometry,m('plaster',0xd4ae83),40),legs=new T.InstancedMesh(limbGeometry,m('fabric',0x344b4e),80);
-  const colors=faction==='airship'?[0xcda668,0x538b8d,0xebe0ca,0x9e716b]:[0x7b7665,0xc5a573,0x5c7890,0x8c655e];
-  for(let i=0;i<40;i++)bodies.setColorAt(i,new T.Color(colors[i%4]));
-  for(const o of [bodies,heads,legs]){o.castShadow=true;o.instanceMatrix.setUsage(T.DynamicDrawUsage);o.frustumCulled=false;group.add(o);}
-  return {group,bodies,heads,legs,dummy:new T.Object3D()};
+export function setCityRings(city,rings){
+  if(city.faction!=='kaiju'||city.rings===rings)return;
+  if(city.foundation){city.foundation.removeFromParent();disposeGroup(city.foundation);}
+  city.foundation=createCastleBackpack(city.deckY,city.enemy,rings);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;
 }
 
-export function makeCity(faction,enemy=false){
+export function makeCity(faction,enemy=false,rings=1){
   const root=new T.Group(),rig=new T.Group(),frame=new T.Group();root.add(rig);rig.add(frame);
-  const deckY=faction==='airship'?18:faction==='crawler'?10:22,limbs=[],spinners=[];
+  const deckY=faction==='airship'?18:faction==='crawler'?10:KAIJU_DECK_Y,limbs=[],spinners=[],scale=faction==='kaiju'?KAIJU_SCALE:1;
+  root.scale.setScalar(scale);
   if(faction==='kaiju'){
-    createHumanoidKaiju(frame,rig,limbs);frame.add(createCastleBackpack(deckY,enemy));
+    createHumanoidKaiju(frame,rig,limbs);
   }else{
     if(faction==='crawler')crawler(frame,rig,spinners);else airship(frame,rig,spinners);
     const edge=m('stone',faction==='airship'?0xcdbb93:0x9eaaa3),metal=m('metal',0x45595c);
@@ -114,23 +111,15 @@ export function makeCity(faction,enemy=false){
   const hitGroup=new T.Group();hitGroup.position.y=deckY;rig.add(hitGroup);
   const slots=[],slotPositions=Array.from({length:20},(_,i)=>slotPosition(i,faction)),hitMaterial=new T.MeshBasicMaterial({visible:false});
   for(let i=0;i<20;i++){const p=slotPositions[i];const hit=new T.Mesh(new T.BoxGeometry(2.8,1,3.4),hitMaterial);hit.position.set(p.x,p.y+.5,p.z);hit.userData.slot=i;hit.userData.noBatch=true;hitGroup.add(hit);slots.push(hit);}
-  return {root,rig,frame,deckY,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout:faction==='kaiju'?'backpack':'deck',faction,enemy,stacks,districtStacks:[],signature:'',people:population(rig,deckY,faction)};
+  const layout=faction==='kaiju'?'circular':'deck';
+  const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
+  setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
 export function animateCity(city,time,moving,populationCount=28){
   const walk=moving?Math.sin(time*3.1):Math.sin(time)*.08;
   city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:Math.abs(walk)*.11;
-  for(const limb of city.limbs){if(limb.tail){limb.obj.rotation.y=Math.sin(time*1.2)*.06;continue;}limb.obj.rotation.x=Math.sin(time*3.1+limb.phase)*(moving?.15:.015)*(limb.leg?1:1.35);}
+  for(const limb of city.limbs){if(limb.tail){limb.obj.rotation.y=Math.sin(time*1.2)*.06;continue;}limb.obj.rotation.x=Math.sin(time*3.1+limb.phase)*(moving?.15:.015)*(limb.leg?1:1.35);if(!limb.leg&&time-city.strikeTime<.5)limb.obj.rotation.x-=Math.sin((time-city.strikeTime)/.5*Math.PI)*1.15;}
   for(const spinner of city.spinners)if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
-  const people=city.people,count=Math.min(40,Math.max(12,Math.floor(populationCount))),dummy=people.dummy;people.bodies.count=count;people.heads.count=count;people.legs.count=count*2;
-  for(let i=0;i<count;i++){
-    const t=(time*(.055+i%4*.007)+i*.176)%1,along=t*14.1-7.05;let x,z,yaw,y=0;
-    if(city.layout==='backpack'){
-      const tier=i%4,p=city.slotPositions[tier*5];x=Math.sin(t*Math.PI*2)*7.15;z=p.z-1.76;y=p.y;yaw=Math.cos(t*Math.PI*2)>0?Math.PI/2:-Math.PI/2;
-    }else if(i%2===0){x=along;z=(i%4-1.5)*3.7+1.69;yaw=Math.PI/2;}else{x=(i%5-2)*3.05+1.4;z=along;yaw=0;}
-    dummy.rotation.set(0,yaw,0);dummy.position.set(x,y+.37,z);dummy.updateMatrix();people.bodies.setMatrixAt(i,dummy.matrix);
-    dummy.position.y=y+.635;dummy.updateMatrix();people.heads.setMatrixAt(i,dummy.matrix);
-    for(let k=0;k<2;k++){dummy.position.set(x+(yaw===0?(k-.5)*.1:0),y+.135,z+(yaw!==0?(k-.5)*.1:0));dummy.rotation.set(Math.sin(time*8+i+k*Math.PI)*.35,yaw,0);dummy.updateMatrix();people.legs.setMatrixAt(i*2+k,dummy.matrix);}
-  }
-  people.bodies.instanceMatrix.needsUpdate=people.heads.instanceMatrix.needsUpdate=people.legs.instanceMatrix.needsUpdate=true;
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout});
 }

@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.3
+# Colossus Wake — PC prototype 0.4
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
 
@@ -16,8 +16,9 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 2. Build a **Timber guild**: choose it in the bottom bar, then choose an empty deck plot or a numbered district in the left panel.
 3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Crews gather wood automatically while stopped near the deposit.
 4. Add **Hanging gardens** for food, an **Ironworks** for faster iron collection near ruins, and **Dwellings** for population growth. Select a built district to upgrade it (maximum level 3).
-5. Build **Gun batteries** and **Bulwarks** before battle. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
-6. Repair between battles. Defeat all three rivals to secure the region. You can continue building afterward.
+5. As Thornbound, use **Add outer ring** to expand the circular backpack from seven to twenty plots (90 wood, 65 iron, 12 seconds). Buildings grow upward when upgraded; the foundation stays on one plane.
+6. Build **Gun batteries** and **Bulwarks** before battle. Select each battery to choose its facing. Perimeter plots offer clearer firing lines; tall buildings can block a cannon. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
+7. Repair between battles. Defeat all three rivals to secure the region. You can continue building afterward.
 
 ## Controls
 
@@ -30,6 +31,7 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 | Mouse wheel | Zoom |
 | 1 / 2 | City view / world map |
 | 3 | Titan view (kaiju front) |
+| 4 | Streets view (citizens close up) |
 | P | Pause / resume |
 | Space | Fire in battle |
 | E | Special ability |
@@ -39,27 +41,35 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
-Version 0.3 reshapes the Thornbound carrier into a tall, upright biomechanical humanoid with long articulated limbs and a visible shoulder-and-waist harness. The Gothic castle is worn behind its torso as a backpack. Twenty buildable districts climb four terraces, with side staircases, retaining arches, battlements, and narrow cathedral spires. **City view** faces the terraces for construction; **Titan view** shows the creature from the front. Drag to orbit between them.
+Version 0.4 brings the humanoid kaiju down to a comparable overall size to the other carriers. Its Gothic backpack uses one circular foundation with a central keep, six inner plots, and thirteen outer plots unlocked through ring construction. The city grows outward in rings and upward through building upgrades. The four ascending terraces from version 0.3 have been replaced.
+
+Citizens now have eight clothing variations per faction: Gothic coats, capes and dark dresses; Victorian British coats, waistcoats and hats; and Eastern-inspired robes, wraps and headwear. **Streets view** brings the camera close enough to inspect them. People walk, pause on errands, and animate their arms and legs.
+
+Weapon placement affects combat. Completed batteries add damage only when a target is inside their range and firing arc. Cannons sweep 150 degrees and can be blocked by tall districts; airship missiles sweep 240 degrees and arc over buildings. Select a battery between battles to choose a direction. Installed weapons track targets, recoil, and launch their projectiles from actual muzzle positions. Built-in weapons and melee attacks remain available.
+
+The terrain has playable hills, ridges, valleys, and level resource clearings. Crawlers follow the slope. Ground carriers leave footprints or tread impressions and crush ambient trees and rocks into stumps and rubble. Resource sites are protected. Scenery damage is saved separately for expedition and battle areas; ground marks are temporary and capped at 400. Birds, butterflies, deer, swaying grass, and flowing water add movement to the world.
 
 Version 0.2 replaces the simple block models with a more detailed, stylized city-builder presentation. Districts have textured masonry, layered roofs, windows, balconies, chimneys, gardens, and street furniture. Carriers have articulated limbs, mechanical details, or stitched horizontal lift envelopes. The landscape includes varied forests, planted fields, industrial ruins, a river, and distant terrain. Citizens, propellers, smoke, and water are animated.
 
 Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
 
-Existing version 0.1 and 0.2 saves remain compatible and receive the new graphics when loaded. The same twenty kaiju district IDs map to the four terraces without changing buildings, upgrades, or resources. The title screen shows a developed city as a preview; a new expedition still starts with three districts.
+Existing version 0.1–0.3 saves remain compatible. The same twenty kaiju district IDs map to circular plots without changing buildings, upgrades, or resources. Older saves with an occupied outer plot receive the outer ring automatically. The title screen shows a developed city as a preview; a new expedition starts with three districts and the inner ring.
 
 ## What is implemented
 
-- Three playable city types with original procedural 3D models: vertical Gothic castle worn by a humanoid kaiju, terraced industrial city on tracks, domed floating city between horizontal lift envelopes.
-- Animated creatures, tracks/propellers, and miniature citizens walking city streets.
+- Three playable city types with original procedural 3D models: a circular Gothic castle backpack worn by a humanoid kaiju, an industrial city on tracks, and a domed floating city between horizontal lift envelopes.
+- Animated creatures, tracks/propellers, and citizens in distinct faction clothing.
 - Third-person orbit camera, close city view, strategic world camera and minimap.
-- Twenty buildable district plots, timed construction, three upgrade levels, local food economy and population growth/starvation.
+- Twenty district plots, kaiju ring expansion, timed construction, three upgrade levels, local food economy and population growth/starvation.
 - Wood, iron and food deposits; city travel, automatic gathering, finite deposit amounts.
 - Separate tactical battle state, three enemy cities, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
+- Configurable battery facing, firing arcs, cannon obstruction, rotating turrets, recoil, and muzzle-origin projectiles.
+- Height-aware landscape, roaming wildlife, temporary ground marks, saved scenery destruction, protected resource sites.
 - Local save/resume, optional synthesized audio, pause/speed controls, three graphics presets, three lighting moods, basic touchscreen layout.
 
 ## Scope of this version
 
-This is a playable browser-based PC prototype, not a finished commercial game or native executable. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or pathfinding. Building placement uses fixed plots. Battles use simplified horizontal movement and range checks; airship altitude is visual. There is one region and three encounter opponents, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. The art is stylized procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
+This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with two buildable kaiju rings and three upgrade levels. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and three encounter opponents, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. The art uses procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
 
 Phone input and responsive UI are included as a starting point. Actual iPhone performance, Safari/WebGL behavior, packaging, touch camera refinements, and App Store distribution remain future work. A native iOS build will require macOS/Xcode and device testing.
 
@@ -75,15 +85,17 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
 - `src/scene.js`: scene integration, camera, picking, shadows, combat effects.
-- `src/architecture.js`, `src/carriers.js`: districts, city carriers, citizens, animation.
-- `src/kaiju.js`, `src/castle.js`: articulated humanoid titan and terraced Gothic backpack.
-- `src/landscape.js`: terrain, foliage, water, resource sites.
+- `src/architecture.js`, `src/carriers.js`: districts, city carriers, animation.
+- `src/kaiju.js`, `src/castle.js`, `src/city-layout.js`: humanoid titan, circular Gothic backpack, shared ring geometry and scale.
+- `src/citizens.js`: faction wardrobes, routes, and instanced human animation.
+- `src/armaments.js`, `src/weapon-layout.js`: weapon models, muzzle markers, firing directions and obstruction.
+- `src/landscape.js`, `src/terrain.js`, `src/world-life.js`: terrain height, foliage, water, protected sites, damage, ground marks, and wildlife.
 - `src/materials.js`, `src/presentation.js`: local procedural textures, geometry batching, lighting, postprocessing, atmosphere.
 - `src/main.js`: input, user interface, persistence, local audio.
 - `src/style.css`: desktop and touch layouts.
-- `node --test tests/simulation.test.mjs`: simulation checks.
+- `npm test`: simulation, ring, save migration, weapon geometry, and terrain checks.
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
-- `node tests/backpack-audit.mjs`: four terrace levels, picking, construction and upgrades, save compatibility, front/side/rear screenshots, and the other factions.
+- `node tests/living-world-audit.mjs`: circular expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
 - `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
 - `server.mjs`, `Play.ps1`, `Play.cmd`: local server and launcher.
 

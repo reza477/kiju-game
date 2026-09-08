@@ -1,35 +1,18 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial, box, cylinder, cone } from './materials.js';
+import { terrainHeight as heightAt, terrainNormal, protectedResource, riverX, riverWidth, shoreDistance, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
+import { createWorldLife } from './world-life.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
 const UP = new T.Vector3(0, 1, 0);
-const RESOURCE_CLEARINGS = [[-65, -15], [40, -45], [55, 65], [90, -105], [-110, 90], [-115, -110]];
+const RESOURCE_CLEARINGS = RESOURCE_CENTRES;
 const TEMP = new T.Object3D();
 const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c];
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
 
 function random(seed) { let n = seed >>> 0; return () => { n = (n * 1664525 + 1013904223) >>> 0; return n / 4294967296; }; }
-function mix(a, b, t) { return a + (b - a) * t; }
-function smooth(a, b, x) { const t = T.MathUtils.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
-function noise(x, z) {
-  const ix = Math.floor(x), iz = Math.floor(z), tx = smooth(0, 1, x - ix), tz = smooth(0, 1, z - iz);
-  const hash = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
-  return mix(mix(hash(ix, iz), hash(ix + 1, iz), tx), mix(hash(ix, iz + 1), hash(ix + 1, iz + 1), tx), tz);
-}
-function riverX(z) { return 5 + Math.sin(z * .009) * 22 + Math.sin(z * .020) * 7; }
-function riverWidth(z) { return 8 + 1.8 * Math.sin(z * .015 + 1.5); }
-function shoreDistance(x, z) { return Math.abs(x - riverX(z)) - riverWidth(z); }
-function roadZ(x) { return 134 + Math.sin(x * .011) * 15; }
-function heightAt(x, z) {
-  const edge = Math.max(Math.abs(x), Math.abs(z));
-  const rolling = 9 + noise(x * .012, z * .012) * 42 + noise(x * .034 + 20, z * .034) * 9;
-  const hills = smooth(185, 300, edge) * rolling;
-  const d = shoreDistance(x, z);
-  const channel = -1.2 * (1 - smooth(-3, 3.8, d));
-  return hills * smooth(4, 35, d) + channel;
-}
 function isClearing(x, z, margin = 0) {
   return Math.hypot(x + 30, z - 40) < 24 + margin ||
     RESOURCE_CLEARINGS.some(([cx, cz]) => Math.hypot(x - cx, z - cz) < 19 + margin);
@@ -38,7 +21,7 @@ function isClearing(x, z, margin = 0) {
 class Instances {
   constructor(group, geometry, material, castShadow = true) { this.group = group; this.geometry = geometry; this.material = material; this.castShadow = castShadow; this.items = []; }
   add(x, y, z, sx = 1, sy = 1, sz = 1, colour = 0xffffff, yaw = 0, rotation = null) {
-    this.items.push({ x, y, z, sx, sy, sz, colour, yaw, rotation });
+    this.items.push({ x, y, z, sx, sy, sz, colour, yaw, rotation }); return this.items.length - 1;
   }
   link(a, b, radius, colour) {
     const start = new T.Vector3(...a), finish = new T.Vector3(...b), dir = finish.clone().sub(start);
@@ -57,7 +40,7 @@ class Instances {
     });
     mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
     mesh.castShadow = this.castShadow; mesh.receiveShadow = true;
-    mesh.computeBoundingSphere(); this.group.add(mesh); return mesh;
+    mesh.computeBoundingSphere(); this.group.add(mesh); this.mesh = mesh; return mesh;
   }
 }
 
@@ -113,6 +96,7 @@ function treeBatches(group) {
   };
 }
 function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
+  const starts = [batch.wood.items.length, batch.leaves.items.length, batch.needles.items.length];
   const h = (pine ? 8 : 6) * scale * (.85 + rand() * .35);
   const leanX = (rand() - .5) * .55 * scale, leanZ = (rand() - .5) * .55 * scale;
   batch.wood.link([x, y, z], [x + leanX, y + h * .86, z + leanZ], .19 * scale, 0x79634a);
@@ -146,6 +130,7 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
         baseColour.clone().multiplyScalar(.83 + rand() * .25 + (top ? .1 : 0)).getHex(), rand() * TAU);
     }
   }
+  return [batch.wood, batch.leaves, batch.needles].map((part, i) => ({ batch: part, first: starts[i], count: part.items.length - starts[i] })).filter(part => part.count);
 }
 
 function createGround() {
@@ -157,7 +142,11 @@ function createGround() {
     const variation = noise(x * .014, z * .014) * .78 + noise(x * .042, z * .042) * .16 + noise(x * .11, z * .11) * .06;
     const c = lush.clone().lerp(dry, smooth(.40, .78, variation));
     c.lerp(sand, (1 - smooth(1, 8, d)) * .9);
-    if (y > 22) c.lerp(rock, smooth(22, 62, y) * .8);
+    // Pale weathered ridgelines and darker sheltered meadows make elevation read
+    // from the normal city camera, rather than relying only on cast shadows.
+    const exposedRidge = smooth(15, 31, y) * (.58 + noise(x * .034 + 17, z * .034) * .42);
+    c.lerp(rock, exposedRidge * .84);
+    if (y > 38) c.lerp(new T.Color(0xb4b5a3), smooth(38, 78, y) * .65);
     c.multiplyScalar(.90 + noise(x * .12, z * .12) * .17); colours.push(c.r, c.g, c.b);
   }
   geometry.setAttribute('color', new T.Float32BufferAttribute(colours, 3)); geometry.computeVertexNormals();
@@ -201,10 +190,12 @@ function createRoad(group) {
   for (let x = -450; x < 450; x += 6) {
     const z = roadZ(x), nextZ = roadZ(x + 6), yaw = -Math.atan2(nextZ - z, 6), y = heightAt(x, z);
     if (Math.abs(shoreDistance(x, z)) < 7 || shoreDistance(x, z) < 0 || rand() < .05) continue;
-    road.add(x, y + .026, z, 6.15, .12, 7.9, 0xa3a48f, yaw);
-    road.add(x, y + .10, z, 6.05, .10, 5.8, rand() > .13 ? 0x656e68 : 0x7a7f70, yaw);
-    if (rand() > .2) paint.add(x, y + .16, z, 2.5, .013, .1, 0xd9cba0, yaw);
-    if (rand() > .7) paint.add(x, y + .16, z - 2.62, 3.5, .012, .06, 0xcacbb0, yaw);
+    const normal = terrainNormal(x, z), slope = new T.Quaternion().setFromUnitVectors(UP, new T.Vector3(normal.x, normal.y, normal.z));
+    slope.multiply(new T.Quaternion().setFromAxisAngle(UP, yaw));
+    road.add(x, y + .05, z, 6.15, .12, 7.9, 0xa3a48f, yaw, slope);
+    road.add(x, y + .14, z, 6.05, .10, 5.8, rand() > .13 ? 0x656e68 : 0x7a7f70, yaw, slope);
+    if (rand() > .2) paint.add(x, y + .20, z, 2.5, .013, .1, 0xd9cba0, yaw, slope);
+    if (rand() > .7) paint.add(x, heightAt(x, z - 2.62) + .20, z - 2.62, 3.5, .012, .06, 0xcacbb0, yaw, slope);
   }
   for (let x = -245; x <= 250; x += 33) {
     const z = roadZ(x) + 6, y = heightAt(x, z);
@@ -223,15 +214,217 @@ function createRoad(group) {
   }
 }
 
+function trackTexture(tank) {
+  const size = 128, data = new Uint8Array(size * size * 4);
+  for (let row = 0; row < size; row++) for (let column = 0; column < size; column++) {
+    const x = (column + .5) / size - .5, z = (row + .5) / size - .5;
+    let ink = 0;
+    if (tank) {
+      const rowPattern = ((z + .5) * 9) % 1;
+      if (Math.abs(x) < .43 && Math.abs(z) < .485) ink = Math.abs(x) > .33 ? .60 : rowPattern > .20 && rowPattern < .85 ? 1 : .1;
+    } else {
+      const heel = (x / .31) ** 2 + ((z + .21) / .23) ** 2 < 1;
+      const sole = Math.abs(x) < .33 - Math.abs(z) * .08 && z > -.16 && z < .28;
+      const toes = [-.235, 0, .235].some(tx => ((x - tx) / .105) ** 2 + ((z - .31) / .15) ** 2 < 1);
+      if (heel || sole || toes) ink = .8;
+      if (z > .09 && z < .13) ink *= .6;
+    }
+    ink *= .78 + noise(column * .35, row * .35) * .22;
+    const i = (row * size + column) * 4, value = Math.round(ink * 255);
+    data[i] = data[i + 1] = data[i + 2] = value; data[i + 3] = 255;
+  }
+  const texture = new T.DataTexture(data, size, size, T.RGBAFormat); texture.needsUpdate = true;
+  texture.magFilter = T.LinearFilter; texture.minFilter = T.LinearFilter; return texture;
+}
+
+function createWorldInteractions(group, records) {
+  const debrisCapacity = 512, trackCapacity = 400, cells = new Map(), byId = new Map();
+  const identity = new T.Quaternion();
+  const hidden = new T.Matrix4().compose(new T.Vector3(0, -5000, 0), identity, new T.Vector3(.0001, .0001, .0001));
+  const changed = new Set(), previousActors = new Map(), destroyed = new Map();
+  let activeDamage = null, activeMode = null, trackCursor = 0, trackCount = 0, fallbackDamage = [];
+  const stats = { destroyedCount: 0, trackCount: 0, lifeCount: 0, destructibleCount: records.length, lastDestroyed: null };
+  for (const record of records) {
+    if (protectedResource(record.x, record.z)) continue;
+    byId.set(record.id, record);
+    const key = `${Math.floor(record.x / 24)},${Math.floor(record.z / 24)}`;
+    if (!cells.has(key)) cells.set(key, []); cells.get(key).push(record);
+  }
+  function dynamic(geometry, material, count, name, shadow = true) {
+    const mesh = new T.InstancedMesh(geometry, material, count); mesh.name = name; mesh.frustumCulled = false;
+    mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.castShadow = shadow; mesh.receiveShadow = true; mesh.userData.noBatch = true;
+    for (let i = 0; i < count; i++) mesh.setMatrixAt(i, hidden);
+    mesh.instanceMatrix.needsUpdate = true; group.add(mesh); return mesh;
+  }
+  const stumps = dynamic(new T.CylinderGeometry(.8, 1, 1, 10), getMaterial('wood', 0x89704d), debrisCapacity, 'Crushed tree stumps');
+  const cuts = dynamic(new T.CircleGeometry(1, 10).rotateX(-Math.PI / 2), getMaterial('wood', 0xc2ac7f), debrisCapacity, 'Broken trunk cores', false);
+  const logs = dynamic(new T.CylinderGeometry(.73, 1, 1, 9), getMaterial('wood', 0x75634b), debrisCapacity * 3, 'Fallen trunks and branches');
+  const brush = dynamic(canopyGeometry(true), getMaterial('foliage', 0x7d8958), debrisCapacity * 3, 'Crushed fallen boughs');
+  const rubble = dynamic(irregularOrb(0), getMaterial('stone', 0x96977e), debrisCapacity * 3, 'Fresh crushed rock fragments');
+  const stampGeometry = new T.PlaneGeometry(1, 1, 2, 4); stampGeometry.rotateX(-Math.PI / 2);
+  const stamps = [false, true].map(tank => dynamic(stampGeometry, new T.MeshBasicMaterial({ color: tank ? 0x35402c : 0x3e4230, alphaMap: trackTexture(tank), transparent: true, opacity: tank ? .43 : .38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), trackCapacity, tank ? 'Persistent crawler tread impressions' : 'Titan footprints', false));
+  stamps.forEach(mesh => { mesh.renderOrder = 1; });
+  const debrisMeshes = [stumps, cuts, logs, brush, rubble];
+  function place(mesh, index, x, y, z, sx, sy, sz, quaternion = identity) {
+    TEMP.position.set(x, y, z); TEMP.scale.set(sx, sy, sz); TEMP.quaternion.copy(quaternion); TEMP.updateMatrix(); mesh.setMatrixAt(index, TEMP.matrix); changed.add(mesh);
+  }
+  function setOriginal(record, visible) {
+    for (const ref of record.parts) {
+      const mesh = ref.batch.mesh;
+      if (!mesh) continue;
+      for (let i = ref.first; i < ref.first + ref.count; i++) {
+        if (!visible) mesh.setMatrixAt(i, hidden);
+        else {
+          const item = ref.batch.items[i]; TEMP.position.set(item.x, item.y, item.z); TEMP.scale.set(item.sx, item.sy, item.sz);
+          if (item.rotation) TEMP.quaternion.copy(item.rotation); else TEMP.rotation.set(0, item.yaw, 0);
+          TEMP.updateMatrix(); mesh.setMatrixAt(i, TEMP.matrix);
+        }
+      }
+      changed.add(mesh);
+    }
+  }
+  function clearDebris(slot) {
+    for (const mesh of [stumps, cuts]) { mesh.setMatrixAt(slot, hidden); changed.add(mesh); }
+    for (const mesh of [logs, brush, rubble]) for (let i = 0; i < 3; i++) { mesh.setMatrixAt(slot * 3 + i, hidden); changed.add(mesh); }
+  }
+  function showDebris(record, slot, angle) {
+    const size = record.size, normal = terrainNormal(record.x, record.z), slope = new T.Quaternion().setFromUnitVectors(UP, new T.Vector3(normal.x, normal.y, normal.z));
+    const x = record.x, z = record.z, y = heightAt(x, z);
+    if (record.kind === 'tree') {
+      place(stumps, slot, x, y + size * .34, z, size * .35, size * .68, size * .35, slope);
+      place(cuts, slot, x, y + size * .69, z, size * .279, 1, size * .279, slope);
+      const length = size * 5.8, dx = Math.sin(angle), dz = Math.cos(angle);
+      for (let branch = 0; branch < 3; branch++) {
+        const a = angle + (branch - 1) * .37, start = branch ? length * .51 : .5;
+        const sx = x + dx * start, sz = z + dz * start, endLength = branch ? length * .34 : length;
+        const ex = sx + Math.sin(a) * endLength, ez = sz + Math.cos(a) * endLength;
+        const sy = heightAt(sx, sz) + .22 * size, ey = heightAt(ex, ez) + .18 * size;
+        const direction = new T.Vector3(ex - sx, ey - sy, ez - sz), rotation = new T.Quaternion().setFromUnitVectors(UP, direction.clone().normalize());
+        place(logs, slot * 3 + branch, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, size * (branch ? .12 : .27), direction.length(), size * (branch ? .12 : .27), rotation);
+        place(brush, slot * 3 + branch, ex, heightAt(ex, ez) + size * .33, ez, size * 1.28, size * .40, size * .85, slope);
+      }
+    } else {
+      for (let part = 0; part < 3; part++) {
+        const a = angle + part * 2.2, px = x + Math.sin(a) * size * .6, pz = z + Math.cos(a) * size * .6;
+        place(rubble, slot * 3 + part, px, heightAt(px, pz) + size * .16, pz, size * .55, size * .24, size * .41, slope);
+      }
+    }
+  }
+  function restore(id) {
+    const current = destroyed.get(id); if (!current) return;
+    setOriginal(current.record, true); clearDebris(current.slot); destroyed.delete(id);
+  }
+  function crush(record, angle, persist) {
+    if (destroyed.has(record.id) || protectedResource(record.x, record.z)) return;
+    if (destroyed.size >= debrisCapacity) restore(destroyed.keys().next().value);
+    const used = new Set([...destroyed.values()].map(item => item.slot)); let slot = 0; while (used.has(slot)) slot++;
+    setOriginal(record, false); showDebris(record, slot, angle); destroyed.set(record.id, { record, slot });
+    if (persist && !activeDamage.includes(record.id)) {
+      if (activeDamage.length >= debrisCapacity) activeDamage.splice(0, activeDamage.length - debrisCapacity + 1);
+      activeDamage.push(record.id);
+    }
+    stats.lastDestroyed = record.id; stats.destroyedCount = destroyed.size;
+  }
+  function clearTracks() {
+    for (const mesh of stamps) { for (let i = 0; i < trackCapacity; i++) mesh.setMatrixAt(i, hidden); changed.add(mesh); }
+    trackCursor = trackCount = 0; stats.trackCount = 0;
+  }
+  function stamp(tank, x, z, angle, scale) {
+    if (protectedResource(x, z) || shoreDistance(x, z) < .8) return;
+    const normal = terrainNormal(x, z), slope = new T.Quaternion().setFromUnitVectors(UP, new T.Vector3(normal.x, normal.y, normal.z));
+    slope.multiply(new T.Quaternion().setFromAxisAngle(UP, angle));
+    const index = trackCursor++ % trackCapacity;
+    stamps[tank ? 0 : 1].setMatrixAt(index, hidden); changed.add(stamps[tank ? 0 : 1]);
+    place(stamps[tank ? 1 : 0], index, x, heightAt(x, z) + .085, z, (tank ? 2.9 : 2.65) * scale, 1, (tank ? 4.2 : 4.3) * scale, slope);
+    trackCount = Math.min(trackCapacity, trackCount + 1); stats.trackCount = trackCount;
+  }
+  function sync(mode, damage) {
+    if (activeMode === mode && activeDamage === damage) return;
+    for (const id of [...destroyed.keys()]) restore(id);
+    const validIds = [...new Set(damage.filter(id => typeof id === 'string' && byId.has(id)))].slice(-debrisCapacity);
+    damage.splice(0, damage.length, ...validIds); stats.lastDestroyed = null;
+    activeMode = mode; activeDamage = damage; previousActors.clear(); clearTracks();
+    for (const id of damage.slice(-debrisCapacity)) {
+      const record = byId.get(id); if (record) crush(record, (record.x * 1.73 + record.z * .39) % TAU, false);
+    }
+    stats.destroyedCount = destroyed.size;
+  }
+  function flush() { for (const mesh of changed) mesh.instanceMatrix.needsUpdate = true; changed.clear(); }
+  return {
+    stats,
+    interact(actors, delta, options = {}) {
+      const mode = options.mode || 'expedition';
+      const damage = Array.isArray(options.damage) ? options.damage : options.damage?.[mode] || fallbackDamage;
+      sync(mode, damage);
+      for (const actor of actors || []) {
+        if (![actor.x, actor.z].every(Number.isFinite)) continue;
+        const key = actor.id || actor.faction, previous = previousActors.get(key) || { x: actor.x, z: actor.z, stampX: actor.x, stampZ: actor.z, foot: 0 };
+        const distance = Math.hypot(actor.x - previous.x, actor.z - previous.z), scale = Math.max(.1, actor.scale || 1);
+        const tank = actor.faction === 'crawler', canCrush = actor.faction === 'kaiju' || tank;
+        if (actor.moving && canCrush && delta > 0 && distance > .005 && distance < 70) {
+          const radius = (tank ? 16 : 8) * scale, minX = Math.floor((Math.min(previous.x, actor.x) - radius) / 24), maxX = Math.floor((Math.max(previous.x, actor.x) + radius) / 24);
+          const minZ = Math.floor((Math.min(previous.z, actor.z) - radius) / 24), maxZ = Math.floor((Math.max(previous.z, actor.z) + radius) / 24), angle = actor.angle || 0;
+          const sin = Math.sin(angle), cos = Math.cos(angle), dx = actor.x - previous.x, dz = actor.z - previous.z, length2 = dx * dx + dz * dz;
+          for (let cx = minX; cx <= maxX; cx++) for (let cz = minZ; cz <= maxZ; cz++) for (const record of cells.get(`${cx},${cz}`) || []) {
+            if (destroyed.has(record.id)) continue;
+            const t = length2 ? T.MathUtils.clamp(((record.x - previous.x) * dx + (record.z - previous.z) * dz) / length2, 0, 1) : 1;
+            const rx = record.x - previous.x - dx * t, rz = record.z - previous.z - dz * t;
+            const lateral = rx * cos - rz * sin, forward = rx * sin + rz * cos;
+            if (Math.abs(lateral) < (tank ? 10.6 : 5.1) * scale + record.size * .3 && Math.abs(forward) < (tank ? 12.1 : 4.2) * scale + record.size * .3) crush(record, angle + Math.sin(record.x) * .35, true);
+          }
+          const trailDistance = Math.hypot(actor.x - previous.stampX, actor.z - previous.stampZ), interval = (tank ? 2.7 : 5.3) * scale;
+          const steps = Math.min(32, Math.floor(trailDistance / interval));
+          if (steps) {
+            const vx = (actor.x - previous.stampX) / trailDistance, vz = (actor.z - previous.stampZ) / trailDistance;
+            for (let i = 1; i <= steps; i++) {
+              const x = previous.stampX + vx * interval * i, z = previous.stampZ + vz * interval * i;
+              if (tank) for (const side of [-1, 1]) stamp(true, x + cos * side * 8.6 * scale, z - sin * side * 8.6 * scale, angle, scale);
+              else { const side = previous.foot++ % 2 ? 1 : -1; stamp(false, x + cos * side * 2.8 * scale, z - sin * side * 2.8 * scale, angle, scale); }
+            }
+            previous.stampX += vx * interval * steps; previous.stampZ += vz * interval * steps;
+          }
+        } else if (distance >= 70 || !actor.moving || !canCrush) { previous.stampX = actor.x; previous.stampZ = actor.z; }
+        previous.x = actor.x; previous.z = actor.z; previousActors.set(key, previous);
+      }
+      flush(); return stats;
+    },
+    resetInteractions(options = null) {
+      for (const id of [...destroyed.keys()]) restore(id);
+      stats.destroyedCount = 0; stats.lastDestroyed = null;
+      activeDamage = null; activeMode = null; previousActors.clear(); clearTracks();
+      if (options) {
+        const mode = options.mode || 'expedition', damage = Array.isArray(options) ? options : options.damage || [];
+        sync(mode, damage);
+      }
+      flush();
+    },
+    // Read-only inventory is useful for verification; it contains no simulation state.
+    crushables: records.map(({ id, kind, x, z, size }) => ({ id, kind, x, z, size }))
+  };
+}
+
 export function createLandscape() {
   const group = new T.Group(); group.name = 'The reclaimed lowlands';
   const ground = createGround(); group.add(ground);
   const { water, time: waterTime } = createWater(); group.add(water);
   createRoad(group);
-  const rand = random(196733), trees = treeBatches(group);
+  const rand = random(196733), trees = treeBatches(group), records = [];
+  const register = (id, kind, x, z, size, parts) => { if (!protectedResource(x, z)) records.push({ id, kind, x, z, size, parts }); };
   const rocks = new Instances(group, irregularOrb(1), getMaterial('stone', 0xffffff));
   const shrubs = new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff));
-  const grassMat = getMaterial('grass', 0xffffff, { side: T.DoubleSide });
+  const grassMat = getMaterial('grass', 0xffffff, { side: T.DoubleSide }).clone(), windTime = { value: 0 };
+  grassMat.onBeforeCompile = shader => {
+    shader.uniforms.uMeadowTime = windTime;
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uMeadowTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+          vec3 meadowOrigin = instanceMatrix[3].xyz;
+          float breeze = sin(meadowOrigin.x * .063 + meadowOrigin.z * .041 + uMeadowTime * 1.7);
+          transformed.x += breeze * pow(max(position.y, 0.0), 2.0) * .23;
+          transformed.z += cos(meadowOrigin.z * .09 + uMeadowTime * 1.1) * position.y * .05;
+        #endif
+      `);
+  };
   const grass = new Instances(group, grassGeometry(), grassMat, false);
   const flowers = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false);
   // Clusters follow valleys and meadows rather than a uniform scatter.
@@ -239,16 +432,35 @@ export function createLandscape() {
     const x = (rand() - .5) * 900, z = (rand() - .5) * 900;
     if (isClearing(x, z, 5) || shoreDistance(x, z) < 7 || Math.abs(z - roadZ(x)) < 11) continue;
     const density = noise(x * .015 + 20, z * .015 + 12);
-    if (density < .43 || (Math.abs(x) < 165 && Math.abs(z) < 165 && rand() < .79)) continue;
+    if (density < .43 || (Math.abs(x) < 165 && Math.abs(z) < 165 && rand() < .35)) continue;
     const scale = .8 + rand() * .9;
-    addTree(trees, rand, x, heightAt(x, z), z, scale, z < -130 || rand() < .32);
+    const parts = addTree(trees, rand, x, heightAt(x, z), z, scale, z < -130 || rand() < .32);
+    register(`tree:${i}`, 'tree', x, z, scale, parts);
   }
+  // Dense foothill groves alternate with broad, open travel corridors.
+  const groves = [[-102, 38], [123, 61], [95, 137], [-145, -38]];
+  groves.forEach(([cx, cz], cluster) => {
+    for (let i = 0; i < 33; i++) {
+      const a = rand() * TAU, r = Math.sqrt(rand()) * (23 + cluster * 2), x = cx + Math.sin(a) * r, z = cz + Math.cos(a) * r;
+      if (isClearing(x, z, 8) || shoreDistance(x, z) < 9 || Math.abs(z - roadZ(x)) < 9) continue;
+      const scale = .8 + rand() * .55, parts = addTree(trees, rand, x, heightAt(x, z), z, scale, cluster === 3 || rand() < .21);
+      register(`grove:${cluster}:${i}`, 'tree', x, z, scale, parts);
+    }
+  });
   for (let i = 0; i < 450; i++) {
     const x = (rand() - .5) * 660, z = (rand() - .5) * 660;
     if (isClearing(x, z, 1) || shoreDistance(x, z) < 1 || Math.abs(z - roadZ(x)) < 5) continue;
     const r = .35 + rand() * 1.35;
-    rocks.add(x, heightAt(x, z) + r * .25, z, r, r * (.45 + rand() * .5), r * .85, ROCK_COLOURS[i % ROCK_COLOURS.length], rand() * TAU);
+    const first = rocks.add(x, heightAt(x, z) + r * .25, z, r, r * (.45 + rand() * .5), r * .85, ROCK_COLOURS[i % ROCK_COLOURS.length], rand() * TAU);
+    const shrubStart = shrubs.items.length;
     if (rand() > .36) for (let j = 0; j < 3; j++) shrubs.add(x + rand() * 2, heightAt(x, z) + .5, z + rand() * 2, .75, .6, .8, LEAF_COLOURS[(i + j) % LEAF_COLOURS.length]);
+    register(`rock:${i}`, 'rock', x, z, r, [{ batch: rocks, first, count: 1 }, { batch: shrubs, first: shrubStart, count: shrubs.items.length - shrubStart }]);
+  }
+  for (let i = 0; i < 44; i++) {
+    const ridge = i % 2, a = rand() * TAU, r = Math.sqrt(rand()) * 22, x = (ridge ? 148 : -143) + Math.sin(a) * r, z = (ridge ? -12 : -54) + Math.cos(a) * r;
+    if (protectedResource(x, z, 3)) continue;
+    const size = 1.1 + rand() * 2.2, first = rocks.add(x, heightAt(x, z) + size * .31, z, size, size * .69, size * .88, ROCK_COLOURS[i % 4], rand() * TAU);
+    register(`ridge:${i}`, 'rock', x, z, size, [{ batch: rocks, first, count: 1 }]);
   }
   for (let i = 0; i < 4700; i++) {
     const x = (rand() - .5) * 650, z = (rand() - .5) * 650;
@@ -260,19 +472,28 @@ export function createLandscape() {
   // Pebbles and reeds emphasize the waterline without a hard painted border.
   for (let z = -380; z <= 380; z += 4) for (const side of [-1, 1]) {
     const x = riverX(z) + side * (riverWidth(z) + 3.5 + rand() * 2.5), y = heightAt(x, z);
-    if (rand() > .35) rocks.add(x, y + .12, z, .35 + rand() * .6, .22, .4, 0xa9a995, rand() * TAU);
+    if (rand() > .35) {
+      const size = .35 + rand() * .6, first = rocks.add(x, y + .12, z, size, .22, .4, 0xa9a995, rand() * TAU);
+      register(`shore:${z}:${side}`, 'rock', x, z, size, [{ batch: rocks, first, count: 1 }]);
+    }
     for (let j = 0; j < 4; j++) grass.add(x + side * rand() * 1.5, y, z + rand() * 2, .8, 1.65, .8, 0x8d9d62, rand() * TAU);
   }
   const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
+  const life = createWorldLife(); group.add(life.group); life.update(0, 0);
+  const interactions = createWorldInteractions(group, records), stats = interactions.stats;
+  stats.lifeCount = life.stats.lifeCount; let actors = [];
   return {
-    group, ground, water,
-    update(time) { waterTime.value = time; },
+    group, ground, water, heightAt, stats, crushables: interactions.crushables,
+    update(time, delta = 0) { waterTime.value = time; windTime.value = time; life.update(time, delta, actors); },
+    interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
+    resetInteractions: options => interactions.resetInteractions(options),
     setQuality(quality) {
       const low = quality === 'retro' || quality === 'low';
       if (grasses) grasses.visible = !low;
       if (flowerMesh) flowerMesh.visible = !low;
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
+      life.setQuality(quality);
     }
   };
 }
@@ -395,7 +616,7 @@ function addFarmland(group, node, rand) {
 }
 
 export function createResourceSite(node) {
-  const group = new T.Group(); group.name = node.name || `${node.kind} resource site`; group.position.set(node.x, 0, node.z);
+  const group = new T.Group(); group.name = node.name || `${node.kind} resource site`; group.position.set(node.x, heightAt(node.x, node.z), node.z);
   const rand = random(Math.abs(node.x * 1723 + node.z * 919) + 31255);
   if (node.kind === 'wood') addWoodland(group, node, rand);
   else if (node.kind === 'iron') addIronRuins(group, node, rand);
