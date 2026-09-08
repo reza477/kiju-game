@@ -2,7 +2,7 @@
   "name": "local-game-prototype",
   "private": true,
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "scripts": { "start": "node server.mjs", "test": "node --test tests/simulation.test.mjs" },
   "dependencies": { "three": "0.185.1" }
 }

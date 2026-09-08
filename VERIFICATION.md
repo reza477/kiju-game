@@ -1,6 +1,17 @@
-# Prototype 0.2 verification — September 7, 2026
+# Prototype 0.3 verification — September 7, 2026
 
-## Graphics overhaul
+## Humanoid and castle backpack
+
+- The local game URL `http://127.0.0.1:4178/` returns Colossus Wake from the Kiju Game workspace. The default-browser launcher opens that game URL.
+- The upright humanoid and castle together occupy approximately 21.3 m in width and 66.6 m in height. The castle sits behind the torso, with a visible shoulder/waist harness and four ascending terraces. Local geometry checks found finite positions/normals and clear static build envelopes at all twenty plots.
+- The backpack browser audit covers twenty stable plot IDs, four heights with five plots each, actual canvas selection on every terrace, construction on all four tiers, upgrades, and a version 1 save/reload with unchanged buildings and plot coordinates.
+- Actual City/Titan camera buttons and keys 1/3 work; Titan controls are hidden for crawler and airship cities. Front, side, rear, starting, and developed-city screenshots are under `artifacts/backpack-final/`.
+- The other two factions retain their flat deck layout and construction controls. The 390px layout has no horizontal overflow. The audit reported zero browser errors, remote requests, or WebGL context loss.
+- Cameras, enemy selection bounds, district selection rings, citizen paths, and combat effect heights account for the taller carrier and elevated plots. City and Titan framing was checked against the on-screen controls.
+
+The simulation and save schema are unchanged. Citizens remain visual agents, moving along the terrace promenades; the staircases are scenery. The new art has been verified on this PC in Chrome, without a new calibrated performance benchmark or physical iPhone test.
+
+## Version 0.2 graphics audit (earlier baseline)
 
 - All three factions rendered in title, starting city, world, developed city, and close district views at 1440×960 and 1920×1080. The developed-city fixture contains twelve districts across all seven building types and three upgrade levels.
 - The actual Detail button cycled high → balanced → performance → high; the Light button cycled day → dusk → night → day. No WebGL context loss, browser errors, or remote network requests occurred.

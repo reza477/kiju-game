@@ -72,7 +72,7 @@ async function developedCity(page){
   state.buildings=Array(20).fill(null);
   for(const [slot,type,level]of [[0,'housing',2],[1,'foundry',2],[3,'armor',2],[5,'sawmill',2],[6,'housing',3],[7,'keep',3],[9,'cannon',2],[10,'farm',2],[11,'housing',1],[13,'farm',3],[16,'foundry',1],[18,'cannon',3]])state.buildings[slot]={type,level,remaining:0};
   window.__colossus.advance(0);
-  scene.setView('city');scene.yaw=.72;scene.pitch=.64;scene.zoom=78;
+  scene.setView('city');scene.yaw=state.faction==='kaiju'?2.35:.72;scene.pitch=state.faction==='kaiju'?.31:.64;scene.zoom=state.faction==='kaiju'?136:78;
  });
  await settle(page);
 }
@@ -112,7 +112,7 @@ try{
      assert.equal(await page.evaluate(()=>window.__colossus.scene.light),'day','Lighting restores daylight.');
      checks.push('Actual detail and lighting controls cycle all presets, restoring high/day without browser errors or WebGL context loss.');
     }
-    await page.evaluate(()=>{const scene=window.__colossus.scene;scene.zoom=49;scene.pitch=.86;});await settle(page);
+    await page.evaluate(()=>{const scene=window.__colossus.scene;scene.zoom=scene.city.layout==='backpack'?105:49;scene.pitch=scene.city.layout==='backpack'?.42:.86;});await settle(page);
     await page.screenshot({path:path.join(output,`districts-${faction}-${suffix}.png`),style:'#hud,#markers,#toast,#paused-banner,.vignette{visibility:hidden!important}'});
     screenshots.push(`districts-${faction}-${suffix}.png`);await inspect(page,`districts-${faction}-${suffix}`);
     checks.push(`${faction} title, city, world, developed city, and close districts rendered at ${suffix}.`);

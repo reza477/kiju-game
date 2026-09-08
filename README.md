@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.2
+# Colossus Wake — PC prototype 0.3
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
 
@@ -29,6 +29,7 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 | Drag | Orbit camera |
 | Mouse wheel | Zoom |
 | 1 / 2 | City view / world map |
+| 3 | Titan view (kaiju front) |
 | P | Pause / resume |
 | Space | Fire in battle |
 | E | Special ability |
@@ -38,15 +39,17 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
+Version 0.3 reshapes the Thornbound carrier into a tall, upright biomechanical humanoid with long articulated limbs and a visible shoulder-and-waist harness. The Gothic castle is worn behind its torso as a backpack. Twenty buildable districts climb four terraces, with side staircases, retaining arches, battlements, and narrow cathedral spires. **City view** faces the terraces for construction; **Titan view** shows the creature from the front. Drag to orbit between them.
+
 Version 0.2 replaces the simple block models with a more detailed, stylized city-builder presentation. Districts have textured masonry, layered roofs, windows, balconies, chimneys, gardens, and street furniture. Carriers have articulated limbs, mechanical details, or stitched horizontal lift envelopes. The landscape includes varied forests, planted fields, industrial ruins, a river, and distant terrain. Citizens, propellers, smoke, and water are animated.
 
 Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
 
-Existing version 0.1 saves remain compatible and receive the new graphics when loaded. The title screen shows a developed city as a preview; a new expedition still starts with three districts.
+Existing version 0.1 and 0.2 saves remain compatible and receive the new graphics when loaded. The same twenty kaiju district IDs map to the four terraces without changing buildings, upgrades, or resources. The title screen shows a developed city as a preview; a new expedition still starts with three districts.
 
 ## What is implemented
 
-- Three playable city types with original procedural 3D models: Gothic city on a kaiju backpack, terraced industrial city on tracks, domed floating city between horizontal lift envelopes.
+- Three playable city types with original procedural 3D models: vertical Gothic castle worn by a humanoid kaiju, terraced industrial city on tracks, domed floating city between horizontal lift envelopes.
 - Animated creatures, tracks/propellers, and miniature citizens walking city streets.
 - Third-person orbit camera, close city view, strategic world camera and minimap.
 - Twenty buildable district plots, timed construction, three upgrade levels, local food economy and population growth/starvation.
@@ -73,12 +76,14 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
 - `src/scene.js`: scene integration, camera, picking, shadows, combat effects.
 - `src/architecture.js`, `src/carriers.js`: districts, city carriers, citizens, animation.
+- `src/kaiju.js`, `src/castle.js`: articulated humanoid titan and terraced Gothic backpack.
 - `src/landscape.js`: terrain, foliage, water, resource sites.
 - `src/materials.js`, `src/presentation.js`: local procedural textures, geometry batching, lighting, postprocessing, atmosphere.
 - `src/main.js`: input, user interface, persistence, local audio.
 - `src/style.css`: desktop and touch layouts.
 - `node --test tests/simulation.test.mjs`: simulation checks.
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
+- `node tests/backpack-audit.mjs`: four terrace levels, picking, construction and upgrades, save compatibility, front/side/rear screenshots, and the other factions.
 - `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
 - `server.mjs`, `Play.ps1`, `Play.cmd`: local server and launcher.
 
