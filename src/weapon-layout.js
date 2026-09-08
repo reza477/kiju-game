@@ -1,5 +1,6 @@
 import {kaijuSlotPosition,KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {variantFootprint} from './variants.js';
+import {castleShotClearance} from './castle-collision.js';
 
 export const normalizeAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const batteryArc=faction=>faction==='airship'?Math.PI*4/3:Math.PI*5/6;
@@ -39,6 +40,10 @@ export function batterySolution(state,slot,attacker,target,range){
     const shotHeight=p.y+1.8*scale+(targetHeight-p.y-1.8*scale)*along/Math.max(1,d);
     const top=q.y+Math.min(state.faction==='kaiju'?7.2:20,3.8+other.level*1.6)*scale;
     if(along>.75*scale&&along<d&&across<1.1*scale&&shotHeight>q.y&&shotHeight<top){blocker=i;break;}
+  }
+  if(state.faction==='kaiju'&&blocker===null&&building.remaining<=0&&inArc&&d<=range){
+    const clearance=castleShotClearance({rings:state.rings??1,slot,level:building.level,yaw:bearing,target:{x:(p.x+localDirection.x*d)/scale,y:targetHeight/scale,z:(p.z+localDirection.z*d)/scale}});
+    if(!clearance.clear)blocker=clearance.blocker;
   }
   return {slot,level:building.level,facing,bearing,inArc,inRange:d<=range,blocker,active:building.remaining<=0&&inArc&&d<=range&&blocker===null,position:world};
 }

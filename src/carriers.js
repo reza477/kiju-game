@@ -199,7 +199,8 @@ function animateTitan(city,time,moving){
   city.gaitPrevious={x:position.x,z:position.z};
   const cycle=(city.gaitDistance??0)/16,phase=cycle*Math.PI*2;
   const sway=walking?Math.sin(phase):Math.sin(time*.65)*.12;
-  const reaction=hitReaction(city,time),lean=(walking?.063:.042)-reaction*.052+(strike?.weight??0)*.135,roll=sway*.020+reaction*.012-(strike?.weight??0)*.018;
+  const supportedLoad=city.variant==='flesh'?(.024+Math.sin(time*.93)*.004)*(1-(strike?.weight??0)):0;
+  const reaction=hitReaction(city,time),lean=(walking?.063:.042)+supportedLoad-reaction*.052+(strike?.weight??0)*.135,roll=sway*.020+reaction*.012-(strike?.weight??0)*.018;
   // The chest leans into the load around the hips. Hip transfer and upper-body
   // counter-roll share that pivot, rather than tilting the creature at its feet.
   city.rig.position.set(sway*.50+Math.sin(roll)*25.5,(walking?-1.75-Math.abs(Math.sin(phase))*.24:-1.35)+25.5*(1-Math.cos(lean)*Math.cos(roll))-(strike?strike.drop*strike.weight/city.scale:0),-Math.sin(lean)*Math.cos(roll)*25.5+(strike?strike.advance*strike.weight/city.scale:0));

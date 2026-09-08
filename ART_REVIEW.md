@@ -45,3 +45,6 @@ The first builder attempt includes the vertical castle with inspectable floors, 
 | Round | Builder revision | Independent review | Result |
 |---|---|---|---|
 | 1 | `fd3e5a4` | [Independent review](art-reviews/variants-01.md) | **FAIL — 6.7/10**, 0 runtime errors; enclosing castle walls obscure floor inspection |
+| 2 | `c47a1ea` | [Independent review](art-reviews/variants-02.md) | **FAIL — 7.0/10**, floor inspection fixed; no new confirmed errors in the critic's evidence, aesthetic threshold not met |
+
+Round 2 replaces open shelving with larger keep and roof masses, exposes the selected floor's residents and plots, joins the flesh body into continuous anatomical surfaces, and deepens the drill's helical cutting flight. The critic independently captured 42 views. A separate builder geometry diagnostic subsequently confirmed that some allowed oblique cannon paths cross the castle shell; this is being addressed in round 3, without changing the critic's bounded findings.

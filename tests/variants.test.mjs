@@ -58,3 +58,21 @@ test('low castle guns cannot fire through the titan, while upper guns can clear 
  assert.equal(low.blocker,'carrier');assert.equal(low.active,false);assert.equal(high.blocker,null);assert.equal(high.active,true);
  s.buildings[13].facing=Math.PI;const rear=batterySolution(s,13,{x:0,z:0,angle:0},{x:0,z:-45},54);assert.equal(rear.blocker,null);assert.ok(rear.active);
 });
+
+test('castle masonry blocks oblique cannon damage while its forward port stays usable',()=>{
+ for(const variant of ['cyborg','flesh'])for(const {slot,level,offset} of [{slot:11,level:1,offset:15},{slot:11,level:1,offset:30},{slot:0,level:1,offset:60},{slot:0,level:3,offset:70}]){
+  const s=createGame('kaiju',variant);s.rings=2;s.buildings.fill(null);s.buildings[slot]={type:'cannon',level,remaining:0};
+  const rival=s.enemies.find(e=>e.variant==='standard');s.x=rival.x;s.z=rival.z;startBattle(s,rival.id);
+  const b=s.battle,p=batteryPosition('kaiju',slot),yaw=kaijuSlotPosition(slot).rotation+offset*Math.PI/180;
+  b.player={x:0,z:0,angle:0};b.enemy={x:p.x+Math.sin(yaw)*45,z:p.z+Math.cos(yaw)*45,angle:Math.PI};b.autoFire=false;b.enemyReload=999;
+  const result=batterySolution(s,slot,b.player,b.enemy,54);assert.ok(result.inArc);assert.equal(result.active,false);assert.ok(String(result.blocker).startsWith('castle:'));
+  assert.ok(fire(s));const event=b.events.at(-1);assert.ok(!event.mounts.includes(slot),'A blocked district must not add a muzzle or damage to the attack');
+  const withoutCannon=deserialize(serialize(s));withoutCannon.buildings[slot]=null;withoutCannon.battle.reload=0;withoutCannon.battle.events=[];
+  assert.ok(fire(withoutCannon));assert.equal(event.damage,withoutCannon.battle.events.at(-1).damage);
+ }
+ for(const rings of [0,1,2]){
+  const s=createGame('kaiju');s.rings=rings;s.buildings.fill(null);s.buildings[11]={type:'cannon',level:3,remaining:0};s.battle={enemyFaction:'crawler'};
+  const p=batteryPosition('kaiju',11),result=batterySolution(s,11,{x:0,z:0,angle:0},{x:p.x,z:p.z-45},54);
+  assert.ok(result.active,'The actual forward port must remain useful at every castle growth stage');
+ }
+});

@@ -2,12 +2,23 @@ import * as T from '../vendor/three.module.js';
 import {getMaterial as m,box,cylinder,cone,sphere,beam,batchStatic} from './materials.js';
 
 const TAU=Math.PI*2;
+let augerSurfaces;
+function augerMaterials(){
+  if(augerSurfaces)return augerSurfaces;
+  // Axial abrasion belongs to the tool, instead of the city sheet-metal texture.
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=256;const ctx=canvas.getContext('2d');
+  const gradient=ctx.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#acb0a6');gradient.addColorStop(.62,'#b4b7ad');gradient.addColorStop(1,'#636d66');ctx.fillStyle=gradient;ctx.fillRect(0,0,256,256);
+  for(let i=0;i<76;i++){const x=(i*67.31)%256;ctx.strokeStyle=i%3?'#263d3325':'#f0e4c92b';ctx.lineWidth=i%5===0?2.1:.6;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+1.2,256);ctx.stroke();}
+  const map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=8;
+  const core=new T.MeshStandardMaterial({color:0x5b6b68,map,bumpMap:map,bumpScale:.018,metalness:.62,roughness:.72});core.userData.shared=true;
+  augerSurfaces={core,cutting:m('metal',0xc4cabd,{roughness:.29,metalness:.76,bumpScale:.003})};return augerSurfaces;
+}
 function torus(group,radius,tube,material,x,y,z,horizontal=false){const mesh=new T.Mesh(new T.TorusGeometry(radius,tube,8,48),material);mesh.position.set(x,y,z);if(horizontal)mesh.rotation.x=Math.PI/2;mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;}
 function tube(group,points,radius,material){const mesh=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),Math.max(24,points.length*3),radius,6,false),material);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;}
 
 /** The auger is built instead of the standard crawler's ram, then rotates as one assembly. */
 export function createCrawlerDrill(frame,rig,spinners){
-  const steel=m('metal',0x829394,{roughness:.34}),dark=m('metal',0x293c45),iron=m('metal',0x53676c),brass=m('gold',0xb89456),cutting=m('metal',0xbac3bd,{roughness:.28});
+  const surfaces=augerMaterials(),steel=m('metal',0x829394,{roughness:.34}),dark=m('metal',0x293c45),iron=m('metal',0x53676c),brass=m('gold',0xb89456),cutting=surfaces.cutting;
   for(const side of [-1,1]){
     box(frame,2.5,3.0,5.0,iron,side*6.6,4.1,10.8);
     beam(frame,[side*7.1,5.6,8.8],[side*4.4,5.4,13.3],.48,steel);
@@ -23,7 +34,7 @@ export function createCrawlerDrill(frame,rig,spinners){
   for(let i=0;i<3;i++){const a=i/3*TAU,r=3.7,rod=cylinder(hinge,.24,.24,1,cutting,Math.cos(a)*r,Math.sin(a)*r,-.6,16);rod.rotation.x=Math.PI/2;rod.userData.noBatch=true;pistons.push(rod);}
   const shaft=cylinder(hinge,2.95,2.95,1,steel,0,0,-.6,32);shaft.rotation.x=Math.PI/2;shaft.userData.noBatch=true;
   const drill=new T.Group();drill.name='Rotating spiral excavation drill';drill.userData.noBatch=true;hinge.add(drill);
-  const core=cone(drill,3.45,10.8,dark,0,0,5.4,48);core.rotation.x=Math.PI/2;
+  const core=cone(drill,3.45,10.8,surfaces.core,0,0,5.4,48);core.rotation.x=Math.PI/2;
   const positions=[],uvs=[],indices=[],segments=196;
   for(let i=0;i<=segments;i++){
     const t=i/segments,a=t*TAU*2.15,outer=5.08*(1-t)+.25,inner=3.40*(1-t)+.10,z=.20+t*10.8;

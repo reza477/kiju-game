@@ -342,7 +342,7 @@ function organicMuscle(group, a, b, width, depth, mat) {
 
 // Each loft is a continuous skin envelope with an anatomical, changing section.
 // Bone pivots remain separate; broad overlapping cuffs cover their articulation.
-function organicLoft(group, sections, mat, relief) {
+function organicLoft(group, sections, mat, relief, region='') {
   const centre=new T.CatmullRomCurve3(sections.map(p=>new T.Vector3(p[0],p[1],p[2])));
   const radii=new T.CatmullRomCurve3(sections.map(p=>new T.Vector3(p[3],p[4],0)));
   const rings=Math.max(32,sections.length*5),edges=32,positions=[],uv=[],indices=[],upward=sections.at(-1)[1]>sections[0][1];
@@ -350,7 +350,7 @@ function organicLoft(group, sections, mat, relief) {
     const t=i/rings,c=centre.getPoint(t),r=radii.getPoint(t);
     for(let j=0;j<=edges;j++){
       const a=j/edges*Math.PI*2,p=new T.Vector3(c.x+Math.sin(a)*Math.max(.025,r.x),c.y,c.z+Math.cos(a)*Math.max(.025,r.y));
-      relief?.(p,a,t);positions.push(p.x,p.y,p.z);uv.push(j/edges,p.y*.105);
+      relief?.(p,a,t);positions.push(p.x,p.y,p.z);uv.push(j/edges,region?1-t:p.y*.105);
       if(i<rings&&j<edges){const v=i*(edges+1)+j,b=v+1,c=v+edges+1,d=c+1;indices.push(...(upward?[v,b,c,b,d,c]:[v,c,b,b,c,d]));}
     }
   }
@@ -363,7 +363,42 @@ function organicLoft(group, sections, mat, relief) {
   // cannot acquire a hard lighting stripe down the otherwise smooth surface.
   const normals=geometry.attributes.normal;
   for(let ring=0;ring<=rings;ring++){const a=ring*(edges+1),b=a+edges,n=new T.Vector3().fromBufferAttribute(normals,a).add(new T.Vector3().fromBufferAttribute(normals,b)).normalize();normals.setXYZ(a,n.x,n.y,n.z);normals.setXYZ(b,n.x,n.y,n.z);}
-  const mesh=addMesh(group,geometry,mat);mesh.name='Continuous anatomical skin';return mesh;
+  const mesh=addMesh(group,geometry,region?anatomicalSkin(region,mat):mat);mesh.name='Continuous anatomical skin';return mesh;
+}
+
+const anatomicalMaterials=new Map();
+const formBell=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
+function anatomicalSkin(region,base){
+  if(anatomicalMaterials.has(region))return anatomicalMaterials.get(region);
+  const width=256,height=512,canvas=document.createElement('canvas'),surface=document.createElement('canvas');canvas.width=surface.width=width;canvas.height=surface.height=height;
+  const c=canvas.getContext('2d'),s=surface.getContext('2d'),colour=c.createImageData(width,height),rough=s.createImageData(width,height);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const t=y/(height-1),a=x/width*Math.PI*2,front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),side=Math.abs(Math.sin(a));
+    const wave=Math.sin(a*3+Math.sin(t*8))*Math.sin(t*15+a)+.36*Math.sin(a*7-t*17);
+    let form=0,flush=0;
+    if(region==='torso'){
+      form-=front*16*formBell(t,.545+.012*side,.018)*( .4+.6*side);
+      form-=front*9*formBell(side,0,.12)*formBell(t,.48,.24);
+      for(const h of [.343,.393,.446])form-=front*8*formBell(t,h,.010)*formBell(side,.20,.25);
+      form-=front*13*formBell(t,.25+.06*side,.021)*side;
+      form+=front*9*formBell(t,.615,.075)*formBell(side,.43,.28);
+      form-=side*11*formBell(t,.52,.11);flush=front*8*formBell(t,.68,.13);
+    }else{
+      const lower=region==='forearm'||region==='shin',joint=lower?.10:.87;
+      flush=16*formBell(t,joint,.095)+7*formBell(t,.30,.12);
+      form-=front*10*formBell(t,joint+.045,.021);
+      if(region==='upperarm')form-=side*12*formBell(t,.29,.07);
+      if(region==='thigh')form-=front*11*formBell(side,.50,.13)*formBell(t,.50,.3);
+      if(lower)form+=front*9*formBell(side,.16,.09)*formBell(t,.67,.24);
+    }
+    const shade=208+front*8-back*24+wave*8+form,i=(y*width+x)*4;
+    colour.data.set([shade+flush,shade-7-flush*.46,shade-18-flush*.58,255],i);
+    const r=237-front*10+back*6-wave*3-Math.max(0,form)*.45;rough.data.set([r,r,r,255],i);
+  }
+  c.putImageData(colour,0,0);s.putImageData(rough,0,0);
+  const map=new T.CanvasTexture(canvas),roughnessMap=new T.CanvasTexture(surface);map.colorSpace=T.SRGBColorSpace;
+  for(const texture of [map,roughnessMap]){texture.wrapS=T.RepeatWrapping;texture.wrapT=T.ClampToEdgeWrapping;texture.anisotropy=8;}
+  const mat=base.clone();mat.map=map;mat.roughnessMap=roughnessMap;mat.roughness=.93;mat.name='Anatomical skin: '+region;anatomicalMaterials.set(region,mat);return mat;
 }
 
 let fleshTexture,fleshBump;
@@ -391,18 +426,22 @@ function fleshMaterial(colour,roughness=.8){
 
 function organicTorso(frame, m) {
   const bell=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
-  organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.6,-.12,2.85,2.16],[0,28,-.22,3.46,2.24],
-    [0,31.2,-.12,2.54,1.9],[0,34.5,-.15,2.93,2.03],[0,38.4,-.23,4.18,2.60],
-    [0,41.9,-.28,5.05,2.83],[0,43.65,-.22,5.68,2.63],[0,45.05,-.03,4.87,2.34],
-    [0,46.8,.4,2.13,1.55],[0,49.65,1.05,1.42,1.22]],m.skin,(p,a)=>{
+  organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.6,-.20,2.99,2.27],[0,28,-.39,3.73,2.41],
+    [0,31.2,-.22,2.43,1.95],[0,34.5,-.32,3.11,2.32],[0,38.4,-.47,4.50,3.00],
+    [0,41.9,-.49,5.38,3.10],[0,43.65,-.32,5.82,2.71],[0,45.05,-.12,4.73,2.16],
+    [0,46.8,.25,2.38,1.74],[0,49.65,1.05,1.42,1.22]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),side=Math.abs(Math.sin(a));
       // Pectoral, abdominal and oblique changes are relief in the same mesh,
       // leaving smooth transitions instead of disconnected oval muscle pieces.
-      p.z+=front*(.92*bell(p.y,41.4,2.08)*bell(Math.abs(p.x),2.23,1.73)-.08*bell(p.x,0,.34)*bell(p.y,39.8,4.8));
-      for(let i=0;i<3;i++)p.z+=front*.34*bell(p.y,36.4-i*1.82,.78)*bell(Math.abs(p.x),.90,.68);
-      p.z-=back*.32*bell(p.y,40.8,3.5)*side;
-      p.x+=Math.sign(p.x)*.14*side*bell(p.y,36.8,3)*Math.sin((p.y-34)*2.1+side*.9);
-    });
+      p.z+=front*(1.04*bell(p.y,41.4,1.76)*bell(Math.abs(p.x),2.28,1.60)-.16*bell(p.x,0,.30)*bell(p.y,39.8,4.8));
+      p.z-=front*.34*bell(p.y,39.2+.16*Math.abs(p.x),.38)*bell(Math.abs(p.x),2.24,1.47);
+      p.z+=front*.36*bell(p.y,44.16-.22*Math.abs(p.x),.35)*bell(Math.abs(p.x),2.2,1.9);
+      for(let i=0;i<3;i++){p.z+=front*.43*bell(p.y,36.4-i*1.82,.70)*bell(Math.abs(p.x),.94,.73);p.z-=front*.11*bell(p.y,35.48-i*1.82,.22)*bell(Math.abs(p.x),1.12,.86);}
+      p.z-=back*.38*bell(p.y,40.8,3.5)*side;
+      p.x+=Math.sign(p.x)*.32*side*bell(p.y,36.8,3)*Math.sin((p.y-34)*2.1+side*.9);
+      p.z+=front*.27*side*bell(p.y,28.9+Math.abs(p.x)*.23,.46);
+      p.z-=front*.26*side*bell(p.y,30.0+Math.abs(p.x)*.15,.44);
+    },'torso');
   for (const side of [-1, 1]) {
     // Blunt shoulder osteoderms and swept bone horns create a living silhouette.
     for (let i = 0; i < 3; i++) {
@@ -491,15 +530,22 @@ function organicArm(rig, limbs, side, m) {
     [side*.47,-2.25,-.1,2.03,1.95],[side*1.14,-5.2,.19,1.83,1.76],
     [side*1.82,-8.25,.44,1.36,1.38],[side*2.17,-10.4,.46,1.08,1.06],
     [side*2.2,-11.55,.5,.69,.78]],m.skin,(p,a,t)=>{
-      p.z+=Math.max(0,Math.cos(a))*.24*Math.sin(t*Math.PI)*Math.sin(t*Math.PI);
-    });
+      const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),outer=Math.max(0,Math.sin(a)*side);
+      const deltoid=.32*formBell(t,.17,.15)-.18*formBell(t,.31+.06*outer,.036);
+      p.x+=Math.sin(a)*deltoid;p.z+=Math.cos(a)*deltoid;
+      p.z+=front*(.55*formBell(t,.47,.20)-.21*formBell(t,.70,.038));
+      p.z-=back*.34*formBell(t,.39,.22);
+    },'upperarm');
   const forearmStart = arm.children.length;
   organicLoft(arm,[[side*2.2,-9.92,.39,.72,.77],[side*2.2,-10.85,.39,1.11,1.17],
     [side*2.43,-13.2,.82,1.58,1.67],[side*2.47,-15.7,1.47,1.31,1.36],
     [side*2.25,-18.7,2.12,.93,.97],[side*2.13,-20.9,2.43,.74,.78],
     [side*2.13,-21.8,2.50,.61,.62]],m.skin,(p,a,t)=>{
-      p.z+=.10*Math.max(0,Math.cos(a*2))*.8*Math.sin(t*Math.PI);
-    });
+      const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a));
+      p.z-=back*.37*formBell(t,.10,.08);p.z-=front*.17*formBell(t,.12,.026);
+      p.z+=.24*Math.cos(a*2)*Math.sin(t*Math.PI);
+      p.x+=Math.sin(a)*(.18*formBell(t,.32,.18)+.11*formBell(t,.88,.07));
+    },'forearm');
   organicSweep(arm, [[side * 2.84, -12.1, -.07], [side * 3.80, -12.35, -.46],
     [side * 4.34, -13.05, -.65]], [.49, .29, .012], m.bone, 15);
   const hand = organicHand(arm, side, m);
@@ -516,16 +562,23 @@ function organicLeg(rig, limbs, side, m) {
     [-side*.08,-3.0,.14,2.17,2.16],[side*.14,-6.1,.49,1.88,1.9],
     [side*.4,-8.7,.70,1.47,1.43],[side*.45,-10.6,.8,1.20,1.13],
     [side*.45,-11.85,.8,.87,.82]],m.skin,(p,a,t)=>{
-      p.z+=.18*Math.max(0,Math.cos(a))*Math.sin(t*Math.PI);
-      p.x+=side*.13*Math.sin(a)*Math.sin(t*Math.PI*2);
-    });
+      const front=Math.max(0,Math.cos(a));
+      p.z+=front*(.43*formBell(t,.40,.25)-.22*formBell(t,.74,.039));
+      p.z-=Math.max(0,-Math.cos(a))*.22*formBell(t,.37,.24);
+      p.x+=Math.sin(a)*(.27*formBell(t,.30,.24)+.18*formBell(t,.74,.10));
+      p.z-=front*.11*formBell(Math.abs(Math.sin(a)),.55,.13)*formBell(t,.5,.24);
+    },'thigh');
   const lowerStart = leg.children.length;
   organicLoft(leg,[[side*.45,-10.32,.83,.74,.83],[side*.45,-11.35,.74,1.17,1.08],
     [side*.49,-13.55,.1,1.46,1.42],[side*.39,-16.15,-.47,1.38,1.51],
     [side*.23,-19.2,-.77,.94,1.07],[side*.18,-22.45,-.70,.70,.80],
     [side*.18,-23.82,-.56,.64,.61]],m.skin,(p,a,t)=>{
-      const tibia=Math.max(0,Math.cos(a));p.z+=.18*tibia*tibia*Math.sin(t*Math.PI);
-    });
+      const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a));
+      p.z+=front*(.41*formBell(t,.105,.047)-.12*formBell(t,.172,.025));
+      p.z+=.32*front**8*formBell(t,.58,.30);
+      p.z-=back*.34*formBell(t,.40,.18);
+      p.x+=Math.sin(a)*(.14*formBell(t,.46,.2)+.13*formBell(t,.88,.048));
+    },'shin');
   const footStart = leg.children.length;
   sphere(leg, 1, m.skin, ...ankle, .90, 1.11, .96);
   // Plantigrade soft heel/instep with an actual planar underside. Its minimum
@@ -574,8 +627,8 @@ function organicLeg(rig, limbs, side, m) {
 
 function createFleshKaiju(frame, rig, limbs) {
   const m = {
-    skin: fleshMaterial(0x9d8b7c,.80),
-    warm: fleshMaterial(0xa68c78,.82),
+    skin: fleshMaterial(0x948073,.80),
+    warm: fleshMaterial(0xa08673,.82),
     ridge: fleshMaterial(0x776f62,.87),
     bone: material('bone', 0xb4a47e, { roughness: .77 }),
     tooth: material('bone', 0xd6c9a7, { roughness: .61 }),

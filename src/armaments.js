@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial as m,box,cylinder,sphere,cone,beam,batchStatic} from './materials.js';
 import {batteryArc,normalizeAngle} from './weapon-layout.js';
+import {CANNON_MOUNT as mount,nearestCastleYaw} from './castle-collision.js';
 
 function muzzleMarker(parent,x,y,z){const point=new T.Object3D();point.position.set(x,y,z);parent.add(point);return point;}
 
@@ -8,7 +9,7 @@ export function createBattery(faction,level=1,facing=0,slot=null){
   const group=new T.Group(),turret=new T.Group(),recoil=new T.Group();group.name=faction==='airship'?'Missile battery':'Rotating cannon emplacement';
   const metal=m('metal',faction==='airship'?0x327d87:faction==='kaiju'?0x665075:0x486776),trim=m('gold',0xd3ad68),dark=m('metal',0x202f37),stone=m('stone',0x9a9f97);
   cylinder(group,1.19,1.31,.28,stone,0,.22,0,28);cylinder(group,.84,.97,.25,dark,0,.46,0,24);
-  turret.position.y=.64;turret.rotation.y=facing;turret.scale.set(1.08,1.18,1.15);turret.userData.noBatch=true;group.add(turret);turret.add(recoil);
+  turret.position.y=mount.turretY;turret.rotation.y=facing;turret.scale.set(mount.scaleX,mount.scaleY,mount.scaleZ);turret.userData.noBatch=true;group.add(turret);turret.add(recoil);
   const missile=faction==='airship',muzzles=[];
   if(missile){
     box(recoil,1.42,.34,1.6,metal,0,.32,0);
@@ -21,11 +22,11 @@ export function createBattery(faction,level=1,facing=0,slot=null){
     for(const x of [-.74,.74])box(turret,.08,.71,1.5,trim,x,.45,0);
   }else{
     box(recoil,1.45,.55,1.23,metal,0,.35,-.25);
-    for(const x of level>1?[-.34,.34]:[0]){
-      const barrel=cylinder(recoil,.235,.29,2.1,dark,x,.55,1.05,20);barrel.rotation.x=Math.PI/2;
-      for(const z of [.25,.75,1.8]){const collar=cylinder(recoil,.3,.3,.14,trim,x,.55,z,20);collar.rotation.x=Math.PI/2;}
-      const opening=cylinder(recoil,.18,.18,.015,m('metal',0x101b20),x,.55,2.11,18);opening.rotation.x=Math.PI/2;
-      muzzles.push(muzzleMarker(recoil,x,.55,2.13));
+    for(const x of level>1?[-mount.doubleX,mount.doubleX]:[0]){
+      const barrel=cylinder(recoil,.235,.29,2.1,dark,x,mount.barrelY,1.05,20);barrel.rotation.x=Math.PI/2;
+      for(const z of [.25,.75,1.8]){const collar=cylinder(recoil,.3,.3,.14,trim,x,mount.barrelY,z,20);collar.rotation.x=Math.PI/2;}
+      const opening=cylinder(recoil,.18,.18,.015,m('metal',0x101b20),x,mount.barrelY,2.11,18);opening.rotation.x=Math.PI/2;
+      muzzles.push(muzzleMarker(recoil,x,mount.barrelY,mount.muzzleZ));
     }
     for(const x of [-.77,.77])cylinder(turret,.26,.26,.12,trim,x,.45,-.16,16).rotation.z=Math.PI/2;
     if(level===3)box(recoil,.9,.26,.9,stone,0,.78,-.36);
@@ -54,13 +55,21 @@ export function addCarrierWeapons(city){
 
 export function animateWeapons(city,target,time){
   for(const weapon of [...(city.baseWeapons||[]),...(city.batteries||[])]){
+    let desired=weapon.facing;
     if(target){
       const location=weapon.group.getWorldPosition(new T.Vector3());
       const localTarget=city.rig.worldToLocal(new T.Vector3(target.x,location.y,target.z)),localLocation=city.rig.worldToLocal(location.clone());
       const bearing=normalizeAngle(Math.atan2(localTarget.x-localLocation.x,localTarget.z-localLocation.z));
       const delta=normalizeAngle(bearing-weapon.facing),limit=weapon.base?Math.PI:batteryArc(city.faction)/2;
-      weapon.turret.rotation.y=weapon.facing+T.MathUtils.clamp(delta,-limit,limit);
-    }else weapon.turret.rotation.y=weapon.facing;
+      desired=weapon.facing+T.MathUtils.clamp(delta,-limit,limit);
+    }
+    if(city.faction==='kaiju'&&!weapon.base){
+      const prior=weapon.aimClearance;
+      if(!prior||prior.rings!==city.rings||prior.desired!==desired){
+        weapon.aimClearance={rings:city.rings,desired,physical:nearestCastleYaw({rings:city.rings,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
+      }
+      weapon.turret.rotation.y=weapon.aimClearance.physical;
+    }else weapon.turret.rotation.y=desired;
     const age=time-weapon.firedAt;weapon.recoil.position.z=age>=0&&age<.38?-Math.sin(age/.38*Math.PI)*.48:0;
   }
 }
