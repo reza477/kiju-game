@@ -12,7 +12,7 @@ function towerFixture(count=3,variant='cyborg'){
  for(const slot of s.towerOrder)s.buildings[slot]={type:'farm',level:1,remaining:0};
  return s;
 }
-const towerLayout=s=>createVerticalLayout(s.buildings,s.towerOrder);
+const towerLayout=s=>createVerticalLayout(s.buildings,s.towerOrder,s.variant);
 const mountPosition=(s,slot)=>batteryPosition('kaiju',slot,s.variant,towerLayout(s));
 
 test('every selectable carrier starts with the other five distinct variants',()=>{
@@ -68,7 +68,9 @@ test('the ground drill uses real ranged attacks against airborne rivals',()=>{
 });
 test('low castle guns hit the titan while a genuinely built high floor clears its shoulders and still respects masonry',()=>{
  for(const variant of ['cyborg','flesh']){
-  const s=towerFixture(12,variant),lowSlot=s.towerOrder[0],highSlot=s.towerOrder.at(-1);
+  // A compact cyborg needs more actual occupied storeys to reach above the
+  // unchanged robot. Its twelfth floor is no longer the old tall mount.
+  const s=towerFixture(variant==='cyborg'?20:12,variant),lowSlot=s.towerOrder[0],highSlot=s.towerOrder.at(-1);
   for(const slot of [lowSlot,highSlot])s.buildings[slot]={type:'cannon',level:1,remaining:0,facing:0};
   const low=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,highSlot,{x:0,z:0,angle:0},{x:0,z:45},54);
   assert.equal(low.blocker,'carrier');assert.equal(low.active,false);
@@ -102,7 +104,7 @@ test('actual vertical castle portal trim, corner shafts and lancet frames stop c
  for(const variant of ['cyborg','flesh'])for(const {level,degrees,enemyFaction,solid} of [
   {level:3,degrees:20,enemyFaction:'crawler',solid:'vertical:gun-portal:1:0'},
   {level:1,degrees:40,enemyFaction:'airship',solid:'vertical:corner:1:-1:-1'},
-  {level:1,degrees:45,enemyFaction:'airship',solid:'vertical:side-arch:1:-1:0:0'},
+  {level:1,degrees:variant==='cyborg'?51:45,enemyFaction:'airship',solid:variant==='cyborg'?'vertical:side-arch:1:-1:0:7':'vertical:side-arch:1:-1:0:0'},
  ]){
   const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};s.battle={enemyFaction};
   const layout=towerLayout(s),p=mountPosition(s,slot),yaw=layout.positions[slot].rotation+degrees*Math.PI/180;

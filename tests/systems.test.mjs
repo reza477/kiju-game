@@ -224,7 +224,7 @@ test('a rear mount outside its own range adds no damage even while base guns rea
 test('kaiju mount coordinates preserve the scaled backpack offset through city rotation', () => {
   const state = createGame('kaiju'), slot = 11;
   state.buildings[slot] = { type: 'cannon', level: 1, remaining: 0, facing: Math.PI };
-  const layout=createVerticalLayout(state.buildings,state.towerOrder),plot=layout.positions[slot];
+  const layout=createVerticalLayout(state.buildings,state.towerOrder,state.variant),plot=layout.positions[slot];
   const local = batteryPosition('kaiju', slot,state.variant,layout);
   assert.equal(local.x,0);
   assert.ok(Math.abs(local.z - KAIJU_CENTER.z * KAIJU_SCALE) < 1e-10);

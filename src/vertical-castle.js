@@ -71,6 +71,14 @@ function clipOutline(points,bottom,top){
 export function verticalCastleDescriptors(layout,deckY=34){
  if(!layout?.floors?.length)return [];
  const key=layoutKey(layout,deckY);if(descriptorCache.has(key))return descriptorCache.get(key);
+ // Compress only castle architecture about its attachment deck. Vertex data
+ // drives both rendering and collision; the robot rig is never rescaled.
+ const heightScale=layout.heightScale??1;
+ if(heightScale!==1){
+  const full={...layout,heightScale:1,height:layout.height/heightScale,signature:layout.signature+':full-height',floors:layout.floors.map(f=>({...f,y:f.y/heightScale,height:f.height/heightScale,surfaceOffset:f.surfaceOffset/heightScale}))};
+  const compact=verticalCastleDescriptors(full,deckY).map(d=>({...d,vertices:d.vertices.map(([x,y,z])=>[x,deckY+(y-deckY)*heightScale,z])}));
+  return cachePut(descriptorCache,key,compact);
+ }
  const out=[],floors=layout.floors,count=floors.length,topTier=count-1,roofY=deckY+layout.height;
  const add=(id,tier,material,shape,shell=true)=>out.push({id:`vertical:${id}`,tier,material,shell,...shape});
  const block=(id,tier,material,x,y,z,w,h,d,shell=true)=>add(id,tier,material,{vertices:rectVertices(x,z,w,d,y-h/2,y+h/2),faces:BOX_FACES},shell);
@@ -359,6 +367,6 @@ export function createVerticalCastle(deckY=34,enemy=false,layout){
   (d.shell?shells[d.tier]:floors[d.tier]).add(mesh);
  }
  for(const shell of shells)batchStatic(shell);for(const floor of floors)batchStatic(floor);
- Object.assign(group.userData,{deckY,verticalCity:true,layoutSignature:layout.signature,floorCount:layout.floors.length,surfaceLevels:layout.floors.map(f=>deckY+f.y+(f.surfaceOffset??.109)),buildableSlots:layout.floors.length,towerTop:deckY+layout.height+9,footprint:{width:WIDTH,depth:DEPTH},structuralSolidCount:descriptors.length});
+ Object.assign(group.userData,{deckY,verticalCity:true,layoutSignature:layout.signature,floorCount:layout.floors.length,surfaceLevels:layout.floors.map(f=>deckY+f.y+(f.surfaceOffset??.109)),buildableSlots:layout.floors.length,towerTop:deckY+layout.height+9*(layout.heightScale??1),footprint:{width:WIDTH,depth:DEPTH},structuralSolidCount:descriptors.length});
  return group;
 }

@@ -9,15 +9,16 @@ export function verticalOrder(buildings,order=[]){
  return result;
 }
 export function nextVerticalSlot(buildings,rings=1){return VERTICAL_SLOT_ORDER.find(i=>!buildings[i]&&RING_SLOTS.findIndex(ids=>ids.includes(i))<=rings)??null;}
-export function createVerticalLayout(buildings,order=[]){
+export function createVerticalLayout(buildings,order=[],variant){
+ const heightScale=variant==='cyborg'?.5:1;
  const ids=verticalOrder(buildings,order),floors=[],positions=Array(20);let y=0;
  for(const [tier,slot]of ids.entries()){
-  const b=buildings[slot],level=Math.min(3,b.level+(b.upgrading?1:0)),height=3.8+.8*(level-1);
+  const b=buildings[slot],level=Math.min(3,b.level+(b.upgrading?1:0)),height=(3.8+.8*(level-1))*heightScale;
   const path=[{x:-3,z:KAIJU_CENTER.z-3.7},{x:3,z:KAIJU_CENTER.z-3.7},{x:3,z:KAIJU_CENTER.z+3.7},{x:-3,z:KAIJU_CENTER.z+3.7}];
-  floors.push({slot,tier,level,type:b.type,y,height,underConstruction:b.remaining>0,upgrading:!!b.upgrading,path,slots:[slot],width:.72,surfaceOffset:.109});
+  floors.push({slot,tier,level,type:b.type,y,height,underConstruction:b.remaining>0,upgrading:!!b.upgrading,path,slots:[slot],width:.72,surfaceOffset:.109*heightScale});
   positions[slot]={x:0,z:KAIJU_CENTER.z,y,tier,level:tier+1,rotation:Math.PI,ring:RING_SLOTS.findIndex(list=>list.includes(slot)),height};y+=height;
  }
- for(const slot of VERTICAL_SLOT_ORDER)if(!positions[slot])positions[slot]={x:0,z:KAIJU_CENTER.z,y,tier:ids.length,level:ids.length+1,rotation:Math.PI,ring:RING_SLOTS.findIndex(list=>list.includes(slot)),height:3.8,vacant:true};
- const signature=JSON.stringify(ids.map(i=>[i,buildings[i].type,buildings[i].level,!!buildings[i].upgrading,buildings[i].remaining>0]));
- return {signature,order:ids,floors,positions,height:y,towerTop:KAIJU_DECK_Y+y+9,footprint:{width:8.8,depth:10.4},nextSlot:nextVerticalSlot(buildings,2)};
+ for(const slot of VERTICAL_SLOT_ORDER)if(!positions[slot])positions[slot]={x:0,z:KAIJU_CENTER.z,y,tier:ids.length,level:ids.length+1,rotation:Math.PI,ring:RING_SLOTS.findIndex(list=>list.includes(slot)),height:3.8*heightScale,vacant:true};
+ const signature=JSON.stringify([heightScale,ids.map(i=>[i,buildings[i].type,buildings[i].level,!!buildings[i].upgrading,buildings[i].remaining>0])]);
+ return {signature,order:ids,floors,positions,height:y,heightScale,weaponScale:heightScale<1?.8:1,districtOffset:.18*heightScale,towerTop:KAIJU_DECK_Y+y+9*heightScale,footprint:{width:8.8,depth:10.4},nextSlot:nextVerticalSlot(buildings,2)};
 }

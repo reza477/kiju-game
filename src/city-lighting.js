@@ -41,6 +41,8 @@ export class CityLighting {
     if(!city)return;
     city.rig.add(slot.rig);slot.rig.position.set(0,city.deckY,0);
     const circular=city.faction==='kaiju',tower=city.layout==='tower',keep=city.slotPositions[7],angle=keep.rotation??0;
+    const compact=tower&&city.verticalLayout?.heightScale===.5;
+    for(const lamp of slot.lamps)lamp.group.scale.setScalar(compact?.9:1);
     // Beside the immutable keep, outside its footprint and on the public path.
     slot.lamps[0].group.position.set(keep.x+Math.cos(angle)*1.49+Math.sin(angle)*1.68,keep.y??0,keep.z-Math.sin(angle)*1.49+Math.cos(angle)*1.68);
     if(tower){
@@ -61,7 +63,9 @@ export class CityLighting {
       slot.lamps[1].group.userData.towerTier=active.tier;
       // The search lantern is fixed to the body-facing masonry, above the
       // lower floor and outside the supported pedestrian promenade.
-      slot.search.position.set(0,3.5,city.verticalLayout?KAIJU_CENTER.z+4.02:-5.49);slot.targetMarker.position.set(0,42.5-city.deckY,-2.75);
+      // The full-size angled housing needs clearance below the compact slab;
+      // simply halving its old anchor would place it through that slab.
+      slot.search.position.set(0,compact?1.30:3.5,city.verticalLayout?KAIJU_CENTER.z+4.02:-5.49);slot.targetMarker.position.set(0,42.5-city.deckY,-2.75);
       this.direction.copy(slot.targetMarker.position).sub(slot.search.position).normalize();slot.search.quaternion.setFromUnitVectors(this.up,this.direction);
     }else if(circular){
       const radius=kaijuRingRadius(city.rings??1),sectors=(city.rings??1)>1?13:6,a=Math.PI+Math.PI/sectors;

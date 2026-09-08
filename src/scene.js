@@ -11,6 +11,7 @@ import {KAIJU_CENTER,kaijuRingRadius,kaijuFloorCount,kaijuWalkFloors,kaijuTowerT
 import {terrainHeight,terrainNormal} from './terrain.js';
 import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armaments.js';
 import {facingOf,batteryArc} from './weapon-layout.js';
+import {cannonMountProfile} from './castle-collision.js';
 import {CinematicCamera} from './cinematic-camera.js';
 import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
 export {makeCity,slotPosition};
@@ -31,10 +32,12 @@ function updateDistricts(city,buildings,rings=2,order){
     hit.userData.locked=city.faction==='kaiju'&&(!b||p.ring>rings);hit.rotation.y=p.rotation??0;hit.position.set(p.x,p.y+.5,p.z);
     if(hit.userData.locked)return;
     if(!b){const vacant=createVacantPlot(city.faction,i);vacant.position.set(p.x,p.y+.13,p.z);vacant.rotation.y=p.rotation??0;if(city.layout==='tower'){vacant.userData.noBatch=true;vacant.userData.towerTier=p.tier;batchStatic(vacant);}city.plots.add(vacant);hit.scale.y=.24;hit.position.y=p.y+.12;return;}
-    const district=b.type==='cannon'?createBattery(city.faction,b.level,facingOf(city.faction,i,b),i):city.verticalLayout?createVerticalDistrict(b.type,b.level,p.height):createDistrict(b.type,b.level,city.faction);
+    const district=b.type==='cannon'?createBattery(city.faction,b.level,facingOf(city.faction,i,b),i):city.verticalLayout?createVerticalDistrict(b.type,b.level,p.height,city.verticalLayout.heightScale):createDistrict(b.type,b.level,city.faction);
+    if(b.type==='cannon'&&city.verticalLayout)district.scale.setScalar(city.verticalLayout.weaponScale);
     if(b.type==='cannon')city.batteries.push(district.weapon);else district.rotation.y=p.rotation??0;
     const bounds=new T.Box3().setFromObject(district);let h=Math.max(1,bounds.max.y);
-    district.position.set(p.x,p.y+.18,p.z);hit.scale.y=h+.18;hit.position.y=p.y+(h+.18)/2;
+    const districtOffset=city.verticalLayout?.districtOffset??.18;
+    district.position.set(p.x,p.y+districtOffset,p.z);hit.scale.y=h+districtOffset;hit.position.y=p.y+(h+districtOffset)/2;
     if(!(b.remaining>0)&&district.userData.activityStation)city.activityStations.push({...district.userData.activityStation,slot:i,tier:p.tier??0});
     district.traverse(o=>{if(o.userData.smokestack)city.districtStacks.push(o);});
     if(b.remaining>0){
@@ -306,10 +309,10 @@ export class GameScene {
     this.routeLine.visible=!battle&&!!s.target;this.destination.visible=this.routeLine.visible;
     if(s.target&&!battle){const p=this.routeLine.geometry.attributes.position;for(let i=0;i<p.count;i++){const t=i/(p.count-1),x=s.x+(s.target.x-s.x)*t,z=s.z+(s.target.z-s.z)*t;p.setXYZ(i,x,Math.max(.3,terrainHeight(x,z)+.4),z);}p.needsUpdate=true;this.routeLine.geometry.computeBoundingSphere();this.routeLine.computeLineDistances();this.destination.position.set(s.target.x,Math.max(.3,terrainHeight(s.target.x,s.target.z)+.4),s.target.z);}
     this.selection.visible=!battle&&selectedSlot!==null;
-    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35,p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.rig.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
+    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35*(this.city.verticalLayout?.heightScale??1),p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.rig.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     if(this.destination.visible){const normal=terrainNormal(s.target.x,s.target.z);this.destination.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(normal.x,normal.y,normal.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     const selectedBattery=selectedSlot!==null&&s.buildings[selectedSlot]?.type==='cannon';this.coverage.visible=!battle&&!!selectedBattery;
-    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot];this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+1.8,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
+    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot],height=this.city.verticalLayout?cannonMountProfile(this.city.verticalLayout).muzzleY:1.8;this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+height,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
     for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
     this.focus.lerp(focus,1-Math.exp(-dt*5));

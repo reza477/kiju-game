@@ -503,14 +503,15 @@ export function createDistrict(type, level = 1, faction = 'kaiju') {
 /** A single inhabited castle storey. Its roof is the next storey's floor;
  * building functions occupy fitted rooms instead of separate miniature houses.
  * Workers and their contact furniture retain the same natural dimensions. */
-export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1)){
+export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heightScale=1){
   const group=new T.Group();group.name=`Gothic ${type} storey`;
+  heightScale=heightScale===.5?.5:1;
   const p={...palettes.kaiju,wall:0x798180,light:0xb2b4a5,roof:0x64484c,trim:0x939c96,dark:0x303842};
-  const ceiling=Math.max(2.9,height-.38),wallTop=ceiling-.34;
+  const ceiling=Math.max(2.9,height/heightScale-.38),wallTop=ceiling-.34;
   const stone=M('stone',p.wall),trim=M('stone',p.trim),dark=M('metal',p.dark),wood=M('wood',0x77624e);
   box(group,3.30,.18,3.18,M('pavement',0x878b81),0,.09,0);
   box(group,3.37,.045,3.24,trim,0,.185,0);
-  group.userData.verticalDistrict={type,level,storeyHeight:height,ceiling};
+  group.userData.verticalDistrict={type,level,storeyHeight:height,ceiling:ceiling*heightScale,heightScale};
 
   // Four corner piers and a continuous upper lintel make these spaces part
   // of one vertical fortress, with an open forecourt for the inhabitants.
@@ -584,7 +585,19 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1)){
     // Narrow leaded side windows keep the room legible around the tower.
     for(const side of[-1,1]){const flank=new T.Group();flank.position.set(side*1.49,0,-.65);flank.rotation.y=side*Math.PI/2;window(flank,0,.89,0,.58,Math.min(1.43,wallTop-1.11),p,true,true);group.add(flank);}
   }
+  if(heightScale!==1){
+    const structure=new T.Group();structure.name='Compact castle room structure';structure.scale.y=heightScale;
+    for(const child of [...group.children])structure.add(child);group.add(structure);
+  }
+  // Compact castles lower the support pad rather than flattening the worker
+  // or work table. The parent district is anchored at .18 * heightScale;
+  // its natural-size pad meets the promenade's .109 * heightScale surface.
   activityStation(group,type,'kaiju',p);
+  if(heightScale!==1&&group.userData.activityStation){
+    const station=group.userData.activityStation.foot.parent;
+    station.position.y=(.109-.18)*heightScale-.235;
+    station.userData.naturalSize=true;
+  }
   return group;
 }
 

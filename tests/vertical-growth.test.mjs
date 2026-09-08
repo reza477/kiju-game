@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {createGame,build,upgrade,tick,expandRing,serialize,deserialize} from '../src/simulation.js';
 import {createVerticalLayout,VERTICAL_SLOT_ORDER,nextVerticalSlot} from '../src/vertical-city.js';
 import {batteryPosition} from '../src/weapon-layout.js';
-const layout=s=>createVerticalLayout(s.buildings,s.towerOrder);
+const layout=s=>createVerticalLayout(s.buildings,s.towerOrder,s.variant);
 const advance=(s,time)=>{for(let i=0;i<time*4;i++)tick(s,.25);};
 const rich=(variant='cyborg')=>{const s=createGame('kaiju',variant);s.resources={wood:9000,iron:9000,food:9000};return s;};
 
 test('both Gothic variants start with three directly overlapping district footprints',()=>{
- for(const v of ['cyborg','flesh']){const s=rich(v),l=layout(s);assert.deepEqual(l.order,[7,11,13]);assert.equal(l.floors.length,3);for(let i=0;i<3;i++){const p=l.positions[l.order[i]];assert.equal(p.x,0);assert.equal(p.z,-12);assert.equal(p.tier,i);assert.ok(Math.abs(p.y-i*3.8)<1e-10);}assert.equal(l.height,11.399999999999999);}
+ for(const v of ['cyborg','flesh']){const s=rich(v),l=layout(s);assert.deepEqual(l.order,[7,11,13]);assert.equal(l.floors.length,3);for(let i=0;i<3;i++){const p=l.positions[l.order[i]];assert.equal(p.x,0);assert.equal(p.z,-12);assert.equal(p.tier,i);assert.ok(Math.abs(p.y-i*3.8*l.heightScale)<1e-10);}assert.equal(l.height,11.399999999999999*l.heightScale);}
 });
 test('every addition appends above the top even when historical slot IDs are out of order',()=>{
  const s=rich();for(const id of [2,0,3,1]){const before=layout(s);assert.ok(build(s,'housing',id).ok);const after=layout(s);assert.equal(after.order.at(-1),id);assert.equal(after.positions[id].y,before.height);assert.ok(after.towerTop>before.towerTop);for(const prev of before.order)assert.deepEqual(after.positions[prev],before.positions[prev]);assert.deepEqual(after.footprint,before.footprint);advance(s,7);}
@@ -16,7 +16,7 @@ test('every addition appends above the top even when historical slot IDs are out
 });
 test('an upgrade raises its storey and every district above while preserving lower floors',()=>{
  const s=rich();build(s,'cannon',0);advance(s,10);const before=layout(s),muzzle=batteryPosition('kaiju',0,s.variant,before);
- assert.ok(upgrade(s,11).ok);const working=layout(s);assert.equal(working.positions[7].y,before.positions[7].y);assert.equal(working.positions[11].y,before.positions[11].y);assert.ok(Math.abs(working.positions[13].y-before.positions[13].y-.8)<1e-10);assert.ok(Math.abs(batteryPosition('kaiju',0,s.variant,working).y-muzzle.y-.8*.55)<1e-10);
+ assert.ok(upgrade(s,11).ok);const working=layout(s);assert.equal(working.positions[7].y,before.positions[7].y);assert.equal(working.positions[11].y,before.positions[11].y);assert.ok(Math.abs(working.positions[13].y-before.positions[13].y-.8*before.heightScale)<1e-10);assert.ok(Math.abs(batteryPosition('kaiju',0,s.variant,working).y-muzzle.y-.8*before.heightScale*.55)<1e-10);
  advance(s,8);assert.equal(layout(s).height,working.height);assert.deepEqual(layout(s).order,before.order);assert.equal(s.buildings[11].level,2);
 });
 test('harness reinforcement unlocks capacity without spawning empty floors',()=>{

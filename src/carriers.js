@@ -88,7 +88,7 @@ function airship(frame,rig,spinners,variant){
 
 export function setCityRings(city,rings,buildings,order){
   if(city.faction!=='kaiju')return;
-  const layout=buildings?createVerticalLayout(buildings,order):null;
+  const layout=buildings?createVerticalLayout(buildings,order,city.variant):null;
   if(city.rings===rings&&city.verticalLayout?.signature===layout?.signature)return;
   if(city.foundation){city.foundation.removeFromParent();disposeGroup(city.foundation);}
   city.verticalLayout=layout;

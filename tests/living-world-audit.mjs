@@ -34,7 +34,7 @@ async function inspectFaction(faction){
   const T=await import('/vendor/three.module.js'),{terrainHeight}=await import('/src/terrain.js');const {state,scene}=window.__colossus,c=scene.city,p=c.people;
   scene.scene.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(c.root),size=bounds.getSize(new T.Vector3());
   const treadContact=faction=>faction==='crawler'?[-9,9].flatMap(x=>[-9,0,9].map(z=>{const p=c.root.localToWorld(new T.Vector3(x,.5,z));return p.y-terrainHeight(p.x,p.z);})):[];
-  return {faction:state.faction,layout:c.layout,scale:c.scale,size:size.toArray(),slots:c.slotPositions.map(p=>({...p})),floors:c.verticalLayout?.floors,footprint:c.verticalLayout?.footprint,height:c.verticalLayout?.height,order:state.towerOrder,ring:state.rings,buildingIds:state.buildings.map((b,i)=>b?i:null).filter(i=>i!==null),wardrobes:p.wardrobeNames,styleCounts:p.styleCounts,skinTones:[...new Set(p.data.map(d=>d.skinTone))],hairTones:[...new Set(p.data.map(d=>d.hairTone))],worldHeightRange:p.worldHeightRange,visiblePeople:p.populationCount,instanceBatches:Object.keys(p.instances).length,life:scene.landscape.stats.lifeCount,terrainY:terrainHeight(state.x,state.z),rootY:c.root.position.y,treadContact:treadContact(state.faction),contextLost:scene.renderer.getContext().isContextLost()};
+  return {faction:state.faction,layout:c.layout,scale:c.scale,size:size.toArray(),slots:c.slotPositions.map(p=>({...p})),floors:c.verticalLayout?.floors,footprint:c.verticalLayout?.footprint,height:c.verticalLayout?.height,heightScale:c.verticalLayout?.heightScale,order:state.towerOrder,ring:state.rings,buildingIds:state.buildings.map((b,i)=>b?i:null).filter(i=>i!==null),wardrobes:p.wardrobeNames,styleCounts:p.styleCounts,skinTones:[...new Set(p.data.map(d=>d.skinTone))],hairTones:[...new Set(p.data.map(d=>d.hairTone))],worldHeightRange:p.worldHeightRange,visiblePeople:p.populationCount,instanceBatches:Object.keys(p.instances).length,life:scene.landscape.stats.lifeCount,terrainY:terrainHeight(state.x,state.z),rootY:c.root.position.y,treadContact:treadContact(state.faction),contextLost:scene.renderer.getContext().isContextLost()};
  });
  assert.equal(result.faction,faction);assert.equal(result.slots.length,20);
  assert.ok(result.slots.every(p=>[p.x,p.y,p.z].every(Number.isFinite)),'All district coordinates are finite.');
@@ -45,7 +45,7 @@ async function inspectFaction(faction){
   for(const [tier,floor] of result.floors.entries()){
    assert.deepEqual(floor.slots,[floor.slot],'Each Gothic storey contains exactly one district.');
    const p=result.slots[floor.slot];assert.equal(p.tier,tier);assert.equal(p.level,tier+1);assert.equal(p.y,floor.y);
-   assert.ok(floor.height>=3.8,'Storeys provide physical district and ceiling clearance.');
+   assert.ok(floor.height>=3.8*(result.heightScale??1),'Storeys provide physical district and ceiling clearance.');
    if(tier)assert.equal(floor.y,result.floors[tier-1].y+result.floors[tier-1].height,'The next district sits directly above the preceding storey.');
   }
   assert.deepEqual(result.footprint,{width:8.8,depth:10.4});

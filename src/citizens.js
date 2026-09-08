@@ -92,7 +92,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
   group.add(mesh);instances[name]=mesh;buckets[name]={mesh,capacity,count:0,colors:new Int32Array(capacity).fill(-1),colorsChanged:false};
  }
  const data=Array.from({length:MAX_PEOPLE},(_,i)=>wardrobe(faction,i));
- const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
+ const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,deckY,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
   scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler(),groupInverse:new T.Matrix4(),stationMatrix:new T.Matrix4(),rootInverse:new T.Matrix4(),bodyInverse:new T.Quaternion(),leftTarget:new T.Vector3(),rightTarget:new T.Vector3(),stationPoint:new T.Vector3()}};
  group.userData.wardrobeNames=citizens.wardrobeNames;
  group.userData.worldHumanHeight=.8;
@@ -201,6 +201,7 @@ function towerCirculate(citizens,time,count,rings,verticalLayout){
 /** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
 export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[],verticalLayout}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
+ if(layout==='tower'&&verticalLayout)citizens.group.position.y=citizens.deckY+(verticalLayout.floors[0]?.surfaceOffset??.109*(verticalLayout.heightScale??1));
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
  const occupiedFloors=verticalLayout?.floors.filter(f=>!f.underConstruction);
  const count=layout==='tower'&&occupiedFloors?.length===0?0:Math.min(limit,requested);

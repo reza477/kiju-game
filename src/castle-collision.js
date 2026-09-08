@@ -2,6 +2,10 @@ import {KAIJU_DECK_Y,KAIJU_FLOOR_SPACING,kaijuSlotPosition,kaijuFloorCount,kaiju
 import {verticalCastleSolids} from './vertical-castle.js';
 
 export const CANNON_MOUNT=Object.freeze({districtY:.18,turretY:.64,scaleX:1.08,scaleY:1.18,scaleZ:1.15,barrelY:.55,muzzleZ:2.13,doubleX:.34,barrelRadius:.34});
+export function cannonMountProfile(layout){
+ const scale=layout?.weaponScale??1,districtY=layout?.districtOffset??CANNON_MOUNT.districtY;
+ return {scale,districtY,muzzleY:districtY+scale*(CANNON_MOUNT.turretY+CANNON_MOUNT.barrelY*CANNON_MOUNT.scaleY),barrelRadius:CANNON_MOUNT.barrelRadius*scale};
+}
 const cache=new Map(),norm=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
 export function lancetOutline(w,h){const p=[[-w/2,0],[-w/2,h*.63]];for(let i=1;i<=4;i++){const t=i/4,u=1-t;p.push([u*u*-w/2+2*u*t*-w*.43,u*u*h*.63+2*u*t*h*.82+t*t*h]);}for(let i=1;i<=4;i++){const t=i/4,u=1-t;p.push([2*u*t*w*.43+t*t*w/2,u*u*h+2*u*t*h*.82+t*t*h*.63]);}p.push([w/2,0]);return p;}
@@ -207,9 +211,9 @@ function triangleHit(a,b,t){const d=b.map((v,i)=>v-a[i]),e=t[1].map((v,i)=>v-t[0
 function capsuleHit(a,b,cap,pad){const d=b.map((v,i)=>v-a[i]),e=cap.b.map((v,i)=>v-cap.a[i]),r=a.map((v,i)=>v-cap.a[i]),dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2],A=dot(d,d),E=dot(e,e),B=dot(d,e),C=dot(d,r),F=dot(e,r),clamp=x=>Math.max(0,Math.min(1,x));let s=A*E-B*B>1e-12?clamp((B*F-C*E)/(A*E-B*B)):0,t=E>1e-12?(B*s+F)/E:0;if(t<0){t=0;s=clamp(-C/A);}else if(t>1){t=1;s=clamp((B-C)/A);}const q=r.map((v,i)=>v+d[i]*s-e[i]*t);return dot(q,q)<=(cap.r+pad)**2?s:null;}
 function segmentHit(solids,a,b,pad=0){let best=null;for(const s of solids){const interval=span(a,b,s.min,s.max,pad);if(!interval)continue;let t=interval[0];if(s.capsule){t=capsuleHit(a,b,s.capsule,pad);if(t===null)continue;}else if(s.triangles){let closest=null;for(const tri of s.triangles){const h=triangleHit(a,b,tri);if(h!==null&&(closest===null||h<closest))closest=h;}if(closest===null)continue;t=closest;}if(!best||t<best.t)best={id:s.id,t,point:a.map((v,i)=>v+(b[i]-v)*t)};}return best;}
 
-export function cannonMuzzleLocal(slot,level,yaw,barrel=0,layout){const p=layout?.positions[slot]??kaijuSlotPosition(slot),m=CANNON_MOUNT,x=level>1?(barrel===0?-1:1)*m.doubleX*m.scaleX:0,z=m.muzzleZ*m.scaleZ,y=KAIJU_DECK_Y+p.y+m.districtY+m.turretY+m.barrelY*m.scaleY,c=Math.cos(yaw),s=Math.sin(yaw);return {breech:{x:p.x+c*x,y,z:p.z-s*x},muzzle:{x:p.x+c*x+s*z,y,z:p.z-s*x+c*z}};}
+export function cannonMuzzleLocal(slot,level,yaw,barrel=0,layout){const p=layout?.positions[slot]??kaijuSlotPosition(slot),m=CANNON_MOUNT,profile=cannonMountProfile(layout),x=level>1?(barrel===0?-1:1)*m.doubleX*m.scaleX*profile.scale:0,z=m.muzzleZ*m.scaleZ*profile.scale,y=KAIJU_DECK_Y+p.y+profile.muzzleY,c=Math.cos(yaw),s=Math.sin(yaw);return {breech:{x:p.x+c*x,y,z:p.z-s*x},muzzle:{x:p.x+c*x+s*z,y,z:p.z-s*x+c*z}};}
 const xyz=p=>[p.x,p.y,p.z];
-export function castleBarrelClearance({rings=2,layout,slot,level=1,yaw}){const solids=castleSolids(rings,layout);for(let i=0;i<(level>1?2:1);i++){const p=cannonMuzzleLocal(slot,level,yaw,i,layout),hit=segmentHit(solids,xyz(p.breech),xyz(p.muzzle),CANNON_MOUNT.barrelRadius);if(hit)return{clear:false,blocker:`castle:${hit.id}`,hit,barrel:i};}return{clear:true,blocker:null};}
+export function castleBarrelClearance({rings=2,layout,slot,level=1,yaw}){const solids=castleSolids(rings,layout),radius=cannonMountProfile(layout).barrelRadius;for(let i=0;i<(level>1?2:1);i++){const p=cannonMuzzleLocal(slot,level,yaw,i,layout),hit=segmentHit(solids,xyz(p.breech),xyz(p.muzzle),radius);if(hit)return{clear:false,blocker:`castle:${hit.id}`,hit,barrel:i};}return{clear:true,blocker:null};}
 export function castleShotClearance({rings=2,layout,slot,level=1,yaw,target,arcHeight=3/.55}){
  const barrel=castleBarrelClearance({rings,layout,slot,level,yaw});if(!barrel.clear)return{clear:false,blocker:barrel.blocker,barrelClear:false,barrelHit:barrel.hit,hit:null};
  const solids=castleSolids(rings,layout),end=xyz(target);

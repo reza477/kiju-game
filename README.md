@@ -41,6 +41,8 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
+The cyborg's castle backpack is now half its previous height, with the same horizontal footprint and unchanged robot. All existing storeys remain, and new districts still build upward. Compact interiors and cannon mounts fit the shorter floors; residents retain their natural size. The flesh titan's castle keeps its original height.
+
 Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts. See [vertical construction verification](VERTICAL_GROWTH_VERIFICATION.md).
 
 Version 0.7 rebuilds the tree crowns with forked branches and individual folded leaves and needles, adds rooted undergrowth, eroded cliffs and geological beds, and blends scanned grass, forest soil and exposed rock surfaces. Masonry, roof slates, wood, bark and metal use local color, normal and roughness maps. Baked material coordinates keep masonry scale consistent while cities move. An HDR sky environment supplies reflected light; surface-oriented contact shading works in both Streets and City views. Painted armor, bare steel and dark mechanical recesses retain distinct surface responses.
