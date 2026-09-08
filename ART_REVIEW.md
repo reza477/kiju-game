@@ -1,5 +1,15 @@
 # Independent art review
 
+## Cyborg castle height adjustment — prototype 0.8.1
+
+The owner clarified that only the cyborg castle backpack should be half-height. The robot, body weapons, castle footprint and flesh castle retain their dimensions. This bounded adjustment preserves vertical construction and saved progress; previous visual cycles remain closed.
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `f050917` | [Independent review](art-reviews/compact-castle-01.md) | **FAIL — 7.7/10** (weighted 7.650), zero confirmed concrete errors in 28 fresh HUD views |
+
+Round 1 verifies the requested height, unchanged robot and flesh control, upward additions and preserved saves. The scoped revision is to adapt the small saw and entrance details to the compact interior, keeping natural-sized people and work tables. The whole-game AAA gate remains unmet; see [functional verification](COMPACT_CASTLE_VERIFICATION.md).
+
 ## Actual vertical Gothic construction — prototype 0.8
 
 This cycle addresses the owner's clarification that every Gothic building must add a storey directly above the last. The global rubric and four-round maximum are unchanged; earlier cycles remain closed. New work is scoped to construction, Gothic architecture and its presentation.

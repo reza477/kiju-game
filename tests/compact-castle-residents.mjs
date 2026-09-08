@@ -38,6 +38,11 @@ try{
     if(variant==='flesh')dimensionalReference.set(key,relative.toArray());else maxNaturalScaleDifference=Math.max(maxNaturalScaleDifference,relative.distanceTo(new T.Vector3(...dimensionalReference.get(key))));
     expect(station.foot.parent.scale.equals(new T.Vector3(1,1,1)),`${variant}/${type}/${level}: table has natural dimensions`);
     if(variant==='cyborg'){const local=station.foot.getWorldPosition(new T.Vector3());f.root.worldToLocal(local);const floor=f.layout.floors.find(x=>x.slot===f.stations.find(s=>s.foot===station.foot).slot);expect(Math.abs(local.y-(34+floor.y+floor.surfaceOffset))<1e-7,`${variant}/${type}/${level}: worker pad meets cloister surface`);}
+    if(variant==='cyborg'&&type==='sawmill'){
+     const blade=d.getObjectByName('Circular saw blade'),bounds=new T.Box3().setFromObject(blade),size=bounds.getSize(new T.Vector3());expect(Math.abs(size.x-size.y)<1e-6,`${variant}/${type}/${level}: real saw blade remains circular after all parent transforms`);
+     expect(Math.abs(size.x-.9*.55)<1e-6,`${variant}/${type}/${level}: saw retains natural diameter`);
+    }
+    if(variant==='cyborg'&&type==='housing')d.traverse(part=>{if(part.name==='Compact doorway opening'){const size=new T.Box3().setFromObject(part).getSize(new T.Vector3());expect(Math.abs(size.y-1.40*.55)<1e-6,`${variant}/${type}/${level}: compact doorway has intentionally authored height`);}});
    }
    // Scan real head/hood geometry and every resident part against the next
    // slab, at several walk/work phases. No synthetic humanoid bounds.
@@ -65,6 +70,14 @@ try{
    expect(slot.targetMarker.position.y===42.5-f.city.deckY,`${variant}/${type}/${level}: light target stays on unchanged robot`);
    if(variant==='cyborg'){const housingBounds=new T.Box3().setFromObject(slot.search);f.root.worldToLocal(housingBounds.max);expect(housingBounds.max.y<34+f.layout.floors[0].height-.32*scale,`${variant}/${type}/${level}: shoulder light housing clears the compact slab`);}
    measurements.push({variant,type,level,height:f.layout.floors[0].height,minGap,localMaxHead,handError,soleGap});smallestCeilingGap=Math.min(smallestCeilingGap,minGap);maxHand=Math.max(maxHand,handError);maxSoleGap=Math.max(maxSoleGap,soleGap);
+  }
+  for(const type of['keep','housing','armor'])for(const level of[1,3]){
+   const height=(3.8+.8*(level-1))*.5,district=createVerticalDistrict(type,level,height,.5);district.updateWorldMatrix(true,true);let doors=0,maxDoorTop=0;
+   district.traverse(part=>{if(part.name==='Compact doorway opening'||part.name==='Compact doorway surround'){const bounds=new T.Box3().setFromObject(part);maxDoorTop=Math.max(maxDoorTop,bounds.max.y);if(part.name==='Compact doorway opening')doors++;}});
+   expect(doors===(type==='housing'?2:1),`${type}/${level}: compact room retains its intended entrances`);
+   expect(maxDoorTop+.09<height-.16,`${type}/${level}: complete compact doorway surround clears the next slab`);
+   expect(new T.Box3().setFromObject(district).max.y+.09<height-.16,`${type}/${level}: adapted room and windows remain inside physical ceiling`);
+   disposeGroup(district);
   }
   expect(maxNaturalScaleDifference<1e-12,'Cyborg and flesh work surfaces have identical natural dimensions');
   window.compactResidentFixture={scene,renderer,camera,fixture,lightPool};

@@ -512,6 +512,13 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
   box(group,3.30,.18,3.18,M('pavement',0x878b81),0,.09,0);
   box(group,3.37,.045,3.24,trim,0,.185,0);
   group.userData.verticalDistrict={type,level,storeyHeight:height,ceiling:ceiling*heightScale,heightScale};
+  const compact=heightScale<1;
+  const compactEntrance=(x,z,width)=>{
+    const doorway=new T.Group();doorway.name='Compact full-height doorway';doorway.position.set(x,.08/heightScale,z);doorway.scale.y=1/heightScale;group.add(doorway);
+    const frame=archedPanel(doorway,width+.16,1.47,0,0,0,M('stone',p.light),true);frame.name='Compact doorway surround';
+    const door=archedPanel(doorway,width,1.40,0,.025,.040,M('wood',p.dark),true);door.name='Compact doorway opening';
+    box(doorway,.018,.86,.015,M('gold',p.trim),0,.55,.082);
+  };
 
   // Four corner piers and a continuous upper lintel make these spaces part
   // of one vertical fortress, with an open forecourt for the inhabitants.
@@ -545,8 +552,16 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
       chimney(group,.58,1.58,-.56,Math.max(.4,ceiling-2.0),p,.30);
       for(let i=0;i<4;i++)box(group,.30,.15,.41,M('metal',0x778380),-.92,.30+i*.155,-.55);
     }else{
-      const saw=cylinder(group,.45,.45,.035,dark,.61,1.09,.05,24);saw.rotation.x=Math.PI/2;
-      for(let i=0;i<6;i++){const angle=i*Math.PI/3;box(group,.10,.16,.043,trim,.61+Math.sin(angle)*.46,1.09+Math.cos(angle)*.46,.05).rotation.z=-angle;}
+      if(compact){
+        // Keep the blade and teeth circular; only their centre follows the
+        // shorter room. The raised compact mount clears the interior plinth.
+        const assembly=new T.Group();assembly.name='Natural circular saw assembly';assembly.position.set(.61,1.35,.05);assembly.scale.y=1/heightScale;group.add(assembly);
+        const blade=cylinder(assembly,.45,.45,.035,dark,0,0,0,24);blade.rotation.x=Math.PI/2;blade.name='Circular saw blade';
+        for(let i=0;i<6;i++){const angle=i*Math.PI/3;box(assembly,.10,.16,.043,trim,Math.sin(angle)*.46,Math.cos(angle)*.46,0).rotation.z=-angle;}
+      }else{
+        const saw=cylinder(group,.45,.45,.035,dark,.61,1.09,.05,24);saw.rotation.x=Math.PI/2;
+        for(let i=0;i<6;i++){const angle=i*Math.PI/3;box(group,.10,.16,.043,trim,.61+Math.sin(angle)*.46,1.09+Math.cos(angle)*.46,.05).rotation.z=-angle;}
+      }
       for(let i=0;i<5;i++){const log=cylinder(group,.13,.13,1.30,wood,-.88,.38+(i%2)*.27,-.53+Math.floor(i/2)*.31,10);log.rotation.z=Math.PI/2;}
       box(group,1.60,.09,.43,wood,.3,.54,.30);
     }
@@ -557,16 +572,21 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
     box(group,2.95,wallTop-.22,1.46,stone,0,(wallTop+.22)/2,-.67);
     const front=.079;
     if(chapel){
-      entrance(group,0,front,.23,p,'kaiju',.72,1.45);
-      for(const x of[-1.04,1.04])window(group,x,.59,front,.36,Math.min(1.80,wallTop-.83),p,true,true);
-      const roseY=wallTop-.53;
-      cylinder(group,.31,.31,.026,M('glass',0x8f7184),0,roseY,front+.045,24).rotation.x=Math.PI/2;
-      const rim=addMesh(group,new T.TorusGeometry(.33,.034,6,24),trim,0,roseY,front+.071);
-      for(let i=0;i<6;i++)box(group,.025,.59,.025,trim,0,roseY,front+.09).rotation.z=i*Math.PI/6;
-      rim.name='Chapter hall rose window';
-      for(const x of[-.85,.85])box(group,.34,.78,.045,M('fabric',p.accent),x,wallTop-.75,front+.095);
+      if(compact){
+        compactEntrance(0,front,.72);
+        for(const x of[-1.04,1.04])window(group,x,.32/heightScale,front,.36,1.10/heightScale,p,true,true);
+      }else{
+        entrance(group,0,front,.23,p,'kaiju',.72,1.45);
+        for(const x of[-1.04,1.04])window(group,x,.59,front,.36,Math.min(1.80,wallTop-.83),p,true,true);
+        const roseY=wallTop-.53;
+        cylinder(group,.31,.31,.026,M('glass',0x8f7184),0,roseY,front+.045,24).rotation.x=Math.PI/2;
+        const rim=addMesh(group,new T.TorusGeometry(.33,.034,6,24),trim,0,roseY,front+.071);
+        for(let i=0;i<6;i++)box(group,.025,.59,.025,trim,0,roseY,front+.09).rotation.z=i*Math.PI/6;
+        rim.name='Chapter hall rose window';
+        for(const x of[-.85,.85])box(group,.34,.78,.045,M('fabric',p.accent),x,wallTop-.75,front+.095);
+      }
     }else if(armory){
-      entrance(group,0,front,.23,p,'kaiju',.81,1.55);
+      if(compact)compactEntrance(0,front,.81);else entrance(group,0,front,.23,p,'kaiju',.81,1.55);
       for(const x of[-1.06,1.06]){
         box(group,.31,.84,.15,dark,x,1.27,front+.12);
         sphere(group,.19,M('metal',0x939c98),x,1.76,front+.16,1,.70,.54);
@@ -576,14 +596,14 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
       for(const x of[-.85,.85])box(group,.42,.35,.54,wood,x,.40,.69);
     }else{
       for(const x of[-.88,.88]){
-        entrance(group,x,front,.23,p,'kaiju',.61,1.29);
-        window(group,x,1.73,front,.57,Math.min(.80,wallTop-1.91),p,true,true);
+        if(compact)compactEntrance(x,front,.61);
+        else{entrance(group,x,front,.23,p,'kaiju',.61,1.29);window(group,x,1.73,front,.57,Math.min(.80,wallTop-1.91),p,true,true);}
       }
       box(group,.18,wallTop-.27,.14,trim,0,(wallTop+.27)/2,front+.05);
       for(const x of[-1.29,1.29]){box(group,.28,.24,.29,wood,x,.34,.65);sphere(group,.19,M('foliage',0x647958),x,.59,.65,1,.8,1);}
     }
     // Narrow leaded side windows keep the room legible around the tower.
-    for(const side of[-1,1]){const flank=new T.Group();flank.position.set(side*1.49,0,-.65);flank.rotation.y=side*Math.PI/2;window(flank,0,.89,0,.58,Math.min(1.43,wallTop-1.11),p,true,true);group.add(flank);}
+    for(const side of[-1,1]){const flank=new T.Group();flank.position.set(side*1.49,0,-.65);flank.rotation.y=side*Math.PI/2;window(flank,0,compact?.32/heightScale:.89,0,compact?.46:.58,compact?1.10/heightScale:Math.min(1.43,wallTop-1.11),p,true,true);group.add(flank);}
   }
   if(heightScale!==1){
     const structure=new T.Group();structure.name='Compact castle room structure';structure.scale.y=heightScale;

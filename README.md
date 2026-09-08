@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.8
+# Colossus Wake — PC prototype 0.8.1
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; models and sound design are original procedural work, with bundled CC0 surface scans and HDR lighting. See [asset credits](ASSET_CREDITS.md).
 
@@ -41,7 +41,7 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
-The cyborg's castle backpack is now half its previous height, with the same horizontal footprint and unchanged robot. All existing storeys remain, and new districts still build upward. Compact interiors and cannon mounts fit the shorter floors; residents retain their natural size. The flesh titan's castle keeps its original height.
+The cyborg's castle backpack is now half its previous height, with the same horizontal footprint and unchanged robot. All existing storeys remain, and new districts still build upward. Compact interiors and cannon mounts fit the shorter floors; residents retain their natural size. The flesh titan's castle keeps its original height. See [castle height verification](COMPACT_CASTLE_VERIFICATION.md).
 
 Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts. See [vertical construction verification](VERTICAL_GROWTH_VERIFICATION.md).
 
@@ -132,6 +132,7 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
 - `node tests/vertical-growth-browser.mjs`: actual public construction controls, upgrades, save/resume, 20-storey inspection and horizontal construction on the other four carriers. `MIXED_DISTRICTS=1` varies the paid late-game building orders.
 - `node tests/vertical-citizens.mjs`: occupied storey support, compact rooms, activity contact, lamps, upgrades and pause.
+- `node tests/compact-castle-residents.mjs`: natural-sized people and work tables, support contact and ceiling clearance in half-height cyborg rooms, compared with flesh rooms.
 - `node tests/vertical-weapons.mjs`: rendered cannon barrels and curved projectiles against actual castle masonry at several stack heights.
 - `node tests/living-world-audit.mjs`: vertical expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
 - `node tests/variants-art-capture.mjs`: fresh normal-HUD multi-angle and motion captures of all six variants, populated upper wards, floor inspection and mobile layout.
