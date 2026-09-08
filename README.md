@@ -37,7 +37,7 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 | E | Special ability |
 | Escape | Cancel a building selection / close a dialog |
 
-Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Kaiju fists are strongest within 26 metres; Titan rush closes a gap of up to 70 metres. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
+Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Kaiju fists engage within 18 metres of crawler/airship cities or 12 metres of another kaiju. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
 ## Graphics update
 
@@ -48,6 +48,8 @@ Citizens now have eight clothing variations per faction: Gothic coats, capes and
 Weapon placement affects combat. Completed batteries add damage only when a target is inside their range and firing arc. Cannons sweep 150 degrees and can be blocked by tall districts; airship missiles sweep 240 degrees and arc over buildings. Select a battery between battles to choose a direction. Installed weapons track targets, recoil, and launch their projectiles from actual muzzle positions. Built-in weapons and melee attacks remain available.
 
 The terrain has playable hills, ridges, valleys, and level resource clearings. Crawlers follow the slope. Ground carriers leave footprints or tread impressions and crush ambient trees and rocks into stumps and rubble. Resource sites are protected. Scenery damage is saved separately for expedition and battle areas; ground marks are temporary and capped at 400. Birds, butterflies, deer, swaying grass, and flowing water add movement to the world.
+
+The visual-review passes add a stronger backpack frame, planted soles on slopes, weight transfer, an aimed punch with a closed fist, and moving-surface impact effects. Contact shadows use a stable filter. Regional grass, soil and slate materials, varied tree crowns, collapsed ruins and a fractured rock formation give the world more variation. City framing clears the construction tray; Titan view clears that tray for full-body inspection. These changes remain subject to the independent art scores below.
 
 Version 0.2 replaces the simple block models with a more detailed, stylized city-builder presentation. Districts have textured masonry, layered roofs, windows, balconies, chimneys, gardens, and street furniture. Carriers have articulated limbs, mechanical details, or stitched horizontal lift envelopes. The landscape includes varied forests, planted fields, industrial ruins, a river, and distant terrain. Citizens, propellers, smoke, and water are animated.
 

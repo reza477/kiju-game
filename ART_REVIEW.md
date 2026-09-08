@@ -8,6 +8,7 @@ The current cycle evaluates the completed 0.4 build as round 1, followed by up t
 |---|---|---|---|
 | 1 | `b5cdf00` / prototype 0.4 | [Critic report](art-reviews/round-01.md) | **FAIL — 5.3/10**, 0 runtime errors; visual defects remain |
 | 2 | `67338ca` | [Critic report](art-reviews/round-02.md) | **FAIL — 6.1/10**, 0 runtime errors; 2 confirmed visual defects |
+| 3 | `db86f1d` | [Critic report](art-reviews/round-03.md) | **FAIL — 6.4/10**, 0 runtime errors; melee contact defect |
 
 Round 2 addressed the first ranked list: articulated carrier motion and contact, stronger supports, distinct terrain regions and water, improved clothing and crowd spacing, more useful city/Streets framing, compact controls, and clearer firing effects. The builder's integrated browser audit and smoke checks passed; these are functional checks, not aesthetic approval.
 

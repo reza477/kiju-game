@@ -114,6 +114,7 @@ export function makeCity(faction,enemy=false,rings=1){
   for(let i=0;i<20;i++){const p=slotPositions[i];const hit=new T.Mesh(new T.BoxGeometry(2.8,1,3.4),hitMaterial);hit.position.set(p.x,p.y+.5,p.z);hit.userData.slot=i;hit.userData.noBatch=true;hitGroup.add(hit);slots.push(hit);}
   const layout=faction==='kaiju'?'circular':'deck';
   const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
+  city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
@@ -125,45 +126,88 @@ export function animateCity(city,time,moving,populationCount=28){
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}
+function ease(a,b,value){const t=T.MathUtils.clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);}
+
+function strikeMotion(city,time){
+  const age=time-city.strikeTime,contact=city.strikeContactTime??.7,end=city.strikeDuration??1.3;
+  const active=age>=0&&age<end&&city.strikeTarget?.isVector3;
+  city.strikePhase=!active?'idle':age<.22?'windup':age<contact?'reach':age<contact+.22?'contact':'recovery';
+  if(!active){city.strikeContactError=Infinity;return null;}
+  if(city.strikePose?.time!==city.strikeTime){
+    city.root.updateMatrixWorld(true);
+    const arm=city.limbs.find(l=>!l.leg&&l.side>0),shoulder=arm.obj.getWorldPosition(new T.Vector3()),target=city.strikeTarget;
+    const drop=T.MathUtils.clamp(shoulder.y-target.y-8.2,.5,4.5),reach=(arm.lower.position.length()+arm.handVector.length())*city.scale;
+    const horizontal=Math.hypot(target.x-shoulder.x,target.z-shoulder.z),vertical=Math.max(0,shoulder.y-target.y-drop);
+    const advance=T.MathUtils.clamp(horizontal-Math.sqrt(Math.max(1,reach*reach-vertical*vertical))+.6,.75,2.7);
+    const forward=new T.Vector3(Math.sin(city.heading),0,Math.cos(city.heading));
+    city.strikePose={time:city.strikeTime,arm,startHand:city.strikeHand.getWorldPosition(new T.Vector3()),advance,drop,forward,heading:city.heading,
+      feet:city.limbs.filter(l=>l.leg).map(l=>({side:l.side,centre:l.foot.localToWorld(l.soleCentre.clone())}))};
+  }
+  const release=ease(contact+.22,end,age),drive=ease(.22,contact,age),weight=ease(.14,.55,age)*(1-release);
+  return {...city.strikePose,age,contact,end,drive,release,weight};
+}
 
 function animateTitan(city,time,moving){
+  const strike=strikeMotion(city,time);
   const position=city.root.position,previous=city.gaitPrevious;
   const travelled=previous?Math.hypot(position.x-previous.x,position.z-previous.z):0;
-  if(moving&&travelled<8)city.gaitDistance=(city.gaitDistance??0)+travelled/city.scale;
+  // A pursuing strike rides the normal distance-driven stride. Pinning both
+  // feet to their fire-time positions while the carrier advances would drag
+  // the hips down and teleport the soles when recovery ends.
+  if(strike&&travelled>.00001)city.strikePose.moving=true;
+  const walking=moving&&(!strike||city.strikePose.moving);
+  if(walking&&travelled<8)city.gaitDistance=(city.gaitDistance??0)+travelled/city.scale;
   city.gaitPrevious={x:position.x,z:position.z};
   const cycle=(city.gaitDistance??0)/16,phase=cycle*Math.PI*2;
-  const sway=moving?Math.sin(phase):Math.sin(time*.65)*.12;
-  const reaction=hitReaction(city,time),lean=(moving?.063:.042)-reaction*.052,roll=sway*.020+reaction*.012;
+  const sway=walking?Math.sin(phase):Math.sin(time*.65)*.12;
+  const reaction=hitReaction(city,time),lean=(walking?.063:.042)-reaction*.052+(strike?.weight??0)*.135,roll=sway*.020+reaction*.012-(strike?.weight??0)*.018;
   // The chest leans into the load around the hips. Hip transfer and upper-body
   // counter-roll share that pivot, rather than tilting the creature at its feet.
-  city.rig.position.set(sway*.50+Math.sin(roll)*25.5,(moving?-1.75-Math.abs(Math.sin(phase))*.24:-1.35)+25.5*(1-Math.cos(lean)*Math.cos(roll)),-Math.sin(lean)*Math.cos(roll)*25.5);
+  city.rig.position.set(sway*.50+Math.sin(roll)*25.5,(walking?-1.75-Math.abs(Math.sin(phase))*.24:-1.35)+25.5*(1-Math.cos(lean)*Math.cos(roll))-(strike?strike.drop*strike.weight/city.scale:0),-Math.sin(lean)*Math.cos(roll)*25.5+(strike?strike.advance*strike.weight/city.scale:0));
   city.rig.rotation.set(lean,0,roll);
   city.root.updateMatrixWorld(true);
   const feet=[];
   for(const limb of city.limbs){
     if(!limb.leg){
-      const stride=Math.sin(phase+limb.phase),age=time-city.strikeTime;
-      let punch=0;
-      if(age>=0&&age<.75&&limb.side>0)punch=age<.18?-.25*Math.sin(age/.18*Math.PI):Math.sin((age-.18)/.57*Math.PI)*1.18;
-      limb.obj.rotation.set((moving?stride*.20:Math.sin(time*.65+limb.phase)*.018)-punch+reaction*.16,-sway*.025,limb.side*(.035+(moving?Math.abs(stride)*.020:0)+reaction*.07));
-      limb.lower.rotation.x=-.22-(moving?(1-stride)*.07:0)-Math.max(0,punch)*.55;
+      const stride=Math.sin(phase+limb.phase);
+      limb.obj.rotation.set((walking?stride*.20:Math.sin(time*.65+limb.phase)*.018)+reaction*.16,-sway*.025,limb.side*(.035+(walking?Math.abs(stride)*.020:0)+reaction*.07));
+      limb.lower.rotation.set(-.22-(walking?(1-stride)*.07:0),0,0);
+      const clenched=!!strike&&limb.side>0&&strike.age>.09&&strike.release<.85;
+      limb.hand.digits.visible=!clenched;limb.hand.fist.visible=clenched;
       continue;
     }
     const t=((cycle+(limb.side<0?.5:0))%1+1)%1,stance=t<.62;
     let z=-.45,lift=0;
-    if(moving){
+    if(walking){
       if(stance)z=4.96-t*16;
       else{const swing=(t-.62)/.38,ease=swing*swing*(3-2*swing);z=-4.96+ease*9.92;lift=Math.sin(swing*Math.PI)*2.3;}
     }
     const ground=new T.Vector3(limb.side*3.02+limb.soleCentre.x,0,z+limb.soleCentre.z);
     city.root.localToWorld(ground);let facing=city.heading;
-    if(moving&&stance){
+    if(walking&&stance){
+      limb.swing=null;
       if(limb.plant&&travelled<8){ground.x=limb.plant.x;ground.z=limb.plant.z;facing=limb.plant.facing;}
       else limb.plant={x:ground.x,z:ground.z,facing};
-    }else limb.plant=null;
+    }else if(walking){
+      // Lift from the sole's actual last plant, including a strike's shorter
+      // stance. A fixed local backswing point would snap a planted foot away.
+      if(!limb.swing||travelled>=8)limb.swing=limb.plant?{...limb.plant}:{x:ground.x,z:ground.z,facing};
+      limb.plant=null;
+      const phase=(t-.62)/.38,blend=phase*phase*(3-2*phase);
+      const landing=new T.Vector3(limb.side*3.02+limb.soleCentre.x,0,4.96+limb.soleCentre.z);city.root.localToWorld(landing);
+      ground.x=T.MathUtils.lerp(limb.swing.x,landing.x,blend);ground.z=T.MathUtils.lerp(limb.swing.z,landing.z,blend);
+    }else{limb.plant=null;limb.swing=null;}
+    if(strike&&!walking){
+      const planted=strike.feet.find(f=>f.side===limb.side);ground.x=planted.centre.x;ground.z=planted.centre.z;facing=strike.heading;
+      if(limb.side>0){const inStep=ease(.15,.51,strike.age),outStep=ease(strike.contact+.24,strike.end,strike.age),step=inStep*(1-outStep);
+        const stepLength=Math.min(1.25,strike.advance*.58);ground.addScaledVector(strike.forward,stepLength*step);
+        lift=(strike.age<.51?Math.sin(inStep*Math.PI):Math.sin(outStep*Math.PI))*.7/city.scale;
+      }else lift=0;
+      if(lift<.01)limb.plant={x:ground.x,z:ground.z,facing};
+    }
     const fitted=fitSole(limb,ground,facing,city.scale);
     fitted.position.y+=lift*city.scale;
-    limb.contact=stance||!moving;limb.contactTarget=fitted.position;
+    limb.contact=strike&&!walking?lift<.01:stance||!walking;limb.contactTarget=fitted.position;
     feet.push({limb,...fitted});
   }
   // The downhill leg sets the maximum hip height. Both leg targets are known
@@ -175,6 +219,15 @@ function animateTitan(city,time,moving){
     lowerBy=Math.max(lowerBy,hip.y-target.y-Math.sqrt(Math.max(.2,reach*reach-horizontal)));
   }
   city.rig.position.y-=lowerBy/city.scale;city.root.updateMatrixWorld(true);
+  if(strike){
+    // Low battlements require a deeper supported crouch. Adjust before the leg
+    // solve; do not lengthen an arm or leave a hand floating short of the hull.
+    const shoulder=strike.arm.obj.getWorldPosition(new T.Vector3()),target=city.strikeTarget;
+    const reach=(strike.arm.lower.position.length()+strike.arm.handVector.length()-.20)*city.scale;
+    const horizontal=(shoulder.x-target.x)**2+(shoulder.z-target.z)**2;
+    const extra=Math.max(0,shoulder.y-target.y-Math.sqrt(Math.max(1,reach*reach-horizontal)));
+    city.rig.position.y-=Math.min(2.5,extra)*strike.weight/city.scale;city.root.updateMatrixWorld(true);
+  }
   for(const {limb,position:ground,rotation:soleRotation} of feet){
     const target=city.rig.worldToLocal(ground.clone()).sub(limb.obj.position);
     const upper=new T.Vector3(...limb.knee),lower=new T.Vector3(...limb.ankle).sub(upper);
@@ -189,6 +242,26 @@ function animateTitan(city,time,moving){
     const parentRotation=limb.lower.getWorldQuaternion(new T.Quaternion());
     limb.foot.quaternion.copy(parentRotation.invert()).multiply(soleRotation);
   }
+  if(strike){
+    city.root.updateMatrixWorld(true);
+    const rest=city.strikeHand.getWorldPosition(new T.Vector3());
+    const windup=strike.startHand.clone().add(new T.Vector3(0,2.4,0)).addScaledVector(strike.forward,-1.25);
+    let goal=strike.age<.22?strike.startHand.clone().lerp(windup,ease(0,.22,strike.age)):windup.clone().lerp(city.strikeTarget,strike.drive);
+    if(strike.release>0)goal=city.strikeTarget.clone().lerp(rest,strike.release);
+    aimArm(city,strike.arm,goal);city.root.updateMatrixWorld(true);
+    city.strikeContactError=city.strikeHand.getWorldPosition(new T.Vector3()).distanceTo(city.strikeTarget);
+  }
+}
+
+function aimArm(city,arm,worldTarget){
+  const target=city.rig.worldToLocal(worldTarget.clone()).sub(arm.obj.position),upper=arm.lower.position.clone(),lower=arm.handVector;
+  const l1=upper.length(),l2=lower.length(),distance=T.MathUtils.clamp(target.length(),Math.abs(l1-l2)+.01,l1+l2-.005);
+  const axis=target.clone().normalize(),along=(l1*l1-l2*l2+distance*distance)/(2*distance);
+  const hint=new T.Vector3(arm.side,.1,-.3),bend=hint.addScaledVector(axis,-hint.dot(axis)).normalize();
+  const elbow=axis.clone().multiplyScalar(along).addScaledVector(bend,Math.sqrt(Math.max(0,l1*l1-along*along)));
+  arm.obj.quaternion.setFromUnitVectors(upper.normalize(),elbow.clone().normalize());
+  const forearm=target.clone().sub(elbow).applyQuaternion(arm.obj.quaternion.clone().invert());
+  arm.lower.quaternion.setFromUnitVectors(lower.clone().normalize(),forearm.normalize());
 }
 
 function supportingPlane(points){

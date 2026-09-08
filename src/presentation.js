@@ -89,7 +89,7 @@ export class Atmosphere {
   update(time,dt,stacks,movingPosition){
     this.clock+=dt;
     if(this.clock>this.nextSmoke){this.nextSmoke=this.clock+.3;for(const stack of stacks.slice(0,14))this.emit(stack);if(movingPosition)this.emit(movingPosition,'dust');}
-    for(let i=this.puffs.length-1;i>=0;i--){const p=this.puffs[i];p.age+=dt;p.sprite.position.y+=dt*(p.kind==='smoke'?1.6:.35);p.sprite.position.x+=dt*.45;p.sprite.scale.setScalar((p.kind==='smoke'?.65:1.5)+p.age*1.3);p.sprite.material.opacity=Math.max(0,(p.kind==='smoke'?.26:.12)*(1-p.age/4));if(p.age>=4){p.sprite.removeFromParent();p.sprite.material.dispose();this.puffs.splice(i,1);}}
+    for(let i=this.puffs.length-1;i>=0;i--){const p=this.puffs[i],life=p.kind==='smoke'?3:4;p.age+=dt;p.sprite.position.y+=dt*(p.kind==='smoke'?1.6:.35);p.sprite.position.x+=dt*.45;p.sprite.scale.setScalar((p.kind==='smoke'?.5:1.5)+p.age*(p.kind==='smoke'?.75:1.3));p.sprite.material.opacity=Math.max(0,(p.kind==='smoke'?.16:.12)*(1-p.age/life));if(p.age>=life){p.sprite.removeFromParent();p.sprite.material.dispose();this.puffs.splice(i,1);}}
     for(let i=0;i<this.clouds.length;i++){const cloud=this.clouds[i];cloud.position.x+=dt*.7;if(cloud.position.x>380)cloud.position.x=-380;}
   }
 }

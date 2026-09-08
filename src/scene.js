@@ -57,6 +57,29 @@ function placeCity(city,x,z,angle){
   city.root.updateMatrixWorld(true);
 }
 
+function impactAnchor(source,target,start,melee){
+  target.root.updateMatrixWorld(true);
+  const origin=start.clone(),centre=target.root.getWorldPosition(new T.Vector3()),heading=centre.clone().sub(source.root.position);heading.y=0;heading.normalize();
+  const right=new T.Vector3(heading.z,0,-heading.x),width=target.faction==='kaiju'?1.4:6;
+  const lateral=T.MathUtils.clamp(start.clone().sub(source.root.position).dot(right),-width,width);
+  const heights=target.faction==='kaiju'?[32,35,28]:melee?[target.deckY+1.5,target.deckY+.65,target.deckY+3,target.deckY-.5,target.deckY-1]:[target.deckY-1,target.deckY-2,target.deckY+.5];
+  const ray=new T.Raycaster();let closest=null;
+  for(const height of heights){
+    const aim=target.root.localToWorld(new T.Vector3(0,height,0));if(melee){aim.addScaledVector(right,lateral);origin.y=aim.y;}
+    ray.set(origin,aim.clone().sub(origin).normalize());
+    const hit=ray.intersectObject(target.root,true).find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}const m=h.object.material;return m&&!Array.isArray(m)&&m.visible&&!(m.transparent&&m.opacity<.2)&&!h.object.userData.enemy&&h.object.userData.slot===undefined;});
+    if(hit&&(!closest||hit.point.distanceToSquared(start)<closest.point.distanceToSquared(start)))closest={object:hit.object,local:hit.object.worldToLocal(hit.point.clone()),point:hit.point};
+  }
+  return closest;
+}
+
+function refreshImpactAnchor(fx){
+  // A kiting hull can turn around during wind-up. Reacquire its near surface
+  // before contact instead of chasing an anchor that rotated to the far side.
+  if(!fx.arrived&&Math.abs(Math.atan2(Math.sin(fx.target.heading-fx.anchorHeading),Math.cos(fx.target.heading-fx.anchorHeading)))>.1){const next=impactAnchor(fx.actor,fx.target,fx.start,fx.kind==='impact');if(next){fx.anchor=next;fx.anchorHeading=fx.target.heading;}}
+  fx.end.copy(fx.anchor.object.localToWorld(fx.anchor.local.clone()));
+}
+
 export class GameScene {
   constructor(canvas,onSelect){
     this.canvas=canvas;this.onSelect=onSelect;this.scene=new T.Scene();
@@ -104,19 +127,19 @@ export class GameScene {
       const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,e.faction==='kaiju'?56:34,e.faction==='kaiju'?34:26),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?28:15,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
       this.scene.add(city.root);this.enemyCities.push(city);
     }
-    this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.9):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
+    this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
     this.setLighting(this.light);
   }
 
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='circular';this.view=view;
-    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?40:30):this.preview?80:76;
-    const backpackPitch=(view==='carrier'||this.preview)?.25:.64;
+    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?34:22):this.preview?80:76;
+    const backpackPitch=(view==='carrier'||this.preview)?.25:.60;
     this.pitch=view==='world'?.88:view==='people'?.38:backpack?backpackPitch:.6;
     if(backpack&&view==='carrier')this.yaw=this.state.angle+.75;
     else if(backpack&&view==='people')this.yaw=this.state.angle+2.35;
     else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
-    else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.9;
+    else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
   }
 
   setQuality(quality){
@@ -159,20 +182,19 @@ export class GameScene {
     const battle=this.state.battle,fromEnemy=event.source==='enemy'||!event.source&&(event.kind==='enemyShot'||battle&&distance(event.from,battle.enemy)<distance(event.from,battle.player));
     const source=fromEnemy?opponent:this.city,target=fromEnemy?this.city:opponent;
     if(!source||!target)return;
-    const toward=target.root.worldToLocal(source.root.getWorldPosition(new T.Vector3()));toward.y=0;toward.normalize();
-    const halfX=target.faction==='kaiju'?4:target.faction==='crawler'?10:8,halfZ=target.faction==='kaiju'?3:target.faction==='crawler'?12:9;
-    const edge=1/Math.max(.001,Math.sqrt((toward.x/halfX)**2+(toward.z/halfZ)**2));
-    const end=target.root.localToWorld(new T.Vector3(toward.x*edge,target.faction==='kaiju'?32:target.deckY-1,toward.z*edge));
     for(const shot of weaponMuzzles(source,event.mounts||[],this.state.time,event.kind==='impact',event.base!==false)){
+      const melee=event.kind==='impact',anchor=impactAnchor(source,target,shot.point,melee);if(!anchor)continue;const end=anchor.point;
+      if(melee){source.strikeTarget=end.clone();source.strikeContactTime=.7;source.strikeDuration=1.3;}
       const start=shot.point,group=new T.Group(),material=new T.MeshBasicMaterial({color:fromEnemy?0xff8750:0xffd789,transparent:true,opacity:1});
       const object=new T.Mesh(shot.missile?new T.ConeGeometry(.27,1.15,10):new T.SphereGeometry(event.kind==='impact'?.45:.25,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
       const trail=new T.Mesh(new T.ConeGeometry(.18,shot.missile?5:3.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.8}));trail.rotation.x=Math.PI/2;trail.position.z=-1.3;group.add(trail);
       const burst=new T.Group();burst.visible=false;group.add(burst);
       for(let i=0;i<14;i++){const debris=i>8,spark=new T.Mesh(new T.TetrahedronGeometry(debris?.36:.22),new T.MeshBasicMaterial({color:debris?0x847e70:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.debris=debris;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
-      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),age:0,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target});
+      if(melee){object.visible=false;trail.visible=false;}
+      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),anchor,anchorHeading:target.heading,age:0,born:this.state.time,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target,actor:source});
       if(event.kind!=='impact'){
         const flash=new T.Mesh(new T.SphereGeometry(.85,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
-        this.fx.push({object:flash,flash:true,start,age:0});
+        this.fx.push({object:flash,flash:true,start,age:0,born:this.state.time});
       }
     }
   }
@@ -185,12 +207,14 @@ export class GameScene {
     if(battle){
       const b=s.battle;placeCity(this.city,b.player.x,b.player.z,b.player.angle);
       const enemy=this.enemyCities.find(c=>c.id===b.enemyId);for(const city of this.enemyCities)city.root.visible=city===enemy;
-      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);animateCity(enemy,s.time,!b.result);
+      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);
+      for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
+      animateCity(enemy,s.time,!b.result);
       animateWeapons(this.city,b.enemy,s.time);animateWeapons(enemy,b.player,s.time);this.city.root.updateMatrixWorld(true);enemy.root.updateMatrixWorld(true);
       for(const status of weaponStatus(s).batteries){const weapon=this.city.batteries.find(w=>w.slot===status.slot);weapon?.indicator.material.color.setHex(status.active?0xc9ff97:status.blocker!==null?0xff6852:0x638793);}
       const cx=(b.player.x+b.enemy.x)/2,cz=(b.player.z+b.enemy.z)/2;
       focus=new T.Vector3(cx,(this.city.root.position.y+enemy.root.position.y)/2+14,cz);desiredZoom=Math.max(130,distance(b.player,b.enemy)*1.02+66);
-      if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+1.05;this.pitch=.4;this.lastEvent=0;}
+      if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+2.1;this.pitch=.4;this.lastEvent=0;}
       for(const event of b.events){if(event.id<=this.lastEvent)continue;this.lastEvent=event.id;if(b.time-event.time<1.1)this.createEffect(event);}
       actors.push({id:'player',faction:s.faction,...b.player,moving:!b.result,scale:this.city.scale},{id:enemy.id,faction:enemy.faction,...b.enemy,moving:!b.result,scale:enemy.scale});
     }else{
@@ -211,6 +235,7 @@ export class GameScene {
     if(this.destination.visible){const normal=terrainNormal(s.target.x,s.target.z);this.destination.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(normal.x,normal.y,normal.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     const selectedBattery=selectedSlot!==null&&s.buildings[selectedSlot]?.type==='cannon';this.coverage.visible=!battle&&!!selectedBattery;
     if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot];this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+1.8,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
+    for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
     this.focus.lerp(focus,1-Math.exp(-dt*5));
     const wide=this.camera.aspect<1.2?1.4:1,horizontal=Math.cos(this.pitch)*desiredZoom*wide;
@@ -230,10 +255,12 @@ export class GameScene {
     const movingOnGround=this.dustPrevious?.mode===mode&&distance(this.dustPrevious,current)>.015&&s.faction!=='airship'&&!this.preview;
     this.atmosphere.update(s.time,s.paused?0:dt,stacks,movingOnGround?new T.Vector3(current.x,current.y+.4,current.z):null);this.dustPrevious={x:current.x,z:current.z,mode};
     for(let i=this.fx.length-1;i>=0;i--){
-      const fx=this.fx[i];fx.age+=s.paused?0:dt;
+      const fx=this.fx[i];fx.age=Math.max(0,s.time-fx.born);
       if(fx.flash){fx.object.material.opacity=Math.max(0,1-fx.age/.12);if(fx.age>.12){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}continue;}
-      const flight=fx.kind==='impact'?.32:.55,t=Math.min(1,fx.age/flight);fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:fx.kind==='impact'?.25:3);fx.object.lookAt(fx.end);
-      if(t>=1){const hitAge=fx.age-flight;if(!fx.arrived){fx.arrived=true;fx.target.hitAt=s.time;this.atmosphere.emit(fx.end,'dust');}fx.trail.visible=false;fx.burst.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*(spark.userData.debris?.85:2));spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
+      refreshImpactAnchor(fx);
+      const melee=fx.kind==='impact',flight=melee?(fx.actor.strikeContactTime??.7):.55,t=Math.min(1,fx.age/flight);
+      if(melee)fx.object.position.copy(fx.end);else{fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:3);fx.object.lookAt(fx.end);}
+      if(t>=1){const hitAge=fx.age-flight;if(!fx.arrived){fx.arrived=true;fx.target.hitAt=s.time;this.atmosphere.emit(fx.end,'dust');}fx.trail.visible=false;fx.burst.visible=true;fx.ball.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*(spark.userData.debris?.85:2));spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.presentation.render(this.scene);
   }

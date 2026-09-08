@@ -76,7 +76,8 @@ function groundAlbedo() {
     const broad = noise(x * .012 + 14, z * .012 - 8), veins = noise(x * .026 - 2, z * .026 + 9);
     const ruin = ruinFootprint(x, z), ash = region.ash * .65 + ruin * .35;
     const mineral = smooth(.21, .52, slope) * smooth(8, 24, y);
-    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36);
+    const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
+    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72);
     const bank = smooth(-1, 2, d) * (1 - smooth(5, 11, d));
     const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
     c.copy(palette.grass).lerp(palette.dry, smooth(.30, .83, broad) * .7).lerp(palette.meadow, region.meadow * .64);
@@ -142,7 +143,7 @@ function canopyGeometry(needles = false) {
   const positions = geometry.attributes.position;
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
-    const lobes = 1 + .10 * Math.sin(x * 6 + z * 3) * Math.sin(y * 5 - z * 4) + .045 * Math.cos(z * 11 + x * 7);
+    const lobes = 1 + .065 * Math.sin(x * 6 + z * 3) * Math.sin(y * 5 - z * 4) + .025 * Math.cos(z * 11 + x * 7);
     positions.setXYZ(i, x * lobes, y * lobes + .05 * Math.sin(x * 5) * (1 - y * y), z * lobes);
   }
   geometry.computeVertexNormals();
@@ -176,6 +177,42 @@ function treeBatches(group) {
     needles: new Instances(group, canopyGeometry(true), getMaterial('foliage', 0xffffff)),
     finish() { return [this.wood.finish('Tree trunks and branches'), this.leaves.finish('Broadleaf canopies'), this.needles.finish('Pine boughs')].filter(Boolean); }
   };
+}
+function shapeTreeCrown(batch, starts, x, y, z, h, pine) {
+  // Shape the existing pieces after all random draws. Thus saved tree anchors and
+  // every later scenery ID retain their original deterministic generation order.
+  const seed = Math.abs(Math.sin(x * 17.71 + z * 43.13) * 941.73) % 1;
+  const profile = Math.floor(seed * 3), angle = seed * TAU;
+  const width = pine ? [1.16, .73, 1.01][profile] : [1.32, .66, 1.40][profile];
+  const depth = pine ? [.91, .85, 1.08][profile] : [1.05, .78, .86][profile];
+  const height = pine ? [.91, 1.24, 1.08][profile] : [.92, 1.30, .86][profile];
+  const lean = profile === 2 ? .17 : .035, ca = Math.cos(angle), sa = Math.sin(angle);
+  const transform = point => {
+    const dx = point.x - x, dz = point.z - z, dy = point.y - y;
+    const u = (dx * ca + dz * sa) * width + dy * lean, v = (-dx * sa + dz * ca) * depth;
+    return new T.Vector3(x + u * ca - v * sa, y + dy * height, z + u * sa + v * ca);
+  };
+  for (let i = starts[0]; i < batch.wood.items.length; i++) {
+    const item = batch.wood.items[i], centre = new T.Vector3(item.x, item.y, item.z);
+    const direction = UP.clone().applyQuaternion(item.rotation || new T.Quaternion()).multiplyScalar(item.sy * .5);
+    const a = transform(centre.clone().sub(direction)), b = transform(centre.clone().add(direction)), delta = b.clone().sub(a);
+    const p = a.add(b).multiplyScalar(.5); item.x = p.x; item.y = p.y; item.z = p.z;
+    item.sy = delta.length(); item.rotation = new T.Quaternion().setFromUnitVectors(UP, delta.normalize());
+    item.sx *= Math.sqrt(width * depth); item.sz *= Math.sqrt(width * depth);
+  }
+  const crowns = pine ? batch.needles : batch.leaves, first = pine ? starts[2] : starts[1];
+  for (let i = first; i < crowns.items.length; i++) {
+    const item = crowns.items[i], j = i - first, p = transform(new T.Vector3(item.x, item.y, item.z));
+    item.x = p.x; item.y = p.y; item.z = p.z; item.sx *= width; item.sz *= depth;
+    item.sy *= height * (pine ? .80 + (j % 3) * .14 : profile === 1 ? 1.14 : .73);
+    if (pine && j < 12) {
+      // Uneven sprays give an open, branching outline rather than repeated tiers.
+      const spread = .83 + .29 * Math.sin(j * 2.37 + angle);
+      item.x = x + (item.x - x) * spread; item.z = z + (item.z - z) * spread;
+      item.y += Math.sin(j * 1.79 + angle) * h * .026;
+    }
+    item.yaw += angle;
+  }
 }
 function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
   const starts = [batch.wood.items.length, batch.leaves.items.length, batch.needles.items.length];
@@ -212,6 +249,7 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
         baseColour.clone().multiplyScalar(.83 + rand() * .25 + (top ? .1 : 0)).getHex(), rand() * TAU);
     }
   }
+  shapeTreeCrown(batch, starts, x, y, z, h, pine);
   return [batch.wood, batch.leaves, batch.needles].map((part, i) => ({ batch: part, first: starts[i], count: part.items.length - starts[i] })).filter(part => part.count);
 }
 
@@ -520,12 +558,23 @@ function composeRegions(trees, shrubs, grass) {
   }
 }
 function createSlateLandmark(group, records) {
-  const geometry=new T.CylinderGeometry(.46,.58,1,6),p=geometry.attributes.position;
-  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(1-y*.28)+z*.15,y+x*.13,z*(1+y*.18));}geometry.computeVertexNormals();
-  const stone=new Instances(group,geometry,getMaterial('soil',0xffffff,{roughness:1}));
-  // Three weathered bedding slabs form one recognizable ridge, not extra scatter.
+  const positions=[],indices=[],colours=[],uvs=[];
+  const outline=[[-.88,-.42],[-.36,-.72],[.67,-.48],[.87,.30],[.13,.64],[-.73,.43]];
+  const beds=[[-.4,1,-.10],[-.31,.92,-.05],[-.24,.94,.01],[-.06,.72,.15],[.01,.77,.12],[.08,.65,.18],[.26,.53,.25],[.29,.56,.27],[.52,.25,.34]];
+  for(let j=0;j<beds.length;j++)for(let k=0;k<6;k++){
+    const [y,width,shear]=beds[j],[x,z]=outline[k],edge=.082*Math.sin(k*2.7+j*.53),fracture=1+.085*Math.sin(k*3.1+j*1.67);
+    positions.push(x*width*fracture+shear,y+edge,z*(.45+width*.55)*fracture+x*.11);
+    const shade=.87+.10*Math.sin(k*1.3+j*.71);colours.push(shade,shade,shade);uvs.push(x*2+shear,y*3+z);
+    if(j<beds.length-1){const a=j*6+k,b=j*6+(k+1)%6,c=b+6,d=a+6;indices.push(a,d,b,b,d,c);}
+  }
+  for(let k=1;k<5;k++)indices.push(0,k,k+1,48,48+k+1,48+k);
+  const indexed=new T.BufferGeometry();indexed.setAttribute('position',new T.Float32BufferAttribute(positions,3));indexed.setAttribute('color',new T.Float32BufferAttribute(colours,3));indexed.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));indexed.setIndex(indices);
+  const geometry=indexed.toNonIndexed();geometry.computeVertexNormals();indexed.dispose();
+  const stone=new Instances(group,geometry,getMaterial('soil',0xffffff,{roughness:1,vertexColors:true}));
+  // Buried, overlapping bases and inclined fracture beds join the same three
+  // persistent anchors into one outcrop. Crushing still removes each whole slab.
   for(const [i,x,z,w,h,d,yaw]of [[0,143,-15,5.5,7.5,9,.22],[1,148,-10,5,12,8,.15],[2,153,-6,4.5,9.1,7,.10]]){
-    const first=stone.add(x,heightAt(x,z)+h*.40,z,w,h,d,[0x929e98,0xb1b8ab,0x86958e][i],yaw);
+    const height=h*.72,first=stone.add(x,heightAt(x,z)+height*.36,z,w,height,d,[0x87938e,0xa3aca1,0x82918a][i],yaw);
     records.push({id:`landmark:slate:${i}`,kind:'rock',x,z,size:w,parts:[{batch:stone,first,count:1}]});
   }
   stone.finish('The Three Sisters slate outcrop');
@@ -705,21 +754,53 @@ function addIronRuins(group, node, rand) {
     // A fractured aqueduct is the old town's strong silhouette and orientation cue.
     const stone=getMaterial('stone',0xa6a99b);
     for(const x of [-7,0,7]){
-      const shape=new T.Shape();shape.moveTo(-3.4,0);shape.lineTo(3.4,0);shape.lineTo(3.4,10);shape.lineTo(-3.4,10);shape.closePath();
-      const arch=new T.Path();arch.moveTo(-2.35,0);arch.lineTo(-2.35,5.25);arch.absarc(0,5.25,2.35,Math.PI,0,true);arch.lineTo(2.35,0);arch.closePath();shape.holes.push(arch);
+      const shape=new T.Shape();
+      if(x===7){
+        // The last span has fallen forwards. Its ragged springing remains attached
+        // to the intact arches; the missing mass is the rubble fan below.
+        shape.moveTo(-3.4,0);shape.lineTo(-2.35,0);shape.lineTo(-2.35,5.25);
+        shape.quadraticCurveTo(-2.30,6.8,-1.05,7.35);shape.lineTo(.05,7.7);shape.lineTo(.42,8.35);
+        shape.lineTo(-.64,8.58);shape.lineTo(-1.22,9.30);shape.lineTo(-2.1,9.05);shape.lineTo(-3.4,9.65);shape.closePath();
+      }else{
+        shape.moveTo(-3.4,0);shape.lineTo(3.4,0);shape.lineTo(3.4,10);shape.lineTo(-3.4,10);shape.closePath();
+        const arch=new T.Path();arch.moveTo(-2.35,0);arch.lineTo(-2.35,5.25);arch.absarc(0,5.25,2.35,Math.PI,0,true);arch.lineTo(2.35,0);arch.closePath();shape.holes.push(arch);
+      }
       const geometry=new T.ExtrudeGeometry(shape,{depth:1.7,bevelEnabled:true,bevelSize:.10,bevelThickness:.1,bevelSegments:1,steps:1,curveSegments:10});
       const wall=new T.Mesh(geometry,stone);wall.position.set(x,0,-12.8);wall.castShadow=wall.receiveShadow=true;group.add(wall);
-      box(group,6.9,.6,2.1,getMaterial('stone',0xbbb9a4),x,10.15,-11.95);
+      const cap=box(group,6.9,.6,2.1,getMaterial('stone',0xbbb9a4),x,x===7?.65:10.15,x===7?-6.6:-11.95);
+      if(x===7){cap.rotation.y=.51;cap.rotation.z=-.09;}
     }
   }
+  const rubbleFirst=d.rubble.items.length,metalFirst=d.metal.items.length;
   for (let i = 0; i < 70; i++) {
     const x = (rand() - .5) * 24, z = (rand() - .5) * 23, r = .18 + rand() * .65;
     d.rubble.add(x, .16, z, r * 1.5, r * .7, r, ROCK_COLOURS[i % 4], rand() * TAU);
     if (i % 7 === 0) d.metal.add(x, .35, z, 2 + rand() * 3, .2, .22, 0x796e5c, rand() * TAU);
   }
+  for(let i=rubbleFirst;i<d.rubble.items.length;i++){
+    const item=d.rubble.items[i],j=i-rubbleFirst,u=item.x/24+.5,v=item.z/23+.5;
+    if(oldTown&&j<44){
+      const radius=1+Math.sqrt(v)*9,angle=(u-.5)*1.9;
+      item.x=6.9+Math.sin(angle)*radius;item.z=-11.8+Math.cos(angle)*radius;
+      item.y=.18+(1-radius/11)*.72;item.sx*=j<18?2.5:1.7;item.sy*=1.5;item.sz*=j<18?2.0:1.25;item.yaw=angle+.35;
+    }else if(oldTown){item.x=-12+u*18;item.z=-12.1+v*3.2;item.y=.20;item.sx*=1.5;item.sz*=1.25;}
+    else{
+      const centres=[[-10,-9],[-6,-4],[5,-7],[-5,7]],[cx,cz]=centres[j%4],angle=u*TAU,radius=1.2+v*3.5;
+      item.x=cx+Math.cos(angle)*radius;item.z=cz+Math.sin(angle)*radius;item.y=.2+(1-v)*.35;
+      item.sx*=1.6;item.sy*=1.25;item.sz*=1.3;
+    }
+    item.colour=oldTown?[0xa9ac9b,0x969e92,0xb3b29e][j%3]:[0x918d78,0x827b68,0xa18f75][j%3];
+  }
+  for(let i=metalFirst;i<d.metal.items.length;i++){
+    const item=d.metal.items[i],near=d.rubble.items[rubbleFirst+((i-metalFirst)*7)%70];
+    item.x=near.x;item.y=near.y+.35;item.z=near.z;item.yaw=near.yaw+.23;
+  }
   const growth = treeBatches(group);
   for (const [x, z] of [[-11, 6], [10, -10], [2, 1]]) addTree(growth, rand, x, 0, z, .63, false);
-  for (let i = 0; i < 24; i++) growth.leaves.add((rand() - .5) * 23, .3, (rand() - .5) * 23, .9, .4, .9, LEAF_COLOURS[i % 6]);
+  for (let i = 0; i < 24; i++) {
+    const x=(rand()-.5)*23,z=(rand()-.5)*23,edge=i%2===0;
+    growth.leaves.add(edge?x:Math.sign(x)*11.2,.28,edge?Math.sign(z)*10.5:z,1.1,.4,.85,LEAF_COLOURS[i%6]);
+  }
   growth.finish(); d.finish();
 }
 function addFarmland(group, node, rand) {

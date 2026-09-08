@@ -66,8 +66,9 @@ export function animateWeapons(city,target,time){
 
 export function weaponMuzzles(city,slots,time,melee=false,base=true){
   if(melee){
-    city.strikeTime=time;
-    const p=new T.Vector3(city.faction==='kaiju'?5:0,city.faction==='kaiju'?27:5,city.faction==='kaiju'?4.5:13);
+    city.strikeTime=time;city.strikePose=null;
+    if(city.strikeHand)return [{point:city.strikeHand.getWorldPosition(new T.Vector3()),missile:false,weapon:null}];
+    const p=new T.Vector3(0,city.faction==='airship'?15.2:3,city.faction==='airship'?11:14.65);
     city.root.localToWorld(p);return [{point:p,missile:false,weapon:null}];
   }
   const selected=[...(base?city.baseWeapons||[]:[]),...(city.batteries||[]).filter(w=>slots.includes(w.slot))];

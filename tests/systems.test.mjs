@@ -239,12 +239,21 @@ test('solid city buildings block gun batteries; lofted missiles clear the same o
 
 test('close combat uses the faction melee weapon and never adds battery gun damage', () => {
   for (const faction of ['kaiju', 'crawler', 'airship']) {
-    const state = batteryBattle({ faction, level: 3, target: { x: 0, z: 20 } });
+    const state = batteryBattle({ faction, level: 3, target: { x: 0, z: 10 } });
     const result = shoot(state);
     assert.equal(result.damage, FACTIONS[faction].melee);
     assert.equal(result.event.kind, 'impact');
     assert.deepEqual(result.event.mounts, []);
   }
+});
+
+test('a narrow humanoid must be closer than a broad hull before a kaiju can punch it', () => {
+  const narrow=batteryBattle({faction:'kaiju',target:{x:0,z:17}});narrow.battle.enemyFaction='kaiju';
+  assert.equal(shoot(narrow).event.kind,'shot');
+  const broad=batteryBattle({faction:'kaiju',target:{x:0,z:17}});broad.battle.enemyFaction='crawler';
+  assert.equal(shoot(broad).event.kind,'impact');
+  const close=batteryBattle({faction:'kaiju',target:{x:0,z:11}});close.battle.enemyFaction='kaiju';
+  assert.equal(shoot(close).event.kind,'impact');
 });
 
 test('battery facing survives saves, wraps angles, and cannot be edited during battle', () => {

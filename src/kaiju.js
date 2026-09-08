@@ -151,23 +151,32 @@ function createHand(arm, side, m) {
   // Each open hand has a palm, four three-jointed fingers and an opposed thumb.
   muscle(palm, [0, .55, 0], [side * .02, -1.2, .13], 1.12, .54, m.dark);
   mirroredPlate(palm, side, [[-.95, .75], [.86, .7], [1.07, -.35], [.72, -1.22], [-.79, -1.2], [-1.01, -.55]], .35, m.armour, 0, -.05, .48, .09);
+  const digits=new T.Group(),fist=new T.Group();digits.name='Open titan fingers';fist.name='Closed striking fist';palm.add(digits,fist);
   for (let finger = 0; finger < 4; finger++) {
     const fx = (finger - 1.5) * .51, length = finger === 0 || finger === 3 ? .87 : 1.05;
     const y = -1.04 + Math.abs(finger - 1.5) * .09;
     const points = [[fx, y, .07], [fx + side * .06, y - length, .25], [fx + side * .05, y - length * 1.70, .60], [fx - side * .03, y - length * 2.19, .95]];
     for (let segment = 0; segment < 3; segment++) {
       const r = .235 - segment * .027;
-      muscle(palm, points[segment], points[segment + 1], r, r * .83, segment === 1 ? m.dark : m.armour);
-      sphere(palm, .25 - segment * .025, m.joint, ...points[segment], 1, .85, 1);
-      if (segment === 0) box(palm, .25, .25, .14, m.edge, points[segment][0], points[segment][1], .34);
+      muscle(digits, points[segment], points[segment + 1], r, r * .83, segment === 1 ? m.dark : m.armour);
+      sphere(digits, .25 - segment * .025, m.joint, ...points[segment], 1, .85, 1);
+      if (segment === 0) box(digits, .25, .25, .14, m.edge, points[segment][0], points[segment][1], .34);
     }
-    sphere(palm, .17, m.edge, ...points[3], 1, 1.22, .8);
+    sphere(digits, .17, m.edge, ...points[3], 1, 1.22, .8);
+    muscle(fist,[fx,-.76,.08],[fx,-1.12,.58],.27,.28,m.armour);
+    muscle(fist,[fx,-1.12,.58],[fx,-.63,.89],.25,.24,m.dark);
+    sphere(fist,.27,m.armour,fx,-1.08,.27,1,1,1.3);
   }
   const thumb = [[-side * .94, -.22, .15], [-side * 1.5, -1.02, .45], [-side * 1.48, -1.68, 1.03], [-side * 1.07, -1.84, 1.35]];
   for (let i = 0; i < 3; i++) {
-    muscle(palm, thumb[i], thumb[i + 1], .29 - i * .035, .24 - i * .025, i === 1 ? m.dark : m.armour);
-    sphere(palm, .27 - i * .028, m.joint, ...thumb[i]);
+    muscle(digits, thumb[i], thumb[i + 1], .29 - i * .035, .24 - i * .025, i === 1 ? m.dark : m.armour);
+    sphere(digits, .27 - i * .028, m.joint, ...thumb[i]);
   }
+  muscle(fist,[-side*.94,-.22,.35],[-side*.62,-.74,.94],.31,.28,m.armour);
+  box(fist,1.64,.30,.67,m.armour,0,-1.17,.29);
+  const marker=new T.Object3D();marker.name='Physical striking knuckle';marker.position.set(0,-1.33,.29);palm.add(marker);
+  batchStatic(digits);digits.userData.noBatch=true;batchStatic(fist);fist.userData.noBatch=true;fist.visible=false;
+  batchStatic(palm);palm.userData.noBatch=true;return {palm,digits,fist,marker};
 }
 
 function createArm(rig, limbs, side, m) {
@@ -191,10 +200,10 @@ function createArm(rig, limbs, side, m) {
   // Back-of-elbow fins and the open wrists expose the underlying creature.
   mirroredPlate(arm, side, [[-.48, 0], [.55, .1], [.42, -2.1], [0, -3.8], [-.35, -2]], .38, m.edge, side * 2.15, -11.2, -.95, .06);
   for (let i = 0; i < 4; i++) cylinder(arm, .76 - i * .03, .79 - i * .03, .22, m.joint, wrist[0], -20.3 - i * .3, 2.38, 18).scale.z = .92;
-  createHand(arm, side, m);
+  const hand=createHand(arm, side, m);
   const lower = articulatedSection(arm,arm.children.slice(forearmStart),elbow,'Titan articulated elbow');
   batchStatic(arm); arm.userData.noBatch = true;
-  limbs.push({ obj:arm, lower, side, phase:side>0?Math.PI:0, leg:false });
+  limbs.push({ obj:arm, lower, hand, handVector:hand.palm.position.clone().add(hand.marker.position), side, phase:side>0?Math.PI:0, leg:false });
 }
 
 function torso(frame, m) {

@@ -77,18 +77,20 @@ function event(b,kind,from,to,damage,details={}){b.events.push({id:++b.seq,kind,
 function outcome(s){const b=s.battle;if(!b||b.result)return;
  if(s.hp<=0){s.hp=0;b.result='defeat';note(s,'The city has fallen. Your people need a new beginning.');}
  else if(b.enemyHp<=0){b.enemyHp=0;b.result='victory';s.enemies.find(e=>e.id===b.enemyId).defeated=true;s.stats.victories++;s.resources.wood+=95;s.resources.iron+=100;s.resources.food+=65;note(s,'Victory. Salvaged 95 wood, 100 iron, and 65 food.');}}
+// Centre spacing follows the different hull widths and the titan's arm reach.
+export function meleeReach(attacker,target){return attacker==='kaiju'?(target==='kaiju'?12:18):attacker==='crawler'?(target==='kaiju'?16:24):target==='kaiju'?14:22;}
 export function weaponStatus(s){
  const b=s.battle;if(!b)return {batteries:[],active:0,total:0,baseInRange:false,canFire:false};
  const batteries=s.buildings.flatMap((building,slot)=>building?.type==='cannon'?[batterySolution(s,slot,b.player,b.enemy,FACTIONS[s.faction].range)]:[]);
  const active=batteries.filter(m=>m.active).length,baseInRange=distance(b.player,b.enemy)<=FACTIONS[s.faction].range;
- return {batteries,active,total:batteries.length,baseInRange,canFire:baseInRange||active>0};
+ return {batteries,active,total:batteries.length,baseInRange,canFire:baseInRange||active>0,melee:distance(b.player,b.enemy)<=meleeReach(s.faction,b.enemyFaction)};
 }
 export function fire(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.reload>0||s.paused)return false;const f=FACTIONS[s.faction],d=distance(b.player,b.enemy),status=weaponStatus(s);if(!status.canFire)return false;
- const melee=d<26,mounts=melee?[]:status.batteries.filter(m=>m.active).map(m=>m.slot);
+ const melee=status.melee,mounts=melee?[]:status.batteries.filter(m=>m.active).map(m=>m.slot);if(melee){b.player.angle=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z);if(s.faction==='kaiju')b.command='approach';}
  const damage=(status.baseInRange?(melee?f.melee:f.damage)+(levelOf(s,'keep')-1)*5:0)+mounts.reduce((sum,slot)=>sum+s.buildings[slot].level*9,0);b.enemyHp-=damage;b.damage+=damage;b.reload=f.reload;event(b,melee?'impact':'shot',b.player,b.enemy,damage,{source:'player',mounts,base:status.baseInRange});outcome(s);return true;}
 export function ability(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.abilityCooldown>0||s.paused)return {ok:false,message:'Ability is not ready.'};const f=s.faction;let d=distance(b.player,b.enemy);
  if(f==='airship'){if(d>FACTIONS[f].range)return {ok:false,message:'Move within missile range first.'};b.enemyHp-=70;event(b,'salvo',b.player,b.enemy,70,{source:'player',mounts:weaponStatus(s).batteries.filter(m=>m.active).map(m=>m.slot)});}
- else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-22),1,100);b.enemyHp-=f==='kaiju'?85:60;event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60,{source:'player'});}
+ else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-meleeReach(f,b.enemyFaction)+.5),1,100);b.enemyHp-=f==='kaiju'?85:60;event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60,{source:'player'});}
  b.abilityCooldown=13;outcome(s);return {ok:true};}
 export function leaveBattle(s,retreat=false){const b=s.battle;if(!b)return false;if(b.result==='defeat')return false;if(!b.result&&!retreat)return false;
  if(retreat&&!b.result){s.resources.food=Math.max(0,s.resources.food-20);note(s,'Withdrew from battle. The evacuation used 20 food.');}
@@ -96,12 +98,12 @@ export function leaveBattle(s,retreat=false){const b=s.battle;if(!b)return false
 function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;b.reload=Math.max(0,b.reload-dt);b.enemyReload=Math.max(0,b.enemyReload-dt);b.abilityCooldown=Math.max(0,b.abilityCooldown-dt);
  const f=FACTIONS[s.faction],enemy=FACTIONS[b.enemyFaction];const d=distance(b.player,b.enemy);
  if(input.x||input.z){const m=Math.max(1,Math.hypot(input.x,input.z));move(b.player,{x:b.player.x+input.x/m*100,z:b.player.z+input.z/m*100},f.speed,dt,100);b.command='hold';}
- else if(b.command==='approach'&&d>(s.faction==='kaiju'?20:f.range*.68))move(b.player,b.enemy,f.speed,dt,100);
+ else if(b.command==='approach'&&d>(s.faction==='kaiju'?meleeReach(s.faction,b.enemyFaction)-.5:f.range*.68))move(b.player,b.enemy,f.speed,dt,100);
  else if(b.command==='retreat'&&d<140)move(b.player,{x:b.player.x+(b.player.x-b.enemy.x),z:b.player.z+(b.player.z-b.enemy.z)},f.speed,dt,100);
  if(b.enemyFaction==='airship'){if(d<80)move(b.enemy,{x:b.enemy.x+(b.enemy.x-b.player.x),z:b.enemy.z+(b.enemy.z-b.player.z)},enemy.speed*.72,dt,100);else if(d>103)move(b.enemy,b.player,enemy.speed*.65,dt,100);}
- else if(d>(b.enemyFaction==='kaiju'?22:50))move(b.enemy,b.player,enemy.speed*.70,dt,100);
+ else if(d>(b.enemyFaction==='kaiju'?meleeReach(b.enemyFaction,s.faction)-.5:50))move(b.enemy,b.player,enemy.speed*.70,dt,100);
  if(b.autoFire)fire(s);if(b.result)return;
- const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const damage=(now<26?enemy.melee:enemy.damage)*.75;s.hp-=damage;b.enemyReload=enemy.reload+0.65;event(b,now<26?'impact':'enemyShot',b.enemy,b.player,damage,{source:'enemy'});outcome(s);}
+ const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const melee=now<=meleeReach(b.enemyFaction,s.faction);if(melee)b.enemy.angle=Math.atan2(b.player.x-b.enemy.x,b.player.z-b.enemy.z);const damage=(melee?enemy.melee:enemy.damage)*.75;s.hp-=damage;b.enemyReload=enemy.reload+0.65;event(b,melee?'impact':'enemyShot',b.enemy,b.player,damage,{source:'enemy'});outcome(s);}
 }
 export function tick(s,dt,input={x:0,z:0}){
  if(s.paused)return;dt=clamp(dt,0,.25)*s.speed;s.time+=dt;s.day=1+Math.floor(s.time/90);
