@@ -89,6 +89,8 @@ This game-local behavior does not change the privacy or training settings of the
 
 Visual work follows an independent art review gate: a separate critic takes fresh multi-angle screenshots after each builder attempt, scores against the owner's fixed standard, and returns ranked corrections. Passing requires at least 8.5/10 and zero observed errors, with at most four rounds per visual update. See [ART_REVIEW.md](ART_REVIEW.md) for the current results and [AGENTS.md](AGENTS.md) for the workflow. Passing functional tests does not establish AAA art quality.
 
+The 0.5 camera/atmosphere cycle completed all four rounds at **7.1/10**, with no confirmed visual or runtime errors in the final 56-view independent review. The 8.5 aesthetic threshold remains unmet. The new camera, wind, mist and lighting work is playable; broader character and environment art still needs development. See the [final independent report](art-reviews/cinematic-04.md).
+
 The first four-round cycle ended at **6.7/10: failed gate** (5.3 → 6.1 → 6.4 → 6.7). Its final review observed no runtime errors and one visual defect: target health dropped at attack launch before visible impact. Version 0.5 addresses that timing defect and starts a separate camera, atmosphere and lighting review cycle; previous scores and reports remain unchanged.
 
 The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (MIT; see `vendor/LICENSE`). The dependency was downloaded during development; no CDN is used at runtime.
