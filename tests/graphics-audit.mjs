@@ -22,7 +22,7 @@ const base=new URL(process.env.GRAPHICS_BASE_URL||'http://127.0.0.1:4178/');
 assert.ok(['127.0.0.1','localhost','[::1]'].includes(base.hostname),'Graphics audit requires a local server.');
 base.searchParams.set('test','1');
 await fs.mkdir(output,{recursive:true});
-const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const errors=[],remoteRequests=[],screenshots=[],observations=[],checks=[];
 const environment={browser:browser.version(),headless:true,node:process.version,platform:os.platform(),arch:os.arch(),cpu:os.cpus()[0]?.model,logicalCpus:os.cpus().length,memoryGiB:Math.round(os.totalmem()/2**30)};
 const result={label:'Uncalibrated local headless observations; these are not guaranteed user FPS or mobile-device performance.',capturedAt:new Date().toISOString(),environment,viewports:[{width:1440,height:960},{width:1920,height:1080},{width:390,height:844}],fixture:'12 completed districts, mixed levels 1 to 3, all seven building types; simulation paused at time 32.5 in an isolated test profile.',screenshots,observations,checks,errors,remoteRequests};

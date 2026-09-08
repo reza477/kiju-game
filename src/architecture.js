@@ -46,6 +46,10 @@ function roof(group, w, h, d, material, x, y, z, style = 'gable') {
   geometry.translate(0, 0, -d / 2);
   addMesh(group, geometry, material, x, y, z);
   if (style !== 'mansard') box(group, .08, .065, d + .03, M('metal', 0x81998e), x, y + h, z);
+  for(const side of[-1,1]){
+    box(group,.055,.063,d+.055,M('wood',0x52605a),x+side*w*.5,y-.017,z);
+    if(style!=='mansard')for(const end of[-1,1])beam(group,[x+side*w*.5,y,z+end*(d*.5+.009)],[x,y+h,z+end*(d*.5+.009)],.023,M('metal',0x6c7975));
+  }
 }
 
 function archShape(width, height, pointed = false) {
@@ -75,6 +79,14 @@ function window(group, x, y, z, w, h, p, ornate = false, pointed = false) {
     box(group, w, h, .033, pane, x, y + h / 2, z + .049);
   }
   if (w > .25) box(group, .035, h * .8, .035, M('wood', p.dark), x, y + h * .42, z + .071);
+  // Thick projecting sills and narrow reveals cast actual small shadows. The
+  // glazing sits behind their front edge rather than floating on the wall.
+  box(group,w+.15,.045,.16,M('stone',p.trim),x,y-.052,z+.045);
+  if(!ornate){
+    for(const side of[-1,1])box(group,.026,h+.036,.096,M('stone',p.trim),x+side*(w*.5+.018),y+h*.5,z+.045);
+    box(group,w+.096,.035,.106,M('stone',p.light),x,y+h+.037,z+.044);
+  }
+  if(h>.31)box(group,w*.94,.019,.030,M('wood',p.dark),x,y+h*.46,z+.073);
 }
 
 function facade(group, w, h, d, y, p, faction, columns = 3, floors = 3, rear = false) {
@@ -141,6 +153,20 @@ function turret(group, x, z, height, p, faction, radius = .28) {
 function planter(group, x, z, p, size = .35) {
   box(group, size, .18, size, M('stone', p.trim), x, .26, z);
   sphere(group, size * .59, M('foliage', 0x5d8b50), x, .48, z, 1, .88, 1);
+}
+
+let cropGeometry;
+function leafyCrop(group,x,y,z,material,variation){
+  if(!cropGeometry){
+    const positions=[],uv=[];
+    for(let leaf=0;leaf<9;leaf++){
+      const a=leaf*Math.PI*2*.381966,inner=leaf>5,length=inner?.12:.19,width=inner?.042:.066;
+      const vertex=(t,side)=>{const r=length*t,w=Math.sin(t*Math.PI)*width*side,h=.012+Math.sin(t*Math.PI*.7)*(inner?.14:.072)-Math.abs(side)*.016;return[Math.sin(a)*r+Math.cos(a)*w,h,Math.cos(a)*r-Math.sin(a)*w];};
+      for(let i=0;i<6;i++){const t=i/6,n=(i+1)/6;for(const side of[-1,1])for(const v of[[t,0],[n,0],[n,side],[t,0],[n,side],[t,side]]){positions.push(...vertex(v[0],v[1]));uv.push((v[1]+1)*.5,v[0]);}}
+    }
+    cropGeometry=new T.BufferGeometry();cropGeometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));cropGeometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));cropGeometry.computeVertexNormals();cropGeometry.userData.shared=true;
+  }
+  const plant=addMesh(group,cropGeometry,material,x,y,z);plant.rotation.y=variation*2.399;plant.scale.setScalar(.93+(variation%4)*.045);
 }
 
 function entrance(group, x, z, y, p, faction, width = .48, height = .95) {
@@ -282,13 +308,12 @@ function housing(group, level, faction, p) {
 
 function farm(group, level, faction, p) {
   const soil = M('soil', 0x694b32);
-  const crop = M('foliage', 0x91aa4d);
+  const crop = getMaterial('foliage',0x80964b,{side:T.DoubleSide,roughness:.78});
   for (let x = -.86; x <= .9; x += .58) {
     box(group, .48, .2, 1.6, M('wood', 0x9b8054), x, .3, .31);
     box(group, .39, .035, 1.5, soil, x, .419, .31);
     for (let z = -.31; z <= .94; z += .3) {
-      const crown = sphere(group, .17, crop, x, .57, z, 1, .85, 1);
-      crown.rotation.y = z * 2;
+      leafyCrop(group,x,.432,z,crop,Math.round((x+z+2)*13));
     }
   }
   const greenhouse = new T.Group();

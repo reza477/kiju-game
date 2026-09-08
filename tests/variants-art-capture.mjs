@@ -4,7 +4,7 @@
 import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/variants-builder-01');await fs.mkdir(out,{recursive:true});
-const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const report={fixture:'1440x960 normal HUD. Existing tick/render/UI functions advance under deterministic clock. Populated upper-ward shots use a labeled late-game building fixture after paid expansion. Only transient pause/toast overlays hidden.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
 const versions={cyborg:'kaiju',flesh:'kaiju',standard:'crawler',drill:'crawler',horizontal:'airship',vertical:'airship'};
 const selected=process.env.VARIANTS?process.env.VARIANTS.split(','):Object.keys(versions);assert.ok(selected.every(v=>versions[v]));report.variants=selected;
@@ -21,7 +21,7 @@ try{
   const context=await browser.newContext({viewport:{width:1440,height:960}});
   await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178'||['blob:','data:'].includes(u.protocol))return r.continue();report.remote.push(u.href);return r.abort();});
   const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
-  await page.addInitScript(()=>{window.requestAnimationFrame=()=>0;});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus);
+  await page.addInitScript(()=>{window.requestAnimationFrame=()=>0;});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus?.scene.environmentReady && window.__colossus.scene.surfaceDiagnostics().pending===0);
   await page.evaluate(()=>{window.__reviewStep=async(seconds)=>{const {tick}=await import('/src/simulation.js');const a=window.__colossus,n=Math.max(1,Math.ceil(seconds/.1));for(let i=0;i<n;i++){const dt=seconds/n;tick(a.state,dt);a.advance(0);a.scene.update(a.state,dt,null);a.refreshMarkers();}};});
   await page.locator(`[data-faction="${faction}"]`).click();await page.locator(`[data-variant="${variant}"]`).click();await step(page,1.8);await capture(page,variant+'-title');
   assert.equal(await page.locator(`[data-variant="${variant}"]`).getAttribute('aria-pressed'),'true');

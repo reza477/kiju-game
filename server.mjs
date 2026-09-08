@@ -20,6 +20,7 @@ const TYPES = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.png', 'image/png'], ['.svg', 'image/svg+xml'], ['.ico', 'image/x-icon'],
   ['.jpg', 'image/jpeg'], ['.jpeg', 'image/jpeg'], ['.webp', 'image/webp'],
+  ['.hdr', 'image/vnd.radiance'],
   ['.woff', 'font/woff'], ['.woff2', 'font/woff2'],
   ['.wav', 'audio/wav'], ['.mp3', 'audio/mpeg'], ['.ogg', 'audio/ogg'],
   ['.mp4', 'video/mp4'], ['.webm', 'video/webm'],

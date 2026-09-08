@@ -3,6 +3,7 @@ import { getMaterial, box, cylinder, cone } from './materials.js';
 import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
+import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -165,7 +166,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x5f7847, dry: 0x89935d, meadow: 0x999a63, soil: 0x937c5c, ash: 0x716b5f, slate: 0x89958f, wet: 0x426b55, gravel: 0xafa88b, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x526f3c, dry: 0x7e844f, meadow: 0xa29356, soil: 0x937c5c, litter:0x504d3b, moss:0x586a43, ash: 0x716b5f, slate: 0x89958f, wet: 0x426b55, gravel: 0xafa88b, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = heightAt(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -176,10 +177,15 @@ function groundAlbedo() {
     const ruin = ruinFootprint(x, z), ash = region.ash * .65 + ruin * .35;
     const mineral = smooth(.21, .52, slope) * smooth(8, 24, y);
     const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
-    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72);
+    const crest=smooth(24,58,y)*smooth(165,255,Math.max(Math.abs(x),Math.abs(z)))*smooth(.27,.65,veins);
+    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83);
     const bank = smooth(-1, 2, d) * (1 - smooth(5, 11, d));
     const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
     c.copy(palette.grass).lerp(palette.dry, smooth(.30, .83, broad) * .7).lerp(palette.meadow, region.meadow * .64);
+    let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
+    for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
+    forest*=smooth(7,20,d)*(1-region.meadow*.8)*(isClearing(x,z,4)?0:1);
+    c.lerp(palette.litter,forest*.82).lerp(palette.moss,forest*(1-smooth(.42,.65,veins))*.27);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(8, 22, d)) * (1 - bank) * .55);
     c.lerp(palette.gravel, bank * .96).lerp(palette.riverbed, 1 - smooth(-3, 1, d));
@@ -271,10 +277,12 @@ function grassGeometry() {
   return geometry;
 }
 function treeBatches(group) {
+  const foliage = getMaterial('foliage', 0xffffff, {side:T.DoubleSide, vertexColors:true, roughness:.88}).clone();
+  foliage.name = 'Folded living leaf surfaces'; foliage.metalness=0;
   return {
-    wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 7), getMaterial('wood', 0xffffff), true, 'wood'),
-    leaves: new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff), true, 'foliage'),
-    needles: new Instances(group, canopyGeometry(true), getMaterial('foliage', 0xffffff), true, 'foliage'),
+    wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 6, 1, true), getMaterial('bark', 0xffffff), true, 'wood'),
+    leaves: new Instances(group, branchSprayGeometry(), foliage, true, 'foliage'),
+    needles: new Instances(group, branchSprayGeometry(true), foliage, true, 'foliage'),
     finish() { return [this.wood.finish('Tree trunks and branches'), this.leaves.finish('Broadleaf canopies'), this.needles.finish('Pine boughs')].filter(Boolean); }
   };
 }
@@ -349,7 +357,10 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
         baseColour.clone().multiplyScalar(.83 + rand() * .25 + (top ? .1 : 0)).getHex(), rand() * TAU);
     }
   }
-  shapeTreeCrown(batch, starts, x, y, z, h, pine);
+  // Consume the established generation sequence above before rebuilding a tree.
+  // Every following prop's random draws and permanent save anchor stay identical.
+  batch.wood.items.length=starts[0]; batch.leaves.items.length=starts[1]; batch.needles.items.length=starts[2];
+  botanicalTree(batch,x,y,z,h,scale,pine);
   for (const [index, part] of [batch.wood, batch.leaves, batch.needles].entries()) for (let i = starts[index]; i < part.items.length; i++) part.items[i].windRoot = [x, y, z, h];
   return [batch.wood, batch.leaves, batch.needles].map((part, i) => ({ batch: part, first: starts[i], count: part.items.length - starts[i] })).filter(part => part.count);
 }
@@ -364,32 +375,57 @@ function createGround() {
     uv.setXY(i, (x + 600) / 1200, (600 - z) / 1200);
   }
   const surface = groundAlbedo(), grass = groundDetail('grass'), soil = groundDetail('soil'), slate = groundDetail('slate');
+  const neutralNormal=groundTexture(new Uint8Array([128,128,255,255]),1),neutralRoughness=groundTexture(new Uint8Array([248,248,248,255]),1);
+  const surfaceUniforms={
+    uGroundWeights:{value:surface.weights},
+    uSurfaceGrass:{value:grass},uSurfaceSlate:{value:slate},uSurfaceSoil:{value:soil},uSurfaceFlags:{value:new T.Vector3()},uSurfaceScale:{value:new T.Vector3(8,8,8)},
+    uNormalGrass:{value:neutralNormal},uNormalSlate:{value:neutralNormal},uNormalSoil:{value:neutralNormal},
+    uRoughGrass:{value:neutralRoughness},uRoughSlate:{value:neutralRoughness},uRoughSoil:{value:neutralRoughness}
+  };
   const material = new T.MeshStandardMaterial({ color: 0xffffff, map: surface.colour, roughness: .98 });
   material.onBeforeCompile = shader => {
-    shader.uniforms.uGroundWeights = { value: surface.weights };
-    shader.uniforms.uGroundGrass = { value: grass }; shader.uniforms.uGroundSoil = { value: soil }; shader.uniforms.uGroundSlate = { value: slate };
+    Object.assign(shader.uniforms,surfaceUniforms);
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = position.xz;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       varying vec2 vGroundXZ;
       uniform sampler2D uGroundWeights;
-      uniform sampler2D uGroundGrass;
-      uniform sampler2D uGroundSoil;
-      uniform sampler2D uGroundSlate;
+      uniform sampler2D uSurfaceGrass,uSurfaceSlate,uSurfaceSoil;
+      uniform sampler2D uNormalGrass,uNormalSlate,uNormalSoil;
+      uniform sampler2D uRoughGrass,uRoughSlate,uRoughSoil;
+      uniform vec3 uSurfaceFlags,uSurfaceScale;
     `).replace('#include <map_fragment>', `#include <map_fragment>
       vec2 groundUV = vec2(vGroundXZ.x + 600.0, 600.0 - vGroundXZ.y) / 1200.0;
       vec3 weights = texture2D(uGroundWeights, groundUV).rgb;
       vec2 detailUV = vGroundXZ / 8.0;
-      float grassDetail = texture2D(uGroundGrass, detailUV).r;
-      float soilDetail = texture2D(uGroundSoil, detailUV * .81).r;
-      float slateDetail = texture2D(uGroundSlate, detailUV * .65).r;
+      float grassDetail = texture2D(uSurfaceGrass, detailUV).r;
+      float soilDetail = texture2D(uSurfaceSoil, detailUV * .81).r;
+      float slateDetail = texture2D(uSurfaceSlate, detailUV * .65).r;
       float detail = dot(weights, vec3(grassDetail, slateDetail, soilDetail));
       diffuseColor.rgb *= .79 + detail * .42;
+      vec3 surfaceWeights=weights*uSurfaceFlags;
+      vec2 uvGrass=vGroundXZ/uSurfaceScale.x,uvSlate=vGroundXZ/uSurfaceScale.y,uvSoil=vGroundXZ/uSurfaceScale.z;
+      vec3 realAlbedo=texture2D(uSurfaceGrass,uvGrass).rgb*surfaceWeights.x+texture2D(uSurfaceSlate,uvSlate).rgb*surfaceWeights.y+texture2D(uSurfaceSoil,uvSoil).rgb*surfaceWeights.z;
+      float realBlend=dot(surfaceWeights,vec3(1.0));
+      diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.66+diffuseColor.rgb*.34,realBlend*mix(.64,.18,weights.x));
+    `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+      float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+texture2D(uRoughSlate,uvSlate).r*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
+      roughnessFactor=clamp(mix(roughnessFactor,surfaceRoughness,realBlend*.68),.68,1.0);
+    `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+      vec2 surfaceNormal=(texture2D(uNormalGrass,uvGrass).xy-.5)*surfaceWeights.x+(texture2D(uNormalSlate,uvSlate).xy-.5)*surfaceWeights.y+(texture2D(uNormalSoil,uvSoil).xy-.5)*surfaceWeights.z;
+      normal=normalize(normal+mat3(viewMatrix)*vec3(-surfaceNormal.x,0.0,-surfaceNormal.y)*.66);
     `);
   };
-  material.customProgramCacheKey = () => 'composed-terrain-v3';
+  material.customProgramCacheKey = () => 'botanical-terrain-pbr-v1';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
-  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate];
+  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness];
+  ground.userData.setGroundTextures = textures => {
+    for(const[kind,key,axis]of[['grass','Grass','x'],['slate','Slate','y'],['soil','Soil','z']]) {
+      const entry=textures?.[kind]; if(!entry?.map)continue;
+      surfaceUniforms['uSurface'+key].value=entry.map;surfaceUniforms['uNormal'+key].value=entry.normalMap||neutralNormal;surfaceUniforms['uRough'+key].value=entry.roughnessMap||neutralRoughness;
+      surfaceUniforms.uSurfaceFlags.value[axis]=1;surfaceUniforms.uSurfaceScale.value[axis]=Math.max(.5,entry.scale||8);
+    }
+  };
   return ground;
 }
 function createWater() {
@@ -554,11 +590,11 @@ function createWorldInteractions(group, records) {
     for (let i = 0; i < count; i++) mesh.setMatrixAt(i, hidden);
     mesh.instanceMatrix.needsUpdate = true; group.add(mesh); return mesh;
   }
-  const stumps = dynamic(new T.CylinderGeometry(.8, 1, 1, 10), getMaterial('wood', 0x89704d), debrisCapacity, 'Crushed tree stumps');
+  const stumps = dynamic(new T.CylinderGeometry(.8, 1, 1, 10), getMaterial('bark', 0x89704d), debrisCapacity, 'Crushed tree stumps');
   const cuts = dynamic(new T.CircleGeometry(1, 10).rotateX(-Math.PI / 2), getMaterial('wood', 0xc2ac7f), debrisCapacity, 'Broken trunk cores', false);
-  const logs = dynamic(new T.CylinderGeometry(.73, 1, 1, 9), getMaterial('wood', 0x75634b), debrisCapacity * 3, 'Fallen trunks and branches');
+  const logs = dynamic(new T.CylinderGeometry(.73, 1, 1, 9), getMaterial('bark', 0x75634b), debrisCapacity * 3, 'Fallen trunks and branches');
   const brush = dynamic(canopyGeometry(true), getMaterial('foliage', 0x7d8958), debrisCapacity * 3, 'Crushed fallen boughs');
-  const rubble = dynamic(irregularOrb(0), getMaterial('stone', 0x96977e), debrisCapacity * 3, 'Fresh crushed rock fragments');
+  const rubble = dynamic(irregularOrb(0), getMaterial('rock', 0x96977e), debrisCapacity * 3, 'Fresh crushed rock fragments');
   const stampGeometry = new T.PlaneGeometry(1, 1, 2, 4); stampGeometry.rotateX(-Math.PI / 2);
   const stamps = [false, true].map(tank => dynamic(stampGeometry, new T.MeshBasicMaterial({ color: tank ? 0x35402c : 0x3e4230, alphaMap: trackTexture(tank), transparent: true, opacity: tank ? .43 : .38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), trackCapacity, tank ? 'Persistent crawler tread impressions' : 'Titan footprints', false));
   stamps.forEach(mesh => { mesh.renderOrder = 1; });
@@ -740,7 +776,7 @@ function createSlateLandmark(group, records) {
   for(let k=1;k<5;k++)indices.push(0,k,k+1,48,48+k+1,48+k);
   const indexed=new T.BufferGeometry();indexed.setAttribute('position',new T.Float32BufferAttribute(positions,3));indexed.setAttribute('color',new T.Float32BufferAttribute(colours,3));indexed.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));indexed.setIndex(indices);
   const geometry=indexed.toNonIndexed();geometry.computeVertexNormals();indexed.dispose();
-  const stone=new Instances(group,geometry,getMaterial('soil',0xffffff,{roughness:1,vertexColors:true}));
+  const stone=new Instances(group,geometry,getMaterial('rock',0xffffff,{roughness:1,vertexColors:true}));
   // Buried, overlapping bases and inclined fracture beds join the same three
   // persistent anchors into one outcrop. Crushing still removes each whole slab.
   for(const [i,x,z,w,h,d,yaw]of [[0,143,-15,5.5,7.5,9,.22],[1,148,-10,5,12,8,.15],[2,153,-6,4.5,9.1,7,.10]]){
@@ -757,10 +793,12 @@ export function createLandscape() {
   createRoad(group);
   const rand = random(196733), trees = treeBatches(group), records = [];
   const register = (id, kind, x, z, size, parts) => { if (!protectedResource(x, z)) records.push({ id, kind, x, z, size, parts }); };
-  const rocks = new Instances(group, irregularOrb(1), getMaterial('stone', 0xffffff));
-  const shrubs = new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff), true, 'foliage');
+  const rocks = new Instances(group, fracturedRockGeometry(), getMaterial('rock', 0xffffff));
+  const shrubMat=getMaterial('foliage',0xffffff,{side:T.DoubleSide,vertexColors:true,roughness:.94});
+  const shrubs = new Instances(group, branchSprayGeometry(), shrubMat, true, 'foliage');
+  const ferns = new Instances(group, fernGeometry(), shrubMat, false, 'grass');
   const grassMat = getMaterial('grass', 0xffffff, { side: T.DoubleSide });
-  const grass = new Instances(group, grassGeometry(), grassMat, false, 'grass');
+  const grass = new Instances(group, grassTuftGeometry(), grassMat, false, 'grass');
   const flowers = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false, 'grass');
   // Clusters follow valleys and meadows rather than a uniform scatter.
   for (let i = 0; i < 1200; i++) {
@@ -817,9 +855,46 @@ export function createLandscape() {
       grass.items[reed].windMotion = [.44, 1.35];
     }
   }
+  // Forest ecotones grow around persistent trees/rocks, leaving travelling
+  // clearings and protected resource sites open. These clumps share their parent
+  // record, so a crushed grove never leaves an immortal decorative understorey.
+  for(const record of records) {
+    if(Math.abs(record.x)>215||Math.abs(record.z)>215)continue;
+    const r=random(Math.abs(record.x*17791+record.z*32563)*100), first=ferns.items.length, grassFirst=grass.items.length;
+    const count=record.kind==='tree'?5:2;
+    for(let j=0;j<count;j++) {
+      const a=r()*TAU, radius=(.9+r()*2.7)*record.size, x=record.x+Math.cos(a)*radius,z=record.z+Math.sin(a)*radius;
+      if(protectedResource(x,z,1)||shoreDistance(x,z)<3||Math.abs(z-roadZ(x))<5)continue;
+      const normal=terrainNormal(x,z); if(normal.y<.88)continue;
+      const s=.65+r()*.76,y=heightAt(x,z)+.035;
+      ferns.add(x,y,z,s,s,s,record.kind==='tree'?0x577244:0x7d884b,a);
+      for(let k=0;k<3;k++) {
+        const gx=x+(r()-.5)*2.2,gz=z+(r()-.5)*2.2,gs=.76+r()*.75;
+        if(!protectedResource(gx,gz))grass.add(gx,heightAt(gx,gz)+.025,gz,gs,gs,gs,0x7a8d55,r()*TAU);
+      }
+    }
+    if(ferns.items.length>first)record.parts.push({batch:ferns,first,count:ferns.items.length-first});
+    if(grass.items.length>grassFirst)record.parts.push({batch:grass,first:grassFirst,count:grass.items.length-grassFirst});
+  }
+  const ridgeBeds=new Instances(group,ridgeBedGeometry(),getMaterial('rock',0xffffff));
+  for(const record of records) {
+    const extent=Math.max(Math.abs(record.x),Math.abs(record.z)),base=heightAt(record.x,record.z);
+    if(record.kind!=='rock'||extent<185||base<22)continue;
+    const first=ridgeBeds.items.length,seed=Math.abs(Math.sin(record.x*3.71+record.z*.96)),yaw=.34+noise(record.x*.008,record.z*.008)*.38;
+    // Inclined overlapping beds expose coherent fractured crests beyond the
+    // playable clearings; each formation remains attached to its original rock.
+    for(let j=0;j<3;j++) {
+      const dx=(j-1)*2.7,x=record.x+dx,z=record.z+dx*.48;
+      const s=(3.8+seed*3.5)*(1-Math.abs(j-1)*.14),h=s*(1.03+(j%2)*.26);
+      ridgeBeds.add(x,heightAt(x,z)+h*.22,z,s,h,s*.72,[0x8b9387,0xa5aa98,0x788377][j],yaw);
+    }
+    record.parts.push({batch:ridgeBeds,first,count:ridgeBeds.items.length-first});
+  }
+  ridgeBeds.finish('Fractured upland ridge beds');
   composeRegions(trees,shrubs,grass);createSlateLandmark(group,records);
   const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
+  const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
@@ -827,6 +902,7 @@ export function createLandscape() {
   let actors = [];
   return {
     group, ground, water, heightAt, surfaceHeightAt: renderedTerrainHeight, stats, crushables: interactions.crushables,
+    setGroundTextures: textures => ground.userData.setGroundTextures(textures),
     update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),
@@ -834,6 +910,7 @@ export function createLandscape() {
       const low = quality === 'retro' || quality === 'low';
       if (grasses) grasses.visible = !low;
       if (flowerMesh) flowerMesh.visible = !low;
+      if (fernMesh) fernMesh.visible = !low;
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
       life.setQuality(quality);
     }
@@ -847,7 +924,7 @@ function siteDetails(group) {
     metal: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('metal', 0xffffff)),
     wood: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('wood', 0xffffff)),
     pipe: new Instances(group, new T.CylinderGeometry(1, 1, 1, 9), getMaterial('metal', 0xffffff)),
-    rubble: new Instances(group, irregularOrb(1), getMaterial('stone', 0xffffff)),
+    rubble: new Instances(group, irregularOrb(1), getMaterial('rock', 0xffffff)),
     finish() { for (const key of ['stone', 'brick', 'metal', 'wood', 'pipe', 'rubble']) this[key].finish(`Resource site ${key}`); }
   };
 }

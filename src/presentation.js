@@ -22,30 +22,40 @@ export class Presentation {
     this.target.depthTexture=new T.DepthTexture(1,1,T.UnsignedIntType);
     this.material=new T.ShaderMaterial({
       name:'Linear HDR atmosphere composite',
-      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},resolution:{value:new T.Vector2(1,1)},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.54},bloomStrength:{value:.105},exposure:{value:1},bloomSamples:{value:12}},
+      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.7},bloomStrength:{value:.105},exposure:{value:1},bloomSamples:{value:12}},
       vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
       fragmentShader:`
         uniform sampler2D tColor,tDepth;
         uniform vec2 resolution;
+        uniform mat4 inverseProjection;
+        uniform float projectionScale;
         uniform float near,far,aoStrength,bloomStrength,bloomSamples;
         varying vec2 vUv;
         float linearDepth(float d){return near*far/(far-(far-near)*d);}
+        vec3 viewPosition(vec2 uv){float d=texture2D(tDepth,uv).r;vec4 p=inverseProjection*vec4(uv*2.-1.,d*2.-1.,1.);return p.xyz/p.w;}
         vec3 bright(vec3 colour){float luma=dot(colour,vec3(.2126,.7152,.0722));float knee=clamp((luma-.95)/.8,0.,1.);return colour*(max(luma-1.35,0.)+knee*knee*.12)/max(luma,.001);}
         void main(){
           vec3 colour=texture2D(tColor,vUv).rgb;
           float raw=texture2D(tDepth,vUv).r,depth=linearDepth(raw),shade=0.;
           vec2 px=1./resolution;
-          float radius=clamp(430./max(depth,1.),1.5,13.);
+          float worldRadius=clamp(1.1+depth*.006,1.1,2.8);
+          float radius=clamp(projectionScale*worldRadius/max(depth,1.),2.,32.);
           if(raw<.99999){
+            vec3 center=viewPosition(vUv);
+            vec3 left=center-viewPosition(vUv-vec2(px.x,0.)),right=viewPosition(vUv+vec2(px.x,0.))-center;
+            vec3 down=center-viewPosition(vUv-vec2(0.,px.y)),up=viewPosition(vUv+vec2(0.,px.y))-center;
+            vec3 normal=normalize(cross(abs(left.z)<abs(right.z)?left:right,abs(down.z)<abs(up.z)?down:up));
+            if(dot(normal,-center)<0.)normal=-normal;
             for(int i=0;i<12;i++){
-              float a=float(i)*2.399963,r=(.35+float(i%3)*.325)*radius;
-              float other=linearDepth(texture2D(tDepth,vUv+vec2(cos(a),sin(a))*px*r).r);
-              float gap=depth-other;
-              shade+=smoothstep(.06,.3,gap)*(1.-smoothstep(.45,2.4,gap));
+              float a=float(i)*2.399963,r=(.24+float(i%4)*.25)*radius;
+              vec2 sampleUv=clamp(vUv+vec2(cos(a),sin(a))*px*r,px,1.-px);
+              vec3 delta=viewPosition(sampleUv)-center;float distance=length(delta);
+              float hemisphere=max(dot(normal,delta)/max(distance,.001)-.09,0.);
+              shade+=hemisphere*(1.-smoothstep(worldRadius*.25,worldRadius*1.65,distance));
             }
-            // This short-range contact term serves the street camera. Fade it
-            // before distant depth quantization can contour flat terrain.
-            colour*=1.-aoStrength*(1.-smoothstep(20.,45.,depth))*shade/12.;
+            // View-space hemisphere obscurance respects surface orientation,
+            // preserving flat terrain while grounding feet, buttresses and eaves.
+            colour*=1.-aoStrength*(1.-smoothstep(180.,370.,depth))*shade/6.;
           }
           // Glow is extracted from scene-linear radiance, before the output
           // transform. The soft knee preserves the shape of bright windows.
@@ -67,7 +77,7 @@ export class Presentation {
   resize(w,h){this.target.setSize(Math.max(1,w),Math.max(1,h));this.material.uniforms.resolution.value.set(Math.max(1,w),Math.max(1,h));}
   setQuality(quality){
     this.enabled=quality!=='performance'&&this.hdrSupported;
-    this.material.uniforms.aoStrength.value=quality==='high'?.54:.31;
+    this.material.uniforms.aoStrength.value=quality==='high'?.7:.42;
     this.material.uniforms.bloomSamples.value=quality==='high'?12:6;
     const samples=Math.min(quality==='high'?4:2,this.renderer.capabilities.maxSamples);
     if(this.target.samples!==samples){this.target.samples=samples;this.target.dispose();}
@@ -77,6 +87,7 @@ export class Presentation {
     const r=this.renderer;r.info.reset();
     r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=this.material.uniforms.exposure.value;
     this.material.uniforms.near.value=this.camera.near;this.material.uniforms.far.value=this.camera.far;
+    this.material.uniforms.inverseProjection.value.copy(this.camera.projectionMatrixInverse);this.material.uniforms.projectionScale.value=this.camera.projectionMatrix.elements[5]*this.target.height*.5;
     // Three r185 disables material tone mapping when rendering to a normal
     // render target (WebGLPrograms/getParameters). The final screen pass uses
     // the same built-in ACES transform as the direct performance path, once.

@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import {distance,FACTIONS,weaponStatus,attackDelay} from './simulation.js';
-import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,setWindowLighting} from './materials.js';
+import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,loadDaylightEnvironment,setWindowLighting} from './materials.js';
 import {makeCity,animateCity,slotPosition,setCityRings} from './carriers.js';
 import {createDistrict,createVacantPlot} from './architecture.js';
 import {createLandscape,createResourceSite} from './landscape.js';
@@ -12,6 +12,7 @@ import {terrainHeight,terrainNormal} from './terrain.js';
 import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armaments.js';
 import {facingOf,batteryArc} from './weapon-layout.js';
 import {CinematicCamera} from './cinematic-camera.js';
+import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
 export {makeCity,slotPosition};
 
 const previewBuildings=()=>{
@@ -103,13 +104,15 @@ export class GameScene {
     this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.03;
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.info.autoReset=false;
     this.environmentTarget=createEnvironment(this.renderer);this.scene.environment=this.environmentTarget.texture;this.scene.environmentIntensity=.55;
+    this.environmentReady=false;this.environmentError=null;
+    loadDaylightEnvironment(this.renderer).then(target=>{const old=this.environmentTarget;this.environmentTarget=target;this.scene.environment=target.texture;this.scene.environmentRotation.y=.75;this.environmentReady=true;old.dispose();}).catch(error=>{this.environmentError=error.message;console.error('Local daylight environment failed to load',error);});
     this.sky=createSky();this.scene.add(this.sky);
     this.ambient=new T.HemisphereLight(0xd8edff,0x7b8561,1.45);this.scene.add(this.ambient);
     this.sun=new T.DirectionalLight(0xffdfb8,3.4);this.sun.position.set(-65,95,65);this.sun.castShadow=true;
     this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00012;this.sun.shadow.normalBias=.025;this.sun.shadow.radius=1.4;
     this.scene.add(this.sun,this.sun.target);
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
-    this.landscape=createLandscape();this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
+    this.landscape=createLandscape();this.landscape.setGroundTextures({grass:surfaceSet('grass'),soil:surfaceSet('soil'),slate:surfaceSet('slate')});this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
     this.presentation=new Presentation(this.renderer,this.camera);this.atmosphere=new Atmosphere(this.scene);
     this.cityLighting=new CityLighting(this.scene);
     this.impactLights=[new T.PointLight(0xffc58b,0,13,2),new T.PointLight(0xffab73,0,13,2)];

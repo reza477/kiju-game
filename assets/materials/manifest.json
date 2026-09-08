@@ -1,0 +1,376 @@
+{
+  "provider": "Poly Haven",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "apiCredit": "Powered by Poly Haven",
+  "downloaded": "2026-09-08",
+  "assets": {
+    "grass": {
+      "id": "leafy_grass",
+      "name": "Leafy Grass",
+      "source": "https://polyhaven.com/a/leafy_grass",
+      "authors": {
+        "Charlotte Baglioni": "All"
+      },
+      "dimensions": [
+        2000,
+        2000
+      ],
+      "files": {
+        "color": {
+          "path": "grass-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_diff_1k.jpg",
+          "bytes": 1195394,
+          "md5": "0dbc071e91d6905edfcfbe8eb785a1ab"
+        },
+        "normal": {
+          "path": "grass-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_nor_gl_1k.jpg",
+          "bytes": 1466049,
+          "md5": "8279e096e204ea326d57a318869f99df"
+        },
+        "roughness": {
+          "path": "grass-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_rough_1k.jpg",
+          "bytes": 511385,
+          "md5": "05f6bb1383e12b327727d313c5899cf2"
+        }
+      }
+    },
+    "soil": {
+      "id": "forest_ground_04",
+      "name": "Forest Ground 04",
+      "source": "https://polyhaven.com/a/forest_ground_04",
+      "authors": {
+        "Rob Tuytel": "Photography, Processing",
+        "Rico Cilliers": "Minor adjustment"
+      },
+      "dimensions": [
+        3150.0000953674316,
+        3150.0000953674316
+      ],
+      "files": {
+        "color": {
+          "path": "soil-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_diff_1k.jpg",
+          "bytes": 1113899,
+          "md5": "6ad9df4d731a238299806f739a26af83"
+        },
+        "normal": {
+          "path": "soil-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_nor_gl_1k.jpg",
+          "bytes": 1326812,
+          "md5": "a010a0802c2d9a930c6f00d3b1f196d2"
+        },
+        "roughness": {
+          "path": "soil-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_rough_1k.jpg",
+          "bytes": 627507,
+          "md5": "b5c7ba5c16f00261e9a765d52cf7e0ac"
+        }
+      }
+    },
+    "slate": {
+      "id": "rock_ground_02",
+      "name": "Rock Ground 02",
+      "source": "https://polyhaven.com/a/rock_ground_02",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        3000,
+        3000
+      ],
+      "files": {
+        "color": {
+          "path": "slate-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_ground_02/rock_ground_02_diff_1k.jpg",
+          "bytes": 872985,
+          "md5": "3820a229d3cb7a625f8e31a5b41c26df"
+        },
+        "normal": {
+          "path": "slate-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_ground_02/rock_ground_02_nor_gl_1k.jpg",
+          "bytes": 1380865,
+          "md5": "11c91ded28ff24b887602a87c825dc14"
+        },
+        "roughness": {
+          "path": "slate-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_ground_02/rock_ground_02_rough_1k.jpg",
+          "bytes": 529845,
+          "md5": "db85eba239af058d9acb16bd1d8f4eab"
+        }
+      }
+    },
+    "rock": {
+      "id": "rock_face_03",
+      "name": "Rock Face 03",
+      "source": "https://polyhaven.com/a/rock_face_03",
+      "authors": {
+        "Dario Barresi": "Photography",
+        "Rico Cilliers": "Processing"
+      },
+      "dimensions": [
+        2699.9995708465576,
+        2699.9995708465576
+      ],
+      "files": {
+        "color": {
+          "path": "rock-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_diff_1k.jpg",
+          "bytes": 927082,
+          "md5": "e4c34abb1aad5befe12754fad507147a"
+        },
+        "normal": {
+          "path": "rock-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_nor_gl_1k.jpg",
+          "bytes": 1146788,
+          "md5": "cbd30858439ece391480c5e67e09de89"
+        },
+        "roughness": {
+          "path": "rock-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face_03/rock_face_03_rough_1k.jpg",
+          "bytes": 638904,
+          "md5": "bbb2c7dafde3f81808fa7404d4527a56"
+        }
+      }
+    },
+    "bark": {
+      "id": "bark_brown_02",
+      "name": "Bark Brown 02",
+      "source": "https://polyhaven.com/a/bark_brown_02",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        999.9990463256836,
+        999.998927116394
+      ],
+      "files": {
+        "color": {
+          "path": "bark-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_diff_1k.jpg",
+          "bytes": 659592,
+          "md5": "6669cca520594bdca19f94084984ab72"
+        },
+        "normal": {
+          "path": "bark-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_nor_gl_1k.jpg",
+          "bytes": 1015623,
+          "md5": "1cad3fe0349a44df2d4d1c2859c79920"
+        },
+        "roughness": {
+          "path": "bark-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/bark_brown_02/bark_brown_02_rough_1k.jpg",
+          "bytes": 337946,
+          "md5": "bbcde696e5b9418cdcb2abe638965417"
+        }
+      }
+    },
+    "stone": {
+      "id": "castle_brick_01",
+      "name": "Castle Brick 01",
+      "source": "https://polyhaven.com/a/castle_brick_01",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        1500,
+        1500
+      ],
+      "files": {
+        "color": {
+          "path": "stone-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_01/castle_brick_01_diff_1k.jpg",
+          "bytes": 693571,
+          "md5": "d3d6194b814cbda8a17dc5ebe407a41e"
+        },
+        "normal": {
+          "path": "stone-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_01/castle_brick_01_nor_gl_1k.jpg",
+          "bytes": 1069379,
+          "md5": "6e187b440caae18cd2edf5925edf6b7b"
+        },
+        "roughness": {
+          "path": "stone-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/castle_brick_01/castle_brick_01_rough_1k.jpg",
+          "bytes": 263291,
+          "md5": "5707e3fd1088d9602dd57b19175bc4a1"
+        }
+      }
+    },
+    "brick": {
+      "id": "church_bricks_02",
+      "name": "Church Bricks 02",
+      "source": "https://polyhaven.com/a/church_bricks_02",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        2000,
+        2000
+      ],
+      "files": {
+        "color": {
+          "path": "brick-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/church_bricks_02/church_bricks_02_diff_png_1k.jpg",
+          "bytes": 787261,
+          "md5": "4abfc72b5582a4a7e1ab9ba3bf883e98"
+        },
+        "normal": {
+          "path": "brick-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/church_bricks_02/church_bricks_02_nor_gl_1k.jpg",
+          "bytes": 924550,
+          "md5": "22721b98957e3b2b2d101ffe7420e8b6"
+        },
+        "roughness": {
+          "path": "brick-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/church_bricks_02/church_bricks_02_rough_1k.jpg",
+          "bytes": 369775,
+          "md5": "568c50370f2b31c5f5c132d727666941"
+        }
+      }
+    },
+    "roof": {
+      "id": "roof_slates_02",
+      "name": "Roof Slates 02",
+      "source": "https://polyhaven.com/a/roof_slates_02",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        3000,
+        3000
+      ],
+      "files": {
+        "color": {
+          "path": "roof-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/roof_slates_02/roof_slates_02_diff_1k.jpg",
+          "bytes": 515626,
+          "md5": "d7683ac63f6d46159790186f2e19919f"
+        },
+        "normal": {
+          "path": "roof-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/roof_slates_02/roof_slates_02_nor_gl_1k.jpg",
+          "bytes": 763206,
+          "md5": "e661093ac3305df7de9159ad07ef5f75"
+        },
+        "roughness": {
+          "path": "roof-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/roof_slates_02/roof_slates_02_rough_1k.jpg",
+          "bytes": 307076,
+          "md5": "90922aa9a6fe1bd6b6fc59548e476705"
+        }
+      }
+    },
+    "metal": {
+      "id": "metal_plate",
+      "name": "Metal Plate",
+      "source": "https://polyhaven.com/a/metal_plate",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        500,
+        500
+      ],
+      "files": {
+        "color": {
+          "path": "metal-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate/metal_plate_diff_1k.jpg",
+          "bytes": 692234,
+          "md5": "bd9daf4c04046ca392a38b8df955ed26"
+        },
+        "normal": {
+          "path": "metal-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate/metal_plate_nor_gl_1k.jpg",
+          "bytes": 770307,
+          "md5": "d379e66130ad6ccff217ac9b13de935d"
+        },
+        "roughness": {
+          "path": "metal-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate/metal_plate_rough_1k.jpg",
+          "bytes": 775206,
+          "md5": "6e1c8672d804b90546a23db621515b16"
+        }
+      }
+    },
+    "wood": {
+      "id": "oak_wood_planks",
+      "name": "Oak Wood Planks",
+      "source": "https://polyhaven.com/a/oak_wood_planks",
+      "authors": {
+        "Dimitrios Savva": "All"
+      },
+      "dimensions": [
+        1200.0000476837158,
+        1200.0000476837158
+      ],
+      "files": {
+        "color": {
+          "path": "wood-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_wood_planks/oak_wood_planks_diff_1k.jpg",
+          "bytes": 696814,
+          "md5": "e9e25ac7abcc482f73214fda23e2de25"
+        },
+        "normal": {
+          "path": "wood-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_wood_planks/oak_wood_planks_nor_gl_1k.jpg",
+          "bytes": 392213,
+          "md5": "6a71c23551887b77b29623bb871aefbf"
+        },
+        "roughness": {
+          "path": "wood-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/oak_wood_planks/oak_wood_planks_rough_1k.jpg",
+          "bytes": 845590,
+          "md5": "3609ef0a3155ae90b69395431bf8cec1"
+        }
+      }
+    },
+    "plaster": {
+      "id": "grey_plaster",
+      "name": "Grey Plaster",
+      "source": "https://polyhaven.com/a/grey_plaster",
+      "authors": {
+        "Rob Tuytel": "All"
+      },
+      "dimensions": [
+        1000,
+        1000
+      ],
+      "files": {
+        "color": {
+          "path": "plaster-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grey_plaster/grey_plaster_diff_1k.jpg",
+          "bytes": 704079,
+          "md5": "42d2ffe5338fcc0065e28076cbe15eba"
+        },
+        "normal": {
+          "path": "plaster-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grey_plaster/grey_plaster_nor_gl_1k.jpg",
+          "bytes": 355288,
+          "md5": "add2064b193d083c892aead5eaf461d2"
+        },
+        "roughness": {
+          "path": "plaster-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grey_plaster/grey_plaster_rough_1k.jpg",
+          "bytes": 635335,
+          "md5": "b97159bbbb4817965892ec7ab6efe46f"
+        }
+      }
+    }
+  },
+  "environment": {
+    "id": "kloppenheim_06_puresky",
+    "name": "Kloppenheim 06 (Pure Sky)",
+    "authors": {
+      "Greg Zaal": "Original",
+      "Jarod Guest": "Sky edits"
+    },
+    "source": "https://polyhaven.com/a/kloppenheim_06_puresky",
+    "path": "daylight.hdr",
+    "bytes": 1173154,
+    "md5": "995d68b1656f26452572645c0ffe898b",
+    "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloppenheim_06_puresky_1k.hdr"
+  }
+}

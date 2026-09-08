@@ -1,6 +1,6 @@
-# Colossus Wake — PC prototype 0.6
+# Colossus Wake — PC prototype 0.7
 
-A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
+A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; models and sound design are original procedural work, with bundled CC0 surface scans and HDR lighting. See [asset credits](ASSET_CREDITS.md).
 
 The source is backed up in the private GitHub repository [reza477/kiju-game](https://github.com/reza477/kiju-game). This is the game project; it is independent of the Vancouver Curiosity Club website. GitHub stores the code. Play locally using the launcher below.
 
@@ -41,6 +41,16 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
+Version 0.7 rebuilds the tree crowns with forked branches and individual folded leaves and needles, adds rooted undergrowth and fractured ridge beds, and blends scanned grass, forest soil and stone surfaces. Masonry, roof slates, wood, bark and metal use local color, normal and roughness maps. Baked material coordinates keep masonry scale consistent while cities move. An HDR sky environment supplies reflected light; surface-oriented contact shading works in both Streets and City views.
+
+The flesh titan has a sculpted skull and jaw, stronger brow and anatomical planes, regional hide color/roughness, and the same supported walking and punch rig. Citizens have layered clothing, more defined heads and a distance-driven gait with planted soles. District windows have recessed glazing and sills; roof edges and garden leaves have physical depth. The six carriers, castle floors, weapon clearances and saves are retained.
+
+## Sound
+
+Sound starts when you press **Begin expedition** or **Continue**. Each carrier has its own engine, servo, breathing or propeller bed; footsteps, drill movement, construction, cannon and missile fire, delayed impacts, wind, water and wildlife accompany the game. A restrained original ambient score sits behind the effects. **Sound** toggles mute; **Audio mix** sets overall, music, ambience and effects levels, saved on this PC. Pausing or hiding the game silences the world; a short result cue may finish over the paused victory/defeat dialog. No audio files or services are streamed from the internet.
+
+## Earlier visual updates
+
 Version 0.6 replaces the circular kaiju town with a compact vertical Gothic fortress: stacked wards, narrow masonry towers, pointed roofs, bridges and a load-bearing backpack. Both the cyborg titan and a separate flesh titan carry it. The initial castle occupies two floors; upper-ward construction opens five floors without widening the plan. District IDs, resources and upgrades survive migration.
 
 The standard armored crawler is joined by an elongated rectangular drill crawler with a rotating spiral cutting cone. The horizontal-envelope airship is joined by a city suspended from exactly four upright rounded balloons. Each version is selectable, saved locally and represented among the rivals in new games. The drill's mounts, terrain footprint, tread marks and scenery crushing follow its elongated chassis.
@@ -75,11 +85,11 @@ Existing saves remain compatible. The same twenty kaiju district IDs map to cast
 - Separate tactical battle state, five enemy cities in new games, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
 - Configurable battery facing, firing arcs, cannon obstruction, rotating turrets, recoil, and muzzle-origin projectiles.
 - Height-aware landscape, roaming wildlife, temporary ground marks, saved scenery destruction, protected resource sites.
-- Local save/resume, optional synthesized audio, pause/speed controls, three graphics presets, three lighting moods, basic touchscreen layout.
+- Local save/resume, original local music and soundscape with a persisted mixer, pause/speed controls, three graphics presets, three lighting moods, basic touchscreen layout.
 
 ## Scope of this version
 
-This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with five castle floors and three district upgrade levels. Citizens circulate on supported floor routes; they do not yet travel between floors. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and five encounter opponents in new games, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. Carrier variants currently share their faction's economy and base combat statistics. The art uses procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
+This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with five castle floors and three district upgrade levels. Citizens circulate on supported floor routes; they do not yet travel between floors. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and five encounter opponents in new games, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. Carrier variants currently share their faction's economy and base combat statistics. The art uses procedural geometry with original and scanned materials; its quality is judged separately in the independent reviews below.
 
 Phone input and responsive UI are included as a starting point. Actual iPhone performance, Safari/WebGL behavior, packaging, touch camera refinements, and App Store distribution remain future work. A native iOS build will require macOS/Xcode and device testing.
 

@@ -1,4 +1,6 @@
 import * as T from '../vendor/three.module.js';
+import {surfaceSet} from './surface-library.js';
+import {HDRLoader} from '../vendor/HDRLoader.js';
 
 const textures = new Map();
 const materials = new Map();
@@ -91,21 +93,28 @@ export function getMaterial(kind='stone', color, options={}) {
   const metallic=['metal','gold','copper'].includes(kind);
   const glazed=['glass','window'].includes(kind);
   const mapped=!['water','bone'].includes(kind);
-  const texture=mapped?surfaceTexture(kind):null;
+  const scanName=({stone:'stone',brick:'brick',plaster:'plaster',roof:'roof',wood:'wood',metal:'metal',bark:'bark',rock:'rock'})[kind];
+  const scan=scanName?surfaceSet(scanName):null;
+  const texture=scan?.map??(mapped?surfaceTexture(kind):null);
   const m=new T.MeshStandardMaterial({color,map:texture,
-    roughness:metallic?.43:glazed?.22:kind==='skin'?.83:.92,
+    roughness:scan?1:metallic?.43:glazed?.22:kind==='skin'?.83:.92,
     metalness:metallic?.68:glazed?.24:0,
-    bumpMap:mapped&&!glazed?texture:null,
+    normalMap:scan?.normalMap??null,normalScale:new T.Vector2(.55,.55),roughnessMap:scan?.roughnessMap??null,
+    bumpMap:!scan&&mapped&&!glazed?texture:null,
     bumpScale:kind==='skin'?.055:kind==='brick'||kind==='stone'?.035:kind==='roof'?.022:.008,
     ...options});
   if(kind==='window'){m.emissive.set(0xffbf67);m.emissiveIntensity=.13;animatedWindows.add(m);}
-  m.userData.shared=true;materials.set(key,m);return m;
+  m.userData.shared=true;if(scan)m.userData.surfaceScale=scan.scale;
+  m.name=`${kind} ${new T.Color(color).getHexString()}`;materials.set(key,m);return m;
 }
 
 export function setWindowLighting(strength) {for(const m of animatedWindows)m.emissiveIntensity=strength;}
 function geom(key,create){if(!geometries.has(key)){const g=create();g.userData.shared=true;geometries.set(key,g);}return geometries.get(key);}
 function resolve(m){return m?.isMaterial?m:getMaterial('stone',m);}
-function mesh(group,geometry,m,x,y,z){const obj=new T.Mesh(geometry,resolve(m));obj.position.set(x,y,z);obj.castShadow=true;obj.receiveShadow=true;group.add(obj);return obj;}
+function mesh(group,geometry,m,x,y,z){const material=resolve(m);if(material.userData.surfaceScale)geometry=geom(`metric:${geometry.uuid}:${material.userData.surfaceScale}`,()=>metricUV(geometry.clone(),material.userData.surfaceScale));const obj=new T.Mesh(geometry,material);obj.position.set(x,y,z);obj.castShadow=true;obj.receiveShadow=true;group.add(obj);return obj;}
+// Metres-per-tile projections are baked into mesh UVs, so brickwork keeps its
+// scale on thin walls and never swims when an entire carrier walks or rotates.
+function metricUV(geometry,scale){const p=geometry.attributes.position,n=geometry.attributes.normal;if(!p||!n)return geometry;const uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){const x=Math.abs(n.getX(i)),y=Math.abs(n.getY(i)),z=Math.abs(n.getZ(i));if(y>x&&y>z){uv[i*2]=p.getX(i)/scale;uv[i*2+1]=-p.getZ(i)/scale;}else if(x>z){uv[i*2]=p.getZ(i)/scale;uv[i*2+1]=p.getY(i)/scale;}else{uv[i*2]=p.getX(i)/scale;uv[i*2+1]=p.getY(i)/scale;}}geometry.setAttribute('uv',new T.BufferAttribute(uv,2));geometry.userData.metricUV=true;return geometry;}
 export function box(g,w,h,d,m,x=0,y=0,z=0){return mesh(g,geom(`b:${w}:${h}:${d}`,()=>new T.BoxGeometry(w,h,d)),m,x,y,z);}
 export function cylinder(g,rTop,rBottom,h,m,x=0,y=0,z=0,segments=16){return mesh(g,geom(`c:${rTop}:${rBottom}:${h}:${segments}`,()=>new T.CylinderGeometry(rTop,rBottom,h,segments)),m,x,y,z);}
 export function cone(g,r,h,m,x=0,y=0,z=0,segments=16){return cylinder(g,0,r,h,m,x,y,z,segments);}
@@ -123,6 +132,7 @@ export function batchStatic(group) {
     if(!buckets.has(m))buckets.set(m,[]);
     const local=new T.Matrix4().multiplyMatrices(inverse,o.matrixWorld);
     const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(local);
+    if(m.userData.surfaceScale)metricUV(g,m.userData.surfaceScale);
     buckets.get(m).push(g);originals.push(o);
   });
   for(const [material,pieces] of buckets){
@@ -144,4 +154,10 @@ export function createEnvironment(renderer) {
   const glow=c.createRadialGradient(105,95,1,105,95,65);glow.addColorStop(0,'rgba(255,242,211,1)');glow.addColorStop(.12,'rgba(255,236,198,.8)');glow.addColorStop(1,'rgba(255,230,180,0)');c.fillStyle=glow;c.fillRect(0,0,512,256);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.mapping=T.EquirectangularReflectionMapping;
   const generator=new T.PMREMGenerator(renderer);const target=generator.fromEquirectangular(texture);texture.dispose();generator.dispose();return target;
+}
+
+export async function loadDaylightEnvironment(renderer){
+ const texture=await new HDRLoader().loadAsync(new URL('../assets/materials/daylight.hdr',import.meta.url).href);
+ texture.mapping=T.EquirectangularReflectionMapping;
+ const generator=new T.PMREMGenerator(renderer);const target=generator.fromEquirectangular(texture);texture.dispose();generator.dispose();return target;
 }

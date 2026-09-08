@@ -3,13 +3,13 @@
 import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/cinematic-review');await fs.mkdir(out,{recursive:true});
-const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const report={fixture:'Isolated normal-HUD gameplay; requestAnimationFrame is held and the existing tick/render/UI functions advance in 0.05-second steps. Only transient pause/toast overlays are hidden at capture, preserving all gameplay controls and product geometry/materials.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
 async function open(reducedMotion='no-preference'){
  const context=await browser.newContext({viewport:{width:1440,height:960},reducedMotion});
  await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178'||['data:','blob:'].includes(u.protocol))return r.continue();report.remote.push(u.href);return r.abort();});
  const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
- await page.addInitScript(()=>{window.requestAnimationFrame=()=>0;});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus);
+ await page.addInitScript(()=>{window.requestAnimationFrame=()=>0;});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus?.scene.environmentReady && window.__colossus.scene.surfaceDiagnostics().pending===0);
  await page.evaluate(()=>{window.__reviewStep=async(seconds)=>{const {tick}=await import('/src/simulation.js');const a=window.__colossus;const steps=Math.max(1,Math.ceil(seconds/.05));for(let i=0;i<steps;i++){const dt=seconds/steps;tick(a.state,dt);a.advance(0);a.scene.update(a.state,dt,null);}};});return {context,page};
 }
 const step=(p,t)=>p.evaluate(t=>window.__reviewStep(t),t);

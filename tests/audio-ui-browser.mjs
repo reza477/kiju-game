@@ -1,0 +1,32 @@
+import { createRequire } from 'node:module';
+import fs from 'node:fs/promises'; import path from 'node:path'; import os from 'node:os'; import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url), { chromium } = require(path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--mute-audio', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1440, height: 960 } }), errors = [], external = [];
+page.on('pageerror', e => errors.push(e.message)); page.on('console', e => { if (e.type() === 'error') errors.push(e.text()); });
+await page.route('**/*', route => { const u = new URL(route.request().url()); if (u.origin === 'http://127.0.0.1:4178' || ['blob:', 'data:'].includes(u.protocol)) return route.continue(); external.push(u.href); return route.abort(); });
+const audio = () => page.evaluate(() => window.__colossus.audio.getDiagnostics());
+try {
+  await page.goto('http://127.0.0.1:4178/?test=1', { waitUntil: 'networkidle' }); await page.waitForFunction(() => window.__colossus?.audio);
+  const title = await audio(); assert.equal(title.contextState, 'uncreated'); assert.equal(title.voices, 0);
+  await page.click('#begin'); await page.waitForFunction(() => window.__colossus.audio.getDiagnostics().loops > 0); const playing = await audio(); assert.equal(playing.contextState, 'running');
+  await page.click('#audio-settings'); await page.waitForFunction(() => window.__colossus.audio.getDiagnostics().contextState === 'suspended');
+  const mixPaused = await audio(); assert.equal(mixPaused.paused, true); assert.equal(mixPaused.loops, 0);
+  await page.locator('#mix-music').evaluate(input => { input.value = '37'; input.dispatchEvent(new Event('input', { bubbles: true })); }); assert.equal((await audio()).settings.music, .37);
+  const cueStarted = await page.evaluate(() => window.__colossus.audio.play('victory', { allowPaused: true, id: 'audit-result' })); assert.equal(cueStarted, true);
+  await page.waitForTimeout(190);
+  const resultCue = await page.evaluate(() => ({ ...window.__colossus.audio.getDiagnostics(), names: [...window.__colossus.audio.voices.values()].filter(v => !v.stopping).map(v => v.name) }));
+  assert.equal(resultCue.paused, true); assert.equal(resultCue.loops, 0); assert.equal(resultCue.contextState, 'running'); assert.deepEqual(resultCue.names, ['victory']);
+  await page.evaluate(() => window.__colossus.audio.setMuted(true)); await page.waitForFunction(() => window.__colossus.audio.getDiagnostics().contextState === 'suspended');
+  const cueBlockedWhileMuted = await page.evaluate(() => window.__colossus.audio.play('defeat', { allowPaused: true })); assert.equal(cueBlockedWhileMuted, false);
+  const cueBlockedWhileHidden = await page.evaluate(() => { const a = window.__colossus.audio; a.setMuted(false); a.setHidden(true); return a.play('victory', { allowPaused: true }); }); assert.equal(cueBlockedWhileHidden, false);
+  await page.evaluate(() => window.__colossus.audio.setHidden(false)); await page.click('#close-dialog');
+  await page.waitForFunction(() => window.__colossus.audio.getDiagnostics().loops > 0); await page.click('#sound'); assert.equal((await audio()).muted, true);
+  await page.reload({ waitUntil: 'networkidle' }); await page.waitForFunction(() => window.__colossus?.audio);
+  const persisted = await audio(); assert.equal(persisted.muted, true); assert.equal(persisted.settings.music, .37); assert.equal(persisted.contextState, 'uncreated');
+  await page.click('#continue'); await page.waitForTimeout(250); const mutedBegin = await audio(); assert.equal(mutedBegin.contextState, 'suspended'); assert.equal(mutedBegin.voices, 0);
+  const report = { title, playing, mixPaused, resultCue, cueBlockedWhileMuted, cueBlockedWhileHidden, persisted, mutedBegin, errors, external };
+  const out = path.resolve('artifacts/prototype07-builder-01/audio'); await fs.mkdir(out, { recursive: true }); await fs.writeFile(path.join(out, 'audio-ui-report.json'), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ titleSilent: true, beginGestureUnlock: true, pauseSuspends: true, sliderPersists: true, pausedResultCueOnly: true, cueRespectsMuteAndHidden: true, persistedMute: true, mutedContinueSilent: true, errors, external }, null, 2));
+  assert.deepEqual(errors, []); assert.deepEqual(external, []);
+} finally { await browser.close(); }
