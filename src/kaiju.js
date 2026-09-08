@@ -368,7 +368,41 @@ function organicLoft(group, sections, mat, relief, region='') {
   // cannot acquire a hard lighting stripe down the otherwise smooth surface.
   const normals=geometry.attributes.normal;
   for(let ring=0;ring<=rings;ring++){const a=ring*(edges+1),b=a+edges,n=new T.Vector3().fromBufferAttribute(normals,a).add(new T.Vector3().fromBufferAttribute(normals,b)).normalize();normals.setXYZ(a,n.x,n.y,n.z);normals.setXYZ(b,n.x,n.y,n.z);}
+  geometry.userData.loft={rings,edges};
   const mesh=addMesh(group,geometry,region?anatomicalSkin(region,mat):mat);mesh.name='Continuous anatomical skin';return mesh;
+}
+
+// Join two authored anatomical surfaces through one tangent-continuous band.
+// The result has no elbow/knee end caps or intersecting cuffs to expose in a bend.
+function joinedSkin(upper,lower,pivot){
+  const a=upper.geometry.attributes.position,b=lower.geometry.attributes.position,edges=upper.geometry.userData.loft.edges,cols=edges+1;
+  const closest=(p,rings,y)=>{let best=0,error=Infinity;for(let r=0;r<=rings;r++){const e=Math.abs(p.getY(r*cols)-y);if(e<error){error=e;best=r;}}return best;};
+  const last=closest(a,upper.geometry.userData.loft.rings,pivot[1]+1.6),first=closest(b,lower.geometry.userData.loft.rings,pivot[1]-1.6),rows=[];
+  const row=(p,r)=>Array.from({length:cols},(_,j)=>[p.getX(r*cols+j),p.getY(r*cols+j),p.getZ(r*cols+j)]);
+  for(let r=0;r<=last;r++)rows.push(row(a,r));
+  const p0=rows.at(-1),before=rows.at(-2),p1=row(b,first),after=row(b,first+1);
+  for(let r=1;r<10;r++){const t=r/10,h00=2*t**3-3*t*t+1,h10=t**3-2*t*t+t,h01=-2*t**3+3*t*t,h11=t**3-t*t;
+    rows.push(p0.map((p,j)=>p.map((v,k)=>{if(k===1)return v+(p1[j][k]-v)*t;const dy=p1[j][1]-p[1],m0=(v-before[j][k])*dy/(p[1]-before[j][1]),m1=(after[j][k]-p1[j][k])*dy/(after[j][1]-p1[j][1]);return h00*v+h10*m0+h01*p1[j][k]+h11*m1;})));
+  }
+  for(let r=first;r<=lower.geometry.userData.loft.rings;r++)rows.push(row(b,r));
+  const positions=[],uv=[],indices=[],top=rows[0][0][1],bottom=rows.at(-1)[0][1];
+  for(let r=0;r<rows.length;r++)for(let j=0;j<cols;j++){const p=rows[r][j];positions.push(...p);uv.push(j/edges,(p[1]-bottom)/(top-bottom));if(r<rows.length-1&&j<edges){const i=r*cols+j;indices.push(i,i+cols,i+1,i+1,i+cols,i+cols+1);}}
+  for(const r of[0,rows.length-1]){const centre=rows[r].slice(0,edges).reduce((c,p)=>c.map((v,k)=>v+p[k]/edges),[0,0,0]),index=positions.length/3;positions.push(...centre);uv.push(.5,r===0?1:0);for(let j=0;j<edges;j++)indices.push(...(r===0?[index,r*cols+j,r*cols+j+1]:[index,r*cols+j+1,r*cols+j]));}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();
+  const normals=g.attributes.normal;for(let r=0;r<rows.length;r++){const i=r*cols,j=i+edges,n=new T.Vector3().fromBufferAttribute(normals,i).add(new T.Vector3().fromBufferAttribute(normals,j)).normalize();normals.setXYZ(i,n.x,n.y,n.z);normals.setXYZ(j,n.x,n.y,n.z);}
+  upper.removeFromParent();lower.removeFromParent();upper.geometry.dispose();lower.geometry.dispose();return g;
+}
+
+function bindLivingSkin(parent,frame,lower,foot,geometry,mat,pivot,region){
+  const bones=[frame,parent,lower,...(foot?[foot]:[])].map((owner,i)=>{const bone=new T.Bone();bone.name=`${region} skin anchor ${i}`;owner.add(bone);return bone;});
+  const p=geometry.attributes.position,indices=[],weights=[],smooth=(a,b,x)=>{const t=T.MathUtils.clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+  for(let i=0;i<p.count;i++){
+    const y=p.getY(i),body=smooth(-2.2,1.2,y),distal=1-smooth(pivot[1]-2.2,pivot[1]+2.2,y),ankle=foot?1-smooth(-23.4,-20.8,y):0;
+    indices.push(0,1,2,foot?3:2);weights.push(body,(1-body)*(1-distal),(1-body)*distal*(1-ankle),(1-body)*distal*ankle);
+  }
+  geometry.setAttribute('skinIndex',new T.Uint16BufferAttribute(indices,4));geometry.setAttribute('skinWeight',new T.Float32BufferAttribute(weights,4));
+  const mesh=new T.SkinnedMesh(geometry,anatomicalSkin(region,mat));mesh.name=`Continuous weighted ${region} skin`;mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.userData.noBatch=true;mesh.userData.skinRegion=region;mesh.boundingSphere=new T.Sphere(new T.Vector3(),32);parent.add(mesh);
+  parent.updateWorldMatrix(true,true);frame.updateWorldMatrix(true,true);mesh.bind(new T.Skeleton(bones));return mesh;
 }
 
 const anatomicalMaterials=new Map();
@@ -566,11 +600,11 @@ function organicHand(arm, side, m) {
   batchStatic(palm); palm.userData.noBatch = true; return { palm, digits, fist, marker };
 }
 
-function organicArm(rig, limbs, side, m) {
+function organicArm(rig, limbs, side, m, frame) {
   const arm = new T.Group(); arm.name = side < 0 ? 'Left articulated titan arm' : 'Right articulated titan arm';
   arm.position.set(side * 6.05, 43.7, .45); rig.add(arm);
   const elbow = [side * 2.2, -10.8, .5], wrist = [side * 2.13, -20.95, 2.45];
-  organicLoft(arm,[[side*-.30,1.38,-.12,.70,.80],[side*.08,.05,-.12,1.84,1.99],
+  const upperSkin=organicLoft(arm,[[side*-2.05,1.24,-.12,.58,.95],[side*-.75,.56,-.12,1.67,1.91],[side*.08,.05,-.12,1.90,1.99],
     [side*.47,-2.25,-.1,2.03,1.95],[side*1.14,-5.2,.19,1.83,1.76],
     [side*1.82,-8.25,.44,1.36,1.38],[side*2.17,-10.4,.46,1.08,1.06],
     [side*2.2,-11.55,.5,.69,.78]],m.skin,(p,a,t)=>{
@@ -586,7 +620,7 @@ function organicArm(rig, limbs, side, m) {
       p.z-=back*.31*formBell(Math.abs(Math.sin(a)),.46,.25)*formBell(t,.45,.22);
     },'upperarm');
   const forearmStart = arm.children.length;
-  organicLoft(arm,[[side*2.2,-9.92,.39,.72,.77],[side*2.2,-10.85,.39,1.11,1.17],
+  const lowerSkin=organicLoft(arm,[[side*2.2,-9.92,.39,.94,.93],[side*2.2,-10.85,.39,1.18,1.20],
     [side*2.43,-13.2,.82,1.58,1.67],[side*2.47,-15.7,1.47,1.31,1.36],
     [side*2.25,-18.7,2.12,.93,.97],[side*2.13,-20.9,2.43,.74,.78],
     [side*2.13,-21.8,2.50,.61,.62]],m.skin,(p,a,t)=>{
@@ -602,16 +636,18 @@ function organicArm(rig, limbs, side, m) {
   organicSweep(arm, [[side * 2.84, -12.1, -.07], [side * 3.80, -12.35, -.46],
     [side * 4.34, -13.05, -.65]], [.49, .29, .012], m.bone, 15);
   const hand = organicHand(arm, side, m);
-  const lower = articulatedSection(arm, arm.children.slice(forearmStart), elbow, 'Titan articulated elbow');
+  const lowerChildren=arm.children.slice(forearmStart).filter(o=>o!==lowerSkin),skinGeometry=joinedSkin(upperSkin,lowerSkin,elbow);
+  const lower = articulatedSection(arm,lowerChildren,elbow,'Titan articulated elbow');
+  const skin=bindLivingSkin(arm,frame,lower,null,skinGeometry,m.skin,elbow,'arm');
   batchStatic(arm); arm.userData.noBatch = true;
-  limbs.push({ obj: arm, lower, hand, handVector: hand.palm.position.clone().add(hand.marker.position), side, phase: side > 0 ? Math.PI : 0, leg: false });
+  limbs.push({ obj: arm, lower, hand, skin,handVector: hand.palm.position.clone().add(hand.marker.position), side, phase: side > 0 ? Math.PI : 0, leg: false });
 }
 
-function organicLeg(rig, limbs, side, m) {
+function organicLeg(rig, limbs, side, m, frame) {
   const leg = new T.Group(); leg.name = side < 0 ? 'Left articulated titan leg' : 'Right articulated titan leg';
   leg.position.set(side * 2.8, 25.5, .1); rig.add(leg);
   const knee = [side * .45, -11.2, .8], ankle = [side * .18, -23.2, -.7];
-  organicLoft(leg,[[0,1.35,-.20,.82,1.0],[0,-.25,-.09,1.87,1.99],
+  const upperSkin=organicLoft(leg,[[-side*.70,1.85,-.20,.90,1.11],[0,.35,-.18,1.76,1.96],[0,-.25,-.09,1.87,1.99],
     [-side*.08,-3.0,.14,2.17,2.16],[side*.14,-6.1,.49,1.88,1.9],
     [side*.4,-8.7,.70,1.47,1.43],[side*.45,-10.6,.8,1.20,1.13],
     [side*.45,-11.85,.8,.87,.82]],m.skin,(p,a,t)=>{
@@ -626,7 +662,7 @@ function organicLeg(rig, limbs, side, m) {
       p.z-=Math.max(0,-Math.cos(a))*.27*formBell(Math.abs(Math.sin(a)),.49,.24)*formBell(t,.40,.27);
     },'thigh');
   const lowerStart = leg.children.length;
-  organicLoft(leg,[[side*.45,-10.32,.83,.74,.83],[side*.45,-11.35,.74,1.17,1.08],
+  const lowerSkin=organicLoft(leg,[[side*.45,-10.32,.83,.98,1.02],[side*.45,-11.35,.74,1.26,1.18],
     [side*.49,-13.55,.1,1.46,1.42],[side*.39,-16.15,-.47,1.38,1.51],
     [side*.23,-19.2,-.77,.94,1.07],[side*.18,-22.45,-.70,.70,.80],
     [side*.18,-23.82,-.56,.64,.61]],m.skin,(p,a,t)=>{
@@ -660,7 +696,8 @@ function organicLeg(rig, limbs, side, m) {
       [tx, -24.98, front + 1.07]], [.32, .23, .009], m.claw, 16);
   }
   const footJoint = articulatedSection(leg, leg.children.slice(footStart), ankle, 'Titan ankle and planted sole');
-  const lower = articulatedSection(leg, leg.children.slice(lowerStart), knee, 'Titan knee and shin');
+  const lowerChildren=leg.children.slice(lowerStart).filter(o=>o!==lowerSkin),skinGeometry=joinedSkin(upperSkin,lowerSkin,knee);
+  const lower = articulatedSection(leg,lowerChildren,knee,'Titan knee and shin');
   const vertices = []; let minimumY = Infinity;
   footJoint.traverse(o => {
     if (!o.isMesh) return;
@@ -680,8 +717,9 @@ function organicLeg(rig, limbs, side, m) {
   const solePoints = [...hull(candidates), ...hull([...candidates].reverse())];
   const soleCentre = solePoints.reduce((v, p) => v.add(p), new T.Vector3()).multiplyScalar(1 / solePoints.length);
   solePoints.push(soleCentre.clone());
+  const skin=bindLivingSkin(leg,frame,lower,footJoint,skinGeometry,m.skin,knee,'leg');
   batchStatic(leg); leg.userData.noBatch = true;
-  limbs.push({ obj: leg, lower, foot: footJoint, knee, ankle, solePoints, soleCentre, side, phase: side > 0 ? 0 : Math.PI, leg: true });
+  limbs.push({ obj: leg, lower, foot: footJoint,skin,knee,ankle,solePoints,soleCentre,side,phase:side>0?0:Math.PI,leg:true });
 }
 
 function createFleshKaiju(frame, rig, limbs) {
@@ -698,7 +736,7 @@ function createFleshKaiju(frame, rig, limbs) {
   };
   frame.userData.kaijuVariant = 'flesh';
   organicTorso(frame, m); organicHead(frame, m);
-  for (const side of [-1, 1]) { organicLeg(rig, limbs, side, m); organicArm(rig, limbs, side, m); }
+  for (const side of [-1, 1]) { organicLeg(rig, limbs, side, m,frame); organicArm(rig, limbs, side, m,frame); }
   backpackHarness(frame, m);
 }
 

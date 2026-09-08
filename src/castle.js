@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial,box,cylinder,cone,beam,batchStatic} from './materials.js';
 import {KAIJU_DECK_Y,KAIJU_CENTER,KAIJU_FLOOR_SPACING,KAIJU_FLOOR_SLOTS,kaijuFloorCount,kaijuTowerTop,kaijuWalkFloors,RING_SLOTS} from './city-layout.js';
-import {castleMassing,castleWallBoxes,castleWallWindows,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofSeams,spireSeams} from './castle-collision.js';
+import {castleMassing,castleWallBoxes,castleWallWindows,castleStructuralDetails,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofSeams,spireSeams} from './castle-collision.js';
 export {kaijuSlotPosition} from './city-layout.js';
 const M=(kind,color)=>getMaterial(kind,color);
 function mesh(group,geometry,material,x=0,y=0,z=0){const o=new T.Mesh(geometry,material);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;}
@@ -71,7 +71,7 @@ function steepRoof(group,x,y,z,w,d,h,p){
 export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
  const massing=castleMassing(rings,deckY),{stage,count,highest,totalTop,mainCrown,leftCrown,rearCrown,leftWingTop,rightWingTop,rearTop}=massing;
  const group=new T.Group();group.name='Clustered Gothic castle backpack';
- const p={wall:M('stone',enemy?0x666873:0x747779),trim:M('stone',0xada79a),edge:M('stone',0x827e76),roof:M('roof',0x74483d),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
+ const p={wall:M('stone',enemy?0x737984:0x848b8e),trim:M('plaster',0xb7ad9c),edge:M('stone',0x9b9d9d),roof:M('roof',0x945442),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
  const floors=[],shells=[];
  for(let tier=0;tier<count;tier++){
   const g=new T.Group();g.name=`Castle floor ${tier+1}`;Object.assign(g.userData,{towerTier:tier,tier,noBatch:true});group.add(g);floors.push(g);floor(g,tier,deckY,p);
@@ -79,18 +79,25 @@ export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
  }
  // Every exterior piece is clipped at floor boundaries for reversible inspection.
  const shellAt=y=>shells[Math.max(0,Math.min(count-1,Math.floor((y-deckY)/KAIJU_FLOOR_SPACING)))];
- function wallVolume(x,z,w,d,bottom,top,seed,front=true,gunLane=null){
+ function wallVolume(x,z,w,d,bottom,top,seed,front=true,gunLane=null,id='wall'){
   for(let tier=0;tier<count;tier++){
    const lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);if(hi<=lo)continue;
    const shell=shells[tier],h=hi-lo;
-   for(const b of castleWallBoxes({x,z,w,d,bottom,top,gunLane},tier,count,deckY))box(shell,b.w,b.h,b.d,b.trim==='edge'?p.edge:b.trim?p.trim:p.wall,b.x,b.y,b.z);
-   for(const q of castleWallWindows({x,z,w,d,bottom,top,gunLane,front,seed},tier,count,deckY))lancet(shell,q.x,q.y,q.z,q.rotation,q.w,q.h,p,q.lit);
+   const descriptor={id,x,z,w,d,bottom,top,gunLane,front,seed};
+   for(const b of castleWallBoxes(descriptor,tier,count,deckY))box(shell,b.w,b.h,b.d,b.trim==='edge'?p.edge:b.trim?p.trim:p.wall,b.x,b.y,b.z);
+   for(const q of castleWallWindows(descriptor,tier,count,deckY))lancet(shell,q.x,q.y,q.z,q.rotation,q.w,q.h,p,q.lit);
   }
   cornice(shellAt(top),x,top,z,w+.10,d+.08,p);
  }
  // Main outward keep: a broad, offset solid mass with the dominant steep roof.
- for(const w of massing.walls)wallVolume(w.x,w.z,w.w,w.d,w.bottom,w.top,w.seed,w.front,w.gunLane??null);
+ for(const w of massing.walls)wallVolume(w.x,w.z,w.w,w.d,w.bottom,w.top,w.seed,w.front,w.gunLane??null,w.id);
  for(const r of massing.roofs)steepRoof(shellAt(r.y+r.h+1.4),r.x,r.y,r.z,r.w,r.d,r.h,p);
+ for(const f of castleStructuralDetails(massing,deckY)){
+  const s=shells[f.tier],material=p[f.material];
+  if(f.box){const b=f.box;box(s,b.w,b.h,b.d,material,b.x,b.y,b.z);}
+  else if(f.beam)beam(s,f.beam.a,f.beam.b,f.beam.r,material);
+  else {const position=[],uv=[];for(const face of f.faces)for(const i of face){const v=f.vertices[i];position.push(...v);uv.push(v[0],v[1]);}const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(position,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();mesh(s,geometry,material);}
+ }
  // A shorter square gate tower and a narrow rear needle establish hierarchy.
  // The two side wings end at different levels and are offset in plan.
  // Body-facing spine is solid but kept wholly behind the resident promenade.

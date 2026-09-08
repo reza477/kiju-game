@@ -10,32 +10,96 @@ export function towerCornerStrips(x,z,r,bottom,top){return Array.from({length:4}
 export function castleFloorDetails(y){const out=[],add=(material,x,y,z,w,h,d)=>out.push({material,x,y,z,w,h,d});for(const side of[-1,1]){add('walk',side*5,y+.098,-12,.72,.022,10.32);add('walk',0,y+.098,-12+side*4.8,10.32,.022,.72);add('trim',side*5.36,y+.78,-12,.12,.13,10.7);for(let z=-4.8;z<=4.8;z+=1.2){add('wall',side*5.36,y+.39,-12+z,.16,.66,.16);add('trim',side*5.36,y+.8,-12+z,.22,.08,.22);}add('trim',0,y+.78,-12+side*5.36,10.7,.13,.12);for(let x=-4.8;x<=4.8;x+=1.2)add('wall',x,y+.4,-12+side*5.36,.14,.67,.16);}return out;}
 export function steepRoofSeams({x,y,z,w,d,h}){const out=[];for(const i of[0,1,2,3])out.push({a:[x+(i===0||i===3?-w/2:w/2),y,z+(i<2?-d/2:d/2)],b:[x,y+h,z+(i<2?-d*.2:d*.2)],r:.033});out.push({a:[x,y+h,z-d*.2],b:[x,y+h,z+d*.2],r:.06});return out;}
 export function spireSeams(x,y,z,r,h){return Array.from({length:4},(_,i)=>{const a=i*Math.PI/2+Math.PI/4;return{a:[x+Math.sin(a)*r*.79,y+.12,z+Math.cos(a)*r*.79],b:[x,y+h+.14,z],r:.025};});}
-export function castleWallWindows(wall,tier,count,deckY=KAIJU_DECK_Y){const{x,z,w,d,bottom,top,gunLane,front,seed}=wall,lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING),out=[],start=bottom+1.25,spacing=3.25;if(hi<=lo)return out;for(let y=start+Math.max(0,Math.ceil((lo-start)/spacing))*spacing;y+2.15<hi+.01;y+=spacing){if(front){for(const xx of(w>3?[-w*.27,w*.27]:[0])){if(gunLane!=null&&Math.abs(x+xx-gunLane)<1.18)continue;out.push({x:x+xx,y,z:z-d*.5-.025,rotation:Math.PI,w:w>3?.55:Math.min(.6,w*.42),h:2.3,lit:(seed+Math.round(y/spacing)+Math.round(xx*4))%7===0});}}else for(const dz of[-d*.28,d*.28])out.push({x:x+Math.sign(x)*(w*.5+.025),y,z:z+dz,rotation:Math.sign(x)*Math.PI/2,w:.54,h:2.3,lit:(seed+Math.round(y/spacing))%7===0});}return out;}
+export function castleWallWindows(wall,tier,count,deckY=KAIJU_DECK_Y){
+ const{x,z,w,d,bottom,top,gunLane,front,seed}=wall,lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING),out=[];
+ // Tall choir lights, paired gallery lights and narrow arrow loops have distinct
+ // architectural jobs. Their cadence continues across inspection boundaries.
+ const choir=wall.id?.includes('choir')||wall.id?.includes('belfry'),spacing=choir?5.9:3.25,windowH=choir?3.65:2.3,start=bottom+1.25;
+ if(hi<=lo)return out;
+ for(let y=start+Math.max(0,Math.ceil((lo-start)/spacing))*spacing;y+windowH+.12<hi+.01;y+=spacing){
+  if(front){for(const xx of(w>3?[-w*.27,w*.27]:[0])){if(gunLane!=null&&Math.abs(x+xx-gunLane)<1.18)continue;out.push({x:x+xx,y,z:z-d*.5-.025,rotation:Math.PI,w:choir?Math.min(.96,w*.48):w>3?.60:Math.min(.64,w*.42),h:windowH,lit:(seed+Math.round(y/spacing)+Math.round(xx*4))%7===0,recess:.23});}}
+  else for(const dz of(d>5?[-d*.28,d*.28]:[0]))out.push({x:x+Math.sign(x)*(w*.5+.025),y,z:z+dz,rotation:Math.sign(x)*Math.PI/2,w:choir?.88:.64,h:windowH,lit:(seed+Math.round(y/spacing))%7===0,recess:.23});
+ }
+ for(const p of out){p.x-=Math.sin(p.rotation)*p.recess;p.z-=Math.cos(p.rotation)*p.recess;}
+ return out;
+}
 
 /** Shared major geometry: renderer and physics use identical port-bearing masses. */
 export function castleMassing(rings=2,deckY=KAIJU_DECK_Y){
  const stage=Math.max(0,Math.min(2,Math.floor(rings))),count=kaijuFloorCount(stage),highest=deckY+(count-1)*KAIJU_FLOOR_SPACING,totalTop=kaijuTowerTop(stage)+deckY-KAIJU_DECK_Y,mainCrown=totalTop-10.8;
  const leftCrown=highest+(count>2?-4.3:3.2),rearCrown=highest+2.4,leftWingTop=highest+(count>2?-1.5:5),rightWingTop=highest+2.5,rearTop=Math.max(highest+3,mainCrown-4);
  const walls=[
-  {id:'main-keep',x:.8,z:-17.94,w:6.30,d:1.12,bottom:deckY-4.1,top:mainCrown,seed:2,front:true,gunLane:3.1},
-  {id:'gate-tower',x:-4.7,z:-18.04,w:1.98,d:1.7,bottom:deckY-6.7,top:leftCrown,seed:4,front:true},
+  {id:'main-keep',x:.8,z:-18.205,w:6.30,d:1.65,bottom:deckY-4.1,top:mainCrown,seed:2,front:true,gunLane:3.1},
+  {id:'gate-tower',x:-4.7,z:-18.04,w:2.18,d:1.96,bottom:deckY-6.7,top:leftCrown-7,seed:4,front:true},
+  {id:'gate-belfry',x:-4.7,z:-18.16,w:2.36,d:2.42,bottom:leftCrown-7,top:leftCrown,seed:8,front:true},
   {id:'left-wing',x:-5.86,z:-11.98,w:.65,d:8.3,bottom:deckY-.3,top:leftWingTop,seed:7,front:false},
   {id:'right-wing',x:5.82,z:-9.48,w:.65,d:6.3,bottom:deckY-2.5,top:rightWingTop,seed:3,front:false},
   {id:'rear-spine',x:0,z:-6.1,w:3.5,d:1.15,bottom:deckY-2.5,top:rearTop,seed:1,front:false}
  ];
- const roofs=[{x:.8,y:mainCrown,z:-17.94,w:6.48,d:2.13,h:9.28},{x:-4.7,y:leftCrown,z:-18.04,w:2.32,d:2.13,h:6.5},{x:-5.86,y:leftWingTop,z:-11.98,w:.96,d:8.45,h:4},{x:5.82,y:rightWingTop,z:-9.48,w:.94,d:6.46,h:3.1},{x:0,y:rearTop,z:-6.1,w:3.7,d:1.85,h:5}];
+ const roofs=[{x:.8,y:mainCrown,z:-18.205,w:6.48,d:3.3,h:9.28},{x:-4.7,y:leftCrown,z:-18.16,w:2.96,d:2.94,h:7.0},{x:-5.86,y:leftWingTop,z:-11.98,w:.96,d:8.45,h:4},{x:5.82,y:rightWingTop,z:-9.48,w:.94,d:6.46,h:3.1},{x:0,y:rearTop,z:-6.1,w:3.7,d:1.85,h:5}];
  // The grown keep rises from a broad lower hall into an offset, narrower crown.
  // Its west wing ends in a roofed shoulder halfway up, exposing the upper keep
  // as a separate mass without moving a single supported ward or promenade.
  if(count>2){
-  const setback=deckY+2*KAIJU_FLOOR_SPACING,main=walls[0],west=walls[2];
-  walls.push({...main,id:'upper-keep',x:1.5,w:4.9,bottom:setback});main.top=setback;
+  const setback=deckY+2*KAIJU_FLOOR_SPACING,main=walls[0],west=walls.find(w=>w.id==='left-wing');
+  walls.push({...main,id:'upper-keep',x:1.5,w:4.9,z:-18.03,d:1.3,bottom:setback});main.top=setback;
   walls.push({...west,id:'upper-west-wing',z:-13.68,d:4.9,bottom:setback});west.top=setback;
-  Object.assign(roofs[0],{x:1.5,w:5.08});Object.assign(roofs[2],{z:-13.68,d:5.05});
+  Object.assign(roofs[0],{x:1.5,w:5.08,z:-18.03,d:3.12});Object.assign(roofs[2],{z:-13.68,d:5.05});
   roofs.push({x:-1.65,y:setback,z:-18.1,w:1.42,d:1.4,h:3.15},{x:-5.86,y:setback,z:-9.73,w:.96,d:3.44,h:3.9});
  }
+ // A projected choir and a lower roofed side hall make the fortress an assembly
+ // of inhabited volumes. They sit wholly beyond the four district footprints.
+ const choirTop=count>2?deckY+2*KAIJU_FLOOR_SPACING+5:mainCrown-2.2;
+ walls.push({id:'projected-choir',x:-.9,z:-19.08,w:2.15,d:1.4,bottom:deckY-2.5,top:choirTop,seed:3,front:true});
+ roofs.push({x:-.9,y:choirTop,z:-19.08,w:2.44,d:1.76,h:count>2?6.4:4.9});
+ // A deep lateral gallery replaces the uninterrupted broad flank. Its upper
+ // roof is deliberately below the narrow spine, producing a clear shoulder.
+ const galleryTop=count>2?deckY+KAIJU_FLOOR_SPACING+4.7:deckY+4.8;
+ walls.push({id:'western-gallery',x:-6.1,z:-10.1,w:1.08,d:4.25,bottom:deckY-1.8,top:galleryTop,seed:6,front:false});
+ roofs.push({x:-6.1,y:galleryTop,z:-10.1,w:1.42,d:4.56,h:4.1});
+ if(count>2)roofs.push({x:-3.48,y:deckY+KAIJU_FLOOR_SPACING+3.8,z:-18.04,w:2.65,d:1.35,h:2.45});
  const shafts=[{x:5.45,z:-17.98,r:.69,bottom:Math.max(deckY-6.2,highest-11.6),top:highest+5.3,h:5.8},{x:-5.65,z:-6.35,r:.53,bottom:deckY-6.2,top:rearCrown,h:4.3}];
  return {stage,count,highest,totalTop,mainCrown,leftCrown,rearCrown,leftWingTop,rightWingTop,rearTop,walls,roofs,shafts};
+}
+
+/** Load-bearing profiles are authored once for the render and firing model. */
+export function castleStructuralDetails(m,deckY=KAIJU_DECK_Y){
+ const details=[],tierAt=y=>Math.max(0,Math.min(m.count-1,Math.floor((y-deckY)/KAIJU_FLOOR_SPACING))),faces=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]];
+ const addBox=(id,material,x,y,z,w,h,d)=>details.push({id,material,tier:tierAt(y),box:{x,y,z,w,h,d}});
+ function pier(id,x,z,width,d0,d1,bottom,top,side=false){
+  for(let tier=0;tier<m.count;tier++){
+   const lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===m.count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);if(hi<=lo)continue;
+   const vertex=(u,y,v)=>side?[x-v,y,z+u]:[x+u,y,z-v],vertices=[];
+   for(const y of[lo,hi]){const depth=d0+(d1-d0)*(y-bottom)/(top-bottom);for(const[u,v]of[[-width/2,0],[width/2,0],[width/2,depth],[-width/2,depth]])vertices.push(vertex(u,y,v));}
+   details.push({id:`${id}:${tier}`,material:'edge',tier,vertices,faces});
+  }
+  addBox(`${id}:capital`,'trim',side?x-d1*.5:x,top+.08,side?z:z-d1*.5,side?d1+.22:width+.20,.18,side?width+.20:d1+.22);
+ }
+ const choir=m.walls.find(w=>w.id==='projected-choir');
+ for(const x of[-2.05,.25])pier(`choir-buttress:${x}`,x,-19.02,.38,1.25,.34,deckY-5.2,choir.top-.15);
+ // Recessed flank wall rises behind a pair of buttresses with strongly sloping
+ // feet. Their differing terminations preserve the hierarchy of roof masses.
+ for(const[z,top]of[[-15.15,m.highest-1.4],[-8.02,deckY+KAIJU_FLOOR_SPACING+1.8]]){
+  const end=Math.min(top,m.walls.find(w=>w.id==='left-wing').top+4.6);
+  pier(`flank-buttress:${z}`,-6.12,z,.44,1.08,.26,deckY-4.1,Math.max(deckY+3.8,end),true);
+ }
+ // Deep entrance surround under the inhabited choir creates a recognisable
+ // base, rather than ending every vertical shaft in the same flat box.
+ for(const x of[-1.78,-.02])addBox('choir-entry-jamb','trim',x,deckY+.70,-19.86,.26,4.75,.32);
+ addBox('choir-entry-step','edge',-.9,deckY-1.7,-19.86,2.5,.26,.88);
+ // Corbel courses deliberately gather below the enlarged bell chamber only.
+ const bell=m.walls.find(w=>w.id==='gate-belfry');
+ for(const[x,z]of[[-5.69,-19.33],[-3.71,-19.33],[-5.69,-17.05],[-3.71,-17.05]]){
+  addBox('belfry-corbel-lower','edge',x,bell.bottom-.68,z,.23,.84,.24);
+  addBox('belfry-corbel-upper','trim',x,bell.bottom-.16,z,.40,.23,.42);
+ }
+ // Pointed flying arches cross between separate supporting masses. A curved
+ // compression rib reads clearly in silhouette and shares exact physics rays.
+ const arch=(id,a,b,r)=>{let prior=a;for(let i=1;i<=12;i++){const t=i/12,q=a.map((v,k)=>v+(b[k]-v)*t+(k===1?Math.sin(Math.PI*t)*1.5:0));details.push({id:`${id}:${i}`,tier:tierAt(Math.max(prior[1],q[1])),material:'trim',beam:{a:prior,b:q,r}});prior=q;}};
+ const supportY=deckY+(m.count>2?KAIJU_FLOOR_SPACING:0)+.8;
+ arch('great-gate-arch',[-4.72,supportY-3.7,-19.07],[-1.9,supportY+.5,-19.13],.25);
+ arch('gallery-flying-arch',[-7.05,deckY+2.2,-12.7],[-5.82,deckY+7.8,-14.15],.23);
+ return details;
 }
 
 export function castleWallBoxes(wall,tier,count,deckY=KAIJU_DECK_Y){
@@ -49,8 +113,21 @@ export function castleWallBoxes(wall,tier,count,deckY=KAIJU_DECK_Y){
   for(const side of[-1,1])add(gunLane+side*.91,floorY+2.075,z,.13,3.12,d+.12,true);
   add(gunLane,floorY+3.7,z,1.94,.16,d+.2,true);
  }
- for(const side of[-1,1])add(x+side*(w*.5-.13),(lo+hi)/2,z,.22,hi-lo,d+.24,'edge');
- return boxes;
+ // Cut a shallow rectangular niche behind each pointed window. This produces
+ // real reveal shadows; the back of the niche remains solid load-bearing wall.
+ let carved=boxes;
+ for(const p of castleWallWindows(wall,tier,count,deckY)){
+  const c=Math.cos(p.rotation),s=Math.sin(p.rotation),width=p.w+.26,height=p.h+.20,depth=.285;
+  const cut={x:p.x+s*.135,y:p.y+height/2-.025,z:p.z+c*.135,w:Math.abs(c)*width+Math.abs(s)*depth,h:height,d:Math.abs(s)*width+Math.abs(c)*depth};
+  carved=carved.flatMap(b=>{
+   const a=[b.x-b.w/2,b.y-b.h/2,b.z-b.d/2],A=[b.x+b.w/2,b.y+b.h/2,b.z+b.d/2],q=[cut.x-cut.w/2,cut.y-cut.h/2,cut.z-cut.d/2],Q=[cut.x+cut.w/2,cut.y+cut.h/2,cut.z+cut.d/2],l=a.map((v,i)=>Math.max(v,q[i])),h=A.map((v,i)=>Math.min(v,Q[i]));
+   if(l.some((v,i)=>v>=h[i]))return[b];const out=[];
+   const part=(min,max)=>{if(max.every((v,i)=>v-min[i]>1e-8))out.push({x:(min[0]+max[0])/2,y:(min[1]+max[1])/2,z:(min[2]+max[2])/2,w:max[0]-min[0],h:max[1]-min[1],d:max[2]-min[2],trim:b.trim});};
+   part(a,[l[0],A[1],A[2]]);part([h[0],a[1],a[2]],A);part([l[0],a[1],a[2]],[h[0],l[1],A[2]]);part([l[0],h[1],a[2]],[h[0],A[1],A[2]]);part([l[0],l[1],a[2]],[h[0],h[1],l[2]]);part([l[0],l[1],h[2]],[h[0],h[1],A[2]]);return out;
+  });
+ }
+ for(const side of[-1,1])carved.push({x:x+side*(w*.5-.13),y:(lo+hi)/2,z,w:.22,h:hi-lo,d:d+.24,trim:'edge'});
+ return carved;
 }
 
 function addBox(solids,id,x,y,z,w,h,d){solids.push({id,min:[x-w/2,y-h/2,z-d/2],max:[x+w/2,y+h/2,z+d/2]});}
@@ -68,6 +145,7 @@ export function castleSolids(rings=2){
  const m=castleMassing(stage),solids=[];
  for(const wall of m.walls){for(let tier=0;tier<m.count;tier++){for(const[b,box]of castleWallBoxes(wall,tier,m.count).entries())addBox(solids,`${wall.id}:${tier}:${b}`,box.x,box.y,box.z,box.w,box.h,box.d);for(const p of castleWallWindows(wall,tier,m.count))addWindow(solids,`${wall.id}:window:${tier}`,p);}cornice(solids,wall.id,wall.x,wall.top,wall.z,wall.w+.1,wall.d+.08);}
  m.roofs.forEach((r,i)=>{steep(solids,`roof:${i}`,r);for(const side of[-1,1]){const z=r.z+side*r.d*.2;frustum(solids,`roof:${i}:finial`,r.x,z,.065,.026,r.y+r.h-.02,r.y+r.h+1.02,7);frustum(solids,`roof:${i}:finial`,r.x,z,.085,0,r.y+r.h+.895,r.y+r.h+1.345,6);}});
+ for(const f of castleStructuralDetails(m)){if(f.box){const b=f.box;addBox(solids,f.id,b.x,b.y,b.z,b.w,b.h,b.d);}else if(f.beam)addCapsule(solids,f.id,f.beam);else addMesh(solids,f.id,f.vertices,f.faces);}
  for(let tier=0;tier<m.count;tier++){
   const y=KAIJU_DECK_Y+tier*KAIJU_FLOOR_SPACING,hi=tier===m.count-1?m.highest+2.4:y+KAIJU_FLOOR_SPACING;
   addBox(solids,`core:${tier}`,0,(y+hi)/2,-12,2.7,hi-y,3);for(const side of[-1,1])addBox(solids,`core-pier:${tier}`,side*1.28,(y+hi)/2,-13.5,.14,hi-y,.2);
@@ -96,7 +174,10 @@ export function castleShotClearance({rings=2,slot,level=1,yaw,target,arcHeight=3
  const barrel=castleBarrelClearance({rings,slot,level,yaw});if(!barrel.clear)return{clear:false,blocker:barrel.blocker,barrelClear:false,barrelHit:barrel.hit,hit:null};
  const solids=castleSolids(rings),end=xyz(target);
  for(let i=0;i<(level>1?2:1);i++){
-  const a=xyz(cannonMuzzleLocal(slot,level,yaw,i).muzzle),interval=span(a,end,[-6.8,-1e5,-19.6],[6.8,1e5,-4.8]);if(!interval)continue;
+  // Derive the broad-phase envelope from authoritative solids so projected
+  // choirs, deep roof eaves and flying buttresses cannot escape trajectory tests.
+  const min=[Infinity,-1e5,Infinity],max=[-Infinity,1e5,-Infinity];for(const solid of solids)for(const axis of[0,2]){min[axis]=Math.min(min[axis],solid.min[axis]);max[axis]=Math.max(max[axis],solid.max[axis]);}
+  const a=xyz(cannonMuzzleLocal(slot,level,yaw,i).muzzle),interval=span(a,end,min,max);if(!interval)continue;
   const start=interval[0],stop=interval[1],distance=Math.hypot(...end.map((v,j)=>v-a[j]))*(stop-start),steps=Math.max(4,Math.min(24,Math.ceil(distance/.75)));
   let previous=a.map((v,j)=>v+(end[j]-v)*start+(j===1?Math.sin(start*Math.PI)*arcHeight:0));
   for(let step=1;step<=steps;step++){const t=start+(stop-start)*step/steps,next=a.map((v,j)=>v+(end[j]-v)*t+(j===1?Math.sin(t*Math.PI)*arcHeight:0)),hit=segmentHit(solids,previous,next);if(hit)return{clear:false,blocker:`castle:${hit.id}`,barrelClear:true,barrelHit:null,hit,barrel:i};previous=next;}

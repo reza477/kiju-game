@@ -90,7 +90,9 @@ export function ridgeBedGeometry() {
 export function botanicalTree(batch, x,y,z,h,scale,pine) {
   const seed=(Math.abs(x*92821+z*68917)*100)>>>0, rand=random(seed), profile=seed%4;
   const angle=rand()*TAU, leanX=Math.cos(angle)*h*.065, leanZ=Math.sin(angle)*h*.065;
-  const width=[1.19,.88,1.06,1.30][profile], crownHeight=[.90,1.14,1.03,.93][profile];
+  let grove=0;
+  for(const[cx,cz,r]of[[-102,38,29],[123,61,32],[95,137,31],[-145,-38,34]])grove=Math.max(grove,Math.exp(-(((x-cx)/r)**2+((z-cz)/r)**2)));
+  const width=[1.19,.88,1.06,1.30][profile]*(1+grove*.30), crownHeight=[.90,1.14,1.03,.93][profile];
   const trunkColour=[0x625746,0x7b7461,0x635e50,0x807460][profile];
   const point=t=>[x+leanX*t*t,y+h*t,z+leanZ*t*t];
   for(let j=0;j<5;j++) batch.wood.link(point(j*.18),point((j+1)*.18),scale*(.29-j*.045),trunkColour);
@@ -111,7 +113,7 @@ export function botanicalTree(batch, x,y,z,h,scale,pine) {
     batch.wood.link(fork,end,scale*(pine?.034:.053),trunkColour);
     const lateral=[end[0]+Math.sin(a)*scale*.48,end[1]+scale*.30,end[2]-Math.cos(a)*scale*.48];
     batch.wood.link(fork,lateral,scale*.025,trunkColour);
-    const radius=pine?(1.06-level*.40)*scale:(1.17+rand()*.28)*scale;
+    const radius=(pine?(1.06-level*.40)*scale:(1.17+rand()*.28)*scale)*(1+grove*.20);
     const colour=new T.Color(pine?[0x627f56,0x65815b,0x6f895a,0x5a7d5b][profile]:[0x526c39,0x6b8548,0x7b8e4d,0x4e7144][profile]).multiplyScalar(.91+rand()*.19).getHex();
     const crowns=pine?batch.needles:batch.leaves;
     crowns.add(end[0],end[1],end[2],radius*width,radius*(pine?.87:.86),radius,colour,a);

@@ -16,6 +16,13 @@ export function terrainNoise(x, z) {
 export function riverX(z) { return 5 + Math.sin(z * .009) * 22 + Math.sin(z * .020) * 7; }
 export function riverWidth(z) { return 8 + 1.8 * Math.sin(z * .015 + 1.5); }
 export function shoreDistance(x, z) { return Math.abs(x - riverX(z)) - riverWidth(z); }
+// Bank shape is deliberately separate from the historical channel-distance
+// helper: scenery generation keeps its exact old accept/reject sequence.
+export function bankWidth(x,z) {
+  const side=Math.sign(x-riverX(z))||1;
+  const bend=Math.max(-1,Math.min(1,(-.001782*Math.sin(z*.009)-.0028*Math.sin(z*.020))/.0038));
+  return 4.6+(1+side*bend)*2.7+Math.sin(z*.051+side)*.8+Math.sin(z*.109+.4)*.35;
+}
 export function roadZ(x) { return 134 + Math.sin(x * .011) * 15; }
 export function protectedResource(x, z, margin = 0) {
   const radius = Math.max(0, 26 + margin);
@@ -38,10 +45,30 @@ function baseHeight(x, z) {
   const eastGully = x - 91 - Math.sin(z * .017) * 11;
   const gullies = 5.5 * Math.exp(-(westGully ** 2 / 850 + (x + 103) ** 2 / 10500)) +
     4.7 * Math.exp(-(eastGully ** 2 / 950 + (z - 25) ** 2 / 13000));
-  const mountains = smoothstep(180, 315, edge) * (17 + terrainNoise(x * .009 + 3, z * .009) * 65 + terrainNoise(x * .03, z * .03) * 13);
+  // Four continuous fault systems replace the former inflated noise mounds.
+  // An escarpment has a sharp inward face, talus apron and a long outer dip slope.
+  // Lateral erosion cuts the same bed across many metres instead of scattering
+  // freestanding blocks on top of otherwise featureless terrain.
+  const fault=(d,along,seed,amplitude)=>{
+    const notch=terrainNoise(along*.035+seed,d*.011+seed)*13+terrainNoise(along*.081+seed,seed)*4;
+    const segments=.28+.72*smoothstep(.18,.76,terrainNoise(along*.014+seed,seed));
+    const crest=amplitude*(.76+terrainNoise(along*.009+seed,seed)*.39)*segments-notch;
+    const face=d>=0 ? (1-smoothstep(1,15,d))*.42+(1-smoothstep(25,34,d))*.24+(1-smoothstep(40,94,d))*.34 : Math.exp(d/112);
+    const drainage=(terrainNoise(along*.055+seed,d*.025)-.5)*5.5;
+    return Math.max(0,crest*face+drainage*smoothstep(.08,.62,face));
+  };
+  const westAxis=-244+Math.sin(z*.012)*22+Math.sin(z*.031)*8;
+  const eastAxis=249+Math.sin(z*.010+1.4)*25+Math.sin(z*.028)*8;
+  const northAxis=-254+Math.sin(x*.012+.8)*27+Math.sin(x*.034)*7;
+  const southAxis=276+Math.sin(x*.014)*24;
+  const mountainMask=smoothstep(178,218,edge);
+  const mountains=mountainMask*Math.max(fault(x-westAxis,z,3,72),fault(eastAxis-x,z,13,91),fault(z-northAxis,x,27,99),fault(southAxis-z,x,41,64))+
+    smoothstep(330,560,edge)*(13+terrainNoise(x*.017+7,z*.017)*21);
+  const shoulder=(terrainNoise(x*.041+3,z*.041+5)-.5)*2.2*smoothstep(12,28,ridges)*smoothstep(24,65,shoreDistance(x,z));
   const shore = shoreDistance(x, z);
-  const valley = Math.max(2.0, rolling + ridges - gullies + mountains) * smoothstep(4, 58, shore);
-  return valley - 1.2 * (1 - smoothstep(-3, 3.8, shore));
+  const beach=bankWidth(x,z);
+  const valley = Math.max(2.0, rolling + ridges - gullies + mountains+shoulder) * smoothstep(beach+1, 58, shore);
+  return valley - 1.5 * (1 - smoothstep(-3, beach, shore));
 }
 const clearingHeights = RESOURCE_CENTRES.map(([x, z]) => baseHeight(x, z));
 

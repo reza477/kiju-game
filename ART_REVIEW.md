@@ -1,5 +1,15 @@
 # Independent art review
 
+## Maximum visual quality and sound — prototype 0.7
+
+This new cycle follows the owner's request to push graphics further and add sound. The global rubric and four-round maximum are unchanged. Previous cycles below remain closed.
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `af2a350` | [Independent review](art-reviews/beauty-01.md) | **FAIL — 7.2/10**, zero concrete visual/runtime errors in 63 fresh views |
+
+The first attempt introduced local PBR scans and HDR reflected lighting, surface-oriented contact shading, branching vegetation, improved flesh/citizens/districts, and an original local soundscape with a persisted mixer. The critic ranked readable metal surfaces, landscape composition, connected flesh anatomy, castle massing and citizen activity as the next priorities. Audio passed technical and UI checks; the critic did not perform subjective listening and did not assign an audio-quality score.
+
 The owner requires an independent critic after each completed character, asset, or environment attempt. The gate and responsibilities are in [AGENTS.md](AGENTS.md).
 
 The first cycle evaluated the completed 0.4 build as round 1, followed by three revised builds. Every review uses fresh screenshots taken by the critic. A failed fourth review ends the cycle without an approval claim.

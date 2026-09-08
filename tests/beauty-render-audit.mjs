@@ -4,7 +4,7 @@ const require=createRequire(import.meta.url),{chromium}=require(path.join(homedi
 const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/beauty-render-builder-01');await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const report={fixture:'1440x960 normal HUD, initial city. Actual day/dusk/night and detail controls. Only transient toast/pause overlays hidden. Frame timing is an uncalibrated headless observation, not a guaranteed player frame rate.',errors:[],remote:[],observations:[],screenshots:[]};
-try{for(const [faction,variant]of [['kaiju','flesh'],['crawler','drill'],['airship','vertical']]){
+try{for(const [faction,variant]of [['kaiju','cyborg'],['kaiju','flesh'],['crawler','drill'],['airship','vertical']]){
  const context=await browser.newContext({viewport:{width:1440,height:960}});await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178')return r.continue();report.remote.push(u.href);return r.abort();});
  const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
  await page.goto('http://127.0.0.1:4178/?test=1',{waitUntil:'networkidle'});await page.waitForFunction(()=>window.__colossus?.scene.environmentReady&&window.__colossus.scene.surfaceDiagnostics().pending===0);

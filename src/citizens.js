@@ -60,7 +60,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  const cube=geometry('citizen-box',()=>new T.BoxGeometry(1,1,1));
  const specs={
   torso:[geometry('citizen-tailored-torso',torsoGeometry),cloth,1],shoulders:[sphere,cloth,2],
-  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,10],heads:[geometry('citizen-head',citizenHead),solid,1],
+  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,14],heads:[geometry('citizen-head',citizenHead),solid,1],
   shoes:[geometry('citizen-shoe',shoeGeometry),solid,2],hair:[geometry('citizen-hair',hairGeometry),solid,6],
   skirt:[geometry('citizen-skirt',()=>garmentGeometry()),cloth,1],
   tails:[geometry('citizen-coattails',()=>garmentGeometry(true)),cloth,1],
@@ -78,7 +78,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  }
  const data=Array.from({length:MAX_PEOPLE},(_,i)=>wardrobe(faction,i));
  const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
-  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color()}};
+  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),angles:new T.Euler()}};
  group.userData.wardrobeNames=citizens.wardrobeNames;
  group.userData.worldHumanHeight=.8;
  animateCitizens(citizens,0,false,24,{rings,slotPositions,layout});
@@ -163,19 +163,19 @@ function towerCirculate(citizens,time,count,rings){
    lane.path.forEach((a,i)=>{const b=lane.path[(i+1)%lane.path.length],length=Math.hypot(b.x-a.x,b.z-a.z);lane.segments.push({a,b,start:lane.length,length,yaw:Math.atan2(b.x-a.x,b.z-a.z)});lane.length+=length;});
   }
   for(let i=0;i<count;i++)lanes[i%lanes.length].ids.push(i);
-  for(const lane of lanes){lane.positions=lane.ids.map((id,i)=>i*lane.length/lane.ids.length);lane.walking=lane.ids.map(()=>true);}
+  for(const lane of lanes){lane.positions=lane.ids.map((id,i)=>i===1?Math.min(.85/citizens.carrierScale,lane.length/lane.ids.length):i*lane.length/lane.ids.length);lane.walking=lane.ids.map(()=>true);}
   citizens.towerCirculation={signature,time,lanes};
  }
  const traffic=citizens.towerCirculation,dt=Math.min(.25,Math.max(0,time-traffic.time)),routes=[];traffic.time=time;
  for(const lane of traffic.lanes){
   if(!lane.ids.length)continue;
-  const requested=lane.ids.map((id,i)=>{const phase=((time+id*2.37)%24+24)%24;return lane.positions[i]+(phase>22.75?0:dt*.235/citizens.carrierScale);});
+  const requested=lane.ids.map((id,i)=>{const phase=((time+(i<2?lane.tier*3.1:id*2.37))%29+29)%29;return lane.positions[i]+(phase>25?0:dt*.235/citizens.carrierScale);});
   const gap=Math.min(.44/citizens.carrierScale,lane.length/lane.ids.length*.97);
   for(let pass=0;pass<lane.ids.length;pass++)for(let i=lane.ids.length-1;i>=0;i--){const leader=i===lane.ids.length-1?requested[0]+lane.length:requested[i+1];requested[i]=Math.min(requested[i],leader-gap);}
   lane.ids.forEach((id,i)=>{
    const distance=requested[i],along=((distance%lane.length)+lane.length)%lane.length,segment=lane.segments.find(s=>along<s.start+s.length)??lane.segments.at(-1),t=(along-segment.start)/segment.length;
    const walking=dt>0?distance-lane.positions[i]>1e-5:lane.walking[i];
-   routes[id]={x:segment.a.x+(segment.b.x-segment.a.x)*t,y:lane.y,z:segment.a.z+(segment.b.z-segment.a.z)*t,yaw:segment.yaw+(walking?0:Math.sin(time*.6+id)*.15),walking,errand:!walking,distance,route:'castle-cloister',tier:lane.tier,level:lane.level};lane.walking[i]=walking;
+   routes[id]={x:segment.a.x+(segment.b.x-segment.a.x)*t,y:lane.y,z:segment.a.z+(segment.b.z-segment.a.z)*t,yaw:segment.yaw+(walking?0:Math.sin(time*.6+id)*.15),walking,errand:!walking,social:i<2&&!walking,distance,route:'castle-cloister',tier:lane.tier,level:lane.level};lane.walking[i]=walking;
   });
   lane.positions=requested;
  }
@@ -189,13 +189,23 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  const count=Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
  const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings):circular?circulate(citizens,time,count,rings):null;
- const {root,part,matrix,direction,up,color}=citizens.scratch;
+ const {root,part,matrix,direction,up,color,body,head,angles}=citizens.scratch;
+ const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
+ const activities={walking:0,carrying:0,reading:0,working:0,conversation:0,resting:0};
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
  function put(name,x,y,z,sx,sy,sz,tint,rx=0,ry=0,rz=0,quaternion=null){
   const bucket=citizens.buckets[name],n=bucket.count++;
   if(n>=bucket.capacity)throw new Error(`Citizen instance capacity exceeded: ${name}`);
   part.position.set(x,y,z);part.scale.set(sx,sy,sz);
   if(quaternion)part.quaternion.copy(quaternion);else part.rotation.set(rx,ry,rz);
+  // Turn the face and shoulders toward a task while leaving pelvis, legs and
+  // planted shoe matrices on the authored route. Tools follow the same pose.
+  if(y>.675&&(Math.abs(x)<.08||name==='headwear'||name==='brim'||name==='hair')){
+   part.position.y-=.674;part.position.applyQuaternion(head);part.position.y+=.674;part.quaternion.premultiply(head);
+  }
+  if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='limbs'))){
+   part.position.y-=.415;part.position.applyQuaternion(body);part.position.y+=.415;part.quaternion.premultiply(body);
+  }
   part.updateMatrix();matrix.multiplyMatrices(root.matrix,part.matrix);bucket.mesh.setMatrixAt(n,matrix);
   if(bucket.colors[n]!==tint){color.setHex(tint);bucket.mesh.setColorAt(n,color);bucket.colors[n]=tint;bucket.colorsChanged=true;}
  }
@@ -204,11 +214,22 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   put('limbs',(ax+bx)/2,(ay+by)/2,(az+bz)/2,width,length,width,tint,0,0,0,part.quaternion);
  }
  for(let i=0;i<count;i++){
-  const p=citizens.data[i],route=ringRoutes?.[i]??routeFor(citizens,p,time,moving,{rings,slotPositions,layout});citizens.routes.push({id:i,...route});
+  const p=citizens.data[i],route=routes[i];citizens.routes.push({id:i,...route});
   citizens.styleCounts[p.wardrobe]=(citizens.styleCounts[p.wardrobe]??0)+1;
   if(layout==='tower'&&Number.isFinite(visibleFloor)&&route.tier>visibleFloor)continue;
   const unit=citizens.humanScale,stridePhase=route.distance*citizens.carrierScale/.34*TAU+p.phase,gait=route.walking?Math.sin(stridePhase):0,idle=route.walking?0:Math.sin(time*1.15+p.phase);
   const bob=route.walking?Math.abs(gait)*.003:Math.sin(time*1.8+p.phase)*.001;
+  const carrying=i%12===2,working=route.errand&&i%12===7&&!route.social,reading=route.errand&&i%4===0&&!carrying&&!route.social;
+  let partner=-1,nearest=1.36/citizens.carrierScale;
+  if(route.errand&&!carrying&&!working&&!reading)for(let j=0;j<count;j++){
+   const r=routes[j];if(j===i||!r.errand||Math.abs(r.y-route.y)>.01||j%12===2||(!r.social&&(j%12===7||j%4===0)))continue;
+   const distance=Math.hypot(r.x-route.x,r.z-route.z);if(distance<nearest){nearest=distance;partner=j;}
+  }
+  let turn=0;if(partner>=0){const r=routes[partner];turn=Math.atan2(r.x-route.x,r.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
+  const torsoTurn=T.MathUtils.clamp(turn*.64,-1.35,1.35),headTurn=T.MathUtils.clamp(turn-torsoTurn,-1.15,1.15);
+  body.setFromEuler(angles.set(working?.11:reading?.055:carrying?.025:0,torsoTurn,working?Math.sin(time*6.1+p.phase)*.016:0));
+  head.setFromEuler(angles.set(working?.20:reading?.22:0,headTurn,partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
+  const activityName=carrying?'carrying':working?'working':reading?'reading':partner>=0?'conversation':route.walking?'walking':'resting';activities[activityName]++;citizens.routes.at(-1).activity=activityName;
   root.position.set(route.x,route.y,route.z);root.rotation.set(0,route.yaw,0);root.scale.set(unit*p.widthFactor,unit*p.heightFactor,unit*p.depthFactor);root.updateMatrix();
   const trouser=citizens.faction==='airship'?p.accent:citizens.faction==='kaiju'?0x292a35:0x343d46;
   const sleeve=p.primary,shoe=citizens.faction==='airship'?0x68513f:0x292b31;
@@ -246,16 +267,19 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    put('shoes',hip,.021+lift,ankleZ+.030,.042,.030,.076,shoe);
    put('trim',hip,.043+lift,ankleZ+.065,.034,.009,.016,p.trim);
    const activity=p.id%4,gesture=route.errand&&(side===1||activity===0||activity===2),armSwing=-swing;
-   const carrying=i%12===2,reading=route.errand&&activity===0,handX=side*(carrying||reading?.096:.118);
+   const handX=side*(carrying||reading||working?.096:.118);
    const elbowZ=carrying?.073:.014+armSwing*.044+(gesture?.045:0);
-   const handZ=carrying?.137:reading?.147:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
-   const handY=carrying?.465:gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
+   const handZ=carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
+   const hammerStroke=.5+.5*Math.sin(time*6.1+p.phase);
+   const handY=carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
    put('shoulders',shoulder,.605,0,.034,.042,.045,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    segment(side*.114,.498,elbowZ,handX,handY+.023,handZ,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
    put('skin',handX,handY,handZ,.024,.030,.025,p.skinTone);
    put('skin',handX-side*.020,handY+.005,handZ+.010,.010,.020,.012,p.skinTone,0,0,side*.3);
+   for(let finger=0;finger<2;finger++)put('skin',handX+side*(finger-.5)*.014,handY-.019,handZ+.007,.008,.017,.013,p.skinTone,working||carrying?-.35:0);
    put('trim',handX,handY+.030,handZ,.053,.018,.050,p.accent);
+   if(working&&side===1){put('trim',handX,handY-.044,handZ,.012,.112,.014,0x8b6950);put('bags',handX,handY-.104,handZ,.068,.028,.033,0x59646a);}
   }
   if(p.skirt)put('skirt',0,p.robe?.286:.284,0,p.robe?.255:.287,p.robe?.362:.345,.241,p.robe?p.primary:p.accent);
   if(p.tails)put('tails',0,citizens.faction==='crawler'&&p.style===4?.318:.278,-.012,.276,citizens.faction==='crawler'&&p.style===4?.244:.345,.246,p.primary,.015+gait*.018);
@@ -269,7 +293,9 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   // Seams, pocket flaps and the folded shirt collar describe garments at a
   // close street camera without adding a separate draw call for each person.
   for(const side of[-1,1]){put('trim',side*.066,.479,.071,.046,.009,.011,p.primary,0,0,side*.06);put('trim',side*.027,.638,.031,.045,.034,.013,p.accent,0,0,side*.35);}
-  if(route.errand&&i%4===0){
+  if(working){
+   put('bags',0,.443,.163,.202,.025,.109,0xa48a65);put('trim',-.06,.461,.167,.055,.006,.060,0x70757a);
+  }else if(reading){
    put('bags',0,.508,.144,.163,.012,.109,0x53453c,.32);put('bags',0,.518,.143,.149,.009,.099,0xd9c9a6,.32);
    put('trim',0,.523,.146,.006,.005,.091,0x88714e,.32);
   }else if(i%12===2){
@@ -299,6 +325,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(bucket.colorsChanged)bucket.mesh.instanceColor.needsUpdate=true;
  }
  citizens.group.userData.populationCount=count;
+ citizens.group.userData.activityCounts=activities;
  citizens.group.userData.styleCounts=citizens.styleCounts;
  citizens.worldHeightRange=count?[Math.min(...citizens.data.slice(0,count).map(p=>.8*p.heightFactor)),Math.max(...citizens.data.slice(0,count).map(p=>.8*p.heightFactor))]:[0,0];
  return citizens;

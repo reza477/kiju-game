@@ -96,13 +96,32 @@ export function getMaterial(kind='stone', color, options={}) {
   const scanName=({stone:'stone',brick:'brick',plaster:'plaster',roof:'roof',wood:'wood',metal:'metal',bark:'bark',rock:'rock'})[kind];
   const scan=scanName?surfaceSet(scanName):null;
   const texture=scan?.map??(mapped?surfaceTexture(kind):null);
-  const m=new T.MeshStandardMaterial({color,map:texture,
+  const baseColour=new T.Color(color),luminance=baseColour.r*.2126+baseColour.g*.7152+baseColour.b*.0722;
+  const painted=kind==='metal'&&luminance>.035&&(options.metalness??.43)<.55;
+  const Material=painted?T.MeshPhysicalMaterial:T.MeshStandardMaterial;
+  const m=new Material({color,map:texture,
     roughness:scan?1:metallic?.43:glazed?.22:kind==='skin'?.83:.92,
     metalness:metallic?.68:glazed?.24:0,
     normalMap:scan?.normalMap??null,normalScale:new T.Vector2(.55,.55),roughnessMap:scan?.roughnessMap??null,
     bumpMap:!scan&&mapped&&!glazed?texture:null,
     bumpScale:kind==='skin'?.055:kind==='brick'||kind==='stone'?.035:kind==='roof'?.022:.008,
-    ...options});
+    ...(painted?{clearcoat:.32,clearcoatRoughness:.36}:{}),...options});
+  if(kind==='metal'){
+    // The photographed plate describes wear. Multiplying its dark oxide albedo
+    // by already-painted armour tints crushed the designed planes to black.
+    // Preserve the scan's local variation in a neutral reflectance range while
+    // keeping dark joint tints distinct from steel faces and painted panels.
+    m.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`
+      #ifdef USE_MAP
+        vec4 plateSample=texture2D(map,vMapUv);
+        float plateWear=clamp(dot(plateSample.rgb,vec3(.2126,.7152,.0722))*1.6,0.,1.);
+        diffuseColor.rgb*=mix(.68,1.12,plateWear);
+        diffuseColor.a*=plateSample.a;
+      #endif
+    `);};
+    m.customProgramCacheKey=()=> 'neutral-plate-reflectance-v1';
+    m.normalScale.setScalar(painted?.30:.42);
+  }
   if(kind==='window'){m.emissive.set(0xffbf67);m.emissiveIntensity=.13;animatedWindows.add(m);}
   m.userData.shared=true;if(scan)m.userData.surfaceScale=scan.scale;
   m.name=`${kind} ${new T.Color(color).getHexString()}`;materials.set(key,m);return m;
@@ -146,7 +165,7 @@ export function batchStatic(group) {
   return group;
 }
 
-export function disposeGroup(group){group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();if(o.material&&!Array.isArray(o.material)&&!o.material.userData.shared)o.material.dispose();});}
+export function disposeGroup(group){group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.isSkinnedMesh)o.skeleton?.dispose();if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();if(o.material&&!Array.isArray(o.material)&&!o.material.userData.shared)o.material.dispose();});}
 
 export function createEnvironment(renderer) {
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d');
