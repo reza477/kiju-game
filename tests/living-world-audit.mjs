@@ -124,8 +124,10 @@ async function shotTrial(label,slot){
  await page.waitForFunction(()=>window.__colossus.scene.fx.some(fx=>!fx.flash&&fx.start&&fx.end),{},{timeout:1500});
  const result=await page.evaluate(async()=>{
   const T=await import('/vendor/three.module.js'),{state,scene}=window.__colossus;scene.scene.updateMatrixWorld(true);
-  return {remainingHp:state.battle.enemyHp,event:state.battle.events.filter(e=>e.source==='player').at(-1),traces:scene.fx.filter(fx=>!fx.flash&&fx.start&&fx.end).map(fx=>({start:fx.start?.toArray?.(),end:fx.end?.toArray?.(),slot:fx.slot,source:fx.source})),muzzles:scene.city.batteries.flatMap(b=>(b.muzzles||b.weapon?.muzzles||[]).map(m=>({slot:b.slot,position:m.getWorldPosition(new T.Vector3()).toArray()})))};
+  return {battleTime:state.battle.time,remainingHp:state.battle.enemyHp,event:state.battle.events.filter(e=>e.source==='player').at(-1),traces:scene.fx.filter(fx=>!fx.flash&&fx.start&&fx.end).map(fx=>({start:fx.start?.toArray?.(),end:fx.end?.toArray?.(),slot:fx.slot,source:fx.source})),muzzles:scene.city.batteries.flatMap(b=>(b.muzzles||b.weapon?.muzzles||[]).map(m=>({slot:b.slot,position:m.getWorldPosition(new T.Vector3()).toArray()})))};
  });
+ if(result.battleTime<result.event.impactAt-1e-7)assert.equal(result.remainingHp,hp,'Ranged launch does not apply damage before contact.');
+ await page.waitForFunction(()=>window.__colossus.state.battle.pendingHits.length===0,{},{timeout:2500});result.remainingHp=await page.evaluate(()=>window.__colossus.state.battle.enemyHp);
  result.label=label;result.damage=hp-result.remainingHp;result.statusText=statusText;report.weapons.push(result);await capture(`combat-${label}`);
  if(label==='front'){
   assert.ok(result.event.mounts.includes(slot),'Facing cannon contributes to the shot.');

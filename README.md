@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.4
+# Colossus Wake — PC prototype 0.5
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
 
@@ -40,6 +40,10 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Kaiju fists engage within 18 metres of crawler/airship cities or 12 metres of another kaiju. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
 ## Graphics update
+
+Version 0.5 adds cinematic battle-entry sweeps, recoil and impact movement, travel look-ahead, closer melee framing and manual battle zoom. **Camera: steady** disables the added motion; system reduced-motion preferences select it initially, and your choice saves locally. Mouse orbit takes precedence. Close building and Streets views stay steady.
+
+Coherent wind bends trees and grass from their roots, stirs water and smoke, and carries subtle bird and butterfly motion. Drifting clouds and localized river/gully mist add depth. Day, dusk and night blend smoothly with a shared sun direction, warmer dusk light, cool reflected fill and readable night windows. High, Balanced and Performance use the same output brightness, with bounded atmosphere detail. Environmental movement freezes when paused. Attack damage now lands with the visible fist or projectile, including lethal hits and saved attacks in flight. See [CINEMATIC_VERIFICATION.md](CINEMATIC_VERIFICATION.md) for the new checks and review cycle.
 
 Version 0.4 brings the humanoid kaiju down to a comparable overall size to the other carriers. Its Gothic backpack uses one circular foundation with a central keep, six inner plots, and thirteen outer plots unlocked through ring construction. The city grows outward in rings and upward through building upgrades. The four ascending terraces from version 0.3 have been replaced.
 
@@ -85,7 +89,7 @@ This game-local behavior does not change the privacy or training settings of the
 
 Visual work follows an independent art review gate: a separate critic takes fresh multi-angle screenshots after each builder attempt, scores against the owner's fixed standard, and returns ranked corrections. Passing requires at least 8.5/10 and zero observed errors, with at most four rounds per visual update. See [ART_REVIEW.md](ART_REVIEW.md) for the current results and [AGENTS.md](AGENTS.md) for the workflow. Passing functional tests does not establish AAA art quality.
 
-The first four-round cycle ended at **6.7/10: failed gate** (5.3 → 6.1 → 6.4 → 6.7). The final review observed no runtime errors and one visual defect: target health drops at attack launch, before the visible fist/projectile impact. The physical contact itself is corrected. Further art polish and the timing fix remain future work; the loop stopped at the owner's four-round limit.
+The first four-round cycle ended at **6.7/10: failed gate** (5.3 → 6.1 → 6.4 → 6.7). Its final review observed no runtime errors and one visual defect: target health dropped at attack launch before visible impact. Version 0.5 addresses that timing defect and starts a separate camera, atmosphere and lighting review cycle; previous scores and reports remain unchanged.
 
 The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (MIT; see `vendor/LICENSE`). The dependency was downloaded during development; no CDN is used at runtime.
 
@@ -97,6 +101,7 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/armaments.js`, `src/weapon-layout.js`: weapon models, muzzle markers, firing directions and obstruction.
 - `src/landscape.js`, `src/terrain.js`, `src/world-life.js`: terrain height, foliage, water, protected sites, damage, ground marks, and wildlife.
 - `src/materials.js`, `src/presentation.js`: local procedural textures, geometry batching, lighting, postprocessing, atmosphere.
+- `src/cinematic-camera.js`, `src/lighting.js`, `src/weather.js`: bounded cinematic camera offsets, shared light presets and coherent wind.
 - `src/main.js`: input, user interface, persistence, local audio.
 - `src/style.css`: desktop and touch layouts.
 - `npm test`: simulation, ring, save migration, weapon geometry, and terrain checks.
@@ -105,6 +110,7 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
 - `node tests/art-review-capture.mjs`: normal gameplay views for an independent reviewer; `motion-art-capture.mjs` adds clear level/slope stride diagnostics and `combat-art-capture.mjs` adds ready, firing, contact and recovery captures. The reviewer runs these independently and inspects the images.
 - `node tests/combat-contact-audit.mjs`: live fist-to-surface contact for all three target types at both simulation speeds, including moving targets and no pre-contact melee projectile.
+- `node tests/cinematic-art-capture.mjs`: day/dusk/night, atmosphere temporal pairs, cinematic events, Steady/manual controls, reduced-motion defaults and narrow-screen captures using real game/render code and a deterministic clock.
 - `server.mjs`, `Play.ps1`, `Play.cmd`: local server and launcher.
 
 The `?test=1` URL enables `window.__colossus` for local browser verification, exposing state, renderer, and time advancement. This is a development-only opt-in URL. It contacts no services.

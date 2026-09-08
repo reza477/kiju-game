@@ -2,6 +2,7 @@ import * as T from '../vendor/three.module.js';
 import { getMaterial, box, cylinder, cone } from './materials.js';
 import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
+import { windAt, WIND_GLSL } from './weather.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -11,6 +12,61 @@ const TEMP = new T.Object3D();
 const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c];
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
+const vegetationTime = { value: 0 }, windMaterials = new Map();
+const VEGETATION_GLSL = `
+  uniform float uVegetationTime;
+  attribute vec4 windRoot;
+  attribute vec2 windFlex;
+  ${WIND_GLSL}
+  vec3 rootedWindOffset(vec3 p) {
+    vec2 anchor = (modelMatrix * vec4(windRoot.xyz, 1.0)).xz;
+    vec3 breeze = worldWind(uVegetationTime, anchor);
+    float tip = clamp((p.y - windRoot.y) / max(windRoot.w, .1), 0.0, 1.2);
+    float phase = anchor.x * .021 + anchor.y * .013;
+    float pulse = .58 + .42 * sin(uVegetationTime * .81 + phase);
+    float bend = min(.70, windFlex.x * pow(tip, 1.65) * (.22 + breeze.z * .78) * pulse);
+    float flutter = windFlex.y * tip * tip * sin(uVegetationTime * 2.4 + phase + p.x * .57 + p.z * .33);
+    return vec3(breeze.x * bend - breeze.y * flutter, -abs(bend) * tip * .018, breeze.y * bend + breeze.x * flutter);
+  }
+`;
+const VEGETATION_TRANSFORM = `
+  #include <begin_vertex>
+  #ifdef USE_INSTANCING
+    vec3 vegetationPoint = (instanceMatrix * vec4(transformed, 1.0)).xyz;
+    vec3 vegetationOffset = rootedWindOffset(vegetationPoint);
+    // Inverse of an orthogonal rotation/scale, without a per-vertex matrix inverse.
+    transformed += vec3(
+      dot(instanceMatrix[0].xyz, vegetationOffset) / max(dot(instanceMatrix[0].xyz, instanceMatrix[0].xyz), .0000001),
+      dot(instanceMatrix[1].xyz, vegetationOffset) / max(dot(instanceMatrix[1].xyz, instanceMatrix[1].xyz), .0000001),
+      dot(instanceMatrix[2].xyz, vegetationOffset) / max(dot(instanceMatrix[2].xyz, instanceMatrix[2].xyz), .0000001)
+    );
+  #endif
+`;
+function vegetationShader(shader) {
+  shader.uniforms.uVegetationTime = vegetationTime;
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + VEGETATION_GLSL).replace('#include <begin_vertex>', VEGETATION_TRANSFORM);
+}
+function animateVegetation(mesh, items, kind) {
+  const roots = new Float32Array(items.length * 4), flex = new Float32Array(items.length * 2);
+  items.forEach((item, i) => {
+    const root = item.windRoot || [item.x, item.y - (kind === 'grass' ? 0 : item.sy), item.z, Math.max(.2, item.sy * (kind === 'grass' ? .85 : 2))];
+    roots.set(root, i * 4);
+    flex.set(item.windFlex || (item.windRoot ? [.66, kind === 'wood' ? .004 : .055] : [kind === 'grass' ? Math.min(.40, item.sy * .24) : .14, kind === 'wood' ? 0 : .025]), i * 2);
+    if (kind === 'wood' && !item.windRoot) flex.set([0, 0], i * 2); // Felled logs stay still.
+  });
+  mesh.geometry.setAttribute('windRoot', new T.InstancedBufferAttribute(roots, 4));
+  mesh.geometry.setAttribute('windFlex', new T.InstancedBufferAttribute(flex, 2));
+  const key = mesh.material.uuid;
+  if (!windMaterials.has(key)) {
+    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v1';
+    const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, side: material.side });
+    const distance = new T.MeshDistanceMaterial({ side: material.side });
+    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v1'; }
+    windMaterials.set(key, { material, depth, distance });
+  }
+  const passes = windMaterials.get(key); mesh.material = passes.material; mesh.customDepthMaterial = passes.depth; mesh.customDistanceMaterial = passes.distance;
+  mesh.userData.windAnimated = true; mesh.userData.noBatch = true; mesh.boundingSphere.radius += 1;
+}
 
 function regionAt(x, z) {
   const patch = (cx, cz, rx, rz) => Math.exp(-(((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2));
@@ -102,7 +158,7 @@ function isClearing(x, z, margin = 0) {
 }
 
 class Instances {
-  constructor(group, geometry, material, castShadow = true) { this.group = group; this.geometry = geometry; this.material = material; this.castShadow = castShadow; this.items = []; }
+  constructor(group, geometry, material, castShadow = true, wind = null) { this.group = group; this.geometry = geometry; this.material = material; this.castShadow = castShadow; this.wind = wind; this.items = []; }
   add(x, y, z, sx = 1, sy = 1, sz = 1, colour = 0xffffff, yaw = 0, rotation = null) {
     this.items.push({ x, y, z, sx, sy, sz, colour, yaw, rotation }); return this.items.length - 1;
   }
@@ -123,7 +179,8 @@ class Instances {
     });
     mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
     mesh.castShadow = this.castShadow; mesh.receiveShadow = true;
-    mesh.computeBoundingSphere(); this.group.add(mesh); this.mesh = mesh; return mesh;
+    mesh.computeBoundingSphere(); if (this.wind) animateVegetation(mesh, this.items, this.wind);
+    this.group.add(mesh); this.mesh = mesh; return mesh;
   }
 }
 
@@ -172,9 +229,9 @@ function grassGeometry() {
 }
 function treeBatches(group) {
   return {
-    wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 7), getMaterial('wood', 0xffffff)),
-    leaves: new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff)),
-    needles: new Instances(group, canopyGeometry(true), getMaterial('foliage', 0xffffff)),
+    wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 7), getMaterial('wood', 0xffffff), true, 'wood'),
+    leaves: new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff), true, 'foliage'),
+    needles: new Instances(group, canopyGeometry(true), getMaterial('foliage', 0xffffff), true, 'foliage'),
     finish() { return [this.wood.finish('Tree trunks and branches'), this.leaves.finish('Broadleaf canopies'), this.needles.finish('Pine boughs')].filter(Boolean); }
   };
 }
@@ -250,6 +307,7 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
     }
   }
   shapeTreeCrown(batch, starts, x, y, z, h, pine);
+  for (const [index, part] of [batch.wood, batch.leaves, batch.needles].entries()) for (let i = starts[index]; i < part.items.length; i++) part.items[i].windRoot = [x, y, z, h];
   return [batch.wood, batch.leaves, batch.needles].map((part, i) => ({ batch: part, first: starts[i], count: part.items.length - starts[i] })).filter(part => part.count);
 }
 
@@ -303,21 +361,37 @@ function createWater() {
     }
   }
   const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
-  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .30, metalness: .12, clearcoat: .48, clearcoatRoughness: .25, side: T.DoubleSide });
-  const time = { value: 0 };
+  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .32, metalness: .10, clearcoat: .35, clearcoatRoughness: .34, side: T.DoubleSide });
+  const time = { value: 0 }, rippleTexture = groundDetail('soil');
   material.onBeforeCompile = shader => {
     shader.uniforms.uRiverTime = time;
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uRiverTime;\nvarying vec3 vRiverPosition;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += sin(position.z * 1.2 + uRiverTime * 1.4) * 0.027 + cos(position.x * 2.1 + position.z * .35 - uRiverTime) * .025;\nvRiverPosition = transformed;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uRiverTime;\nvarying vec3 vRiverPosition;')
-      .replace('#include <color_fragment>', `#include <color_fragment>
-        float wave = sin(vRiverPosition.z * 1.45 + sin(vRiverPosition.x * 1.3) * 2.0 - uRiverTime * 1.35);
-        float ripple = pow(max(0.0, wave), 32.0) * (0.019 + 0.012 * sin(vRiverPosition.x * 1.8 + vRiverPosition.z * .15));
-        float depthTint = .015 * sin(vRiverPosition.x * .09 + vRiverPosition.z * .07);
-        diffuseColor.rgb += vec3(.45, .6, .56) * ripple + vec3(depthTint * .3, depthTint, depthTint);
+    shader.uniforms.uRiverRippleTexture = { value: rippleTexture };
+    const common = '\nuniform float uRiverTime;\nvarying vec3 vRiverPosition;\n' + WIND_GLSL;
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>' + common)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 currentWind = worldWind(uRiverTime, position.xz);
+        transformed.y += sin(position.z * .24 - uRiverTime * .72) * (.023 + currentWind.z * .022) + cos(position.x * .44 + position.z * .13 - uRiverTime * .43) * .019;
+        vRiverPosition = transformed;
       `);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>' + common + '\nuniform sampler2D uRiverRippleTexture;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        vec3 riverWind = worldWind(uRiverTime, vRiverPosition.xz);
+        float longWave = vRiverPosition.z * 2.7 + sin(vRiverPosition.x * .7) * .7 - uRiverTime * 1.1;
+        float crossWave = vRiverPosition.x * 5.3 + vRiverPosition.z * 1.7 - uRiverTime * 1.6 - riverWind.x * 1.8;
+        float ripple = pow(max(0.0, sin(longWave)), 24.0) * (.009 + riverWind.z * .009) + pow(max(0.0, sin(crossWave)), 30.0) * .006;
+        diffuseColor.rgb += vec3(.45, .60, .56) * ripple;
+      `)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        vec2 rippleUV = vRiverPosition.xz * .17 - vec2(.013, .025) * uRiverTime - riverWind.xy * .6;
+        float slopeX = (texture2D(uRiverRippleTexture, rippleUV).r - .53) * (.012 + riverWind.z * .014);
+        float slopeZ = (texture2D(uRiverRippleTexture, rippleUV.yx * vec2(-.83, 1.17) + vec2(.37, .61)).r - .53) * (.012 + riverWind.z * .014);
+        normal = normalize(mat3(viewMatrix) * vec3(-slopeX, 1.0, -slopeZ));
+      `)
+      .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
+  material.customProgramCacheKey = () => 'gust-river-v1';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
+  water.userData.surfaceTextures = [rippleTexture];
   return { water, time };
 }
 
@@ -588,22 +662,10 @@ export function createLandscape() {
   const rand = random(196733), trees = treeBatches(group), records = [];
   const register = (id, kind, x, z, size, parts) => { if (!protectedResource(x, z)) records.push({ id, kind, x, z, size, parts }); };
   const rocks = new Instances(group, irregularOrb(1), getMaterial('stone', 0xffffff));
-  const shrubs = new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff));
-  const grassMat = getMaterial('grass', 0xffffff, { side: T.DoubleSide }).clone(), windTime = { value: 0 };
-  grassMat.onBeforeCompile = shader => {
-    shader.uniforms.uMeadowTime = windTime;
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uMeadowTime;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec3 meadowOrigin = instanceMatrix[3].xyz;
-          float breeze = sin(meadowOrigin.x * .063 + meadowOrigin.z * .041 + uMeadowTime * 1.7);
-          transformed.x += breeze * pow(max(position.y, 0.0), 2.0) * .23;
-          transformed.z += cos(meadowOrigin.z * .09 + uMeadowTime * 1.1) * position.y * .05;
-        #endif
-      `);
-  };
-  const grass = new Instances(group, grassGeometry(), grassMat, false);
-  const flowers = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false);
+  const shrubs = new Instances(group, canopyGeometry(), getMaterial('foliage', 0xffffff), true, 'foliage');
+  const grassMat = getMaterial('grass', 0xffffff, { side: T.DoubleSide });
+  const grass = new Instances(group, grassGeometry(), grassMat, false, 'grass');
+  const flowers = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false, 'grass');
   // Clusters follow valleys and meadows rather than a uniform scatter.
   for (let i = 0; i < 1200; i++) {
     const x = (rand() - .5) * 900, z = (rand() - .5) * 900;
@@ -660,10 +722,12 @@ export function createLandscape() {
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
-  stats.lifeCount = life.stats.lifeCount; let actors = [];
+  stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
+  group.traverse(mesh => { if (mesh.userData.windAnimated) stats.animatedVegetationInstances += mesh.count; });
+  let actors = [];
   return {
     group, ground, water, heightAt, surfaceHeightAt: renderedTerrainHeight, stats, crushables: interactions.crushables,
-    update(time, delta = 0) { waterTime.value = time; windTime.value = time; life.update(time, delta, actors); },
+    update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),
     setQuality(quality) {
@@ -804,8 +868,8 @@ function addIronRuins(group, node, rand) {
   growth.finish(); d.finish();
 }
 function addFarmland(group, node, rand) {
-  const d = siteDetails(group), stalks = new Instances(group, grassGeometry(), getMaterial('grass', 0xffffff, { side: T.DoubleSide }), false);
-  const grain = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false);
+  const d = siteDetails(group), stalks = new Instances(group, grassGeometry(), getMaterial('grass', 0xffffff, { side: T.DoubleSide }), false, 'grass');
+  const grain = new Instances(group, new T.IcosahedronGeometry(1, 0), getMaterial('foliage', 0xffffff), false, 'grass');
   const crops = new T.Group(); crops.rotation.y = .12; group.add(crops);
   for (let row = 0; row < 9; row++) {
     const z = -9 + row * 2.05;
@@ -816,6 +880,7 @@ function addFarmland(group, node, rand) {
       const rx = x * Math.cos(.12) + zz * Math.sin(.12), rz = -x * Math.sin(.12) + zz * Math.cos(.12);
       stalks.add(rx, .11, rz, .62, h * 1.45, .62, [0xbeb367, 0xc9ba72, 0xa2ab61, 0xd0ba73][row % 4], rand() * TAU);
       grain.add(rx, h + .15, rz, .075, .21, .075, 0xe0c48a, .2);
+      for(const item of [stalks.items.at(-1),grain.items.at(-1)]){item.windRoot=[rx,.11,rz,h*1.45*.85];item.windFlex=[Math.min(.4,h*1.45*.24),.025];}
     }
   }
   for (let x = -12; x <= 10; x += 3.2) {

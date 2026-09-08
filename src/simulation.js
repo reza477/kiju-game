@@ -70,10 +70,12 @@ function move(entity,target,speed,dt,limit=175){const d=distance(entity,target);
 export function startBattle(s,id){const rival=s.enemies.find(e=>e.id===id);if(s.mode!=='expedition'||!rival||rival.defeated)return false;
  if(distance(s,rival)>42){note(s,'Move closer to the rival city before engaging.');return false;}
  const hp=FACTIONS[rival.faction].hp*.70+(s.stats.victories*50);
- s.battle={enemyId:id,enemyFaction:rival.faction,enemyName:rival.name,enemyMaxHp:hp,enemyHp:hp,player:{x:-52,z:0,angle:Math.PI/2},enemy:{x:52,z:0,angle:-Math.PI/2},reload:0,enemyReload:2.4,abilityCooldown:0,command:'hold',autoFire:true,time:0,events:[],seq:0,result:null,damage:0};
+ s.battle={enemyId:id,enemyFaction:rival.faction,enemyName:rival.name,enemyMaxHp:hp,enemyHp:hp,player:{x:-52,z:0,angle:Math.PI/2},enemy:{x:52,z:0,angle:-Math.PI/2},reload:0,enemyReload:2.4,abilityCooldown:0,command:'hold',autoFire:true,time:0,events:[],pendingHits:[],seq:0,result:null,damage:0};
  s.target=null;s.mode='battle';s.paused=false;note(s,`${rival.name} prepares for battle.`);return true;
 }
-function event(b,kind,from,to,damage,details={}){b.events.push({id:++b.seq,kind,from:{...from},to:{...to},damage,time:b.time,...details});b.events=b.events.slice(-30);}
+export const attackDelay=kind=>kind==='impact'?.7:.55;
+function event(b,kind,from,to,damage,details={}){const hit={id:++b.seq,kind,from:{...from},to:{...to},damage,time:b.time,impactAt:b.time+attackDelay(kind),...details};b.events.push(hit);b.events=b.events.slice(-30);(b.pendingHits??=[]).push({eventId:hit.id,source:details.source,damage,impactAt:hit.impactAt});}
+function resolveHits(s){const b=s.battle,remaining=[];for(const hit of b.pendingHits??[]){if(hit.impactAt>b.time+1e-8){remaining.push(hit);continue;}if(hit.source==='enemy')s.hp-=hit.damage;else{b.enemyHp-=hit.damage;b.damage+=hit.damage;}}b.pendingHits=remaining;outcome(s);if(b.result)b.pendingHits=[];}
 function outcome(s){const b=s.battle;if(!b||b.result)return;
  if(s.hp<=0){s.hp=0;b.result='defeat';note(s,'The city has fallen. Your people need a new beginning.');}
  else if(b.enemyHp<=0){b.enemyHp=0;b.result='victory';s.enemies.find(e=>e.id===b.enemyId).defeated=true;s.stats.victories++;s.resources.wood+=95;s.resources.iron+=100;s.resources.food+=65;note(s,'Victory. Salvaged 95 wood, 100 iron, and 65 food.');}}
@@ -87,15 +89,15 @@ export function weaponStatus(s){
 }
 export function fire(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.reload>0||s.paused)return false;const f=FACTIONS[s.faction],d=distance(b.player,b.enemy),status=weaponStatus(s);if(!status.canFire)return false;
  const melee=status.melee,mounts=melee?[]:status.batteries.filter(m=>m.active).map(m=>m.slot);if(melee){b.player.angle=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z);if(s.faction==='kaiju')b.command='approach';}
- const damage=(status.baseInRange?(melee?f.melee:f.damage)+(levelOf(s,'keep')-1)*5:0)+mounts.reduce((sum,slot)=>sum+s.buildings[slot].level*9,0);b.enemyHp-=damage;b.damage+=damage;b.reload=f.reload;event(b,melee?'impact':'shot',b.player,b.enemy,damage,{source:'player',mounts,base:status.baseInRange});outcome(s);return true;}
+ const damage=(status.baseInRange?(melee?f.melee:f.damage)+(levelOf(s,'keep')-1)*5:0)+mounts.reduce((sum,slot)=>sum+s.buildings[slot].level*9,0);b.reload=f.reload;event(b,melee?'impact':'shot',b.player,b.enemy,damage,{source:'player',mounts,base:status.baseInRange});return true;}
 export function ability(s){const b=s.battle;if(s.mode!=='battle'||!b||b.result||b.abilityCooldown>0||s.paused)return {ok:false,message:'Ability is not ready.'};const f=s.faction;let d=distance(b.player,b.enemy);
- if(f==='airship'){if(d>FACTIONS[f].range)return {ok:false,message:'Move within missile range first.'};b.enemyHp-=70;event(b,'salvo',b.player,b.enemy,70,{source:'player',mounts:weaponStatus(s).batteries.filter(m=>m.active).map(m=>m.slot)});}
- else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-meleeReach(f,b.enemyFaction)+.5),1,100);b.enemyHp-=f==='kaiju'?85:60;event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60,{source:'player'});}
- b.abilityCooldown=13;outcome(s);return {ok:true};}
+ if(f==='airship'){if(d>FACTIONS[f].range)return {ok:false,message:'Move within missile range first.'};event(b,'salvo',b.player,b.enemy,70,{source:'player',mounts:weaponStatus(s).batteries.filter(m=>m.active).map(m=>m.slot)});}
+ else {if(d>70)return {ok:false,message:'Close to within 70 metres before rushing.'};move(b.player,b.enemy,Math.max(0,d-meleeReach(f,b.enemyFaction)+.5),1,100);event(b,'impact',b.player,b.enemy,f==='kaiju'?85:60,{source:'player'});}
+ b.abilityCooldown=13;return {ok:true};}
 export function leaveBattle(s,retreat=false){const b=s.battle;if(!b)return false;if(b.result==='defeat')return false;if(!b.result&&!retreat)return false;
  if(retreat&&!b.result){s.resources.food=Math.max(0,s.resources.food-20);note(s,'Withdrew from battle. The evacuation used 20 food.');}
  s.mode='expedition';s.battle=null;return true;}
-function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;b.reload=Math.max(0,b.reload-dt);b.enemyReload=Math.max(0,b.enemyReload-dt);b.abilityCooldown=Math.max(0,b.abilityCooldown-dt);
+function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;resolveHits(s);if(b.result)return;b.reload=Math.max(0,b.reload-dt);b.enemyReload=Math.max(0,b.enemyReload-dt);b.abilityCooldown=Math.max(0,b.abilityCooldown-dt);
  const f=FACTIONS[s.faction],enemy=FACTIONS[b.enemyFaction];const d=distance(b.player,b.enemy);
  if(input.x||input.z){const m=Math.max(1,Math.hypot(input.x,input.z));move(b.player,{x:b.player.x+input.x/m*100,z:b.player.z+input.z/m*100},f.speed,dt,100);b.command='hold';}
  else if(b.command==='approach'&&d>(s.faction==='kaiju'?meleeReach(s.faction,b.enemyFaction)-.5:f.range*.68))move(b.player,b.enemy,f.speed,dt,100);
@@ -103,7 +105,7 @@ function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;b
  if(b.enemyFaction==='airship'){if(d<80)move(b.enemy,{x:b.enemy.x+(b.enemy.x-b.player.x),z:b.enemy.z+(b.enemy.z-b.player.z)},enemy.speed*.72,dt,100);else if(d>103)move(b.enemy,b.player,enemy.speed*.65,dt,100);}
  else if(d>(b.enemyFaction==='kaiju'?meleeReach(b.enemyFaction,s.faction)-.5:50))move(b.enemy,b.player,enemy.speed*.70,dt,100);
  if(b.autoFire)fire(s);if(b.result)return;
- const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const melee=now<=meleeReach(b.enemyFaction,s.faction);if(melee)b.enemy.angle=Math.atan2(b.player.x-b.enemy.x,b.player.z-b.enemy.z);const damage=(melee?enemy.melee:enemy.damage)*.75;s.hp-=damage;b.enemyReload=enemy.reload+0.65;event(b,melee?'impact':'enemyShot',b.enemy,b.player,damage,{source:'enemy'});outcome(s);}
+ const now=distance(b.player,b.enemy);if(b.enemyReload<=0&&now<=enemy.range){const melee=now<=meleeReach(b.enemyFaction,s.faction);if(melee)b.enemy.angle=Math.atan2(b.player.x-b.enemy.x,b.player.z-b.enemy.z);const damage=(melee?enemy.melee:enemy.damage)*.75;b.enemyReload=enemy.reload+0.65;event(b,melee?'impact':'enemyShot',b.enemy,b.player,damage,{source:'enemy'});}
 }
 export function tick(s,dt,input={x:0,z:0}){
  if(s.paused)return;dt=clamp(dt,0,.25)*s.speed;s.time+=dt;s.day=1+Math.floor(s.time/90);
@@ -135,6 +137,7 @@ export function deserialize(raw){
  if(s.nodes.some(n=>!WORLD_NODES.some(w=>w.id===n.id)||!['wood','iron','food'].includes(n.kind)||![n.x,n.z,n.amount].every(Number.isFinite)||n.amount<0))return null;
  if(s.enemies.some(e=>!FACTIONS[e.faction]||![e.x,e.z].every(Number.isFinite)))return null;
  if(s.mode==='battle'&&(!s.battle||!FACTIONS[s.battle.enemyFaction]||!s.enemies.some(e=>e.id===s.battle.enemyId)||!['player','enemy'].every(k=>[s.battle[k]?.x,s.battle[k]?.z,s.battle[k]?.angle].every(Number.isFinite))||!['enemyHp','enemyMaxHp','time','reload','enemyReload','abilityCooldown'].every(k=>Number.isFinite(s.battle[k]))))return null;
+ if(s.mode==='battle'){s.battle.pendingHits??=[];if(!Array.isArray(s.battle.pendingHits)||s.battle.pendingHits.length>64||s.battle.pendingHits.some(h=>!['player','enemy'].includes(h.source)||!Number.isInteger(h.eventId)||!Number.isFinite(h.damage)||h.damage<0||h.damage>10000||!Number.isFinite(h.impactAt)||h.impactAt<0||h.impactAt>s.battle.time+.71))return null;}
  s.paused=false;s.speed=1;return s;
  }catch{return null;}
 }

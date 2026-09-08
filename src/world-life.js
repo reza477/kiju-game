@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial } from './materials.js';
 import { terrainHeight, shoreDistance } from './terrain.js';
+import { windAt } from './weather.js';
 
 const TAU = Math.PI * 2;
 const temp = new T.Object3D();
@@ -52,21 +53,29 @@ export function createWorldLife() {
     butterflyWings.setColorAt(i * 2, colour); butterflyWings.setColorAt(i * 2 + 1, colour);
   });
   const meshes = [birdBody, birdWings, butterflyWings, deerBody, deerHead, deerNeck, deerLegs, deerEars, deerTails];
-  const stats = { lifeCount: birdCount + butterflyCount + herdCount, birdCount, butterflyCount, herdCount };
+  const windSample = {};
+  const stats = { lifeCount: birdCount + butterflyCount + herdCount, birdCount, butterflyCount, herdCount, glidingBirds: 0 };
   return {
     group, stats,
     update(time, delta = 0, actors = []) {
       const dt = Math.min(.1, Math.max(0, delta));
+      stats.glidingBirds = 0;
       birds.forEach((bird, i) => {
-        const a = time * bird.speed + bird.phase, x = bird.x + Math.cos(a) * bird.radius, z = bird.z + Math.sin(a) * bird.radius * .67;
-        const y = terrainHeight(x, z) + bird.height + Math.sin(a * 2) * 2.5, yaw = Math.atan2(-Math.sin(a), Math.cos(a) * .67), size = bird.size;
-        transform(birdBody, i, x, y, z, .22 * size, .19 * size, .63 * size, yaw, -.11);
-        const flap = Math.sin(time * (4 + i % 3) + bird.phase) * .55;
-        for (const side of [-1, 1]) transform(birdWings, i * 2 + (side > 0 ? 1 : 0), x, y, z, size, size, size, yaw, side * flap + (side < 0 ? Math.PI : 0));
+        const wind = windAt(time, bird.x, bird.z, windSample), drift = Math.sin(time * .075 + bird.phase) * 4;
+        const a = time * bird.speed + bird.phase, x = bird.x + Math.cos(a) * bird.radius + wind.x * drift, z = bird.z + Math.sin(a) * bird.radius * .67 + wind.z * drift;
+        const y = Math.max(terrainHeight(x, z) + 14, terrainHeight(bird.x, bird.z) + bird.height + Math.sin(a * 2) * 2.5 + wind.gust * 1.4);
+        const yaw = Math.atan2(-Math.sin(a), Math.cos(a) * .67), size = bird.size, bank = -.11 - wind.gust * .11 + Math.sin(a * .8) * .05;
+        const gliding = Math.sin(time * .32 + bird.phase) + wind.gust * .35 > -.12;
+        if (gliding) stats.glidingBirds++;
+        transform(birdBody, i, x, y, z, .22 * size, .19 * size, .63 * size, yaw, bank, -.035);
+        const flap = Math.sin(time * (3.8 + i % 3 * .45) + bird.phase) * (gliding ? .045 : .48);
+        for (const side of [-1, 1]) transform(birdWings, i * 2 + (side > 0 ? 1 : 0), x, y, z, size, size, size, yaw, bank + side * flap + (side < 0 ? Math.PI : 0), -.035);
       });
       butterflies.forEach((butterfly, i) => {
-        const a = time * .58 + butterfly.phase, x = butterfly.x + Math.sin(a) * 2.6, z = butterfly.z + Math.cos(a * .83) * 2.4;
-        const y = terrainHeight(x, z) + 1.15 + Math.sin(a * 1.7) * .55, flap = .5 + Math.sin(time * 13 + butterfly.phase) * .67;
+        const wind = windAt(time, butterfly.x, butterfly.z, windSample), a = time * .58 + butterfly.phase;
+        const settle = Math.max(0, (Math.sin(time * .21 + butterfly.phase) - .65) / .35);
+        const x = butterfly.x + Math.sin(a) * 2.6 + wind.x * wind.gust * 1.6, z = butterfly.z + Math.cos(a * .83) * 2.4 + wind.z * wind.gust * 1.6;
+        const y = terrainHeight(x, z) + .45 + (1 - settle) * (.8 + Math.sin(a * 1.7) * .40), flap = .5 + Math.sin(time * (13 - settle * 7) + butterfly.phase) * (.67 - settle * .40);
         for (const side of [-1, 1]) transform(butterflyWings, i * 2 + (side > 0 ? 1 : 0), x + side * .14, y, z, 1, 1, 1, a, side * flap, Math.PI / 2);
       });
       deer.forEach((animal, i) => {
@@ -92,7 +101,7 @@ export function createWorldLife() {
         const forwardX = Math.sin(yaw), forwardZ = Math.cos(yaw), rightX = Math.cos(yaw), rightZ = -Math.sin(yaw);
         const bounce = moving ? Math.abs(Math.sin(time * (animal.flee > 0 ? 8 : 4) + i)) * .05 : 0;
         transform(deerBody, i, animal.x, y + 1.02 * s + bounce, animal.z, .47 * s, .54 * s, .94 * s, yaw);
-        const grazing = !moving && Math.sin(time * .65 + i) > -.1;
+        const breeze = windAt(time, animal.x, animal.z, windSample), grazing = !moving && Math.sin(time * .65 + i) > -.1 && breeze.gust < .83;
         transform(deerNeck, i, animal.x + forwardX * .69 * s, y + (grazing ? .84 : 1.43) * s, animal.z + forwardZ * .69 * s, .20 * s, .55 * s, .24 * s, yaw, 0, grazing ? -.67 : .40);
         transform(deerHead, i, animal.x + forwardX * 1.04 * s, y + (grazing ? .52 : 1.86) * s, animal.z + forwardZ * 1.04 * s, .25 * s, .23 * s, .43 * s, yaw, 0, grazing ? .5 : -.12);
         transform(deerTails, i, animal.x - forwardX * .95 * s, y + 1.07 * s, animal.z - forwardZ * .95 * s, .13 * s, .19 * s, .23 * s, yaw, Math.sin(time * 2 + i) * .3);
@@ -101,7 +110,8 @@ export function createWorldLife() {
           const lx = animal.x + rightX * side * .28 * s + forwardX * front * .61 * s, lz = animal.z + rightZ * side * .28 * s + forwardZ * front * .61 * s;
           transform(deerLegs, i * 4 + leg, lx, y + .45 * s, lz, .067 * s, .82 * s, .067 * s, yaw, 0, moving ? Math.sin(time * (animal.flee > 0 ? 8 : 4) + i + leg * Math.PI / 2) * .46 : 0);
         }
-        for (const side of [-1, 1]) transform(deerEars, i * 2 + (side > 0 ? 1 : 0), animal.x + forwardX * .98 * s + rightX * side * .20 * s, y + (grazing ? .77 : 2.13) * s, animal.z + forwardZ * .98 * s + rightZ * side * .20 * s, .12 * s, .25 * s, .055 * s, yaw, -side * .44);
+        const earFlick = Math.pow(Math.max(0, Math.sin(time * .8 + animal.phase)), 12) * .19;
+        for (const side of [-1, 1]) transform(deerEars, i * 2 + (side > 0 ? 1 : 0), animal.x + forwardX * .98 * s + rightX * side * .20 * s, y + (grazing ? .77 : 2.13) * s, animal.z + forwardZ * .98 * s + rightZ * side * .20 * s, .12 * s, .25 * s, .055 * s, yaw, -side * (.44 + earFlick));
       });
       for (const mesh of meshes) mesh.instanceMatrix.needsUpdate = true;
     },

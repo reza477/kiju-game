@@ -1,0 +1,47 @@
+// Neutral reviewer capture: normal HUD and real simulation/rendering, with a
+// deterministic clock so wind, lighting transitions and camera events are inspectable.
+import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
+const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/cinematic-review');await fs.mkdir(out,{recursive:true});
+const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader']});
+const report={fixture:'Isolated normal-HUD gameplay; requestAnimationFrame is held and the existing tick/render/UI functions advance in 0.05-second steps. Only transient pause/toast overlays are hidden at capture, preserving all gameplay controls and product geometry/materials.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
+async function open(reducedMotion='no-preference'){
+ const context=await browser.newContext({viewport:{width:1440,height:960},reducedMotion});
+ await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178'||['data:','blob:'].includes(u.protocol))return r.continue();report.remote.push(u.href);return r.abort();});
+ const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
+ await page.addInitScript(()=>{window.requestAnimationFrame=()=>0;});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus);
+ await page.evaluate(()=>{window.__reviewStep=async(seconds)=>{const {tick}=await import('/src/simulation.js');const a=window.__colossus;const steps=Math.max(1,Math.ceil(seconds/.05));for(let i=0;i<steps;i++){const dt=seconds/steps;tick(a.state,dt);a.advance(0);a.scene.update(a.state,dt,null);}};});return {context,page};
+}
+const step=(p,t)=>p.evaluate(t=>window.__reviewStep(t),t);
+async function lighting(p,mode){for(let i=0;i<3&&await p.evaluate(()=>window.__colossus.scene.light)!==mode;i++)await p.locator('#lighting').click();}
+async function quality(p,mode){for(let i=0;i<3&&await p.evaluate(()=>window.__colossus.scene.quality)!==mode;i++)await p.locator('#quality').click();}
+async function capture(page,name){
+ const observation=await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;const sun=g.sun.position.clone().sub(g.sun.target.position).normalize();return {time:s.time,mode:s.mode,view:g.view,lighting:g.light,quality:g.quality,paused:s.paused,hp:s.battle?.enemyHp,camera:g.camera.position.toArray(),aim:g.cameraAim.toArray(),fov:g.camera.fov,offset:{...g.cinematic.output},cameraMode:g.cinematic.mode,sunAlignment:sun.dot(g.sky.material.uniforms.sunDirection.value),mistTime:g.atmosphere.mist.material.uniforms.time.value,skyTime:g.sky.material.uniforms.time.value,activePuffs:g.atmosphere.puffs.filter(p=>p.active).length,contextLost:g.renderer.getContext().isContextLost(),render:{...g.renderer.info.render},memory:{...g.renderer.info.memory}};});
+ assert.equal(observation.contextLost,false);assert.ok(observation.camera.every(Number.isFinite));assert.ok(observation.sunAlignment>.99999,'Sky and shadow light directions agree');
+ report.observations.push({name,...observation});await page.screenshot({path:path.join(out,name+'.png'),style:'#paused-banner,#toast{visibility:hidden!important}'});report.screenshots.push(name+'.png');return observation;
+}
+try{
+ for(const faction of ['kaiju','crawler','airship']){
+  const {context,page}=await open();if(faction!=='kaiju')await page.locator(`[data-faction="${faction}"]`).click();await page.locator('#begin').click();
+  await page.evaluate(()=>{const {state}=window.__colossus;state.time=32;state.paused=true;});await step(page,2.5);
+  for(const light of ['day','dusk','night']){await lighting(page,light);await step(page,1.7);await capture(page,`${faction}-city-${light}`);}
+  await lighting(page,'dusk');await page.locator('[data-view="people"]').click();await step(page,1.7);await capture(page,`${faction}-streets-dusk`);
+  await page.locator('[data-view="world"]').click();await step(page,1.7);await capture(page,`${faction}-world-dusk`);
+  await quality(page,'performance');await step(page,.1);await capture(page,`${faction}-world-performance`);await quality(page,'high');
+  if(faction==='kaiju'){
+   await page.evaluate(async()=>{const {riverX}=await import('/src/terrain.js');const {state:s,scene:g}=window.__colossus;s.x=riverX(0)-42;s.z=0;s.target=null;s.paused=false;g.pitch=.23;g.zoom=145;g.yaw=1.25;g.setLighting('dusk');});await step(page,2);const a=await capture(page,'river-wind-a');await step(page,3);const b=await capture(page,'river-wind-b');assert.ok(b.mistTime>a.mistTime&&b.skyTime>a.skyTime,'Mist and sky advance with the shared world clock');
+   await page.evaluate(()=>window.__colossus.state.paused=true);await step(page,1);const paused=await capture(page,'river-paused');assert.equal(paused.mistTime,b.mistTime);assert.equal(paused.skyTime,b.skyTime);report.checks.push('Wind/sky/mist time advances and freezes on pause.');
+   await page.evaluate(async()=>{const {startBattle}=await import('/src/simulation.js');const {state:s,scene:g}=window.__colossus;s.x=s.enemies[0].x;s.z=s.enemies[0].z;startBattle(s,s.enemies[0].id);s.battle.autoFire=false;s.battle.enemyReload=999;s.battle.enemyHp=s.battle.enemyMaxHp=5000;g.setLighting('dusk');});
+   await step(page,.1);await capture(page,'battle-entry-start');await step(page,.65);await capture(page,'battle-entry-sweep');await step(page,1.4);await capture(page,'battle-entry-settled');
+   await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;s.battle.player={x:-20,z:0,angle:Math.PI/2};s.battle.enemy={x:-2.5,z:0,angle:-Math.PI/2};s.battle.command='hold';s.paused=true;g.cinematic.reset();});await step(page,2);
+   const hp=await page.evaluate(()=>window.__colossus.state.battle.enemyHp);await page.locator('#pause').click();await page.locator('#fire').click();await step(page,.15);const windup=await capture(page,'melee-windup');assert.equal(windup.hp,hp,'Health holds through wind-up');await step(page,.55);const hit=await capture(page,'melee-contact');assert.ok(hit.hp<hp,'Health drops at physical contact');await step(page,1.2);await capture(page,'melee-recovery');report.checks.push('Melee health and impact camera begin at contact.');
+   await page.locator('#camera-motion').click();assert.equal(await page.locator('#camera-motion').getAttribute('aria-pressed'),'false');await step(page,.2);const steady=await capture(page,'battle-steady');assert.ok(Object.values(steady.offset).every(v=>v===0));
+   await page.locator('#camera-motion').click();await page.mouse.move(760,440);await page.mouse.down();await page.mouse.move(850,465,{steps:5});await page.mouse.up();await step(page,.05);const manual=await capture(page,'battle-manual-orbit');assert.ok(Object.values(manual.offset).every(v=>v===0));report.checks.push('Steady mode and manual orbit suppress cinematic offsets.');
+  }
+  if(faction==='airship'){await page.setViewportSize({width:390,height:844});await step(page,.3);await capture(page,'airship-mobile');const layout=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth-innerWidth,buttons:[...document.querySelectorAll('.utility button')].map(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,bottom:r.bottom};})}));assert.equal(layout.overflow,0);assert.ok(layout.buttons.every(r=>r.left>=0&&r.right<=390&&r.bottom<=844));report.checks.push('390px utility controls stay inside viewport.');}
+  await context.close();console.log(`Captured ${faction} cinematic views.`);
+ }
+ const {page,context}=await open('reduce');await page.locator('#begin').click();await step(page,2);assert.equal(await page.evaluate(()=>window.__colossus.scene.cinematic.mode),'steady');await capture(page,'reduced-motion-default');await context.close();report.checks.push('System reduced-motion preference defaults to Steady.');
+ assert.deepEqual(report.errors,[]);assert.deepEqual(report.remote,[]);
+}catch(e){report.failure=e.stack;process.exitCode=1;}finally{await browser.close();await fs.writeFile(path.join(out,'capture-report.json'),JSON.stringify(report,null,2));}
+console.log(JSON.stringify({output:out,shots:report.screenshots.length,checks:report.checks,errors:report.errors,remote:report.remote,failure:report.failure}));
