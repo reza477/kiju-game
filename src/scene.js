@@ -63,14 +63,14 @@ export class GameScene {
     this.camera=new T.PerspectiveCamera(42,1,.25,1500);
     this.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
     this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.03;
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFSoftShadowMap;this.renderer.info.autoReset=false;
+    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.info.autoReset=false;
     this.environmentTarget=createEnvironment(this.renderer);this.scene.environment=this.environmentTarget.texture;this.scene.environmentIntensity=.55;
     this.sky=createSky();this.scene.add(this.sky);
     this.ambient=new T.HemisphereLight(0xd8edff,0x7b8561,1.45);this.scene.add(this.ambient);
     this.sun=new T.DirectionalLight(0xffdfb8,3.4);this.sun.position.set(-65,95,65);this.sun.castShadow=true;
-    this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00025;this.sun.shadow.normalBias=.065;this.sun.shadow.radius=3;
+    this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00012;this.sun.shadow.normalBias=.025;this.sun.shadow.radius=1.4;
     this.scene.add(this.sun,this.sun.target);
-    this.rim=new T.DirectionalLight(0x8fb4cf,.45);this.rim.position.set(70,35,-55);this.scene.add(this.rim);
+    this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim);
     this.landscape=createLandscape();this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
     this.presentation=new Presentation(this.renderer,this.camera);this.atmosphere=new Atmosphere(this.scene);
     this.pickables=[];this.labels=[];this.enemyCities=[];this.fx=[];this.lastEvent=0;this.preview=false;
@@ -104,18 +104,19 @@ export class GameScene {
       const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,e.faction==='kaiju'?56:34,e.faction==='kaiju'?34:26),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?28:15,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
       this.scene.add(city.root);this.enemyCities.push(city);
     }
-    this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
+    this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.9):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
     this.setLighting(this.light);
   }
 
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='circular';this.view=view;
-    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?40:30):this.preview?80:58;
+    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?40:30):this.preview?80:76;
     const backpackPitch=(view==='carrier'||this.preview)?.25:.64;
     this.pitch=view==='world'?.88:view==='people'?.38:backpack?backpackPitch:.6;
     if(backpack&&view==='carrier')this.yaw=this.state.angle+.75;
+    else if(backpack&&view==='people')this.yaw=this.state.angle+2.35;
     else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
-    else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
+    else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.9;
   }
 
   setQuality(quality){
@@ -167,8 +168,8 @@ export class GameScene {
       const object=new T.Mesh(shot.missile?new T.ConeGeometry(.27,1.15,10):new T.SphereGeometry(event.kind==='impact'?.45:.25,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
       const trail=new T.Mesh(new T.ConeGeometry(.18,shot.missile?5:3.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.8}));trail.rotation.x=Math.PI/2;trail.position.z=-1.3;group.add(trail);
       const burst=new T.Group();burst.visible=false;group.add(burst);
-      for(let i=0;i<9;i++){const spark=new T.Mesh(new T.TetrahedronGeometry(.22),new T.MeshBasicMaterial({color:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
-      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),age:0,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player'});
+      for(let i=0;i<14;i++){const debris=i>8,spark=new T.Mesh(new T.TetrahedronGeometry(debris?.36:.22),new T.MeshBasicMaterial({color:debris?0x847e70:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.debris=debris;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
+      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),age:0,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target});
       if(event.kind!=='impact'){
         const flash=new T.Mesh(new T.SphereGeometry(.85,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
         this.fx.push({object:flash,flash:true,start,age:0});
@@ -214,10 +215,12 @@ export class GameScene {
     this.focus.lerp(focus,1-Math.exp(-dt*5));
     const wide=this.camera.aspect<1.2?1.4:1,horizontal=Math.cos(this.pitch)*desiredZoom*wide;
     const cameraTarget=new T.Vector3(this.focus.x+Math.sin(this.yaw)*horizontal,this.focus.y+Math.sin(this.pitch)*desiredZoom*wide,this.focus.z+Math.cos(this.yaw)*horizontal);
+    const viewOffset=!battle&&!this.preview&&this.view==='city'?.055:0;
+    if(this.viewOffset!==viewOffset||this.viewWidth!==this.canvas.clientWidth||this.viewHeight!==this.canvas.clientHeight){this.viewOffset=viewOffset;this.viewWidth=this.canvas.clientWidth;this.viewHeight=this.canvas.clientHeight;if(viewOffset)this.camera.setViewOffset(this.viewWidth,this.viewHeight,0,this.viewHeight*viewOffset,this.viewWidth,this.viewHeight);else this.camera.clearViewOffset();}
     this.camera.position.lerp(cameraTarget,1-Math.exp(-dt*6));this.camera.lookAt(this.focus);this.sky.position.copy(this.camera.position);
     const lightHeight=this.light==='dusk'?52:95;this.sun.position.set(this.focus.x-65,lightHeight,this.focus.z+65);this.sun.target.position.copy(this.focus);
     // A tight shadow frustum follows the city; the world view covers a wider area.
-    const shadowExtent=this.view==='world'&&!battle?160:battle?120:62;
+    const shadowExtent=this.view==='world'&&!battle?160:battle?120:this.view==='people'?20:62;
     if(this.sun.shadow.camera.right!==shadowExtent){Object.assign(this.sun.shadow.camera,{left:-shadowExtent,right:shadowExtent,top:shadowExtent,bottom:-shadowExtent});this.sun.shadow.camera.updateProjectionMatrix();}
     const worldDt=s.paused||this.preview?0:dt;
     this.landscape.interact?.(actors,worldDt,{mode:battle?'battle':'expedition',damage:s.worldDamage[battle?'battle':'expedition']});
@@ -230,7 +233,7 @@ export class GameScene {
       const fx=this.fx[i];fx.age+=s.paused?0:dt;
       if(fx.flash){fx.object.material.opacity=Math.max(0,1-fx.age/.12);if(fx.age>.12){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}continue;}
       const flight=fx.kind==='impact'?.32:.55,t=Math.min(1,fx.age/flight);fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:fx.kind==='impact'?.25:3);fx.object.lookAt(fx.end);
-      if(t>=1){const hitAge=fx.age-flight;fx.trail.visible=false;fx.burst.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*2);spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>.55){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
+      if(t>=1){const hitAge=fx.age-flight;if(!fx.arrived){fx.arrived=true;fx.target.hitAt=s.time;this.atmosphere.emit(fx.end,'dust');}fx.trail.visible=false;fx.burst.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*(spark.userData.debris?.85:2));spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.presentation.render(this.scene);
   }

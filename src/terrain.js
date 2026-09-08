@@ -63,3 +63,27 @@ export function terrainNormal(x, z) {
   const length = Math.hypot(dx, 1, dz);
   return { x: -dx / length, y: 1 / length, z: -dz / length };
 }
+
+// The same 300 intervals concentrate resolution where cities can travel. Spacing
+// grows continuously beyond the playable area, avoiding a visible LOD boundary.
+export function terrainGridCoordinate(index) {
+  const distance = Math.abs(index - 150), outer = Math.max(0, distance - 105);
+  const coordinate = distance <= 105 ? distance * 2 : 210 +
+    (outer <= 10 ? outer * 2 + .375 * outer * outer : 57.5 + (outer - 10) * 9.5);
+  return Math.fround(Math.sign(index - 150) * coordinate);
+}
+const groundGrid = Array.from({ length: 301 }, (_, i) => terrainGridCoordinate(i));
+function groundInterval(value) {
+  let low = 0, high = 300;
+  while (high - low > 1) { const mid = (low + high) >> 1; if (value < groundGrid[mid]) high = mid; else low = mid; }
+  return Math.min(299, low);
+}
+export function renderedTerrainHeight(x, z) {
+  if (Math.abs(x) > 600 || Math.abs(z) > 600) return terrainHeight(x, z);
+  const ix = groundInterval(x), iz = groundInterval(z);
+  const ax = groundGrid[ix], bx = groundGrid[ix + 1], az = groundGrid[iz], bz = groundGrid[iz + 1];
+  const u = (x - ax) / (bx - ax), v = (z - az) / (bz - az);
+  const a = Math.fround(terrainHeight(ax, az)), b = Math.fround(terrainHeight(bx, az));
+  const c = Math.fround(terrainHeight(ax, bz)), d = Math.fround(terrainHeight(bx, bz));
+  return u + v <= 1 ? a * (1 - u - v) + b * u + c * v : d * (u + v - 1) + b * (1 - v) + c * (1 - u);
+}

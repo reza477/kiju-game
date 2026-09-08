@@ -477,7 +477,7 @@ export function createVacantPlot(faction = 'kaiju', index = 0) {
   const p = palettes[faction] || palettes.kaiju;
   group.name = 'buildable-plaza';
   box(group, 2.64, .055, 3.05, M('pavement', faction === 'airship' ? 0xb8b299 : 0x868b79), 0, .035, 0);
-  box(group, 2.38, .028, 2.78, M('foliage', index % 3 === 0 ? 0x7d9166 : 0x82936d), 0, .077, 0);
+  box(group, 2.38, .028, 2.78, M('grass', index % 3 === 0 ? 0x8a9078 : 0x8f947d), 0, .077, 0);
   for (const side of [-1, 1]) for (const end of [-1, 1]) {
     box(group, .35, .035, .04, M('stone', p.light), side * 1.1, .112, end * 1.39);
     box(group, .04, .035, .34, M('stone', p.light), side * 1.27, .112, end * 1.24);

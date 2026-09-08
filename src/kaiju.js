@@ -12,7 +12,12 @@ function addMesh(group, geometry, mat, x = 0, y = 0, z = 0) {
 function muscle(group, a, b, width, depth, mat) {
   const start = new T.Vector3(...a), direction = new T.Vector3(...b).sub(start);
   const centre = start.addScaledVector(direction, .5);
-  const mesh = sphere(group, 1, mat, centre.x, centre.y, centre.z, width, direction.length() * .56, depth);
+  // Broad attachment, asymmetric belly and tapered tendon: continuous volume
+  // rather than the repeated rugby-ball primitive of the first creature pass.
+  const profile=[[.23,-.55],[.65,-.47],[.96,-.29],[1,-.12],[.84,.17],[.49,.43],[.18,.56]];
+  const geometry=new T.LatheGeometry(profile.map(([r,y])=>new T.Vector2(r,y)),18);
+  const mesh=addMesh(group,geometry,mat,centre.x,centre.y,centre.z);
+  mesh.scale.set(width,direction.length(),depth);
   mesh.quaternion.setFromUnitVectors(UP, direction.normalize()); return mesh;
 }
 
@@ -26,7 +31,13 @@ function plate(group, outline, depth, mat, x = 0, y = 0, z = 0, bevel = .12) {
 }
 
 function mirroredPlate(group, side, outline, depth, mat, x, y, z, bevel = .12) {
-  return plate(group, outline.map(([px, py]) => [px * side, py]), depth, mat, x, y, z, bevel);
+  const mesh=plate(group, outline.map(([px, py]) => [px * side, py]), depth, mat, x, y, z, bevel);
+  const positions=mesh.geometry.attributes.position;
+  mesh.geometry.computeBoundingBox();const bounds=mesh.geometry.boundingBox;
+  const centreX=(bounds.min.x+bounds.max.x)*.5,halfWidth=Math.max(.1,(bounds.max.x-bounds.min.x)*.5);
+  const crown=Math.min(.42,halfWidth*.20);
+  for(let i=0;i<positions.count;i++){const across=(positions.getX(i)-centreX)/halfWidth;positions.setZ(i,positions.getZ(i)+crown*(1-across*across));}
+  mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingBox();mesh.geometry.computeBoundingSphere();return mesh;
 }
 
 function joint(group, x, y, z, radius, mat, trim) {
@@ -126,8 +137,13 @@ function createLeg(rig, limbs, side, m) {
   for (const a of [-1, 1]) box(leg, .11, .13, 1.8, m.trim, side * .18 + a * 1.27, -24.44, .75);
   const footJoint = articulatedSection(leg,leg.children.slice(footStart),ankle,'Titan ankle and planted sole');
   const lower = articulatedSection(leg,leg.children.slice(lowerStart),knee,'Titan knee and shin');
+  const soleVertices=[];let soleY=Infinity;
+  footJoint.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++){const v=new T.Vector3().fromBufferAttribute(p,i);soleVertices.push(v);soleY=Math.min(soleY,v.y);}});
+  const unique=new Map();for(const v of soleVertices)if(v.y<soleY+.004)unique.set(v.x.toFixed(5)+':'+v.z.toFixed(5),v);
+  const solePoints=[...unique.values()],soleCentre=solePoints.reduce((v,p)=>v.add(p),new T.Vector3()).multiplyScalar(1/solePoints.length);
+  solePoints.push(soleCentre.clone());
   batchStatic(leg); leg.userData.noBatch = true;
-  limbs.push({ obj:leg, lower, foot:footJoint, knee, ankle, side, phase:side>0?0:Math.PI, leg:true });
+  limbs.push({ obj:leg, lower, foot:footJoint, knee, ankle, solePoints, soleCentre, side, phase:side>0?0:Math.PI, leg:true });
 }
 
 function createHand(arm, side, m) {
@@ -201,7 +217,7 @@ function torso(frame, m) {
       beam(frame, [side * (width + .09), y + .27, 2], [side * (width + .58), y + .61, .5], .13, m.cable);
     }
     // The shoulder cap sits above the animated arm, with a taller independent pylon.
-    sphere(frame, 1, m.armour, side * 5.93, 44.15, .1, 2.26, 1.85, 2.38);
+    muscle(frame,[side*4.75,45.0,.05],[side*6.35,42.7,.12],2.1,2.36,m.armour);
     mirroredPlate(frame, side, [[-1.42, -2.1], [1.42, -2.1], [1.68, -.15], [1.06, 3.9], [.32, 5.6], [-.89, 4.82], [-1.39, 1.0]], 2.25, m.armour, side * 6.1, 45.8, -.55, .2);
     mirroredPlate(frame, side, [[-.65, -.6], [.77, -.45], [.99, 3.63], [.25, 4.78], [-.59, 4.15]], .26, m.light, side * 6.1, 45.8, .79, .11);
     mirroredPlate(frame, side, [[-.55, 3.57], [.88, 3.19], [.88, 3.77], [.24, 4.64], [-.49, 4.15]], .12, m.trim, side * 6.1, 45.8, .99, .04);

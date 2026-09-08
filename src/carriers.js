@@ -6,7 +6,7 @@ import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
 import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
 import {addCarrierWeapons} from './armaments.js';
-import {terrainHeight,terrainNormal} from './terrain.js';
+import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -119,10 +119,12 @@ export function makeCity(faction,enemy=false,rings=1){
 
 export function animateCity(city,time,moving,populationCount=28){
   if(city.faction==='kaiju')animateTitan(city,time,moving);
-  else city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;
+  else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
   for(const spinner of city.spinners)if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout});
 }
+
+function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}
 
 function animateTitan(city,time,moving){
   const position=city.root.position,previous=city.gaitPrevious;
@@ -131,16 +133,20 @@ function animateTitan(city,time,moving){
   city.gaitPrevious={x:position.x,z:position.z};
   const cycle=(city.gaitDistance??0)/16,phase=cycle*Math.PI*2;
   const sway=moving?Math.sin(phase):Math.sin(time*.65)*.12;
-  city.rig.position.set(sway*.29,moving?-1.65-Math.abs(Math.sin(phase))*.28:-.9,0);
-  city.rig.rotation.set(moving?-.023:-.012,0,sway*.009);
+  const reaction=hitReaction(city,time),lean=(moving?.063:.042)-reaction*.052,roll=sway*.020+reaction*.012;
+  // The chest leans into the load around the hips. Hip transfer and upper-body
+  // counter-roll share that pivot, rather than tilting the creature at its feet.
+  city.rig.position.set(sway*.50+Math.sin(roll)*25.5,(moving?-1.75-Math.abs(Math.sin(phase))*.24:-1.35)+25.5*(1-Math.cos(lean)*Math.cos(roll)),-Math.sin(lean)*Math.cos(roll)*25.5);
+  city.rig.rotation.set(lean,0,roll);
   city.root.updateMatrixWorld(true);
+  const feet=[];
   for(const limb of city.limbs){
     if(!limb.leg){
       const stride=Math.sin(phase+limb.phase),age=time-city.strikeTime;
       let punch=0;
       if(age>=0&&age<.75&&limb.side>0)punch=age<.18?-.25*Math.sin(age/.18*Math.PI):Math.sin((age-.18)/.57*Math.PI)*1.18;
-      limb.obj.rotation.set((moving?stride*.15:Math.sin(time*.65+limb.phase)*.015)-punch,0,limb.side*(.018+(moving?Math.abs(stride)*.018:0)));
-      limb.lower.rotation.x=-.16-(moving?(1-stride)*.06:0)-Math.max(0,punch)*.55;
+      limb.obj.rotation.set((moving?stride*.20:Math.sin(time*.65+limb.phase)*.018)-punch+reaction*.16,-sway*.025,limb.side*(.035+(moving?Math.abs(stride)*.020:0)+reaction*.07));
+      limb.lower.rotation.x=-.22-(moving?(1-stride)*.07:0)-Math.max(0,punch)*.55;
       continue;
     }
     const t=((cycle+(limb.side<0?.5:0))%1+1)%1,stance=t<.62;
@@ -149,17 +155,27 @@ function animateTitan(city,time,moving){
       if(stance)z=4.96-t*16;
       else{const swing=(t-.62)/.38,ease=swing*swing*(3-2*swing);z=-4.96+ease*9.92;lift=Math.sin(swing*Math.PI)*2.3;}
     }
-    // A stance foot moves backwards at exactly the carrier's travelled distance.
-    // Convert terrain contact to rig space before solving, so body sway cannot drag it.
-    const ground=new T.Vector3(limb.side*3.02,0,z);
-    city.root.localToWorld(ground);
+    const ground=new T.Vector3(limb.side*3.02+limb.soleCentre.x,0,z+limb.soleCentre.z);
+    city.root.localToWorld(ground);let facing=city.heading;
     if(moving&&stance){
-      if(limb.plant&&travelled<8){ground.x=limb.plant.x;ground.z=limb.plant.z;}
-      else limb.plant={x:ground.x,z:ground.z};
+      if(limb.plant&&travelled<8){ground.x=limb.plant.x;ground.z=limb.plant.z;facing=limb.plant.facing;}
+      else limb.plant={x:ground.x,z:ground.z,facing};
     }else limb.plant=null;
-    const normal=terrainNormal(ground.x,ground.z),up=new T.Vector3(normal.x,normal.y,normal.z);
-    ground.y=terrainHeight(ground.x,ground.z)+lift*city.scale;
-    ground.addScaledVector(up,2.213*city.scale);
+    const fitted=fitSole(limb,ground,facing,city.scale);
+    fitted.position.y+=lift*city.scale;
+    limb.contact=stance||!moving;limb.contactTarget=fitted.position;
+    feet.push({limb,...fitted});
+  }
+  // The downhill leg sets the maximum hip height. Both leg targets are known
+  // before solving either chain, so idle poses retain the same reach guarantee.
+  let lowerBy=0;
+  for(const {limb,position:target} of feet){
+    const hip=limb.obj.getWorldPosition(new T.Vector3()),upper=new T.Vector3(...limb.knee),lower=new T.Vector3(...limb.ankle).sub(upper);
+    const reach=(upper.length()+lower.length()-.32)*city.scale,horizontal=(hip.x-target.x)**2+(hip.z-target.z)**2;
+    lowerBy=Math.max(lowerBy,hip.y-target.y-Math.sqrt(Math.max(.2,reach*reach-horizontal)));
+  }
+  city.rig.position.y-=lowerBy/city.scale;city.root.updateMatrixWorld(true);
+  for(const {limb,position:ground,rotation:soleRotation} of feet){
     const target=city.rig.worldToLocal(ground.clone()).sub(limb.obj.position);
     const upper=new T.Vector3(...limb.knee),lower=new T.Vector3(...limb.ankle).sub(upper);
     const l1=upper.length(),l2=lower.length(),distance=Math.min(l1+l2-.015,Math.max(1,target.length()));
@@ -171,8 +187,39 @@ function animateTitan(city,time,moving){
     limb.lower.quaternion.setFromUnitVectors(lower.clone().normalize(),shin.normalize());
     city.root.updateMatrixWorld(true);
     const parentRotation=limb.lower.getWorldQuaternion(new T.Quaternion());
-    const soleRotation=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),up).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),city.heading));
     limb.foot.quaternion.copy(parentRotation.invert()).multiply(soleRotation);
-    limb.contact=stance||!moving;limb.contactTarget=ground.clone();
   }
+}
+
+function supportingPlane(points){
+  let best=null;
+  // A rigid sole rests on a supporting triangle whose footprint contains its
+  // centre. Include the centre sample so a low bump cannot pass through the sole.
+  for(let i=0;i<points.length-2;i++)for(let j=i+1;j<points.length-1;j++)for(let k=j+1;k<points.length;k++){
+    const p=points[i],q=points[j],r=points[k],det=(q.x-p.x)*(r.z-p.z)-(r.x-p.x)*(q.z-p.z);
+    if(Math.abs(det)<1e-5)continue;
+    const w0=(q.x*r.z-r.x*q.z)/det,w1=(r.x*p.z-p.x*r.z)/det,w2=(p.x*q.z-q.x*p.z)/det;
+    if(Math.min(w0,w1,w2)<-1e-4)continue;
+    const a=((q.y-p.y)*(r.z-p.z)-(r.y-p.y)*(q.z-p.z))/det,b=((q.x-p.x)*(r.y-p.y)-(r.x-p.x)*(q.y-p.y))/det,c=p.y-a*p.x-b*p.z;
+    if(a*a+b*b>1.5||points.some(v=>a*v.x+b*v.z+c<v.y-.00005))continue;
+    if(!best||c<best.c)best={a,b,c};
+  }
+  if(best)return best;
+  return {a:0,b:0,c:Math.max(...points.map(p=>p.y))};
+}
+
+function fitSole(limb,anchor,facing,scale){
+  const n=terrainNormal(anchor.x,anchor.z),yaw=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),facing);
+  const rotation=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(n.x,n.y,n.z)).multiply(yaw);
+  let centreY=renderedTerrainHeight(anchor.x,anchor.z),samples;
+  for(let iteration=0;iteration<3;iteration++){
+    samples=limb.solePoints.map(p=>{const offset=p.clone().sub(limb.soleCentre).multiplyScalar(scale).applyQuaternion(rotation);return {x:offset.x,z:offset.z,y:renderedTerrainHeight(anchor.x+offset.x,anchor.z+offset.z)};});
+    const fit=supportingPlane(samples),normal=new T.Vector3(-fit.a,1,-fit.b).normalize();
+    rotation.setFromUnitVectors(new T.Vector3(0,1,0),normal).multiply(yaw);centreY=fit.c;
+  }
+  // Final clearance uses the final rotated footprint, not the previous iterate.
+  let adjustment=-Infinity;
+  for(const p of limb.solePoints){const offset=p.clone().sub(limb.soleCentre).multiplyScalar(scale).applyQuaternion(rotation);adjustment=Math.max(adjustment,renderedTerrainHeight(anchor.x+offset.x,anchor.z+offset.z)-centreY-offset.y);}
+  const position=new T.Vector3(anchor.x,centreY+adjustment+.0015,anchor.z).sub(limb.soleCentre.clone().multiplyScalar(scale).applyQuaternion(rotation));
+  return {position,rotation};
 }

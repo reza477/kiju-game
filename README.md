@@ -81,6 +81,8 @@ This game-local behavior does not change the privacy or training settings of the
 
 ## Development
 
+Visual work follows an independent art review gate: a separate critic takes fresh multi-angle screenshots after each builder attempt, scores against the owner's fixed standard, and returns ranked corrections. Passing requires at least 8.5/10 and zero observed errors, with at most four rounds per visual update. See [ART_REVIEW.md](ART_REVIEW.md) for the current results and [AGENTS.md](AGENTS.md) for the workflow. Passing functional tests does not establish AAA art quality.
+
 The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (MIT; see `vendor/LICENSE`). The dependency was downloaded during development; no CDN is used at runtime.
 
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.

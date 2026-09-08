@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial, box, cylinder, cone } from './materials.js';
-import { terrainHeight as heightAt, terrainNormal, protectedResource, riverX, riverWidth, shoreDistance, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
+import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
@@ -20,14 +20,78 @@ function regionAt(x, z) {
     meadow: Math.max(patch(55, 65, 45, 42), patch(-115, -110, 39, 37))
   };
 }
-function quietGroundTexture() {
-  const size = 128, data = new Uint8Array(size * size * 4);
+function groundTexture(data, size, colour = false, repeat = false) {
+  const texture = new T.DataTexture(data, size, size, T.RGBAFormat);
+  texture.colorSpace = colour ? T.SRGBColorSpace : T.NoColorSpace;
+  texture.wrapS = texture.wrapT = repeat ? T.RepeatWrapping : T.ClampToEdgeWrapping;
+  texture.generateMipmaps = true; texture.minFilter = T.LinearMipmapLinearFilter;
+  texture.magFilter = T.LinearFilter; texture.anisotropy = 4; texture.needsUpdate = true;
+  return texture;
+}
+function groundDetail(kind) {
+  const size = 256, data = new Uint8Array(size * size * 4);
+  const periodic = (u, v, cells) => {
+    const x = u * cells, z = v * cells, ix = Math.floor(x), iz = Math.floor(z), tx = smooth(0, 1, x - ix), tz = smooth(0, 1, z - iz);
+    const hash = (a, b) => { const value = Math.sin(((a + cells) % cells) * 127.1 + ((b + cells) % cells) * 311.7) * 43758.5453; return value - Math.floor(value); };
+    return (hash(ix, iz) * (1 - tx) + hash(ix + 1, iz) * tx) * (1 - tz) + (hash(ix, iz + 1) * (1 - tx) + hash(ix + 1, iz + 1) * tx) * tz;
+  };
   for (let z = 0; z < size; z++) for (let x = 0; x < size; x++) {
-    const value = Math.round(232 + noise(x * .071, z * .071) * 14 + noise(x * .36, z * .36) * 4), i = (z * size + x) * 4;
-    data[i] = data[i + 1] = data[i + 2] = value; data[i + 3] = 255;
+    const u = x / size, v = z / size;
+    // Wrapped lattice noise is seamless without an obvious repeated wave or
+    // checker pattern. Each surface has a different grain size and contrast.
+    const grain = periodic(u, v, 97) - .5, middle = periodic(u, v, 31) - .5, broad = periodic(u, v, 7) - .5;
+    let value;
+    if (kind === 'grass') {
+      value = .55 + grain * .32 + middle * .19 + broad * .055;
+    } else if (kind === 'slate') {
+      const flakes = smooth(.53, .66, periodic(u, v, 19));
+      value = .59 + broad * .14 + grain * .21 + middle * .27 - flakes * .13;
+    } else value = .53 + broad * .13 + middle * .30 + grain * .27;
+    const c = Math.round(Math.max(0, Math.min(1, value)) * 255), i = (z * size + x) * 4;
+    data[i] = data[i + 1] = data[i + 2] = c; data[i + 3] = 255;
   }
-  const texture = new T.DataTexture(data, size, size, T.RGBAFormat); texture.colorSpace = T.SRGBColorSpace;
-  texture.wrapS = texture.wrapT = T.RepeatWrapping; texture.repeat.set(56, 56); texture.magFilter = texture.minFilter = T.LinearFilter; texture.needsUpdate = true; return texture;
+  return groundTexture(data, size, false, true);
+}
+function ruinFootprint(x, z) {
+  let footprint = 0;
+  for (const [cx, cz] of [[40, -45], [-110, 90]]) {
+    const dx = Math.abs(x - cx), dz = Math.abs(z - cz);
+    const apron = (1 - smooth(13, 28, dx)) * (1 - smooth(14, 29, dz));
+    const approach = cx < 0 ? (1 - smooth(2, 6, Math.abs(x - cx + (z - cz) * .10))) * smooth(-5, 4, z - cz) * (1 - smooth(27, 40, z - cz)) :
+      (1 - smooth(2, 6, Math.abs(z - cz - (x - cx) * .20))) * smooth(-5, 3, cx - x) * (1 - smooth(17, 30, cx - x));
+    footprint = Math.max(footprint, apron, approach);
+  }
+  return footprint;
+}
+function groundAlbedo() {
+  const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
+  const spacing = 1200 / (size - 1), c = new T.Color();
+  const palette = Object.fromEntries(Object.entries({ grass: 0x5f7847, dry: 0x89935d, meadow: 0x999a63, soil: 0x937c5c, ash: 0x716b5f, slate: 0x89958f, wet: 0x426b55, gravel: 0xafa88b, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
+  for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = heightAt(col * spacing - 600, 600 - row * spacing);
+  for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
+    const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
+    const dx = (heights[row * size + Math.min(size - 1, col + 1)] - heights[row * size + Math.max(0, col - 1)]) / (spacing * 2);
+    const dz = (heights[Math.min(size - 1, row + 1) * size + col] - heights[Math.max(0, row - 1) * size + col]) / (spacing * 2);
+    const slope = Math.hypot(dx, dz), region = regionAt(x, z), d = shoreDistance(x, z);
+    const broad = noise(x * .012 + 14, z * .012 - 8), veins = noise(x * .026 - 2, z * .026 + 9);
+    const ruin = ruinFootprint(x, z), ash = region.ash * .65 + ruin * .35;
+    const mineral = smooth(.21, .52, slope) * smooth(8, 24, y);
+    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36);
+    const bank = smooth(-1, 2, d) * (1 - smooth(5, 11, d));
+    const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
+    c.copy(palette.grass).lerp(palette.dry, smooth(.30, .83, broad) * .7).lerp(palette.meadow, region.meadow * .64);
+    c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
+    c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(8, 22, d)) * (1 - bank) * .55);
+    c.lerp(palette.gravel, bank * .96).lerp(palette.riverbed, 1 - smooth(-3, 1, d));
+    // Geological striations are broad and follow the ridge, without vertex-sized
+    // colour noise. The close detail comes from material-specific tiled textures.
+    c.multiplyScalar(.96 + veins * .07);
+    const hex = c.getHex(), offset = i * 4;
+    colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255; colourData[offset + 3] = 255;
+    const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8));
+    weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255); weightData[offset + 2] = Math.round(soilWeight * 255); weightData[offset + 3] = 255;
+  }
+  return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
 }
 
 function random(seed) { let n = seed >>> 0; return () => { n = (n * 1664525 + 1013904223) >>> 0; return n / 4294967296; }; }
@@ -153,31 +217,40 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
 
 function createGround() {
   const geometry = new T.PlaneGeometry(1200, 1200, 300, 300); geometry.rotateX(-Math.PI / 2);
-  const pos = geometry.attributes.position, colours = [], lush = new T.Color(0x687f54), dry = new T.Color(0x939766), sand = new T.Color(0xb4ab8e), rock = new T.Color(0x9ba49b);
+  const pos = geometry.attributes.position, normals = geometry.attributes.normal, uv = geometry.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i), y = heightAt(x, z), d = shoreDistance(x, z);
-    pos.setY(i, y);
-    const variation = noise(x * .014, z * .014) * .78 + noise(x * .042, z * .042) * .16 + noise(x * .11, z * .11) * .06;
-    const c = lush.clone().lerp(dry, smooth(.40, .78, variation));
-    const region = regionAt(x, z), breakup = .86 + noise(x * .043 + 7, z * .043 - 11) * .14;
-    c.lerp(new T.Color(0xa89972), region.meadow * .68);
-    c.lerp(new T.Color(0x8c7865), region.ash * breakup * .92);
-    c.lerp(new T.Color(0x8c998e), region.slate * breakup * .72);
-    // Dark wet margin, mineral gravel, then green floodplain: a readable bank.
-    c.lerp(new T.Color(0x486659), (1 - smooth(6, 24, d)) * .42);
-    c.lerp(sand, smooth(-1, 2, d) * (1 - smooth(5, 12, d)) * .93);
-    c.lerp(new T.Color(0x435b53), 1 - smooth(-3, 1, d));
-    // Pale weathered ridgelines and darker sheltered meadows make elevation read
-    // from the normal city camera, rather than relying only on cast shadows.
-    const exposedRidge = smooth(15, 31, y) * (.58 + noise(x * .034 + 17, z * .034) * .42);
-    c.lerp(rock, exposedRidge * .84);
-    if (y > 38) c.lerp(new T.Color(0xb4b5a3), smooth(38, 78, y) * .65);
-    c.multiplyScalar(.96 + noise(x * .024, z * .024) * .08); colours.push(c.r, c.g, c.b);
+    const x = terrainGridCoordinate(i % 301), z = terrainGridCoordinate(Math.floor(i / 301));
+    const normal = terrainNormal(x, z);
+    pos.setXYZ(i, x, heightAt(x, z), z); normals.setXYZ(i, normal.x, normal.y, normal.z);
+    uv.setXY(i, (x + 600) / 1200, (600 - z) / 1200);
   }
-  geometry.setAttribute('color', new T.Float32BufferAttribute(colours, 3)); geometry.computeVertexNormals();
-  const material = getMaterial('terrain', 0xffffff, { vertexColors: true, roughness: 1 }).clone();
-  material.map = quietGroundTexture(); material.bumpMap = material.map; material.bumpScale = .006;
+  const surface = groundAlbedo(), grass = groundDetail('grass'), soil = groundDetail('soil'), slate = groundDetail('slate');
+  const material = new T.MeshStandardMaterial({ color: 0xffffff, map: surface.colour, roughness: .98 });
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uGroundWeights = { value: surface.weights };
+    shader.uniforms.uGroundGrass = { value: grass }; shader.uniforms.uGroundSoil = { value: soil }; shader.uniforms.uGroundSlate = { value: slate };
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = position.xz;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec2 vGroundXZ;
+      uniform sampler2D uGroundWeights;
+      uniform sampler2D uGroundGrass;
+      uniform sampler2D uGroundSoil;
+      uniform sampler2D uGroundSlate;
+    `).replace('#include <map_fragment>', `#include <map_fragment>
+      vec2 groundUV = vec2(vGroundXZ.x + 600.0, 600.0 - vGroundXZ.y) / 1200.0;
+      vec3 weights = texture2D(uGroundWeights, groundUV).rgb;
+      vec2 detailUV = vGroundXZ / 8.0;
+      float grassDetail = texture2D(uGroundGrass, detailUV).r;
+      float soilDetail = texture2D(uGroundSoil, detailUV * .81).r;
+      float slateDetail = texture2D(uGroundSlate, detailUV * .65).r;
+      float detail = dot(weights, vec3(grassDetail, slateDetail, soilDetail));
+      diffuseColor.rgb *= .79 + detail * .42;
+    `);
+  };
+  material.customProgramCacheKey = () => 'composed-terrain-v3';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
+  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate];
   return ground;
 }
 function createWater() {
@@ -438,8 +511,12 @@ function composeRegions(trees, shrubs, grass) {
   }
   for(const item of grass.items){
     const region=regionAt(item.x,item.z),bank=shoreDistance(item.x,item.z)<9;
-    if(!bank){const sparse=1-region.ash*.76-region.slate*.25;item.sx*=sparse;item.sy*=sparse;item.sz*=sparse;}
-    const c=new T.Color(item.colour);c.lerp(new T.Color(0x979b7c),region.slate*.6);c.lerp(new T.Color(0xaa9a69),region.meadow*.6);item.colour=c.getHex();
+    if(!bank){
+      const patch=smooth(.34,.66,noise(item.x*.037+17,item.z*.037-3));
+      const sparse=(.12+patch*1.16)*(1-region.ash*.65)*(1-ruinFootprint(item.x,item.z)*.92);
+      item.sx*=sparse;item.sy*=sparse;item.sz*=sparse;
+    }
+    const c=new T.Color(item.colour);c.lerp(new T.Color(0x768768),region.slate*.6);c.lerp(new T.Color(0xaa9a69),region.meadow*.6);item.colour=c.getHex();
   }
 }
 function createSlateLandmark(group, records) {
@@ -536,7 +613,7 @@ export function createLandscape() {
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.lifeCount = life.stats.lifeCount; let actors = [];
   return {
-    group, ground, water, heightAt, stats, crushables: interactions.crushables,
+    group, ground, water, heightAt, surfaceHeightAt: renderedTerrainHeight, stats, crushables: interactions.crushables,
     update(time, delta = 0) { waterTime.value = time; windTime.value = time; life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),

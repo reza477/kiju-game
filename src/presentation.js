@@ -1,5 +1,15 @@
 import * as T from '../vendor/three.module.js';
 
+// r185's five-sample PCF rotates its kernel per screen pixel. Without temporal
+// accumulation that becomes a visible screen-door halo at the Streets camera.
+// Use a fixed, weighted 3x3 hardware-PCF kernel for stable soft contact instead.
+const pcfStart=T.ShaderChunk.shadowmap_pars_fragment.indexOf('float phi = interleavedGradientNoise');
+const pcfEnd=T.ShaderChunk.shadowmap_pars_fragment.indexOf(') * 0.2;',pcfStart)+8;
+if(pcfStart>=0&&pcfEnd>pcfStart){
+  const taps=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)taps.push(`texture(shadowMap,vec3(shadowCoord.xy+vec2(${x}.0,${y}.0)*radius,shadowCoord.z))*${(x===0?2:1)*(y===0?2:1)}.0`);
+  T.ShaderChunk.shadowmap_pars_fragment=T.ShaderChunk.shadowmap_pars_fragment.slice(0,pcfStart)+`shadow=(${taps.join('+')})/16.0;`+T.ShaderChunk.shadowmap_pars_fragment.slice(pcfEnd);
+}
+
 // Local rendering only: depth-based contact shading, subtle highlight bloom, and colour grading.
 export class Presentation {
   constructor(renderer,camera){

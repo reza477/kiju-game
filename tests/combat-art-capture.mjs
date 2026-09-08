@@ -1,0 +1,17 @@
+// Isolated, repeatable ready / firing / contact / recovery capture for reviewers.
+import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';
+const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
+const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/combat-art');await fs.mkdir(out,{recursive:true});
+const browser=await pw.chromium.launch({headless:true,channel:'chrome'}),report={screenshots:[],errors:[],remote:[]};
+try{for(const sequence of ['kaiju','crawler','airship','kaiju-melee']){const faction=sequence.split('-')[0],melee=sequence.endsWith('-melee');
+ const context=await browser.newContext({viewport:{width:1440,height:960}});await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178'||['data:','blob:'].includes(u.protocol))return r.continue();report.remote.push(u.href);return r.abort();});
+ const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>window.__colossus);if(faction!=='kaiju')await page.locator(`[data-faction="${faction}"]`).click();await page.locator('#begin').click();
+ await page.evaluate(async()=>{const {startBattle}=await import('/src/simulation.js');const {state,scene}=window.__colossus;state.x=state.enemies[0].x;state.z=state.enemies[0].z;state.buildings[0]={type:'cannon',level:2,remaining:0,facing:Math.PI/2};startBattle(state,state.enemies[0].id);state.battle.player={x:-20,z:0,angle:0};state.battle.enemy={x:20,z:0,angle:Math.PI};state.battle.autoFire=false;state.battle.enemyReload=999;state.battle.enemyHp=state.battle.enemyMaxHp=5000;state.paused=true;scene.lastMode=null;window.__colossus.advance(0);});await page.waitForTimeout(1400);
+ if(melee){await page.evaluate(()=>{const {state,scene}=window.__colossus;state.battle.player.angle=Math.PI/2;state.battle.enemy.x=2;state.battle.enemy.angle=-Math.PI/2;scene.lastMode=null;window.__colossus.advance(0);});await page.waitForTimeout(1400);}
+ const capture=async name=>{const file=`${sequence}-${name}.png`;await page.screenshot({path:path.join(out,file),style:'#paused-banner,#toast{visibility:hidden!important}'});report.screenshots.push(file);};await capture('ready');
+ await page.locator('#pause').click();await page.locator('#fire').click();await page.waitForTimeout(70);await page.evaluate(()=>window.__colossus.state.paused=true);await capture('firing');
+ await page.evaluate(()=>window.__colossus.state.paused=false);await page.waitForFunction(()=>window.__colossus.scene.fx.some(f=>f.burst?.visible&&f.age>(f.kind==='impact'?.4:.63)&&f.age<1.1));await page.evaluate(()=>window.__colossus.state.paused=true);await capture('contact');
+ await page.evaluate(()=>window.__colossus.state.paused=false);await page.waitForFunction(()=>window.__colossus.scene.fx.length===0);await page.evaluate(()=>window.__colossus.state.paused=true);await capture('recovery');
+ await context.close();console.log(`Captured ${faction} combat sequence.`);
+}}catch(e){report.failure=e.message;process.exitCode=1;}finally{await browser.close();await fs.writeFile(path.join(out,'combat-capture-report.json'),JSON.stringify(report,null,2));}
+console.log(JSON.stringify(report));

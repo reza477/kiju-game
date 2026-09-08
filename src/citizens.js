@@ -130,8 +130,8 @@ function circulate(citizens,time,count,rings){
  for(const lane of traffic.lanes){
   if(!lane.ids.length)continue;
   const requested=lane.ids.map((id,i)=>{
-   const cycle=23+(id%4)*2,phase=((time+id*2.37)%cycle+cycle)%cycle,stop=phase>cycle-1.45;
-   return lane.positions[i]+(stop?0:dt*(.215+(id%5)*.009)/citizens.carrierScale);
+   const cycle=24,phase=((time+id*2.37)%cycle+cycle)%cycle,stop=phase>cycle-1.25;
+   return lane.positions[i]+(stop?0:dt*.235/citizens.carrierScale);
   });
   const gap=Math.min(.40/citizens.carrierScale,lane.length/lane.ids.length*.97);
   for(let pass=0;pass<lane.ids.length;pass++)for(let i=lane.ids.length-1;i>=0;i--){const leader=i===lane.ids.length-1?requested[0]+lane.length:requested[i+1];requested[i]=Math.min(requested[i],leader-gap);}
@@ -195,7 +195,10 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    segment(hip,.414,0,hip,.232,kneeZ,p.skirt?.064:citizens.faction==='airship'?.093:.074,trouser);
    segment(hip,.232,kneeZ,hip,.079+lift,ankleZ,.061,trouser);
    put('shoes',hip,.034+lift,ankleZ+.030,.042,.030,.076,shoe);
-   const armSwing=-swing,elbowZ=.014+armSwing*.044+(route.errand&&side===1?.045:0),handZ=.026+armSwing*.071+(route.errand&&side===1?.077:0),handY=route.errand&&side===1?.477:.381;
+   const activity=p.id%4,gesture=route.errand&&(side===1||activity===2),armSwing=-swing;
+   const elbowZ=.014+armSwing*.044+(gesture?.045:0);
+   const handZ=.026+armSwing*.071+(gesture?(activity===0?.1:activity===1?.055:activity===2?.09:.035):0);
+   const handY=gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
    put('shoulders',shoulder,.605,0,.034,.042,.045,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    segment(side*.114,.498,elbowZ,side*.118,handY+.023,handZ,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
