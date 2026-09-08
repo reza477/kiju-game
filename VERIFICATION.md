@@ -45,4 +45,6 @@ The final gameplay audit and 13 browser smoke checks pass with no browser errors
 
 ## Boundaries
 
+The final independent critic scored the build **6.7/10: failed gate**, using 73 fresh screenshots and six independently rerun contact cases. It resolved the spatial melee mismatch in its own captures and contact audit, but confirmed a separate timing defect: health changes at attack launch while the fist is still winding up or the projectile is still travelling. The hit effect arrives later. This fails the zero-error art gate despite passing the functional checks above; the aesthetic score also remains below 8.5. The fourth review ends this cycle; the remaining defect is documented for a later update rather than followed by a fifth attempt.
+
 This release was checked in Chrome on this Windows PC. These checks do not establish physical iPhone/Safari support, native packaging, stable GPU allocation, or a calibrated frame-rate guarantee. Citizens remain visual agents, plots are fixed, only two kaiju rings and three building levels are available, and combat does not yet simulate terrain occlusion or individual building damage. See README.md for controls and scope.

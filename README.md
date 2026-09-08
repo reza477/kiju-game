@@ -85,6 +85,8 @@ This game-local behavior does not change the privacy or training settings of the
 
 Visual work follows an independent art review gate: a separate critic takes fresh multi-angle screenshots after each builder attempt, scores against the owner's fixed standard, and returns ranked corrections. Passing requires at least 8.5/10 and zero observed errors, with at most four rounds per visual update. See [ART_REVIEW.md](ART_REVIEW.md) for the current results and [AGENTS.md](AGENTS.md) for the workflow. Passing functional tests does not establish AAA art quality.
 
+The first four-round cycle ended at **6.7/10: failed gate** (5.3 → 6.1 → 6.4 → 6.7). The final review observed no runtime errors and one visual defect: target health drops at attack launch, before the visible fist/projectile impact. The physical contact itself is corrected. Further art polish and the timing fix remain future work; the loop stopped at the owner's four-round limit.
+
 The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (MIT; see `vendor/LICENSE`). The dependency was downloaded during development; no CDN is used at runtime.
 
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
@@ -101,6 +103,8 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
 - `node tests/living-world-audit.mjs`: circular expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
 - `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
+- `node tests/art-review-capture.mjs`: normal gameplay views for an independent reviewer; `motion-art-capture.mjs` adds clear level/slope stride diagnostics and `combat-art-capture.mjs` adds ready, firing, contact and recovery captures. The reviewer runs these independently and inspects the images.
+- `node tests/combat-contact-audit.mjs`: live fist-to-surface contact for all three target types at both simulation speeds, including moving targets and no pre-contact melee projectile.
 - `server.mjs`, `Play.ps1`, `Play.cmd`: local server and launcher.
 
 The `?test=1` URL enables `window.__colossus` for local browser verification, exposing state, renderer, and time advancement. This is a development-only opt-in URL. It contacts no services.
