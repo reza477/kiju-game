@@ -1,4 +1,4 @@
-# Colossus Wake — local PC prototype
+# Colossus Wake — PC prototype 0.2
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
 
@@ -36,19 +36,27 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 
 Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Kaiju fists are strongest within 26 metres; Titan rush closes a gap of up to 70 metres. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
+## Graphics update
+
+Version 0.2 replaces the simple block models with a more detailed, stylized city-builder presentation. Districts have textured masonry, layered roofs, windows, balconies, chimneys, gardens, and street furniture. Carriers have articulated limbs, mechanical details, or stitched horizontal lift envelopes. The landscape includes varied forests, planted fields, industrial ruins, a river, and distant terrain. Citizens, propellers, smoke, and water are animated.
+
+Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
+
+Existing version 0.1 saves remain compatible and receive the new graphics when loaded. The title screen shows a developed city as a preview; a new expedition still starts with three districts.
+
 ## What is implemented
 
-- Three playable city types with original low-polygon 3D models: Gothic city on a kaiju backpack, terraced industrial city on tracks, domed floating city between horizontal lift envelopes.
+- Three playable city types with original procedural 3D models: Gothic city on a kaiju backpack, terraced industrial city on tracks, domed floating city between horizontal lift envelopes.
 - Animated creatures, tracks/propellers, and miniature citizens walking city streets.
 - Third-person orbit camera, close city view, strategic world camera and minimap.
 - Twenty buildable district plots, timed construction, three upgrade levels, local food economy and population growth/starvation.
 - Wood, iron and food deposits; city travel, automatic gathering, finite deposit amounts.
 - Separate tactical battle state, three enemy cities, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
-- Local save/resume, optional synthesized audio, pause/speed controls, retro render mode, basic touchscreen layout.
+- Local save/resume, optional synthesized audio, pause/speed controls, three graphics presets, three lighting moods, basic touchscreen layout.
 
 ## Scope of this version
 
-This is a playable browser-based PC prototype, not a finished commercial game or native executable. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or pathfinding. Building placement uses fixed plots. Battles use simplified horizontal movement and range checks; airship altitude is visual. There is one region and three encounter opponents, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. The art uses low-polygon PS2-inspired shapes rather than production character models or full PS2 texture/shader emulation.
+This is a playable browser-based PC prototype, not a finished commercial game or native executable. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or pathfinding. Building placement uses fixed plots. Battles use simplified horizontal movement and range checks; airship altitude is visual. There is one region and three encounter opponents, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. The art is stylized procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
 
 Phone input and responsive UI are included as a starting point. Actual iPhone performance, Safari/WebGL behavior, packaging, touch camera refinements, and App Store distribution remain future work. A native iOS build will require macOS/Xcode and device testing.
 
@@ -63,10 +71,15 @@ This game-local behavior does not change the privacy or training settings of the
 The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (MIT; see `vendor/LICENSE`). The dependency was downloaded during development; no CDN is used at runtime.
 
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
-- `src/scene.js`: procedural models, world, animation, camera, picking, effects.
+- `src/scene.js`: scene integration, camera, picking, shadows, combat effects.
+- `src/architecture.js`, `src/carriers.js`: districts, city carriers, citizens, animation.
+- `src/landscape.js`: terrain, foliage, water, resource sites.
+- `src/materials.js`, `src/presentation.js`: local procedural textures, geometry batching, lighting, postprocessing, atmosphere.
 - `src/main.js`: input, user interface, persistence, local audio.
 - `src/style.css`: desktop and touch layouts.
 - `node --test tests/simulation.test.mjs`: simulation checks.
+- `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
+- `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
 - `server.mjs`, `Play.ps1`, `Play.cmd`: local server and launcher.
 
 The `?test=1` URL enables `window.__colossus` for local browser verification, exposing state, renderer, and time advancement. This is a development-only opt-in URL. It contacts no services.
