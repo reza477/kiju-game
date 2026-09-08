@@ -7,6 +7,7 @@ const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/variants-builder-01');
 const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader']});
 const report={fixture:'1440x960 normal HUD. Existing tick/render/UI functions advance under deterministic clock. Populated upper-ward shots use a labeled late-game building fixture after paid expansion. Only transient pause/toast overlays hidden.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
 const versions={cyborg:'kaiju',flesh:'kaiju',standard:'crawler',drill:'crawler',horizontal:'airship',vertical:'airship'};
+const selected=process.env.VARIANTS?process.env.VARIANTS.split(','):Object.keys(versions);assert.ok(selected.every(v=>versions[v]));report.variants=selected;
 const step=(p,t)=>p.evaluate(t=>window.__reviewStep(t),t);
 async function capture(page,name){
  const data=await page.evaluate(async()=>{const T=await import('/vendor/three.module.js'),{state:s,scene:g}=window.__colossus,c=g.city;
@@ -16,7 +17,7 @@ async function capture(page,name){
  await page.screenshot({path:path.join(out,name+'.png'),style:'#paused-banner,#toast{visibility:hidden!important}'});report.screenshots.push(name+'.png');return data;
 }
 try{
- for(const [variant,faction]of Object.entries(versions)){
+ for(const variant of selected){const faction=versions[variant];
   const context=await browser.newContext({viewport:{width:1440,height:960}});
   await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.origin==='http://127.0.0.1:4178'||['blob:','data:'].includes(u.protocol))return r.continue();report.remote.push(u.href);return r.abort();});
   const page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
@@ -28,6 +29,7 @@ try{
   assert.equal(await page.evaluate(()=>window.__colossus.state.variant),variant);
   if(faction==='kaiju'){await page.locator('[data-view="carrier"]').click();}else await page.evaluate(()=>{const g=window.__colossus.scene;g.pitch=.25;g.zoom=g.city.variant==='vertical'?110:100;});
   await step(page,1.5);await capture(page,variant+'-body');
+  if(faction==='kaiju'){await page.evaluate(()=>window.__colossus.scene.zoom=64);await step(page,1.5);await capture(page,variant+'-body-close');await page.evaluate(()=>window.__colossus.scene.zoom=100);}
   await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;s.paused=false;s.target={x:s.x+10,z:s.z+25};g.setLighting('dusk');});await step(page,.8);const a=await capture(page,variant+'-moving-a');await step(page,.6);const b=await capture(page,variant+'-moving-b');assert.ok(b.time>a.time);
   await page.evaluate(()=>{const s=window.__colossus.state;s.paused=true;s.target=null;});
   await page.locator('[data-view="people"]').click();await step(page,1.5);await capture(page,variant+'-streets');

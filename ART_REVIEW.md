@@ -41,3 +41,7 @@ The first builder attempt passed 40 Node tests, 13 browser smoke checks, the int
 The owner's new reference and six-version request starts a separate cycle with the same fixed global rubric and four-round limit. The latest vertical fortress supersedes the previous circular town. Prior reviews remain unchanged.
 
 The first builder attempt includes the vertical castle with inspectable floors, flesh/cyborg bodies, an elongated drill crawler and the four-upright-balloon city. The new neutral runner captures all six variants, movement pairs, normal HUD, populated upper wards and Streets floors. The critic must take its own fresh captures from the frozen revision. Evidence belongs under `artifacts/critic-variants-XX/`; reports under `art-reviews/variants-XX.md`.
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `fd3e5a4` | [Independent review](art-reviews/variants-01.md) | **FAIL — 6.7/10**, 0 runtime errors; enclosing castle walls obscure floor inspection |

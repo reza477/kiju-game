@@ -70,99 +70,104 @@ function floor(group,tier,deckY,p){
  for(const x of[-3.65,-2.55,2.55,3.65])lancet(group,x,y-1.36,z-5.08,Math.PI,.23,.70,p,(tier+Math.round(x*4))%5===0);
 }
 
-/** A vertically stacked keep. Expansion adds upper floors, never circular land. */
+function steepRoof(group,x,y,z,w,d,h,p){
+ const v=[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,0,d/2],[-w/2,0,d/2],[0,h,-d*.20],[0,h,d*.20]],faces=[[0,4,1],[1,4,5],[1,5,2],[2,5,3],[3,5,4],[3,4,0]],pos=[],uv=[];
+ for(const f of faces)for(const i of f){pos.push(...v[i]);uv.push(v[i][0]/w+.5,v[i][1]/h);}
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();mesh(group,geometry,p.roof,x,y,z);
+ cornice(group,x,y,z,w,d,p);
+ for(const i of[0,1,2,3])beam(group,[x+v[i][0],y,z+v[i][2]],[x,y+h,z+(i<2?-d*.2:d*.2)],.033,p.metal);
+ beam(group,[x,y+h,z-d*.2],[x,y+h,z+d*.2],.06,p.metal);
+ for(const side of[-1,1]){cylinder(group,.026,.065,1.04,p.metal,x,y+h+.50,z+side*d*.2,7);cone(group,.085,.45,p.metal,x,y+h+1.12,z+side*d*.2,6);}
+}
+
+/** The playable wards remain stacked inside unequal exterior castle volumes. */
 export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
  const stage=Math.max(0,Math.min(2,Math.floor(rings))),count=kaijuFloorCount(stage),highest=deckY+(count-1)*KAIJU_FLOOR_SPACING;
- const totalTop=kaijuTowerTop(stage)+(deckY-KAIJU_DECK_Y),coreTop=totalTop-11.3;
- const group=new T.Group();group.name='Vertical Gothic castle backpack';
- const p={wall:M('stone',enemy?0x666873:0x747779),trim:M('stone',0xada79a),edge:M('stone',0x827e76),roof:M('roof',0x503842),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
- const floors=[];
+ const totalTop=kaijuTowerTop(stage)+(deckY-KAIJU_DECK_Y),mainCrown=totalTop-10.8;
+ const group=new T.Group();group.name='Clustered Gothic castle backpack';
+ const p={wall:M('stone',enemy?0x666873:0x747779),trim:M('stone',0xada79a),edge:M('stone',0x827e76),roof:M('roof',0x74483d),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
+ const floors=[],shells=[];
  for(let tier=0;tier<count;tier++){
-  const g=new T.Group();g.name=`Castle floor ${tier+1}`;g.userData.towerTier=tier;g.userData.tier=tier;g.userData.noBatch=true;group.add(g);floors.push(g);floor(g,tier,deckY,p);
-  const bottom=deckY+tier*KAIJU_FLOOR_SPACING,top=tier===count-1?coreTop:bottom+KAIJU_FLOOR_SPACING;
-  // A solid central spine and tall body-facing wall give the castle weight.
-  box(g,2.7,top-bottom,3.0,p.wall,0,(bottom+top)/2,KAIJU_CENTER.z);
-  box(g,3.5,top-bottom,1.15,p.wall,0,(bottom+top)/2,-6.10);
-  for(const x of[-1.28,1.28])box(g,.15,top-bottom,.21,p.trim,x,(bottom+top)/2,KAIJU_CENTER.z-1.49);
-  for(const x of[-1.65,1.65])box(g,.19,top-bottom,1.35,p.edge,x,(bottom+top)/2,-6.10);
-  for(let y=bottom+1.1;y<top-2;y+=3.6){
-   for(const x of[-.65,.65])lancet(g,x,y,KAIJU_CENTER.z-1.52,Math.PI,.38,2.1,p,(tier+Math.round(y)+Math.round(x*8))%7===0);
-   for(const side of[-1,1])lancet(g,side*1.36,y,KAIJU_CENTER.z,side*Math.PI/2,.58,2.3,p,(tier+Math.round(y)+side)%6===1);
-  }
-  cornice(g,0,bottom+.24,KAIJU_CENTER.z,2.7,3,p);
-  // Unequal inhabited side wings carry the stack as a clustered fortress.
-  // Their inner faces stay beyond the outer pedestrian rail and district bays.
-  for(const side of[-1,1]){
-   const x=side*5.69,z=KAIJU_CENTER.z+(side<0?1.45:-1.15),d=side<0?5.9:6.6;
-   const wingTop=highest+(side<0?6.0:3.2),end=Math.min(tier===count-1?wingTop:top,wingTop),h=end-bottom;
-   if(h>0){
-    box(g,.55,h,d,p.wall,x,bottom+h/2,z);cornice(g,x,bottom+.20,z,.57,d,p);
-    for(const dz of[-d/2+.18,0,d/2-.18])box(g,.20,h,.27,p.edge,x+side*.33,bottom+h/2,z+dz);
-    for(let yy=bottom+1.1;yy<end-1.9;yy+=3.5)for(const dz of[-d*.28,d*.28])lancet(g,x+side*.29,yy,z+dz,side*Math.PI/2,.52,2.2,p,(tier+side+Math.round(dz*3))%6===0);
-    if(tier===count-1){
-     cornice(g,x,end,z,.67,d+.1,p);
-     // Narrow steep-roofed pinnacles interrupt the horizontal floor rhythm.
-     for(const dz of[-d*.32,d*.32])roof(g,x,end,z+dz,.48,side<0?4.6:3.7,p);
-    }
-   }
-  }
-  // Partial outward masonry faces leave a wide central view into the wards.
-  // They sit outside the walking loop; the gallery links the solid towers.
-  for(const [side,w,h]of[[-1,1.9,6.0],[1,1.55,4.65]]){
-   const x=side*2.88,z=KAIJU_CENTER.z-5.68,hh=Math.min(h,top-bottom-.45);
-   if(hh<1.4)continue;
-   box(g,w,hh,.42,p.wall,x,bottom+hh*.5,z);cornice(g,x,bottom+hh,z,w,.47,p);
-   for(const xx of[-w*.43,w*.43])box(g,.15,hh,.58,p.edge,x+xx,bottom+hh*.5,z);
-   lancet(g,x,bottom+.85,z-.22,Math.PI,.64,Math.min(2.7,hh-1.2),p,(tier+side)%4===0);
-  }
-  // Four asymmetrical towers grow with the same stack; their shafts remain
-  // outside the balcony circulation, supporting bridges and steep crowns.
-  for(const [i,t]of [[-4.7,-18.1,.77],[4.7,-18.1,.88],[-5.65,-6.35,.57],[5.65,-6.35,.64]].entries()){
-   const towerTop=highest+(i===1?4.3:i===0?3.8:i===3?6.0:4.9);
-   const a=tier===0?deckY-6.7:bottom,b=Math.min(top,towerTop);
-   if(b>a)towerSegment(g,t[0],t[1],t[2],a,b,p,i+tier);
-   if(tier===count-1){
-    if(b<towerTop)towerSegment(g,t[0],t[1],t[2],b,towerTop,p,i+tier);
-    roof(g,t[0],towerTop,t[1],t[2]*1.23,i===1?5.8:i===3?4.3:5.2,p);
-   }
-  }
-  // Front bridge links read as a fortress gallery rather than stacked trays.
-  if(tier===0||tier===count-1||tier===2){
-   bridge(g,-4.7,4.7,-18.1,bottom,p);
-   for(const x of[-4.7,4.7])box(g,.8,.32,1.4,p.wall,x,bottom-.13,-17.4);
-  }
+  const g=new T.Group();g.name=`Castle floor ${tier+1}`;Object.assign(g.userData,{towerTier:tier,tier,noBatch:true});group.add(g);floors.push(g);floor(g,tier,deckY,p);
+  const shell=new T.Group();shell.name=`Exterior shell ${tier+1}`;Object.assign(shell.userData,{inspectionShell:true,towerTier:tier,noBatch:true});g.add(shell);shells.push(shell);
  }
- const base=floors[0],cap=floors.at(-1);
- // Tapered masonry below the lower ward and deep buttress roots carry its load.
- box(base,8.9,3.3,8.9,p.wall,0,deckY-2.16,KAIJU_CENTER.z);
- box(base,7.4,1.7,7.8,p.wall,0,deckY-4.62,KAIJU_CENTER.z);
+ // Every exterior piece is clipped at floor boundaries for reversible inspection.
+ const shellAt=y=>shells[Math.max(0,Math.min(count-1,Math.floor((y-deckY)/KAIJU_FLOOR_SPACING)))];
+ function wallVolume(x,z,w,d,bottom,top,seed,front=true,gunLane=null){
+  for(let tier=0;tier<count;tier++){
+   const lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);if(hi<=lo)continue;
+   const shell=shells[tier],h=hi-lo;
+   if(gunLane===null)box(shell,w,h,d,p.wall,x,(lo+hi)/2,z);
+   else{
+    const floorY=deckY+tier*KAIJU_FLOOR_SPACING,left=gunLane-.84,right=gunLane+.84,low=floorY+.55,high=floorY+3.60;
+    for(const [a,b]of[[x-w/2,left],[right,x+w/2]])if(b>a)box(shell,b-a,h,d,p.wall,(a+b)/2,(lo+hi)/2,z);
+    for(const [a,b]of[[lo,Math.min(hi,low)],[Math.max(lo,high),hi]])if(b>a)box(shell,1.68,b-a,d,p.wall,gunLane,(a+b)/2,z);
+    // Real open gun port: no glass pane or hidden wall across the firing lane.
+    for(const side of[-1,1])box(shell,.13,3.12,d+.12,p.trim,gunLane+side*.91,floorY+2.075,z);
+    box(shell,1.94,.16,d+.2,p.trim,gunLane,floorY+3.70,z);
+   }
+   // Long uninterrupted piers visually join floors into a single inhabited keep.
+   for(const side of[-1,1])box(shell,.22,h,d+.24,p.edge,x+side*(w*.5-.13),(lo+hi)/2,z);
+   const spacing=3.25,start=bottom+1.25;
+   for(let y=start+Math.max(0,Math.ceil((lo-start)/spacing))*spacing;y+2.15<hi+.01;y+=spacing){
+    if(front)for(const xx of(w>3?[-w*.27,w*.27]:[0])){if(gunLane!==null&&Math.abs(x+xx-gunLane)<1.18)continue;lancet(shell,x+xx,y,z-d*.5-.025,Math.PI,w>3?.55:Math.min(.6,w*.42),2.30,p,(seed+Math.round(y/spacing)+Math.round(xx*4))%7===0);}
+    else for(const dz of[-d*.28,d*.28])lancet(shell,x+Math.sign(x)*(w*.5+.025),y,z+dz,Math.sign(x)*Math.PI/2,.54,2.3,p,(seed+Math.round(y/spacing))%7===0);
+   }
+  }
+  cornice(shellAt(top),x,top,z,w+.10,d+.08,p);
+ }
+ // Main outward keep: a broad, offset solid mass with the dominant steep roof.
+ wallVolume(.80,-17.94,6.30,1.12,deckY-4.1,mainCrown,2,true,3.1);
+ steepRoof(shellAt(mainCrown),.8,mainCrown,-17.94,6.48,2.13,9.28,p);
+ // A shorter square gate tower and a narrow rear needle establish hierarchy.
+ const leftCrown=highest+(count>2?-4.3:3.2),rearCrown=highest+2.4;
+ wallVolume(-4.70,-18.04,1.98,1.7,deckY-6.7,leftCrown,4);
+ steepRoof(shellAt(leftCrown+7.9),-4.70,leftCrown,-18.04,2.32,2.13,6.5,p);
+ // The two side wings end at different levels and are offset in plan.
+ const leftWingTop=highest+(count>2?-1.5:5.0),rightWingTop=highest+2.5;
+ wallVolume(-5.86,-11.98,.65,8.30,deckY-.3,leftWingTop,7,false);
+ steepRoof(shellAt(leftWingTop+5.4),-5.86,leftWingTop,-11.98,.96,8.45,4.0,p);
+ wallVolume(5.82,-9.48,.65,6.3,deckY-2.5,rightWingTop,3,false);
+ steepRoof(shellAt(rightWingTop),5.82,rightWingTop,-9.48,.94,6.46,3.1,p);
+ // Body-facing spine is solid but kept wholly behind the resident promenade.
+ const rearTop=Math.max(highest+3,mainCrown-4);
+ wallVolume(0,-6.10,3.50,1.15,deckY-2.5,rearTop,1,false);
+ steepRoof(shellAt(rearTop),0,rearTop,-6.10,3.70,1.85,5.0,p);
+ // Central support remains outside all four district footprints on every floor.
+ for(let tier=0;tier<count;tier++){
+  const y=deckY+tier*KAIJU_FLOOR_SPACING,hi=tier===count-1?highest+2.4:y+KAIJU_FLOOR_SPACING,s=shells[tier];
+  box(s,2.7,hi-y,3,p.wall,0,(y+hi)/2,KAIJU_CENTER.z);
+  for(const side of[-1,1]){box(s,.14,hi-y,.20,p.trim,side*1.28,(y+hi)/2,KAIJU_CENTER.z-1.5);lancet(s,side*.65,y+1,KAIJU_CENTER.z-1.53,Math.PI,.37,2.15,p,tier%4===1);}
+ }
+ // Two deliberately unequal outboard needle shafts, not four repeated columns.
+ for(const [i,t]of [[5.45,-17.98,.69,highest+5.3,5.8],[-5.65,-6.35,.53,rearCrown,4.3]].entries()){
+  const [x,z,r,top,h]=t;
+  for(let tier=0;tier<count;tier++){
+   const bottom=tier?deckY+tier*KAIJU_FLOOR_SPACING:deckY-6.2,end=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);
+   if(end>bottom)towerSegment(shells[tier],x,z,r,bottom,end,p,i+tier);
+  }
+  roof(shellAt(top),x,top,z,r*1.2,h,p);
+ }
+ // Only two gallery crossings mark important levels in the grown fortress.
+ const bridges=count>2?[1,3]:[0];
+ for(const tier of bridges){const y=deckY+tier*KAIJU_FLOOR_SPACING,s=shells[tier];bridge(s,-4.7,-2.25,-18.04,y,p);pointedArch(s,[-4.7,-18.04],[-2.25,-18.04],y-4.2,3.7,p,.19);}
+ // A hanging turret on the short wing echoes the reference's supported annex.
+ const annexY=highest+(count>2?-8.4:-2.5),annex=shellAt(annexY+7.1);
+ towerSegment(annex,-5.70,-6.4,.60,annexY-4.1,annexY+1.8,p,4);roof(annex,-5.70,annexY+1.8,-6.4,.78,3.5,p);
+ pointedArch(annex,[-5.70,-6.4],[-1.8,-6.4],annexY-1.4,2.3,p,.18);
+ const base=floors[0];
+ box(base,8.9,3.3,8.9,p.wall,0,deckY-2.16,KAIJU_CENTER.z);box(base,7.4,1.7,7.8,p.wall,0,deckY-4.62,KAIJU_CENTER.z);
  for(const x of[-3.6,3.6]){
-  box(base,.48,5.5,8.7,p.edge,x,deckY-3.6,KAIJU_CENTER.z);
-  beam(base,[x,deckY-5.9,-8],[x,deckY-.6,-6.75],.22,p.metal);
+  box(base,.48,5.5,8.7,p.edge,x,deckY-3.6,KAIJU_CENTER.z);beam(base,[x,deckY-5.9,-8],[x,deckY-.6,-6.75],.22,p.metal);
   for(const z of[-16.2,-7.8])cone(base,.46,3.5,p.roof,x,deckY-7.1,z,8).rotation.z=Math.PI;
  }
  for(const x of[-2.8,0,2.8])lancet(base,x,deckY-3.3,-16.49,Math.PI,.52,2.3,p,x===0);
- // The principal clustered keep has a much steeper, taller roof than a town.
- cornice(cap,0,coreTop,KAIJU_CENTER.z,2.9,3.15,p);
- roof(cap,0,coreTop,KAIJU_CENTER.z,1.35,9.55,p);
- const rearRoofY=Math.max(highest+3,Math.min(coreTop-3,highest+8.8));
- if(rearRoofY>coreTop)box(cap,3.5,rearRoofY-coreTop,1.15,p.wall,0,(rearRoofY+coreTop)/2,-6.1);
- roof(cap,0,rearRoofY,-6.1,1.78,5.6,p);
- for(const side of[-1,1]){
-  const y=coreTop-3.7;
-  towerSegment(cap,side*1.75,KAIJU_CENTER.z,.31,y-3.1,y+.2,p,side,false);roof(cap,side*1.75,y+.2,KAIJU_CENTER.z,.42,3.8,p);
-  // Flying stone ribs stand behind the wards and tie the outboard turrets in.
-  pointedArch(cap,[side*1.8,-6.1],[side*5.65,-6.35],highest+1.3,3.4,p,.17);
+ // Long banners accent the larger masonry masses, without marking every floor.
+ for(const tier of new Set([count>2?1:0,count-1])){
+  const s=shells[tier],y=deckY+tier*KAIJU_FLOOR_SPACING+1.4;
+  box(s,.72,3.8,.06,M('fabric',enemy?0x814846:0x5d3043),.8,y+1.9,-18.56);box(s,.92,.085,.18,p.metal,.8,y+3.85,-18.56);
  }
- // Banners, dormer openings and ridge caps break up the large masonry planes.
- for(let tier=0;tier<count;tier++){
-  const y=deckY+tier*KAIJU_FLOOR_SPACING,g=floors[tier];
-  for(const side of[-1,1]){
-   const banner=box(g,.46,2.7,.055,M('fabric',enemy?0x814846:0x5d3043),side*1.02,y+2.0,KAIJU_CENTER.z-1.61);
-   box(g,.50,.065,.16,p.metal,banner.position.x,y+3.38,banner.position.z);
-  }
- }
- for(const g of floors)batchStatic(g);
- group.userData.rings=stage;group.userData.deckY=deckY;group.userData.floorCount=count;group.userData.surfaceLevels=kaijuWalkFloors(stage).map(f=>deckY+f.y+f.surfaceOffset);group.userData.buildableSlots=RING_SLOTS.slice(0,stage+1).flat().length;group.userData.towerTop=totalTop;group.userData.footprint={width:13.02,depth:15.12};
+ for(const shell of shells)batchStatic(shell);for(const g of floors)batchStatic(g);
+ Object.assign(group.userData,{rings:stage,deckY,floorCount:count,surfaceLevels:kaijuWalkFloors(stage).map(f=>deckY+f.y+f.surfaceOffset),buildableSlots:RING_SLOTS.slice(0,stage+1).flat().length,towerTop:totalTop,footprint:{width:13.02,depth:15.12}});
  return group;
 }

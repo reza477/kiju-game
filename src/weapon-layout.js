@@ -14,6 +14,12 @@ export function defaultFacing(faction,slot){
   const p=batteryPosition(faction,slot);return normalizeAngle(Math.atan2(p.x,p.z));
 }
 export const facingOf=(faction,slot,b)=>Number.isFinite(b?.facing)?b.facing:defaultFacing(faction,slot);
+function crossesCarrier(start,end,min,max){
+  let near=0,far=1;
+  for(const axis of ['x','y','z']){const delta=end[axis]-start[axis];if(Math.abs(delta)<1e-8){if(start[axis]<min[axis]||start[axis]>max[axis])return false;continue;}
+    let a=(min[axis]-start[axis])/delta,b=(max[axis]-start[axis])/delta;if(a>b)[a,b]=[b,a];near=Math.max(near,a);far=Math.min(far,b);if(near>far)return false;}
+  return far>.01&&near<1;
+}
 export function batterySolution(state,slot,attacker,target,range){
   const building=state.buildings[slot],p=batteryPosition(state.faction,slot,state.variant),a=attacker.angle;
   const world={x:attacker.x+Math.cos(a)*p.x+Math.sin(a)*p.z,z:attacker.z-Math.sin(a)*p.x+Math.cos(a)*p.z};
@@ -24,11 +30,12 @@ export function batterySolution(state,slot,attacker,target,range){
   const localDirection={x:Math.sin(worldBearing),z:Math.cos(worldBearing)};
   const scale=state.faction==='kaiju'?KAIJU_SCALE:1;
   let blocker=null;
+  const targetHeight=state.battle?.enemyFaction==='kaiju'?17.5:state.battle?.enemyFaction==='airship'?18:10;
+  if(state.faction==='kaiju'&&crossesCarrier({x:p.x,y:p.y+1.8*scale,z:p.z},{x:p.x+localDirection.x*d,y:targetHeight,z:p.z+localDirection.z*d},{x:-5*scale,y:24*scale,z:-3.7*scale},{x:5*scale,y:51*scale,z:3.2*scale}))blocker='carrier';
   if(state.faction!=='airship')for(let i=0;i<state.buildings.length;i++){
     const other=state.buildings[i];if(i===slot||!other||other.remaining>0||!['keep','housing','foundry','sawmill'].includes(other.type))continue;
     const q=batteryPosition(state.faction,i,state.variant),vx=q.x-p.x,vz=q.z-p.z;
     const along=vx*localDirection.x+vz*localDirection.z,across=Math.abs(vx*localDirection.z-vz*localDirection.x);
-    const targetHeight=state.battle?.enemyFaction==='kaiju'?17.5:state.battle?.enemyFaction==='airship'?18:10;
     const shotHeight=p.y+1.8*scale+(targetHeight-p.y-1.8*scale)*along/Math.max(1,d);
     const top=q.y+Math.min(state.faction==='kaiju'?7.2:20,3.8+other.level*1.6)*scale;
     if(along>.75*scale&&along<d&&across<1.1*scale&&shotHeight>q.y&&shotHeight<top){blocker=i;break;}

@@ -156,11 +156,11 @@ export class GameScene {
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='tower';this.view=view;
     if(prior!==view)this.cinematic.transition(view);
-    this.zoom=view==='world'?250:view==='people'?11:backpack?(view==='carrier'?100:this.preview?112:this.city.rings>1?66:52):this.preview?105:this.city.variant==='vertical'?108:this.city.variant==='drill'?98:76;
+    this.zoom=view==='world'?250:view==='people'?(backpack?9:11):backpack?(view==='carrier'?100:this.preview?112:this.city.rings>1?66:52):this.preview?105:this.city.variant==='vertical'?108:this.city.variant==='drill'?98:76;
     const backpackPitch=(view==='carrier'||this.preview)?.24:.28;
-    this.pitch=view==='world'?.88:view==='people'?(backpack?.18:.38):backpack?backpackPitch:.6;
+    this.pitch=view==='world'?.88:view==='people'?(backpack?.52:.38):backpack?backpackPitch:.6;
     if(backpack&&view==='carrier')this.yaw=this.state.angle+.75;
-    else if(backpack&&view==='people')this.yaw=this.state.angle+2.35;
+    else if(backpack&&view==='people')this.yaw=this.state.angle+Math.PI;
     else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
     else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
   }
@@ -264,7 +264,7 @@ export class GameScene {
     const battle=s.mode==='battle';let focus,desiredZoom=this.zoom;
     const cutaway=this.city.layout==='tower'&&this.view==='people'&&!battle&&!this.preview;
     this.city.inspectedFloor=cutaway?this.towerTier:undefined;
-    this.city.rig.traverse(o=>{if(Number.isInteger(o.userData.towerTier))o.visible=!cutaway||o.userData.towerTier<=this.towerTier;});
+    this.city.rig.traverse(o=>{if(Number.isInteger(o.userData.towerTier))o.visible=!cutaway||(o.userData.towerTier<=this.towerTier&&!(o.userData.inspectionShell&&o.userData.towerTier===this.towerTier));});
     const actors=[];
     if(battle){
       const b=s.battle;placeCity(this.city,b.player.x,b.player.z,b.player.angle);
@@ -289,7 +289,7 @@ export class GameScene {
       if(tower&&!this.preview&&this.view==='city')focus=this.city.rig.localToWorld(new T.Vector3(0,towerMiddle,KAIJU_CENTER.z));
       if(this.view==='people'){
         const floor=kaijuWalkFloors(this.city.rings??1)[Math.min(this.towerTier??0,kaijuFloorCount(this.city.rings??1)-1)];
-        focus=this.city.rig.localToWorld(new T.Vector3(tower?-3.3:1.525,this.city.deckY+(tower?floor.y:0)+.7,tower?KAIJU_CENTER.z-4.8:3.55));
+        focus=this.city.rig.localToWorld(new T.Vector3(tower?0:1.525,this.city.deckY+(tower?floor.y:0)+.85,tower?KAIJU_CENTER.z-3.2:3.55));
       }
       for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;placeCity(city,enemy.x,enemy.z,-.8);animateCity(city,s.time,false);animateWeapons(city,null,s.time);}
       animateWeapons(this.city,null,s.time);

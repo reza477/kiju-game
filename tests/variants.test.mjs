@@ -51,3 +51,10 @@ test('the ground drill uses real ranged attacks against airborne rivals',()=>{
   const before=b.enemyHp;tick(s,.25);tick(s,.25);assert.equal(b.enemyHp,before);tick(s,.05);assert.equal(b.enemyHp,before-89);
  }
 });
+test('low castle guns cannot fire through the titan, while upper guns can clear its shoulders',()=>{
+ const s=createGame('kaiju');s.buildings.fill(null);s.rings=2;
+ for(const slot of [13,18])s.buildings[slot]={type:'cannon',level:1,remaining:0,facing:0};
+ const low=batterySolution(s,13,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,18,{x:0,z:0,angle:0},{x:0,z:45},54);
+ assert.equal(low.blocker,'carrier');assert.equal(low.active,false);assert.equal(high.blocker,null);assert.equal(high.active,true);
+ s.buildings[13].facing=Math.PI;const rear=batterySolution(s,13,{x:0,z:0,angle:0},{x:0,z:-45},54);assert.equal(rear.blocker,null);assert.ok(rear.active);
+});

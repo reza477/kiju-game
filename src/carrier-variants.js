@@ -23,19 +23,21 @@ export function createCrawlerDrill(frame,rig,spinners){
   for(let i=0;i<3;i++){const a=i/3*TAU,r=3.7,rod=cylinder(hinge,.24,.24,1,cutting,Math.cos(a)*r,Math.sin(a)*r,-.6,16);rod.rotation.x=Math.PI/2;rod.userData.noBatch=true;pistons.push(rod);}
   const shaft=cylinder(hinge,2.95,2.95,1,steel,0,0,-.6,32);shaft.rotation.x=Math.PI/2;shaft.userData.noBatch=true;
   const drill=new T.Group();drill.name='Rotating spiral excavation drill';drill.userData.noBatch=true;hinge.add(drill);
-  const core=cone(drill,4.5,10.8,iron,0,0,5.4,48);core.rotation.x=Math.PI/2;
+  const core=cone(drill,3.45,10.8,dark,0,0,5.4,48);core.rotation.x=Math.PI/2;
   const positions=[],uvs=[],indices=[],segments=196;
   for(let i=0;i<=segments;i++){
-    const t=i/segments,a=t*TAU*3.15,outer=5.08*(1-t)+.25,inner=4.42*(1-t)+.15,z=.20+t*10.8;
+    const t=i/segments,a=t*TAU*2.15,outer=5.08*(1-t)+.25,inner=3.40*(1-t)+.10,z=.20+t*10.8;
     for(const [radius,dz]of [[inner,-.16],[outer,-.16],[outer,.16],[inner,.16]]){positions.push(Math.cos(a)*radius,Math.sin(a)*radius,z+dz);uvs.push(t*12,radius===outer?1:0);}
     if(i<segments)for(let edge=0;edge<4;edge++){const a=i*4+edge,b=i*4+(edge+1)%4,c=a+4,d=b+4;indices.push(a,b,c,b,d,c);}
   }
   indices.push(0,2,1,0,3,2);const end=segments*4;indices.push(end,end+1,end+2,end,end+2,end+3);
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();
-  const flight=new T.Mesh(geometry,steel);flight.name='Continuous helical cutting flight';flight.castShadow=flight.receiveShadow=true;drill.add(flight);
+  const flight=new T.Mesh(geometry,m('metal',0xb7beb1,{roughness:.65,metalness:.2}));flight.name='Continuous helical cutting flight';flight.castShadow=flight.receiveShadow=true;drill.add(flight);
+  const edge=Array.from({length:97},(_,i)=>{const t=i/96,a=t*TAU*2.15,r=5.08*(1-t)+.25;return new T.Vector3(Math.cos(a)*r,Math.sin(a)*r,.20+t*10.8);});
+  tube(drill,edge,.065,m('metal',0xd0c7a4,{roughness:.55,metalness:.25}));
   // Replaceable carbide teeth follow the actual helix, making its direction legible.
-  for(let i=0;i<38;i++){
-    const t=.025+i/38*.94,a=t*TAU*3.15,r=5.08*(1-t)+.30,z=.20+t*10.8;
+  for(let i=0;i<26;i++){
+    const t=.025+i/26*.94,a=t*TAU*2.15,r=5.08*(1-t)+.30,z=.20+t*10.8;
     const tooth=box(drill,.48,.28,.53,cutting,Math.cos(a)*r,Math.sin(a)*r,z+.14);tooth.rotation.z=a;tooth.rotation.y=.28;
   }
   const nose=cone(drill,.61,1.9,cutting,0,0,11.6,20);nose.rotation.x=Math.PI/2;
