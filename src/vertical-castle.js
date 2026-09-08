@@ -28,7 +28,7 @@ function palette(enemy){
    `);
   };m.customProgramCacheKey=()=> 'vertical-fortress-weather-v1';materialCache.set(key,m);return m;
  };
- return {wall:stone(enemy?0x87928e:0x92978f,'nave'),foundation:stone(0x677577,'foundation'),edge:stone(0x82918e,'buttresses'),trim:getMaterial('plaster',0xb0ad9f),roof:getMaterial('roof',0x75463f),dark:getMaterial('metal',0x303c41),metal:getMaterial('metal',0x6f736f),paving:getMaterial('pavement',0x85877f),walk:getMaterial('pavement',0xa29e8d),glass:getMaterial('glass',0x617781),light:getMaterial('window',0xb0bfae),wood:getMaterial('wood',0x947455),copper:getMaterial('copper',0x658b7c),garden:getMaterial('foliage',0x526545),banner:getMaterial('fabric',enemy?0x7f4446:0x552c40)};
+ return {wall:stone(enemy?0x87928e:0x92978f,'nave'),foundation:stone(0x677577,'foundation'),recess:stone(0x6f8180,'recessed spine'),chamber:stone(0xa9a699,'dressed chambers'),gardenStone:stone(0x87978a,'garden chambers'),industry:getMaterial('brick',0x907c6d),edge:stone(0x82918e,'buttresses'),trim:getMaterial('plaster',0xb0ad9f),roof:getMaterial('roof',0x75463f),dark:getMaterial('metal',0x303c41),metal:getMaterial('metal',0x6f736f),paving:getMaterial('pavement',0x85877f),walk:getMaterial('pavement',0xa29e8d),glass:getMaterial('glass',0x617781),light:getMaterial('window',0xb0bfae),wood:getMaterial('wood',0x947455),copper:getMaterial('copper',0x658b7c),garden:getMaterial('foliage',0x526545),banner:getMaterial('fabric',enemy?0x7f4446:0x552c40)};
 }
 
 function bounds(vertices){
@@ -276,6 +276,37 @@ export function verticalCastleDescriptors(layout,deckY=34){
   block('crown-gallery',topTier,'wall',-1.20,roofY+1.43,CENTRE_Z-1.45,2.52,1.25,1.78);
   roof('crown-gallery-roof',topTier,-1.20,roofY+2.08,CENTRE_Z-1.45,2.77,2.06,1.72);
   arch('gallery-support',topTier,'trim',-1.20,roofY+.02,CENTRE_Z-2.24,2.15,1.1,.14,.27);
+ }
+ // Major architectural chapters change actual wall depth, not just a trim
+ // colour. The centre, all occupied floor elevations and complete promenade
+ // stay fixed. Alternate four-storey galleries recess beyond the walking
+ // envelope; larger dressed chambers above are supported by a flared corbel.
+ const insetTier=tier=>Math.floor(tier/4)%2===1;
+ const recessedCoordinate=(value,centre,protectedHalf)=>{const offset=value-centre,extent=Math.abs(offset);return extent<=protectedHalf?value:centre+Math.sign(offset)*(protectedHalf+(extent-protectedHalf)*.42);};
+ for(const d of out){
+  const f=floors[d.tier],inset=insetTier(d.tier),wall=d.material==='wall';
+  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.48),y,recessedCoordinate(z,CENTRE_Z,4.07)]);
+  if(wall)d.material=inset?'recess':d.tier>=8?'chamber':d.tier<2?'foundation':'wall';
+  if(d.id.startsWith('vertical:front-cheek:')||d.id.startsWith('vertical:apse-pier:')){
+   if(['sawmill','foundry'].includes(f.type))d.material='industry';
+   else if(f.type==='cannon')d.material='metal';
+   else if(f.type==='farm')d.material='gardenStone';
+   else if(f.type==='keep')d.material='chamber';
+  }
+  if(f.type==='farm'&&d.id.startsWith('vertical:choir-frame:'))d.material='copper';
+ }
+ for(const f of floors){
+  if(f.tier<8||f.tier%8!==0||f.underConstruction&&!f.upgrading)continue;
+  const y=deckY+f.y;
+  // Genuine tapered stone corbels carry the wider upper chamber back into
+  // the recessed chapter below, outside the residents' protected corridor.
+  for(const side of[-1,1])for(const dz of[-4.63,4.63]){
+   const vertices=[];
+   for(const[yy,x0,x1,z0,z1]of[[y-.87,3.42,3.78,dz<0?-4.50:4.25,dz<0?-4.25:4.50],[y-.16,3.50,4.26,dz-.36,dz+.36]]){
+    for(const[x,z]of[[x0,z0],[x1,z0],[x1,z1],[x0,z1]])vertices.push([side*x,yy,CENTRE_Z+z]);
+   }
+   add(`chapter-corbel:${f.tier}:${side}:${dz}`,f.tier,'edge',{vertices,faces:side<0?BOX_FACES.map(a=>[...a].reverse()):BOX_FACES});
+  }
  }
  return cachePut(descriptorCache,key,out);
 }

@@ -74,3 +74,22 @@ test('lower-storey upgrade preserves old wall heights and exposes only the added
  assert.ok(staging.every(s=>Math.min(...s.vertices.map(v=>v[1]))>=34+3.6));
  assert.ok(!tier.some(s=>s.id.includes('unfinished-side')));assert.ok(d.some(s=>s.id==='vertical:cathedral-crown'),'A lower upgrade keeps the upper crown intact');
 });
+
+test('major chapters recess real masonry while every promenade retains conservative body clearance',()=>{
+ const l=layout(20),d=verticalCastleDescriptors(l),solids=verticalCastleSolids(l),extent=id=>Math.max(...d.find(s=>s.id===id).vertices.map(v=>Math.abs(v[0])));
+ assert.ok(extent('vertical:floor:4')<extent('vertical:floor:0')-.35,'Recesses must change real massing');
+ assert.ok(extent('vertical:floor:8')>extent('vertical:floor:4')+.20,'An upper occupied chamber establishes another structural stage');
+ assert.ok(d.some(s=>s.id.includes('chapter-corbel:8')));assert.ok(d.some(s=>s.material==='recess'));assert.ok(d.some(s=>s.material==='industry'));assert.ok(d.some(s=>s.material==='gardenStone'));
+ // A 0.55m local body envelope is deliberately wider than the citizens'
+ // shoulders/capes after the kaiju's .55 world scale. Probe at four body heights
+ // around the entire walking centreline, including corners and side spines.
+ for(const tier of[4,5,7,8,12,15,16]){
+  const f=l.floors[tier],walls=solids.filter(s=>s.max[1]>=34+f.y+.25&&s.min[1]<=34+f.y+1.55);
+  for(const[x,z]of[[-3,-15.7],[0,-15.7],[3,-15.7],[3,-13.48],[3,-12],[3,-10.52],[3,-8.3],[0,-8.3],[-3,-8.3],[-3,-10.52],[-3,-12],[-3,-13.48]]){
+   for(const yOffset of[.25,.65,1.05,1.5])for(let side=0;side<16;side++){
+    const angle=side*Math.PI/8,y=34+f.y+yOffset,hits=rayHits(walls,[x,y,z],[x+Math.sin(angle)*.55,y,z+Math.cos(angle)*.55]);
+    assert.deepEqual(hits,[],`Body envelope clips masonry: tier${tier},${x},${z},height${yOffset},direction${side}`);
+   }
+  }
+ }
+});
