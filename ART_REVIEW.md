@@ -7,8 +7,9 @@ The owner clarified that only the cyborg castle backpack should be half-height. 
 | Round | Builder revision | Independent review | Result |
 |---|---|---|---|
 | 1 | `f050917` | [Independent review](art-reviews/compact-castle-01.md) | **FAIL — 7.7/10** (weighted 7.650), zero confirmed concrete errors in 28 fresh HUD views |
+| 2 | `9e4b72d` | [Final independent review](art-reviews/compact-castle-02.md) | **AAA FAIL — 7.7/10** (weighted 7.650), zero confirmed concrete errors in 28 fresh HUD views; scoped correction resolved |
 
-Round 1 verifies the requested height, unchanged robot and flesh control, upward additions and preserved saves. The scoped revision is to adapt the small saw and entrance details to the compact interior, keeping natural-sized people and work tables. The whole-game AAA gate remains unmet; see [functional verification](COMPACT_CASTLE_VERIFICATION.md).
+Round 1 verifies the requested height, unchanged robot and flesh control, upward additions and preserved saves. Round 2 resolves the small saw and entrance proportions while keeping natural-sized people and work tables. The critic identifies no further actionable height-adjustment issue, concluding this bounded change after two reviews within the four-round maximum. The whole-game AAA gate remains unmet because of inherited architecture, terrain and character limitations; see [functional verification](COMPACT_CASTLE_VERIFICATION.md).
 
 ## Actual vertical Gothic construction — prototype 0.8
 
