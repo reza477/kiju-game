@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {KAIJU_CENTER,kaijuRingRadius} from './city-layout.js';
+import {KAIJU_CENTER,kaijuRingRadius,kaijuWalkFloors} from './city-layout.js';
 import {getLightingPreset} from './lighting.js';
 
 /** Fixed light pool for the two currently important cities. No shadow maps. */
@@ -34,14 +34,24 @@ export class CityLighting {
   }
 
   assign(slot,city){
-    if(slot.city===city&&slot.rings===(city?.rings??-1))return;
-    slot.city=city;slot.rings=city?.rings??-1;slot.rig.removeFromParent();
+    const floor=city?.layout==='tower'?(city.inspectedFloor??-1):-1;
+    if(slot.city===city&&slot.rings===(city?.rings??-1)&&slot.floor===floor)return;
+    slot.city=city;slot.rings=city?.rings??-1;slot.floor=floor;slot.rig.removeFromParent();
     if(!city)return;
     city.rig.add(slot.rig);slot.rig.position.set(0,city.deckY,0);
-    const circular=city.faction==='kaiju',keep=city.slotPositions[7],angle=keep.rotation??0;
+    const circular=city.faction==='kaiju',tower=city.layout==='tower',keep=city.slotPositions[7],angle=keep.rotation??0;
     // Beside the immutable keep, outside its footprint and on the public path.
-    slot.lamps[0].group.position.set(keep.x+Math.cos(angle)*1.49+Math.sin(angle)*1.68,0,keep.z-Math.sin(angle)*1.49+Math.cos(angle)*1.68);
-    if(circular){
+    slot.lamps[0].group.position.set(keep.x+Math.cos(angle)*1.49+Math.sin(angle)*1.68,keep.y??0,keep.z-Math.sin(angle)*1.49+Math.cos(angle)*1.68);
+    if(tower){
+      const floors=kaijuWalkFloors(city.rings??1),active=floors[Math.max(0,Math.min(floors.length-1,floor<0?floors.length-1:floor))];
+      slot.lamps[0].group.position.y+=active.surfaceOffset;
+      slot.lamps[1].group.position.set(4.62,active.y+active.surfaceOffset,KAIJU_CENTER.z-4);
+      slot.lamps[1].group.userData.towerTier=active.tier;
+      // The search lantern is fixed to the body-facing masonry, above the
+      // lower floor and outside the supported pedestrian promenade.
+      slot.search.position.set(0,3.5,-5.49);slot.targetMarker.position.set(0,42.5-city.deckY,-2.75);
+      this.direction.copy(slot.targetMarker.position).sub(slot.search.position).normalize();slot.search.quaternion.setFromUnitVectors(this.up,this.direction);
+    }else if(circular){
       const radius=kaijuRingRadius(city.rings??1),sectors=(city.rings??1)>1?13:6,a=Math.PI+Math.PI/sectors;
       slot.lamps[1].group.position.set(Math.sin(a)*(radius-.37),0,KAIJU_CENTER.z+Math.cos(a)*(radius-.37));
       // Small fixture stands on the parapet, outside every build plot. Its
@@ -72,6 +82,6 @@ export class CityLighting {
     }
   }
 
-  reset(){for(const slot of this.slots){slot.rig.removeFromParent();slot.city=null;slot.rings=-1;for(const light of slot.points)light.intensity=0;slot.spot.intensity=0;}}
+  reset(){for(const slot of this.slots){slot.rig.removeFromParent();slot.city=null;slot.rings=-1;slot.floor=-1;for(const light of slot.points)light.intensity=0;slot.spot.intensity=0;}}
   dispose(){this.reset();for(const slot of this.slots){for(const light of slot.points){light.removeFromParent();light.dispose();}slot.spot.removeFromParent();slot.spot.target.removeFromParent();slot.spot.dispose();}for(const geometry of this.geometries)geometry.dispose();this.metal.dispose();this.glow.dispose();}
 }

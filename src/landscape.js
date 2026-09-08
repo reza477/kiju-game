@@ -659,8 +659,9 @@ function createWorldInteractions(group, records) {
         const key = actor.id || actor.faction, previous = previousActors.get(key) || { x: actor.x, z: actor.z, stampX: actor.x, stampZ: actor.z, foot: 0 };
         const distance = Math.hypot(actor.x - previous.x, actor.z - previous.z), scale = Math.max(.1, actor.scale || 1);
         const tank = actor.faction === 'crawler', canCrush = actor.faction === 'kaiju' || tank;
+        const footprint=actor.footprintScale??{x:1,z:1},drill=actor.variant==='drill';
         if (actor.moving && canCrush && delta > 0 && distance > .005 && distance < 70) {
-          const radius = (tank ? 16 : 8) * scale, minX = Math.floor((Math.min(previous.x, actor.x) - radius) / 24), maxX = Math.floor((Math.max(previous.x, actor.x) + radius) / 24);
+          const radius = (drill?34:tank?16*Math.max(footprint.x,footprint.z):8) * scale, minX = Math.floor((Math.min(previous.x, actor.x) - radius) / 24), maxX = Math.floor((Math.max(previous.x, actor.x) + radius) / 24);
           const minZ = Math.floor((Math.min(previous.z, actor.z) - radius) / 24), maxZ = Math.floor((Math.max(previous.z, actor.z) + radius) / 24), angle = actor.angle || 0;
           const sin = Math.sin(angle), cos = Math.cos(angle), dx = actor.x - previous.x, dz = actor.z - previous.z, length2 = dx * dx + dz * dz;
           for (let cx = minX; cx <= maxX; cx++) for (let cz = minZ; cz <= maxZ; cz++) for (const record of cells.get(`${cx},${cz}`) || []) {
@@ -668,7 +669,9 @@ function createWorldInteractions(group, records) {
             const t = length2 ? T.MathUtils.clamp(((record.x - previous.x) * dx + (record.z - previous.z) * dz) / length2, 0, 1) : 1;
             const rx = record.x - previous.x - dx * t, rz = record.z - previous.z - dz * t;
             const lateral = rx * cos - rz * sin, forward = rx * sin + rz * cos;
-            if (Math.abs(lateral) < (tank ? 10.6 : 5.1) * scale + record.size * .3 && Math.abs(forward) < (tank ? 12.1 : 4.2) * scale + record.size * .3) crush(record, angle + Math.sin(record.x) * .35, true);
+            const underHull=Math.abs(lateral)<(tank?10.6*footprint.x:5.1)*scale+record.size*.3&&Math.abs(forward)<(tank?12.1*footprint.z:4.2)*scale+record.size*.3;
+            const underDrill=drill&&forward>15*scale&&forward<33.8*scale&&Math.abs(lateral)<Math.max(.2,(33.8-forward/scale)/18.8*4.3)*scale+record.size*.3;
+            if(underHull||underDrill)crush(record,angle+Math.sin(record.x)*.35,true);
           }
           const trailDistance = Math.hypot(actor.x - previous.stampX, actor.z - previous.stampZ), interval = (tank ? 2.7 : 5.3) * scale;
           const steps = Math.min(32, Math.floor(trailDistance / interval));
@@ -676,7 +679,7 @@ function createWorldInteractions(group, records) {
             const vx = (actor.x - previous.stampX) / trailDistance, vz = (actor.z - previous.stampZ) / trailDistance;
             for (let i = 1; i <= steps; i++) {
               const x = previous.stampX + vx * interval * i, z = previous.stampZ + vz * interval * i;
-              if (tank) for (const side of [-1, 1]) stamp(true, x + cos * side * 8.6 * scale, z - sin * side * 8.6 * scale, angle, scale);
+              if (tank) for (const side of [-1, 1]) stamp(true, x + cos * side * 8.6 * scale*footprint.x, z - sin * side * 8.6 * scale*footprint.x, angle, scale*footprint.x);
               else { const side = previous.foot++ % 2 ? 1 : -1; stamp(false, x + cos * side * 2.8 * scale, z - sin * side * 2.8 * scale, angle, scale); }
             }
             previous.stampX += vx * interval * steps; previous.stampZ += vz * interval * steps;

@@ -17,3 +17,12 @@ body.in-streets .build-tray,body.in-streets .objective,body.in-streets .journal,
 .utility{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 20px)}
 @media(min-width:851px){.control-hint{left:20px;transform:none;gap:10px}.control-hint>span:nth-child(3),.control-hint>span:nth-child(4){display:none}}
 @media(max-width:540px){.utility{left:10px;right:10px;gap:3px;justify-content:space-between}.utility button{padding:6px 5px;font-size:8px}}
+/* Carrier identity and vertical-city inspection controls. */
+.variant-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.variant-options button{padding:11px 14px;text-align:left;background:#1b302ded;border-radius:3px}
+.variant-options button.active{border-color:var(--gold);background:#354b3deb}
+.variant-options span{display:block;font:16px Georgia,serif}
+.variant-options small{display:block;margin-top:4px;color:#afc0aa;font-size:9px}
+.tower-floor-control{display:block;margin-top:12px;font-size:10px;color:#d4bf8e}
+.tower-floor-control select{display:block;width:100%;margin-top:6px;padding:8px 5px;border:1px solid #d4cbab55;background:#253c33;color:#efe7d4;font:11px 'Segoe UI',sans-serif}
+@media(max-width:540px){.variant-options span{font-size:13px}.variant-options button{padding:9px}.variant-options small{font-size:8px}.tower-floor-control select{font-size:9px}}

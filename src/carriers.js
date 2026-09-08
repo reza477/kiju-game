@@ -7,11 +7,13 @@ import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
 import {addCarrierWeapons} from './armaments.js';
 import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
+import {normalizeVariant,variantFootprint} from './variants.js';
+import {createCrawlerDrill,createVerticalEnvelopes} from './carrier-variants.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
 function ring(group,r,tube,material,x,y,z,rotation=0){const o=new T.Mesh(new T.TorusGeometry(r,tube,8,32),material);o.position.set(x,y,z);o.rotation.y=rotation;o.castShadow=true;group.add(o);return o;}
-function crawler(frame,rig,spinners){
+function crawler(frame,rig,spinners,variant){
   const armour=m('metal',0x42565f),steel=m('metal',0x778587),dark=m('metal',0x283e47),brass=m('gold',0xad8c52);
   box(frame,18,3.2,23,armour,0,4.5,0);box(frame,16.5,1.7,21,steel,0,6.6,-.2);
   for(let side of [-1,1]){
@@ -40,19 +42,23 @@ function crawler(frame,rig,spinners){
   box(frame,18.3,1.35,20.7,m('brick',0x8f6151),0,8.85,0);
   for(const side of [-1,1])for(let z=-8;z<=8;z+=1.45){box(frame,.06,.67,.62,m('window'),side*9.2,8.9,z);box(frame,.15,.09,.8,brass,side*9.2,8.46,z);}
   for(let x=-7.5;x<=7.5;x+=1.5){box(frame,.62,.67,.07,m('window'),x,8.9,10.4);box(frame,.8,.1,.18,m('stone',0xc0b4a0),x,8.46,10.43);}
-  const prow=box(frame,13,2.3,2.1,steel,0,3.2,12.1);prow.rotation.x=-.27;
-  for(let x=-6;x<=6;x+=1.4){cone(frame,.54,2.2,dark,x,2.1,13.6,4).rotation.x=Math.PI/2;box(frame,.08,2.2,2.2,brass,x,3.8,12.2);}
+  if(variant!=='drill'){
+    const prow=box(frame,13,2.3,2.1,steel,0,3.2,12.1);prow.rotation.x=-.27;
+    for(let x=-6;x<=6;x+=1.4){cone(frame,.54,2.2,dark,x,2.1,13.6,4).rotation.x=Math.PI/2;box(frame,.08,2.2,2.2,brass,x,3.8,12.2);}
+  }
   for(const side of [-1,1]){
     const lamp=sphere(frame,.3,m('window',0xffda91),side*7,5.9,11.65,1,1,.4);
     ring(frame,.37,.065,brass,side*7,5.9,11.7);
   }
+  return variant==='drill'?createCrawlerDrill(frame,rig,spinners):{};
 }
 
-function airship(frame,rig,spinners){
+function airship(frame,rig,spinners,variant){
   const brass=m('gold',0xc09d61),wood=m('wood',0x725445),cloth=m('fabric',0xe2d4b1),teal=m('copper',0x538f8e);
   sphere(frame,1,wood,0,15.2,0,9,2.4,11);box(frame,17,.5,18.5,brass,0,17.3,0);
-  for(const side of [-1,1])for(const z of [-6.8,6.6]){
-    sphere(frame,1,cloth,side*13.2,19.4,z,3.2,3.1,7.5);
+  const envelopes=variant==='vertical'?createVerticalEnvelopes(frame):[];
+  if(variant!=='vertical')for(const side of [-1,1])for(const z of [-6.8,6.6]){
+    const envelope=sphere(frame,1,cloth,side*13.2,19.4,z,3.2,3.1,7.5);envelope.name=`Horizontal airship envelope ${envelopes.length+1}`;envelope.userData.carrierEnvelope='horizontal';envelope.userData.noBatch=true;envelopes.push(envelope);
     for(let t=-2;t<=2;t++){
       const off=t*2.4,rad=3.15*Math.sqrt(1-off*off/56.25);const band=ring(frame,rad,.065,brass,side*13.2,19.4,z+off);band.scale.y=.98;
     }
@@ -75,6 +81,7 @@ function airship(frame,rig,spinners){
     for(let z=-7;z<=7;z+=2.5){sphere(frame,.4,m('window',0xffd58c),side*8.3,15.8,z,.6,.85,.6);beam(frame,[side*8.3,17,z],[side*8.3,16,z],.045,brass);}
   }
   for(let z=-7;z<=7;z+=3.5)beam(frame,[-8,16.8,z],[8,16.8,z],.14,brass);
+  return{envelopes};
 }
 
 export function setCityRings(city,rings){
@@ -83,14 +90,15 @@ export function setCityRings(city,rings){
   city.foundation=createCastleBackpack(city.deckY,city.enemy,rings);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;
 }
 
-export function makeCity(faction,enemy=false,rings=1){
+export function makeCity(faction,enemy=false,rings=1,variant){
+  variant=normalizeVariant(faction,variant);
   const root=new T.Group(),rig=new T.Group(),frame=new T.Group();root.add(rig);rig.add(frame);
-  const deckY=faction==='airship'?18:faction==='crawler'?10:KAIJU_DECK_Y,limbs=[],spinners=[],scale=faction==='kaiju'?KAIJU_SCALE:1;
-  root.scale.setScalar(scale);
+  const deckY=faction==='airship'?18:faction==='crawler'?10:KAIJU_DECK_Y,limbs=[],spinners=[],scale=faction==='kaiju'?KAIJU_SCALE:1,footprintScale=variantFootprint(faction,variant);
+  root.scale.setScalar(scale);rig.scale.set(footprintScale.x,1,footprintScale.z);let variantParts={};
   if(faction==='kaiju'){
-    createHumanoidKaiju(frame,rig,limbs);
+    createHumanoidKaiju(frame,rig,limbs,variant);
   }else{
-    if(faction==='crawler')crawler(frame,rig,spinners);else airship(frame,rig,spinners);
+    variantParts=faction==='crawler'?crawler(frame,rig,spinners,variant):airship(frame,rig,spinners,variant);
     const edge=m('stone',faction==='airship'?0xcdbb93:0x9eaaa3),metal=m('metal',0x45595c);
     box(frame,17.3,.75,18.1,metal,0,deckY-.5,0);box(frame,17.5,.2,18.3,edge,0,deckY-.04,0);
     box(frame,16.5,.09,17.2,m('pavement',0x7f918c),0,deckY+.1,0);
@@ -112,8 +120,8 @@ export function makeCity(faction,enemy=false,rings=1){
   const hitGroup=new T.Group();hitGroup.position.y=deckY;rig.add(hitGroup);
   const slots=[],slotPositions=Array.from({length:20},(_,i)=>slotPosition(i,faction)),hitMaterial=new T.MeshBasicMaterial({visible:false});
   for(let i=0;i<20;i++){const p=slotPositions[i];const hit=new T.Mesh(new T.BoxGeometry(2.8,1,3.4),hitMaterial);hit.position.set(p.x,p.y+.5,p.z);hit.userData.slot=i;hit.userData.noBatch=true;hitGroup.add(hit);slots.push(hit);}
-  const layout=faction==='kaiju'?'circular':'deck';
-  const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
+  const layout=faction==='kaiju'?'tower':'deck';
+  const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,variant,footprintScale,drill:variantParts.drill??null,drillTip:variantParts.tip??null,drillHinge:variantParts.hinge??null,drillShaft:variantParts.shaft??null,drillPistons:variantParts.pistons??[],envelopes:variantParts.envelopes??[],enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
   city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
@@ -121,12 +129,42 @@ export function makeCity(faction,enemy=false,rings=1){
 export function animateCity(city,time,moving,populationCount=28){
   if(city.faction==='kaiju')animateTitan(city,time,moving);
   else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
-  for(const spinner of city.spinners)if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
-  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout});
+  const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;
+  for(const spinner of city.spinners){
+    if(spinner.drill){
+      const strikeAge=time-city.strikeTime,attacking=(strikeAge>=0&&strikeAge<1.3)||[...(city.baseWeapons??[]),...(city.batteries??[])].some(weapon=>time-weapon.firedAt>=0&&time-weapon.firedAt<.75);
+      spinner.angle+=dt*(attacking?13.0:moving?spinner.speed:0);spinner.obj.rotation[spinner.axis]=spinner.angle;
+      city.drillPhase=attacking?'attack':moving?'boring':'idle';
+    }else if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
+  }
+  if(city.drillHinge)animateDrillContact(city,time);
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,visibleFloor:city.inspectedFloor});
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}
 function ease(a,b,value){const t=T.MathUtils.clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);}
+
+function animateDrillContact(city,time){
+  const age=time-city.strikeTime,contact=city.strikeContactTime??.7,end=city.strikeDuration??1.3;
+  const active=age>=0&&age<end&&city.strikeTarget?.isVector3,hinge=city.drillHinge;
+  let yaw=0,pitch=0,extension=0;
+  if(active){
+    city.root.updateMatrixWorld(true);
+    // Solve in rig coordinates so the elongated chassis and terrain tilt are
+    // included. The metal cutting cone stays rigid; only its powered mount moves.
+    const target=city.rig.worldToLocal(city.strikeTarget.clone()).sub(hinge.position);
+    yaw=T.MathUtils.clamp(Math.atan2(target.x,target.z),-.32,.32);
+    pitch=T.MathUtils.clamp(Math.atan2(target.y,Math.hypot(target.x,target.z)),-.50,.50);
+    extension=T.MathUtils.clamp(target.length()-12.55,-1.4,5.0);
+    const weight=ease(.12,contact,age)*(1-ease(contact+.22,end,age));
+    yaw*=weight;pitch*=weight;extension*=weight;
+  }
+  hinge.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch)));
+  city.drill.position.z=extension;
+  for(const shaft of [city.drillShaft,...city.drillPistons]){shaft.scale.y=Math.max(.12,extension+1.2);shaft.position.z=(extension-1.2)/2;}
+  city.root.updateMatrixWorld(true);
+  city.drillContact={yaw,pitch,extension,error:active?city.drillTip.getWorldPosition(new T.Vector3()).distanceTo(city.strikeTarget):null};
+}
 
 function strikeMotion(city,time){
   const age=time-city.strikeTime,contact=city.strikeContactTime??.7,end=city.strikeDuration??1.3;
@@ -136,7 +174,8 @@ function strikeMotion(city,time){
   if(city.strikePose?.time!==city.strikeTime){
     city.root.updateMatrixWorld(true);
     const arm=city.limbs.find(l=>!l.leg&&l.side>0),shoulder=arm.obj.getWorldPosition(new T.Vector3()),target=city.strikeTarget;
-    const drop=T.MathUtils.clamp(shoulder.y-target.y-8.2,.5,4.5),reach=(arm.lower.position.length()+arm.handVector.length())*city.scale;
+    const groundStrike=target.y<city.root.position.y+6.5;
+    const drop=T.MathUtils.clamp(shoulder.y-target.y-8.2,.5,groundStrike?8.5:4.5),reach=(arm.lower.position.length()+arm.handVector.length())*city.scale;
     const horizontal=Math.hypot(target.x-shoulder.x,target.z-shoulder.z),vertical=Math.max(0,shoulder.y-target.y-drop);
     const advance=T.MathUtils.clamp(horizontal-Math.sqrt(Math.max(1,reach*reach-vertical*vertical))+.6,.75,2.7);
     const forward=new T.Vector3(Math.sin(city.heading),0,Math.cos(city.heading));

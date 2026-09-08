@@ -7,7 +7,7 @@ import {createLandscape,createResourceSite} from './landscape.js';
 import {Presentation,Atmosphere,createSky,setSkyLighting} from './presentation.js';
 import {getLightingPreset} from './lighting.js';
 import {CityLighting} from './city-lighting.js';
-import {KAIJU_CENTER,kaijuRingRadius} from './city-layout.js';
+import {KAIJU_CENTER,kaijuRingRadius,kaijuFloorCount,kaijuWalkFloors,kaijuTowerTop} from './city-layout.js';
 import {terrainHeight,terrainNormal} from './terrain.js';
 import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armaments.js';
 import {facingOf,batteryArc} from './weapon-layout.js';
@@ -27,12 +27,13 @@ function updateDistricts(city,buildings,rings=2){
   disposeGroup(city.districts);disposeGroup(city.plots);city.districts.clear();city.plots.clear();city.districtStacks=[];city.batteries=[];
   buildings.forEach((b,i)=>{
     const p=city.slotPositions[i],hit=city.slots[i];
-    hit.userData.locked=city.layout==='circular'&&p.ring>rings;hit.rotation.y=p.rotation??0;
+    hit.userData.locked=city.faction==='kaiju'&&p.ring>rings;hit.rotation.y=p.rotation??0;
     if(hit.userData.locked)return;
-    if(!b){const vacant=createVacantPlot(city.faction,i);vacant.position.set(p.x,p.y+.13,p.z);vacant.rotation.y=p.rotation??0;city.plots.add(vacant);hit.scale.y=.24;hit.position.y=p.y+.12;return;}
+    if(!b){const vacant=createVacantPlot(city.faction,i);vacant.position.set(p.x,p.y+.13,p.z);vacant.rotation.y=p.rotation??0;if(city.layout==='tower'){vacant.userData.noBatch=true;vacant.userData.towerTier=p.tier;batchStatic(vacant);}city.plots.add(vacant);hit.scale.y=.24;hit.position.y=p.y+.12;return;}
     const district=b.type==='cannon'?createBattery(city.faction,b.level,facingOf(city.faction,i,b),i):createDistrict(b.type,b.level,city.faction);
     if(b.type==='cannon')city.batteries.push(district.weapon);else district.rotation.y=p.rotation??0;
-    const bounds=new T.Box3().setFromObject(district);const h=Math.max(1,bounds.max.y);
+    const bounds=new T.Box3().setFromObject(district);let h=Math.max(1,bounds.max.y);
+    if(city.layout==='tower'&&p.tier<kaijuFloorCount(rings)-1&&h>7.1){district.scale.y*=7.1/h;h=7.1;}
     district.position.set(p.x,p.y+.18,p.z);hit.scale.y=h+.18;hit.position.y=p.y+(h+.18)/2;
     district.traverse(o=>{if(o.userData.smokestack)city.districtStacks.push(o);});
     if(b.remaining>0){
@@ -41,6 +42,7 @@ function updateDistricts(city,buildings,rings=2){
       for(const x of [-1.35,1.35])for(const z of [-1.58,1.58])beam(district,[x,0,z],[x,h*2,z],.045,metal);
       for(let y=1.5;y<h*2;y+=1.6){box(district,2.9,.08,.3,wood,0,y,1.53);box(district,.3,.08,3.25,wood,1.35,y,0);beam(district,[-1.35,y,1.58],[1.35,y+1.6,1.58],.027,metal);}
     }
+    if(city.layout==='tower'){district.userData.noBatch=true;district.userData.towerTier=p.tier;batchStatic(district);}
     city.districts.add(district);
   });
   batchStatic(city.districts);batchStatic(city.plots);
@@ -51,8 +53,9 @@ function placeCity(city,x,z,angle){
   if(city.faction==='crawler'){
     const sin=Math.sin(angle),cos=Math.cos(angle);let height=0,dx=0,dz=0;
     // Fit the chassis to its tread footprint instead of the terrain at one point.
-    for(const side of [-9,9])for(const along of [-9,0,9]){const h=terrainHeight(x+cos*side+sin*along,z-sin*side+cos*along);height+=h;dx+=side*h;dz+=along*h;}
-    dx/=486;dz/=324;const up=new T.Vector3(-cos*dx-sin*dz,1,sin*dx-cos*dz).normalize(),forward=new T.Vector3(sin,0,cos);
+    const fp=city.footprintScale??{x:1,z:1};
+    for(const rawSide of [-9,9])for(const rawAlong of [-9,0,9]){const side=rawSide*fp.x,along=rawAlong*fp.z,h=terrainHeight(x+cos*side+sin*along,z-sin*side+cos*along);height+=h;dx+=side*h;dz+=along*h;}
+    dx/=486*fp.x*fp.x;dz/=324*fp.z*fp.z;const up=new T.Vector3(-cos*dx-sin*dz,1,sin*dx-cos*dz).normalize(),forward=new T.Vector3(sin,0,cos);
     city.root.position.y=height/6-.5*up.y;
     const right=new T.Vector3().crossVectors(up,forward).normalize();forward.crossVectors(right,up).normalize();
     city.root.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
@@ -62,10 +65,19 @@ function placeCity(city,x,z,angle){
 
 function impactAnchor(source,target,start,melee){
   target.root.updateMatrixWorld(true);
+  if(melee&&(target.drillTip||source.drillTip)){
+    const ray=new T.Raycaster(),aims=[];
+    if(target.drillTip){const tip=target.drillTip.getWorldPosition(new T.Vector3()),mount=target.drill.getWorldPosition(new T.Vector3());aims.push(tip.clone().lerp(mount,.09),tip.clone().lerp(mount,.2));}
+    else if(target.faction==='kaiju')for(const x of[-3,3])for(const y of[6,10,15])aims.push(target.rig.localToWorld(new T.Vector3(x,y,1)));
+    else for(const y of[4,6,8])aims.push(target.rig.localToWorld(new T.Vector3(0,y,0)));
+    let nearest=null;
+    for(const aim of aims){ray.set(start,aim.clone().sub(start).normalize());const hit=ray.intersectObject(target.root,true).find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}const m=h.object.material;return m&&!Array.isArray(m)&&m.visible&&!(m.transparent&&m.opacity<.2)&&!h.object.userData.enemy&&h.object.userData.slot===undefined;});if(hit&&(!nearest||hit.distance<nearest.distance))nearest=hit;}
+    if(nearest)return {object:nearest.object,local:nearest.object.worldToLocal(nearest.point.clone()),point:nearest.point};
+  }
   const origin=start.clone(),centre=target.root.getWorldPosition(new T.Vector3()),heading=centre.clone().sub(source.root.position);heading.y=0;heading.normalize();
   const right=new T.Vector3(heading.z,0,-heading.x),width=target.faction==='kaiju'?1.4:6;
   const lateral=T.MathUtils.clamp(start.clone().sub(source.root.position).dot(right),-width,width);
-  const heights=target.faction==='kaiju'?[32,35,28]:melee?[target.deckY+1.5,target.deckY+.65,target.deckY+3,target.deckY-.5,target.deckY-1]:[target.deckY-1,target.deckY-2,target.deckY+.5];
+  const heights=target.variant==='drill'&&melee?[5.45,6.5,8.5]:target.faction==='kaiju'?[32,35,28]:melee?[target.deckY+1.5,target.deckY+.65,target.deckY+3,target.deckY-.5,target.deckY-1]:[target.deckY-1,target.deckY-2,target.deckY+.5];
   const ray=new T.Raycaster();let closest=null;
   for(const height of heights){
     const aim=target.root.localToWorld(new T.Vector3(0,height,0));if(melee){aim.addScaledVector(right,lateral);origin.y=aim.y;}
@@ -124,17 +136,17 @@ export class GameScene {
     for(const city of this.enemyCities){city.root.removeFromParent();disposeGroup(city.root);}
     for(const site of this.labels){site.removeFromParent();disposeGroup(site);}
     for(const fx of this.fx){fx.object.removeFromParent();disposeGroup(fx.object);}this.fx=[];
-    this.city=makeCity(s.faction,false,s.rings??1);this.scene.add(this.city.root);this.state=s;this.preview=!!options.preview;this.previewDistricts=previewBuildings();
-    this.cinematic.reset();this.cameraShot=null;this.cameraPrevious.set(s.x,0,s.z);this.lastFootfall=null;
+    this.city=makeCity(s.faction,false,s.rings??1,s.variant);this.scene.add(this.city.root);this.state=s;this.preview=!!options.preview;this.previewDistricts=previewBuildings();
+    this.cinematic.reset();this.cameraShot=null;this.towerTier=0;this.cameraPrevious.set(s.x,0,s.z);this.lastFootfall=null;
     updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1);
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
-    const ghost=new T.Mesh(new T.RingGeometry(kaijuRingRadius(1),kaijuRingRadius(2),72),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,side:T.DoubleSide,wireframe:true}));ghost.rotation.x=-Math.PI/2;ghost.position.set(KAIJU_CENTER.x,this.city.deckY+.08,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
+    const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
     this.enemyCities=[];this.labels=[];this.pickables=[];
     for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);}
     for(const e of s.enemies){
-      const city=makeCity(e.faction,true,2);const sample=previewBuildings();sample[2]={type:'cannon',level:1,remaining:0};
+      const city=makeCity(e.faction,true,2,e.variant);const sample=previewBuildings();sample[2]={type:'cannon',level:1,remaining:0};
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
-      const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,e.faction==='kaiju'?56:34,e.faction==='kaiju'?34:26),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?28:15,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
+      const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,e.faction==='kaiju'?82:e.variant==='vertical'?45:34,e.faction==='kaiju'?34:e.variant==='drill'?52:32),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?40:20,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
       this.scene.add(city.root);this.enemyCities.push(city);
     }
     this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
@@ -142,16 +154,18 @@ export class GameScene {
   }
 
   setView(view){
-    const prior=this.view,backpack=this.city?.layout==='circular';this.view=view;
+    const prior=this.view,backpack=this.city?.layout==='tower';this.view=view;
     if(prior!==view)this.cinematic.transition(view);
-    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?34:22):this.preview?80:76;
-    const backpackPitch=(view==='carrier'||this.preview)?.25:.60;
-    this.pitch=view==='world'?.88:view==='people'?.38:backpack?backpackPitch:.6;
+    this.zoom=view==='world'?250:view==='people'?11:backpack?(view==='carrier'?100:this.preview?112:this.city.rings>1?66:52):this.preview?105:this.city.variant==='vertical'?108:this.city.variant==='drill'?98:76;
+    const backpackPitch=(view==='carrier'||this.preview)?.24:.28;
+    this.pitch=view==='world'?.88:view==='people'?(backpack?.18:.38):backpack?backpackPitch:.6;
     if(backpack&&view==='carrier')this.yaw=this.state.angle+.75;
     else if(backpack&&view==='people')this.yaw=this.state.angle+2.35;
     else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
     else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
   }
+
+  setTowerFloor(tier){this.towerTier=T.MathUtils.clamp(tier,0,kaijuFloorCount(this.city.rings??1)-1);this.cinematic.manual();this.cameraShot=null;}
 
   setCameraMode(mode){this.cinematic.setMode(mode);this.cameraShot=null;}
 
@@ -211,7 +225,7 @@ export class GameScene {
 
   pick(x,y){
     const r=this.canvas.getBoundingClientRect();this.pointer.set((x-r.left)/r.width*2-1,-(y-r.top)/r.height*2+1);this.ray.setFromCamera(this.pointer,this.camera);
-    const list=this.state.mode==='battle'?[this.ground]:[...this.city.slots.filter(h=>!h.userData.locked),...this.enemyCities.filter(c=>c.root.visible).map(c=>c.enemyProxy),...this.pickables,this.ground];
+    const list=this.state.mode==='battle'?[this.ground]:[...this.city.slots.filter(h=>!h.userData.locked&&(this.city.inspectedFloor===undefined||this.city.slotPositions[h.userData.slot].tier<=this.city.inspectedFloor)),...this.enemyCities.filter(c=>c.root.visible).map(c=>c.enemyProxy),...this.pickables,this.ground];
     for(const hit of this.ray.intersectObjects(list,true)){const d=hit.object.userData;if(d.slot!==undefined){this.onSelect({slot:d.slot});return;}if(d.enemy){this.onSelect({enemy:d.enemy});return;}if(d.node){this.onSelect({node:d.node});return;}if(d.ground){this.onSelect({ground:{x:hit.point.x,z:hit.point.z}});return;}}
   }
 
@@ -244,9 +258,13 @@ export class GameScene {
   }
 
   update(s,dt,selectedSlot){
-    this.state=s;updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1);
+    const priorFloors=this.city.rings;this.state=s;updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1);
+    if(!this.preview&&this.city.layout==='tower'&&this.city.rings>priorFloors&&this.view==='city')this.zoom=Math.max(this.zoom,66);
     this.city.expansionGhost.visible=!this.preview&&s.faction==='kaiju'&&!!s.ringConstruction;
     const battle=s.mode==='battle';let focus,desiredZoom=this.zoom;
+    const cutaway=this.city.layout==='tower'&&this.view==='people'&&!battle&&!this.preview;
+    this.city.inspectedFloor=cutaway?this.towerTier:undefined;
+    this.city.rig.traverse(o=>{if(Number.isInteger(o.userData.towerTier))o.visible=!cutaway||o.userData.towerTier<=this.towerTier;});
     const actors=[];
     if(battle){
       const b=s.battle;placeCity(this.city,b.player.x,b.player.z,b.player.angle);
@@ -261,25 +279,31 @@ export class GameScene {
       focus=new T.Vector3(cx,(this.city.root.position.y+enemy.root.position.y)/2+14,cz);desiredZoom=Math.max(112,distance(b.player,b.enemy)*1.02+66)*(this.battleZoomFactor??1);
       if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+2.1;this.pitch=.4;this.lastEvent=0;this.focus.copy(focus);this.snapCamera=true;this.cinematic.transition('battle');}
       for(const event of b.events){if(event.id<=this.lastEvent)continue;this.lastEvent=event.id;if(b.time-event.time<1.1)this.createEffect(event);}
-      actors.push({id:'player',faction:s.faction,...b.player,moving:!b.result,scale:this.city.scale},{id:enemy.id,faction:enemy.faction,...b.enemy,moving:!b.result,scale:enemy.scale});
+      actors.push({id:'player',faction:s.faction,...b.player,moving:!b.result,scale:this.city.scale,footprintScale:this.city.footprintScale,variant:this.city.variant},{id:enemy.id,faction:enemy.faction,...b.enemy,moving:!b.result,scale:enemy.scale,footprintScale:enemy.footprintScale,variant:enemy.variant});
     }else{
       placeCity(this.city,s.x,s.z,s.angle);
-      const circular=this.city.layout==='circular',offset=circular&&this.view!=='world'?(this.view==='carrier'?-2:KAIJU_CENTER.z*this.city.scale):0;
-      focus=new T.Vector3(s.x+Math.sin(s.angle)*offset,terrainHeight(s.x,s.z)+(this.view==='world'?1:this.view==='carrier'?15:this.city.deckY*this.city.scale+1.2),s.z+Math.cos(s.angle)*offset);
-      if(this.view==='people'){focus=this.city.rig.localToWorld(new T.Vector3(circular?0:1.525,this.city.deckY+.7,circular?KAIJU_CENTER.z-2.55:3.55));}
+      const tower=this.city.layout==='tower',offset=tower&&this.view!=='world'?(this.view==='carrier'?-2:KAIJU_CENTER.z*this.city.scale):0;
+      const towerTop=kaijuTowerTop(this.city.rings??1),towerMiddle=(this.city.deckY+towerTop)*.5;
+      const focusY=this.view==='world'?1:this.view==='carrier'||this.preview?(tower?towerTop*this.city.scale*.5:18):tower?towerMiddle*this.city.scale:this.city.deckY+1.2;
+      focus=new T.Vector3(s.x+Math.sin(s.angle)*offset,terrainHeight(s.x,s.z)+focusY,s.z+Math.cos(s.angle)*offset);
+      if(tower&&!this.preview&&this.view==='city')focus=this.city.rig.localToWorld(new T.Vector3(0,towerMiddle,KAIJU_CENTER.z));
+      if(this.view==='people'){
+        const floor=kaijuWalkFloors(this.city.rings??1)[Math.min(this.towerTier??0,kaijuFloorCount(this.city.rings??1)-1)];
+        focus=this.city.rig.localToWorld(new T.Vector3(tower?-3.3:1.525,this.city.deckY+(tower?floor.y:0)+.7,tower?KAIJU_CENTER.z-4.8:3.55));
+      }
       for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;placeCity(city,enemy.x,enemy.z,-.8);animateCity(city,s.time,false);animateWeapons(city,null,s.time);}
       animateWeapons(this.city,null,s.time);
       if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.focus.copy(focus);this.snapCamera=true;this.cinematic.reset();}
-      actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale});
+      actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale,footprintScale:this.city.footprintScale,variant:this.city.variant});
     }
     this.lastMode=s.mode;this.labels.forEach(g=>g.visible=!battle);
     this.routeLine.visible=!battle&&!!s.target;this.destination.visible=this.routeLine.visible;
     if(s.target&&!battle){const p=this.routeLine.geometry.attributes.position;for(let i=0;i<p.count;i++){const t=i/(p.count-1),x=s.x+(s.target.x-s.x)*t,z=s.z+(s.target.z-s.z)*t;p.setXYZ(i,x,Math.max(.3,terrainHeight(x,z)+.4),z);}p.needsUpdate=true;this.routeLine.geometry.computeBoundingSphere();this.routeLine.computeLineDistances();this.destination.position.set(s.target.x,Math.max(.3,terrainHeight(s.target.x,s.target.z)+.4),s.target.z);}
     this.selection.visible=!battle&&selectedSlot!==null;
-    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35,p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.root.quaternion).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
+    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35,p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.rig.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     if(this.destination.visible){const normal=terrainNormal(s.target.x,s.target.z);this.destination.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(normal.x,normal.y,normal.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     const selectedBattery=selectedSlot!==null&&s.buildings[selectedSlot]?.type==='cannon';this.coverage.visible=!battle&&!!selectedBattery;
-    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot];this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+1.8,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
+    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot];this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+1.8,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
     for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
     this.focus.lerp(focus,1-Math.exp(-dt*5));

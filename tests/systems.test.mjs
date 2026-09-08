@@ -52,12 +52,14 @@ test('attack framing follows the impact clock and relinquishes the tactical view
   c.manual();assert.equal(frame(.7).focus,0);c.setMode('steady');assert.equal(frame(.7).focus,0);
 });
 
-test('a new circular city starts with its central castle and six unlocked inner plots', () => {
+test('a new vertical castle preserves seven initial plots across two occupied floors', () => {
   const state = createGame('kaiju');
   assert.equal(state.rings, 1);
   assert.deepEqual(state.buildings.flatMap((b, id) => b ? [id] : []), [7, 11, 13]);
   assert.deepEqual(Array.from({ length: 20 }, (_, id) => id).filter(id => slotUnlocked(state, id)), RING_SLOTS.slice(0, 2).flat().sort((a, b) => a - b));
-  for (let id = 0; id < 20; id++) assert.equal(kaijuSlotPosition(id).y, 0);
+  const plots=Array.from({length:20},(_,id)=>kaijuSlotPosition(id));
+  assert.deepEqual([...new Set(plots.map(p=>p.y))].sort((a,b)=>a-b),[0,8.2,16.4,24.599999999999998,32.8]);
+  for (const p of plots){assert.ok(Math.abs(p.x)<=3.1);assert.ok(Math.abs(p.z-KAIJU_CENTER.z)<=2.4+1e-9);assert.equal(p.y,p.tier*8.2);}
   const before = { ...state.resources };
   assert.equal(build(state, 'housing', RING_SLOTS[2][0]).ok, false);
   assert.deepEqual(state.resources, before);
@@ -214,11 +216,11 @@ test('kaiju mount coordinates preserve the scaled backpack offset through city r
   const state = createGame('kaiju'), slot = 11;
   state.buildings[slot] = { type: 'cannon', level: 1, remaining: 0, facing: Math.PI };
   const local = batteryPosition('kaiju', slot), plot = kaijuSlotPosition(slot);
-  assert.ok(Math.abs(local.z - (KAIJU_CENTER.z - 4.6) * KAIJU_SCALE) < 1e-10);
+  assert.ok(Math.abs(local.z - (KAIJU_CENTER.z - 2.4) * KAIJU_SCALE) < 1e-10);
   const attacker = { x: 100, z: -20, angle: Math.PI / 2 };
-  const solution = batterySolution(state, slot, attacker, { x: 65, z: -20 }, FACTIONS.kaiju.range);
+  const solution = batterySolution(state, slot, attacker, { x: 65, z: -20-plot.x*KAIJU_SCALE }, FACTIONS.kaiju.range);
   assert.ok(Math.abs(solution.position.x - (100 + plot.z * KAIJU_SCALE)) < 1e-10);
-  assert.ok(Math.abs(solution.position.z + 20) < 1e-10);
+  assert.ok(Math.abs(solution.position.z - (-20-plot.x*KAIJU_SCALE)) < 1e-10);
   assert.equal(solution.active, true);
 });
 

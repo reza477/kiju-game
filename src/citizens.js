@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial} from './materials.js';
-import {KAIJU_CENTER} from './city-layout.js';
+import {KAIJU_CENTER,kaijuWalkFloors} from './city-layout.js';
 
 const MAX_PEOPLE=48;
 const TAU=Math.PI*2;
@@ -46,7 +46,7 @@ function wardrobe(faction,index){
 export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],layout='deck',rings=1}={}){
  if(!WARDROBES[faction])throw new Error(`Unknown citizen faction: ${faction}`);
  if(!Number.isFinite(scale)||scale<=0)throw new Error('Citizen carrier scale must be positive.');
- const group=new T.Group();group.name=`${faction}-citizens`;group.position.y=deckY+(['circular','circle','rings'].includes(layout)?.067:.15);group.userData.noBatch=true;parent.add(group);
+ const group=new T.Group();group.name=`${faction}-citizens`;group.position.y=deckY+(layout==='tower'?.109:['circular','circle','rings'].includes(layout)?.067:.15);group.userData.noBatch=true;parent.add(group);
  const cloth=getMaterial('fabric',0xffffff,{side:T.DoubleSide}),solid=plain();
  const sphere=geometry('citizen-sphere',()=>new T.SphereGeometry(1,12,8));
  const cylinder=geometry('citizen-cylinder',()=>new T.CylinderGeometry(.5,.5,1,10));
@@ -146,13 +146,42 @@ function circulate(citizens,time,count,rings){
  return routes;
 }
 
+// Each resident belongs to a supported cloister floor. Independent traffic
+// loops avoid inventing flying shortcuts between the vertically stacked wards.
+function towerCirculate(citizens,time,count,rings){
+ const signature=`${count}:${rings}`,old=citizens.towerCirculation;
+ if(!old||old.signature!==signature||time<old.time){
+  const lanes=kaijuWalkFloors(rings).map(f=>({...f,ids:[],length:0,segments:[]}));
+  for(const lane of lanes){
+   lane.path.forEach((a,i)=>{const b=lane.path[(i+1)%lane.path.length],length=Math.hypot(b.x-a.x,b.z-a.z);lane.segments.push({a,b,start:lane.length,length,yaw:Math.atan2(b.x-a.x,b.z-a.z)});lane.length+=length;});
+  }
+  for(let i=0;i<count;i++)lanes[i%lanes.length].ids.push(i);
+  for(const lane of lanes){lane.positions=lane.ids.map((id,i)=>i*lane.length/lane.ids.length);lane.walking=lane.ids.map(()=>true);}
+  citizens.towerCirculation={signature,time,lanes};
+ }
+ const traffic=citizens.towerCirculation,dt=Math.min(.25,Math.max(0,time-traffic.time)),routes=[];traffic.time=time;
+ for(const lane of traffic.lanes){
+  if(!lane.ids.length)continue;
+  const requested=lane.ids.map((id,i)=>{const phase=((time+id*2.37)%24+24)%24;return lane.positions[i]+(phase>22.75?0:dt*.235/citizens.carrierScale);});
+  const gap=Math.min(.44/citizens.carrierScale,lane.length/lane.ids.length*.97);
+  for(let pass=0;pass<lane.ids.length;pass++)for(let i=lane.ids.length-1;i>=0;i--){const leader=i===lane.ids.length-1?requested[0]+lane.length:requested[i+1];requested[i]=Math.min(requested[i],leader-gap);}
+  lane.ids.forEach((id,i)=>{
+   const distance=requested[i],along=((distance%lane.length)+lane.length)%lane.length,segment=lane.segments.find(s=>along<s.start+s.length)??lane.segments.at(-1),t=(along-segment.start)/segment.length;
+   const walking=dt>0?distance-lane.positions[i]>1e-5:lane.walking[i];
+   routes[id]={x:segment.a.x+(segment.b.x-segment.a.x)*t,y:lane.y,z:segment.a.z+(segment.b.z-segment.a.z)*t,yaw:segment.yaw+(walking?0:Math.sin(time*.6+id)*.15),walking,errand:!walking,distance,route:'castle-cloister',tier:lane.tier,level:lane.level};lane.walking[i]=walking;
+  });
+  lane.positions=requested;
+ }
+ citizens.group.userData.minimumPedestrianSpacing=.44;citizens.group.userData.occupiedFloors=traffic.lanes.filter(l=>l.ids.length).map(l=>l.tier);return routes;
+}
+
 /** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
-export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout}={}){
+export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
  const count=Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
- const ringRoutes=circular?circulate(citizens,time,count,rings):null;
+ const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings):circular?circulate(citizens,time,count,rings):null;
  const {root,part,matrix,direction,up,color}=citizens.scratch;
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
  function put(name,x,y,z,sx,sy,sz,tint,rx=0,ry=0,rz=0,quaternion=null){
@@ -170,6 +199,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  for(let i=0;i<count;i++){
   const p=citizens.data[i],route=ringRoutes?.[i]??routeFor(citizens,p,time,moving,{rings,slotPositions,layout});citizens.routes.push({id:i,...route});
   citizens.styleCounts[p.wardrobe]=(citizens.styleCounts[p.wardrobe]??0)+1;
+  if(layout==='tower'&&Number.isFinite(visibleFloor)&&route.tier>visibleFloor)continue;
   const unit=citizens.humanScale,gait=route.walking?Math.sin(time*7.2+p.phase):0,idle=route.walking?0:Math.sin(time*1.15+p.phase);
   const bob=route.walking?Math.abs(gait)*.006:Math.sin(time*1.8+p.phase)*.002;
   root.position.set(route.x,route.y+bob*unit,route.z);root.rotation.set(route.walking?.015:0,route.yaw,route.walking?gait*.018:idle*.025);root.scale.set(unit*p.widthFactor,unit*p.heightFactor,unit*p.depthFactor);root.updateMatrix();

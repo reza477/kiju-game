@@ -1,0 +1,26 @@
+# Prototype 0.6 — vertical castles and six carrier versions
+
+The owner's reference replaces the earlier circular kaiju plan. The implementation keeps the twenty saved plot IDs while arranging them on five vertically stacked castle floors. A fresh city opens seven plots across the lower two floors; paid upper-ward construction opens the remaining thirteen. The inspector selects a floor, hides higher geometry and residents, and keeps the full population and routes intact.
+
+Each faction has two selectable versions. New expeditions contain the selected version and five rivals representing the other versions. Older three-rival saves remain three-rival campaigns. Invalid cross-faction variant data is rejected.
+
+| Faction | Versions | Relevant integration |
+|---|---|---|
+| Kaiju | Cyborg / flesh | Shared articulated skeleton and grounded feet, distinct organic and mechanical geometry, vertical castle and supported resident routes |
+| Crawler | Armored / drill | Elongated drill chassis, spiral cutting cone, actual contact marker, matching mount coordinates, terrain fit, tread marks and crushing footprint |
+| Airship | Horizontal / upright | Existing horizontal envelopes retained; alternative has exactly four rounded upright envelopes with necks and suspension lines |
+
+## Builder evidence
+
+- `npm test`: 47 tests pass, including variant save/resume, roster completeness, legacy migration, vertical expansion, weapon coordinates, economy and full campaigns.
+- `node tests/browser-smoke.mjs`: 13 checks pass for real UI construction, gathering, travel, combat, withdrawal, saving, reload/resume, pause and 390px layout; zero browser errors or remote requests.
+- `node tests/variants-art-capture.mjs`: neutral six-version capture runner, covering title selection, City, body views, movement pairs, Streets, paid castle expansion and floor inspection. Initial run produced 46 screenshots with zero browser errors or remote requests. Final independent runs are recorded separately in the critic reports.
+- Castle geometry audit covers all three legacy expansion states, finite geometry/normals, building-volume clearance and 48 resident routes over 40 seconds. Routes remain supported and pause-stable. Cutaway hides upper instances while preserving all routes/population.
+- Carrier studies confirm four upright envelopes, no duplicate horizontal envelopes in that version, finite models, a real rotating helical drill and an on-axis tip marker.
+- The drill engages ground hulls with a rigid auger on a limited gimbal and telescopic shaft. Against airborne targets, normal cannons and a 60-damage Siege burst replace auger contact; the airborne special does not drive the crawler toward the target. Damage still resolves at visible projectile impact.
+
+The independent critic uses the unchanged 8.5/10 and zero-error gate, with at most four rounds. Functional checks do not constitute aesthetic approval. See [ART_REVIEW.md](ART_REVIEW.md) for the independent results.
+
+## Practical limits
+
+This remains a PC browser prototype with procedural art. Variants share their faction's economic and base combat statistics. Citizens circulate within a floor and do not navigate between floors. City structures are fixed plot assets; no interior simulation or building-by-building battle destruction is implemented. iPhone device performance and packaging are untested. The private repository backs up source; the playable build stays local at `http://127.0.0.1:4178/`.

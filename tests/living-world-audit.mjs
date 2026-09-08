@@ -1,4 +1,4 @@
-/** Local v0.4 integration evidence. Isolated profile, real UI controls, no GPU instrumentation.
+/** Local living-world integration evidence. Isolated profile, real UI controls, no GPU instrumentation.
  * Run after integration: node tests/living-world-audit.mjs
  * OUTPUT_DIR defaults to artifacts/living-world-final; GAME_BASE_URL defaults to localhost:4178.
  */
@@ -36,18 +36,45 @@ async function inspectFaction(faction){
   const treadContact=faction=>faction==='crawler'?[-9,9].flatMap(x=>[-9,0,9].map(z=>{const p=c.root.localToWorld(new T.Vector3(x,.5,z));return p.y-terrainHeight(p.x,p.z);})):[];
   return {faction:state.faction,layout:c.layout,scale:c.scale,size:size.toArray(),slots:c.slotPositions.map(p=>({...p})),ring:state.rings,buildingIds:state.buildings.map((b,i)=>b?i:null).filter(i=>i!==null),wardrobes:p.wardrobeNames,styleCounts:p.styleCounts,skinTones:[...new Set(p.data.map(d=>d.skinTone))],hairTones:[...new Set(p.data.map(d=>d.hairTone))],worldHeightRange:p.worldHeightRange,visiblePeople:p.populationCount,instanceBatches:Object.keys(p.instances).length,life:scene.landscape.stats.lifeCount,terrainY:terrainHeight(state.x,state.z),rootY:c.root.position.y,treadContact:treadContact(state.faction),contextLost:scene.renderer.getContext().isContextLost()};
  });
- assert.equal(result.faction,faction);assert.equal(result.slots.length,20);assert.ok(result.slots.every(p=>p.y===0),'Districts occupy a flat city deck.');
+ assert.equal(result.faction,faction);assert.equal(result.slots.length,20);
+ assert.ok(result.slots.every(p=>[p.x,p.y,p.z].every(Number.isFinite)),'All district coordinates are finite.');
+ if(faction==='kaiju'){
+  const heights=[...new Set(result.slots.map(p=>p.y))].sort((a,b)=>a-b);
+  assert.equal(heights.length,5,'The castle has five vertically stacked playable floors.');
+  assert.equal(heights[0],0);assert.ok(heights.at(-1)>=30&&heights.at(-1)<=34,'The upper ward stays inside the compact backpack height budget.');
+  for(let tier=0;tier<5;tier++){
+   const slots=result.slots.filter(p=>p.tier===tier);assert.equal(slots.length,4,'Each castle floor retains four stable district slots.');
+   assert.ok(slots.every(p=>p.y===heights[tier]&&p.level===tier+1),'Tier and level metadata match the actual floor.');
+   if(tier)assert.ok(heights[tier]-heights[tier-1]>=8,'Stacked districts have room for their buildings and ceilings.');
+  }
+  assert.ok(result.slots.every(p=>Math.abs(p.x)<=4&&Math.abs(p.z+12)<=3),'The fortress districts stack within a narrow footprint.');
+ }else assert.ok(result.slots.every(p=>p.y===0),'Crawler and airship districts occupy their flat city deck.');
  assert.equal(result.wardrobes.length,8);assert.equal(new Set(result.wardrobes).size,8);assert.equal(Object.keys(result.styleCounts).length,8);
  assert.ok(result.skinTones.length>=4&&result.hairTones.length>=4);assert.ok(result.worldHeightRange[0]>=.72&&result.worldHeightRange[1]<=.86);
  assert.ok(result.visiblePeople>0&&result.visiblePeople<=48);assert.ok(result.instanceBatches<=25);
  assert.equal(result.life,57);assert.equal(result.contextLost,false);
  if(faction==='crawler')assert.ok(Math.abs(result.treadContact.reduce((a,b)=>a+b,0)/6)<.6,'Treads follow their terrain footprint without a mean hovering gap.');
  else assert.ok(Math.abs(result.rootY-result.terrainY)<.01,'Carrier follows terrain height.');
- if(faction==='kaiju'){assert.equal(result.layout,'circular');assert.equal(result.scale,.55);}else assert.equal(result.layout,'deck');
+ if(faction==='kaiju'){assert.equal(result.layout,'tower');assert.equal(result.scale,.55);}else assert.equal(result.layout,'deck');
  report.factions.push(result);return result;
 }
 async function streets(faction){
  await page.locator('[data-view="people"]').click();await settle();assert.equal(await page.evaluate(()=>window.__colossus.scene.view),'people');
+ if(faction==='kaiju'){
+  const count=await page.locator('#tower-floor option').count();assert.equal(count,5,'Completed expansion exposes all castle floors.');
+  for(let tier=0;tier<count;tier++){
+   await page.locator('#tower-floor').selectOption(String(tier));await settle();
+   const cutaway=await page.evaluate(()=>{
+    const c=window.__colossus.scene.city,p=c.people;
+    return {tier:c.inspectedFloor,foundation:c.foundation.children.filter(g=>g.userData.towerTier!==undefined&&g.visible).map(g=>g.userData.towerTier),routes:p.routes.map(r=>({tier:r.tier,y:r.y})),population:p.populationCount,rendered:p.instances.torso.count};
+   });
+   assert.equal(cutaway.tier,tier);assert.deepEqual(cutaway.foundation,Array.from({length:tier+1},(_,i)=>i),'The floor selector hides only upper foundation groups.');
+   assert.equal(cutaway.routes.length,cutaway.population,'Cutaway preserves the full resident population and route state.');
+   assert.equal(cutaway.rendered,cutaway.routes.filter(r=>r.tier<=tier).length,'Only residents on visible floors are rendered.');
+   assert.ok(cutaway.routes.every(r=>Number.isInteger(r.tier)&&Number.isFinite(r.y)),'Every resident belongs to a supported castle floor.');
+  }
+  await page.locator('#tower-floor').selectOption('2');await settle();report.checks.push('All five castle floor controls hide upper walls and residents without dropping population or routes.');
+ }
  await capture(`streets-${faction}`);await capture(`wardrobe-${faction}`,true);
  const before=await page.evaluate(()=>Array.from(window.__colossus.scene.city.people.instances.limbs.instanceMatrix.array.slice(0,16)));
  await page.waitForTimeout(350);const after=await page.evaluate(()=>Array.from(window.__colossus.scene.city.people.instances.limbs.instanceMatrix.array.slice(0,16)));
@@ -95,7 +122,7 @@ async function driveOverTree(faction){
  else{assert.ok(result.damage.includes(record.id),'Actual moving ground city destroys the crossed tree.');assert.ok(result.stats.trackCount>0,'Actual movement leaves tracks.');assert.ok(result.damage.length<=512);assert.equal(await hasStump(record),true,'Destroyed tree leaves visible stump geometry.');}
  result.record=record;report.destruction.push(result);await capture(`${faction}-rural-after`);
  if(faction==='kaiju'){
-  await page.locator('#save').click();await page.reload();await page.waitForFunction(()=>window.__colossus?.scene?.city?.layout==='circular');await page.locator('#continue').click();await settle();
+  await page.locator('#save').click();await page.reload();await page.waitForFunction(()=>window.__colossus?.scene?.city?.layout==='tower');await page.locator('#continue').click();await settle();
   assert.ok(await page.evaluate(id=>window.__colossus.state.worldDamage.expedition.includes(id),record.id));assert.equal(await hasStump(record),true,'Destroyed tree remains a stump after save/reload.');await capture('kaiju-destruction-restored');
  }
  return record;
@@ -148,8 +175,8 @@ try{
  await page.locator('[data-building="cannon"]').click();assert.equal(await page.locator('[data-slot="4"]').isDisabled(),true);await capture('kaiju-ring-building');await page.keyboard.press('Escape');
  await page.locator('#pause').click();await page.evaluate(()=>window.__colossus.advance(13));await settle();assert.equal(await page.evaluate(()=>window.__colossus.state.rings),2);assert.equal(await page.evaluate(()=>window.__colossus.state.ringConstruction),null);
  await page.locator('[data-building="cannon"]').click();assert.equal(await page.locator('[data-slot="4"]').isEnabled(),true);await page.keyboard.press('Escape');await capture('kaiju-ring-after');
- report.checks.push('Outer ring costs 90 wood / 65 iron, stays locked while building, and unlocks only after construction completes.');
- console.log('Verified ring construction and plot gates.');
+ report.checks.push('Upper wards cost 90 wood / 65 iron, stay locked while building, and unlock only after construction completes.');
+ console.log('Verified upper ward construction and plot gates.');
  const kaiju=await inspectFaction('kaiju');await streets('kaiju');await driveOverTree('kaiju');await gatherProtectedResource();
  console.log('Verified kaiju people, terrain damage persistence, and protected gathering.');
  const cannonSlot=await page.evaluate(()=>window.__colossus.scene.city.slotPositions.map((p,i)=>({...p,i})).filter(p=>p.ring===2).sort((a,b)=>b.z-a.z)[0].i);
@@ -159,8 +186,8 @@ try{
  assert.equal(front.damage-back.damage,9,'The same level 1 cannon adds damage only when facing the target.');report.checks.push('Real facing controls change actual ranged damage, and cannon projectiles originate at visible muzzle markers.');
  await open('kaiju',false);
  await page.evaluate(async()=>{const {createGame}=await import('/src/simulation.js');const legacy=createGame('kaiju');delete legacy.rings;delete legacy.ringConstruction;delete legacy.worldDamage;legacy.buildings[4]={type:'housing',level:2,remaining:0};localStorage.setItem('colossus-wake-save-v1',JSON.stringify(legacy));});
- await page.reload();await page.waitForFunction(()=>window.__colossus?.scene?.city?.layout==='circular');await page.locator('#continue').click();await settle();
- assert.equal(await page.evaluate(()=>window.__colossus.state.rings),2);assert.equal(await page.evaluate(()=>window.__colossus.state.buildings[4].level),2);assert.equal(await page.evaluate(()=>window.__colossus.state.buildings[7].type),'keep');await capture('legacy-outer-plot-restored');report.checks.push('Legacy saves with occupied outer plots migrate to the expanded ring without moving slot IDs.');
+ await page.reload();await page.waitForFunction(()=>window.__colossus?.scene?.city?.layout==='tower');await page.locator('#continue').click();await settle();
+ assert.equal(await page.evaluate(()=>window.__colossus.state.rings),2);assert.equal(await page.evaluate(()=>window.__colossus.state.buildings[4].level),2);assert.equal(await page.evaluate(()=>window.__colossus.state.buildings[7].type),'keep');await capture('legacy-outer-plot-restored');report.checks.push('Legacy saves with occupied expansion plots migrate to upper wards while preserving every building ID.');
  await page.setViewportSize({width:390,height:844});await settle();await capture('mobile-kaiju-ring');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Kaiju four-view mobile layout has no horizontal overflow.');
  for(const faction of ['crawler','airship']){await open(faction);await inspectFaction(faction);await capture(`city-size-${faction}`);await streets(faction);await driveOverTree(faction);console.log(`Verified ${faction} people, sizing and terrain interaction.`);}
  const airship=report.factions.find(f=>f.faction==='airship');assert.ok(Math.max(...kaiju.size)<Math.max(...airship.size)*1.35,'Kaiju is comparable in world size to the other carriers.');

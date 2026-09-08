@@ -56,7 +56,8 @@ export function animateWeapons(city,target,time){
   for(const weapon of [...(city.baseWeapons||[]),...(city.batteries||[])]){
     if(target){
       const location=weapon.group.getWorldPosition(new T.Vector3());
-      const bearing=normalizeAngle(Math.atan2(target.x-location.x,target.z-location.z)-city.heading);
+      const localTarget=city.rig.worldToLocal(new T.Vector3(target.x,location.y,target.z)),localLocation=city.rig.worldToLocal(location.clone());
+      const bearing=normalizeAngle(Math.atan2(localTarget.x-localLocation.x,localTarget.z-localLocation.z));
       const delta=normalizeAngle(bearing-weapon.facing),limit=weapon.base?Math.PI:batteryArc(city.faction)/2;
       weapon.turret.rotation.y=weapon.facing+T.MathUtils.clamp(delta,-limit,limit);
     }else weapon.turret.rotation.y=weapon.facing;
@@ -67,6 +68,7 @@ export function animateWeapons(city,target,time){
 export function weaponMuzzles(city,slots,time,melee=false,base=true){
   if(melee){
     city.strikeTime=time;city.strikePose=null;
+    if(city.drillTip)return [{point:city.drillTip.getWorldPosition(new T.Vector3()),missile:false,weapon:null}];
     if(city.strikeHand)return [{point:city.strikeHand.getWorldPosition(new T.Vector3()),missile:false,weapon:null}];
     const p=new T.Vector3(0,city.faction==='airship'?15.2:3,city.faction==='airship'?11:14.65);
     city.root.localToWorld(p);return [{point:p,missile:false,weapon:null}];

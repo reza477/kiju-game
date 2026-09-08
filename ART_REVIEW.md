@@ -2,7 +2,7 @@
 
 The owner requires an independent critic after each completed character, asset, or environment attempt. The gate and responsibilities are in [AGENTS.md](AGENTS.md).
 
-The current cycle evaluates the completed 0.4 build as round 1, followed by up to three revised builds. Every review uses fresh screenshots taken by the critic. A failed fourth review ends the cycle without an approval claim.
+The first cycle evaluated the completed 0.4 build as round 1, followed by three revised builds. Every review uses fresh screenshots taken by the critic. A failed fourth review ends the cycle without an approval claim.
 
 | Round | Builder revision | Independent review | Result |
 |---|---|---|---|
@@ -35,3 +35,9 @@ The owner's next update starts a separate cycle, retaining the same global rubri
 The first builder attempt passed 40 Node tests, 13 browser smoke checks, the integrated 26-view living-world audit, a revised 31-view cinematic capture suite and six physical contact cases. Preserved scenery identities, rooted wind/shadow deformation, quality-mode brightness and bounded atmosphere allocation were checked separately. Independent evidence goes under `artifacts/critic-cinematic-XX/`; reports go under `art-reviews/cinematic-XX.md`.
 
 **Prototype 0.5 final gate: failed. All four rounds are complete; no fifth attempt.** The final critic independently captured 56 views and scored 7.1/10 (weighted 7.055), with no confirmed visual or runtime errors. Battle framing, contact timing, camera comfort, local impact light and river depth improved. Remaining art limitations include dark outer carrier forms, broad landscape uniformity, simple anatomy and repeated citizens. The original 8.5 threshold remains unchanged. Final builder checks passed 41 Node tests, 13 browser smoke checks, six physical-contact cases and a 34-view cinematic tour; these do not establish AAA art quality.
+
+## Vertical castles and six carrier versions — prototype 0.6
+
+The owner's new reference and six-version request starts a separate cycle with the same fixed global rubric and four-round limit. The latest vertical fortress supersedes the previous circular town. Prior reviews remain unchanged.
+
+The first builder attempt includes the vertical castle with inspectable floors, flesh/cyborg bodies, an elongated drill crawler and the four-upright-balloon city. The new neutral runner captures all six variants, movement pairs, normal HUD, populated upper wards and Streets floors. The critic must take its own fresh captures from the frozen revision. Evidence belongs under `artifacts/critic-variants-XX/`; reports under `art-reviews/variants-XX.md`.

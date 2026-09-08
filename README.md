@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.5
+# Colossus Wake — PC prototype 0.6
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; all models and game content are original procedural work.
 
@@ -12,13 +12,13 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 
 ## First expedition
 
-1. Choose Thornbound (kaiju), Commonwealth (crawler), or Saffron Courts (airship).
+1. Choose Thornbound (kaiju), Commonwealth (crawler), or Saffron Courts (airship), then choose one of its two carrier versions.
 2. Build a **Timber guild**: choose it in the bottom bar, then choose an empty deck plot or a numbered district in the left panel.
 3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Crews gather wood automatically while stopped near the deposit.
 4. Add **Hanging gardens** for food, an **Ironworks** for faster iron collection near ruins, and **Dwellings** for population growth. Select a built district to upgrade it (maximum level 3).
-5. As Thornbound, use **Add outer ring** to expand the circular backpack from seven to twenty plots (90 wood, 65 iron, 12 seconds). Buildings grow upward when upgraded; the foundation stays on one plane.
+5. As Thornbound, use **Raise upper wards** to expand the vertical castle from seven to twenty plots (90 wood, 65 iron, 12 seconds). New floors rise above the existing wards. Use **Inspect castle level** to visit a floor in Streets view; upper floors are cut away for visibility.
 6. Build **Gun batteries** and **Bulwarks** before battle. Select each battery to choose its facing. Perimeter plots offer clearer firing lines; tall buildings can block a cannon. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
-7. Repair between battles. Defeat all three rivals to secure the region. You can continue building afterward.
+7. Repair between battles. Defeat all five rivals to secure the region. New expeditions include all six carrier versions: yours and five opponents. Existing saves retain their original opponents.
 
 ## Controls
 
@@ -37,15 +37,19 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 | E | Special ability |
 | Escape | Cancel a building selection / close a dialog |
 
-Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Kaiju fists engage within 18 metres of crawler/airship cities or 12 metres of another kaiju. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
+Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Melee spacing follows the target hull, including the drill crawler's longer nose. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
 ## Graphics update
+
+Version 0.6 replaces the circular kaiju town with a compact vertical Gothic fortress: stacked wards, narrow masonry towers, pointed roofs, bridges and a load-bearing backpack. Both the cyborg titan and a separate flesh titan carry it. The initial castle occupies two floors; upper-ward construction opens five floors without widening the plan. District IDs, resources and upgrades survive migration.
+
+The standard armored crawler is joined by an elongated rectangular drill crawler with a rotating spiral cutting cone. The horizontal-envelope airship is joined by a city suspended from exactly four upright rounded balloons. Each version is selectable, saved locally and represented among the rivals in new games. The drill's mounts, terrain footprint, tread marks and scenery crushing follow its elongated chassis.
 
 Version 0.5 adds cinematic battle-entry sweeps, recoil and impact movement, travel look-ahead, a brief push toward each strike and manual battle zoom. Surface flashes illuminate the armor that takes a hit, then fade; finishing blows remain visible before the result screen opens. **Camera: steady** disables the added motion; system reduced-motion preferences select it initially, and your choice saves locally. Mouse orbit takes precedence. Close building and Streets views stay steady.
 
 Coherent wind bends trees and grass from their roots, stirs water and smoke, and carries subtle bird and butterfly motion. Drifting clouds and localized river/gully mist add depth. Day, dusk and night blend smoothly with a shared sun direction, warmer dusk light, cool reflected fill, readable night windows and warm light pools on the city decks. High, Balanced and Performance use the same output brightness, with bounded atmosphere detail. Environmental movement freezes when paused. Attack damage now lands with the visible fist or projectile, including lethal hits and saved attacks in flight. See [CINEMATIC_VERIFICATION.md](CINEMATIC_VERIFICATION.md) for the new checks and review cycle.
 
-Version 0.4 brings the humanoid kaiju down to a comparable overall size to the other carriers. Its Gothic backpack uses one circular foundation with a central keep, six inner plots, and thirteen outer plots unlocked through ring construction. The city grows outward in rings and upward through building upgrades. The four ascending terraces from version 0.3 have been replaced.
+Version 0.4 established comparable carrier scale and the earlier circular backpack. Version 0.6 supersedes that layout with the owner's requested vertical castle.
 
 Citizens now have eight clothing variations per faction: Gothic coats, capes and dark dresses; Victorian British coats, waistcoats and hats; and Eastern-inspired robes, wraps and headwear. **Streets view** brings the camera close enough to inspect them. People walk, pause on errands, and animate their arms and legs.
 
@@ -59,23 +63,23 @@ Version 0.2 replaces the simple block models with a more detailed, stylized city
 
 Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
 
-Existing version 0.1–0.3 saves remain compatible. The same twenty kaiju district IDs map to circular plots without changing buildings, upgrades, or resources. Older saves with an occupied outer plot receive the outer ring automatically. The title screen shows a developed city as a preview; a new expedition starts with three districts and the inner ring.
+Existing saves remain compatible. The same twenty kaiju district IDs map to castle floors without changing buildings, upgrades, or resources. Older saves with a previously occupied outer plot receive the upper wards automatically. Missing carrier versions receive compatible defaults. The title screen shows a developed city as a preview; a new expedition starts with three districts.
 
 ## What is implemented
 
-- Three playable city types with original procedural 3D models: a circular Gothic castle backpack worn by a humanoid kaiju, an industrial city on tracks, and a domed floating city between horizontal lift envelopes.
+- Six playable carrier versions across three factions: flesh/cyborg titans with vertical Gothic castles, armored/drill crawlers, and horizontal/four-upright-balloon air cities.
 - Animated creatures, tracks/propellers, and citizens in distinct faction clothing.
 - Third-person orbit camera, close city view, strategic world camera and minimap.
-- Twenty district plots, kaiju ring expansion, timed construction, three upgrade levels, local food economy and population growth/starvation.
+- Twenty district plots, vertical kaiju ward expansion, timed construction, three upgrade levels, local food economy and population growth/starvation.
 - Wood, iron and food deposits; city travel, automatic gathering, finite deposit amounts.
-- Separate tactical battle state, three enemy cities, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
+- Separate tactical battle state, five enemy cities in new games, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
 - Configurable battery facing, firing arcs, cannon obstruction, rotating turrets, recoil, and muzzle-origin projectiles.
 - Height-aware landscape, roaming wildlife, temporary ground marks, saved scenery destruction, protected resource sites.
 - Local save/resume, optional synthesized audio, pause/speed controls, three graphics presets, three lighting moods, basic touchscreen layout.
 
 ## Scope of this version
 
-This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with two buildable kaiju rings and three upgrade levels. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and three encounter opponents, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. The art uses procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
+This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with five castle floors and three district upgrade levels. Citizens circulate on supported floor routes; they do not yet travel between floors. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and five encounter opponents in new games, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. Carrier variants currently share their faction's economy and base combat statistics. The art uses procedural geometry and locally generated textures; it does not yet match the breadth or polish of a finished commercial city-builder.
 
 Phone input and responsive UI are included as a starting point. Actual iPhone performance, Safari/WebGL behavior, packaging, touch camera refinements, and App Store distribution remain future work. A native iOS build will require macOS/Xcode and device testing.
 
@@ -98,7 +102,8 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
 - `src/scene.js`: scene integration, camera, picking, shadows, combat effects.
 - `src/architecture.js`, `src/carriers.js`: districts, city carriers, animation.
-- `src/kaiju.js`, `src/castle.js`, `src/city-layout.js`: humanoid titan, circular Gothic backpack, shared ring geometry and scale.
+- `src/kaiju.js`, `src/castle.js`, `src/city-layout.js`: flesh/cyborg titans, vertical Gothic backpack, shared floor geometry and scale.
+- `src/variants.js`, `src/carrier-variants.js`: selectable variant identities, spiral drill and upright lift balloons.
 - `src/citizens.js`: faction wardrobes, routes, and instanced human animation.
 - `src/armaments.js`, `src/weapon-layout.js`: weapon models, muzzle markers, firing directions and obstruction.
 - `src/landscape.js`, `src/terrain.js`, `src/world-life.js`: terrain height, foliage, water, protected sites, damage, ground marks, and wildlife.
@@ -106,9 +111,11 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/cinematic-camera.js`, `src/lighting.js`, `src/weather.js`: bounded cinematic camera offsets, shared light presets and coherent wind.
 - `src/main.js`: input, user interface, persistence, local audio.
 - `src/style.css`: desktop and touch layouts.
-- `npm test`: simulation, ring, save migration, weapon geometry, and terrain checks.
+- `npm test`: simulation, vertical expansion, six variants, save migration, weapon geometry, and terrain checks.
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
-- `node tests/living-world-audit.mjs`: circular expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
+- `node tests/living-world-audit.mjs`: vertical expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
+- `node tests/variants-art-capture.mjs`: fresh normal-HUD multi-angle and motion captures of all six variants, populated upper wards, floor inspection and mobile layout.
+- `node tests/variants-contact-audit.mjs`: physical fist/drill contact against actual rival variants at both speeds, attached impacts and paused animation.
 - `node tests/graphics-audit.mjs`: all factions, desktop views, graphics and lighting controls, screenshots, and uncalibrated renderer observations. Requires a running local server and Playwright with Chrome; outputs to `artifacts/graphics-after/` by default. Set `OUTPUT_DIR` to change the evidence directory.
 - `node tests/art-review-capture.mjs`: normal gameplay views for an independent reviewer; `motion-art-capture.mjs` adds clear level/slope stride diagnostics and `combat-art-capture.mjs` adds ready, firing, contact and recovery captures. The reviewer runs these independently and inspects the images.
 - `node tests/combat-contact-audit.mjs`: live fist-to-surface contact for all three target types at both simulation speeds, including moving targets and no pre-contact melee projectile.

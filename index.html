@@ -20,7 +20,7 @@
   <section id="intro" aria-label="Choose your city">
     <div class="intro-top"><span class="seal">CW</span><span>AN EARTH AFTER EARTH</span></div>
     <div class="intro-copy">
-      <div class="eyebrow"><i></i> LOCAL PLAYABLE PROTOTYPE · 0.5</div>
+      <div class="eyebrow"><i></i> LOCAL PLAYABLE PROTOTYPE · 0.6</div>
       <h1>COLOSSUS<br/><em>WAKE</em></h1>
       <div class="rule"></div>
       <p class="intro-lead">The world stood still.<br/>Our cities learned to move.</p>
@@ -38,6 +38,7 @@
       <button data-faction="crawler" class="faction"><span class="faction-symbol">▥</span><span><small>02 / CRAWLER</small><strong>Commonwealth</strong></span></button>
       <button data-faction="airship" class="faction"><span class="faction-symbol">⌁</span><span><small>03 / AIRSHIP</small><strong>Saffron Courts</strong></span></button>
     </div>
+    <div id="variant-options" class="variant-options" aria-label="Carrier version"></div>
     <p class="orbit-hint">DRAG TO ORBIT <span>•</span> SCROLL TO LOOK CLOSER</p>
   </section>
 
@@ -54,7 +55,7 @@
     </header>
     <nav id="views" class="view-switch panel" aria-label="Camera view"><button data-view="city" class="active">City view <kbd>1</kbd></button><button data-view="world">World map <kbd>2</kbd></button><button id="titan-view" data-view="carrier">Titan view <kbd>3</kbd></button><button id="streets-view" data-view="people">Streets <kbd>4</kbd></button></nav>
     <aside class="left-stack">
-      <section class="city-card panel"><div class="eyebrow" id="city-type">KAIJU CITY</div><h2 id="city-name">Vesper Bastion</h2><div class="hull-label"><span>HULL INTEGRITY</span><strong id="hull-number"></strong></div><div class="bar"><i id="hull-bar"></i></div><div id="travel-status" class="status-line"></div><button id="repair" class="minor">Repair hull <span>15 wood · 20 iron</span></button><button id="expand-ring" class="minor">Add outer ring <span>90 wood · 65 iron</span></button></section>
+      <section class="city-card panel"><div class="eyebrow" id="city-type">KAIJU CITY</div><h2 id="city-name">Vesper Bastion</h2><div class="hull-label"><span>HULL INTEGRITY</span><strong id="hull-number"></strong></div><div class="bar"><i id="hull-bar"></i></div><div id="travel-status" class="status-line"></div><button id="repair" class="minor">Repair hull <span>15 wood · 20 iron</span></button><button id="expand-ring" class="minor">Raise upper wards <span>90 wood · 65 iron</span></button><label id="tower-floor-control" class="tower-floor-control hidden">Inspect castle level<select id="tower-floor" aria-label="Castle level to inspect"><option value="0">Lower ward</option></select></label></section>
       <details id="objective" class="objective panel"><summary class="eyebrow">EXPEDITION OBJECTIVES</summary><h3>A home that endures</h3><div id="objectives"></div></details>
       <section id="selection" class="panel selection"></section>
     </aside>
