@@ -3,6 +3,15 @@ import {KAIJU_DECK_Y,KAIJU_FLOOR_SPACING,kaijuSlotPosition,kaijuFloorCount,kaiju
 export const CANNON_MOUNT=Object.freeze({districtY:.18,turretY:.64,scaleX:1.08,scaleY:1.18,scaleZ:1.15,barrelY:.55,muzzleZ:2.13,doubleX:.34,barrelRadius:.34});
 const cache=new Map(),norm=a=>Math.atan2(Math.sin(a),Math.cos(a));
 
+export function lancetOutline(w,h){const p=[[-w/2,0],[-w/2,h*.63]];for(let i=1;i<=4;i++){const t=i/4,u=1-t;p.push([u*u*-w/2+2*u*t*-w*.43,u*u*h*.63+2*u*t*h*.82+t*t*h]);}for(let i=1;i<=4;i++){const t=i/4,u=1-t;p.push([2*u*t*w*.43+t*t*w/2,u*u*h+2*u*t*h*.82+t*t*h*.63]);}p.push([w/2,0]);return p;}
+export const lancetDetails=(w,h)=>[{x:0,y:h*.4,z:.089,w:.045,h:h*.8,d:.045,material:'dark'},{x:0,y:h*.39,z:.087,w:w*.88,h:.04,d:.04,material:'dark'},{x:0,y:-.01,z:.05,w:w+.28,h:.08,d:.22,material:'trim'}];
+export function towerWindows(x,z,r,bottom,top){const h=top-bottom,out=[];if(h<=2.2)return out;for(let row=0;row<Math.floor(h/3.4);row++)for(let face=0;face<4;face++){const rotation=face*Math.PI/2;out.push({x:x+Math.sin(rotation)*r*.94,y:bottom+.9+row*3.4,z:z+Math.cos(rotation)*r*.94,rotation,w:r*.4,h:Math.min(2,h-1.1),row,face});}return out;}
+export function towerCornerStrips(x,z,r,bottom,top){return Array.from({length:4},(_,i)=>{const a=i*Math.PI/2+Math.PI/4;return{x:x+Math.sin(a)*r*.9,y:(bottom+top)/2,z:z+Math.cos(a)*r*.9,w:.11,h:top-bottom+.1,d:.11};});}
+export function castleFloorDetails(y){const out=[],add=(material,x,y,z,w,h,d)=>out.push({material,x,y,z,w,h,d});for(const side of[-1,1]){add('walk',side*5,y+.098,-12,.72,.022,10.32);add('walk',0,y+.098,-12+side*4.8,10.32,.022,.72);add('trim',side*5.36,y+.78,-12,.12,.13,10.7);for(let z=-4.8;z<=4.8;z+=1.2){add('wall',side*5.36,y+.39,-12+z,.16,.66,.16);add('trim',side*5.36,y+.8,-12+z,.22,.08,.22);}add('trim',0,y+.78,-12+side*5.36,10.7,.13,.12);for(let x=-4.8;x<=4.8;x+=1.2)add('wall',x,y+.4,-12+side*5.36,.14,.67,.16);}return out;}
+export function steepRoofSeams({x,y,z,w,d,h}){const out=[];for(const i of[0,1,2,3])out.push({a:[x+(i===0||i===3?-w/2:w/2),y,z+(i<2?-d/2:d/2)],b:[x,y+h,z+(i<2?-d*.2:d*.2)],r:.033});out.push({a:[x,y+h,z-d*.2],b:[x,y+h,z+d*.2],r:.06});return out;}
+export function spireSeams(x,y,z,r,h){return Array.from({length:4},(_,i)=>{const a=i*Math.PI/2+Math.PI/4;return{a:[x+Math.sin(a)*r*.79,y+.12,z+Math.cos(a)*r*.79],b:[x,y+h+.14,z],r:.025};});}
+export function castleWallWindows(wall,tier,count,deckY=KAIJU_DECK_Y){const{x,z,w,d,bottom,top,gunLane,front,seed}=wall,lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING),out=[],start=bottom+1.25,spacing=3.25;if(hi<=lo)return out;for(let y=start+Math.max(0,Math.ceil((lo-start)/spacing))*spacing;y+2.15<hi+.01;y+=spacing){if(front){for(const xx of(w>3?[-w*.27,w*.27]:[0])){if(gunLane!=null&&Math.abs(x+xx-gunLane)<1.18)continue;out.push({x:x+xx,y,z:z-d*.5-.025,rotation:Math.PI,w:w>3?.55:Math.min(.6,w*.42),h:2.3,lit:(seed+Math.round(y/spacing)+Math.round(xx*4))%7===0});}}else for(const dz of[-d*.28,d*.28])out.push({x:x+Math.sign(x)*(w*.5+.025),y,z:z+dz,rotation:Math.sign(x)*Math.PI/2,w:.54,h:2.3,lit:(seed+Math.round(y/spacing))%7===0});}return out;}
+
 /** Shared major geometry: renderer and physics use identical port-bearing masses. */
 export function castleMassing(rings=2,deckY=KAIJU_DECK_Y){
  const stage=Math.max(0,Math.min(2,Math.floor(rings))),count=kaijuFloorCount(stage),highest=deckY+(count-1)*KAIJU_FLOOR_SPACING,totalTop=kaijuTowerTop(stage)+deckY-KAIJU_DECK_Y,mainCrown=totalTop-10.8;
@@ -15,6 +24,16 @@ export function castleMassing(rings=2,deckY=KAIJU_DECK_Y){
   {id:'rear-spine',x:0,z:-6.1,w:3.5,d:1.15,bottom:deckY-2.5,top:rearTop,seed:1,front:false}
  ];
  const roofs=[{x:.8,y:mainCrown,z:-17.94,w:6.48,d:2.13,h:9.28},{x:-4.7,y:leftCrown,z:-18.04,w:2.32,d:2.13,h:6.5},{x:-5.86,y:leftWingTop,z:-11.98,w:.96,d:8.45,h:4},{x:5.82,y:rightWingTop,z:-9.48,w:.94,d:6.46,h:3.1},{x:0,y:rearTop,z:-6.1,w:3.7,d:1.85,h:5}];
+ // The grown keep rises from a broad lower hall into an offset, narrower crown.
+ // Its west wing ends in a roofed shoulder halfway up, exposing the upper keep
+ // as a separate mass without moving a single supported ward or promenade.
+ if(count>2){
+  const setback=deckY+2*KAIJU_FLOOR_SPACING,main=walls[0],west=walls[2];
+  walls.push({...main,id:'upper-keep',x:1.5,w:4.9,bottom:setback});main.top=setback;
+  walls.push({...west,id:'upper-west-wing',z:-13.68,d:4.9,bottom:setback});west.top=setback;
+  Object.assign(roofs[0],{x:1.5,w:5.08});Object.assign(roofs[2],{z:-13.68,d:5.05});
+  roofs.push({x:-1.65,y:setback,z:-18.1,w:1.42,d:1.4,h:3.15},{x:-5.86,y:setback,z:-9.73,w:.96,d:3.44,h:3.9});
+ }
  const shafts=[{x:5.45,z:-17.98,r:.69,bottom:Math.max(deckY-6.2,highest-11.6),top:highest+5.3,h:5.8},{x:-5.65,z:-6.35,r:.53,bottom:deckY-6.2,top:rearCrown,h:4.3}];
  return {stage,count,highest,totalTop,mainCrown,leftCrown,rearCrown,leftWingTop,rightWingTop,rearTop,walls,roofs,shafts};
 }
@@ -35,33 +54,40 @@ export function castleWallBoxes(wall,tier,count,deckY=KAIJU_DECK_Y){
 }
 
 function addBox(solids,id,x,y,z,w,h,d){solids.push({id,min:[x-w/2,y-h/2,z-d/2],max:[x+w/2,y+h/2,z+d/2]});}
+function addCapsule(solids,id,{a,b,r}){solids.push({id,min:a.map((v,i)=>Math.min(v,b[i])-r),max:a.map((v,i)=>Math.max(v,b[i])+r),capsule:{a,b,r}});}
+function addWindow(solids,id,p){const c=Math.cos(p.rotation),s=Math.sin(p.rotation),world=(x,y,z)=>[p.x+c*x+s*z,p.y+y,p.z-s*x+c*z];for(const b of lancetDetails(p.w,p.h)){const v=world(b.x,b.y,b.z);addBox(solids,id,...v,Math.abs(c)*b.w+Math.abs(s)*b.d,b.h,Math.abs(s)*b.w+Math.abs(c)*b.d);}for(const[outline,y,z,depth]of[[lancetOutline(p.w+.16,p.h+.12),0,0,.045],[lancetOutline(p.w,p.h),.035,.046,.02]]){const n=outline.length,v=[...outline.map(q=>world(q[0],q[1]+y,z)),...outline.map(q=>world(q[0],q[1]+y,z+depth))],f=[];for(let i=0;i<n;i++){const j=(i+1)%n;f.push([i,j,n+j],[i,n+j,n+i]);if(i>0&&i<n-1)f.push([0,i+1,i],[n,n+i,n+i+1]);}addMesh(solids,id,v,f);}}
 function addMesh(solids,id,vertices,faces){const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(const v of vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],v[i]);max[i]=Math.max(max[i],v[i]);}solids.push({id,min,max,triangles:faces.map(f=>f.map(i=>vertices[i]))});}
 function cornice(solids,id,x,y,z,w,d){addBox(solids,id,x,y,z,w+.15,.15,d+.15);addBox(solids,id,x,y+.12,z,w+.27,.07,d+.27);}
 function frustum(solids,id,x,z,r0,r1,bottom,top,n=8){const v=[];for(const[y,r]of[[bottom,r0],[top,r1]])for(let i=0;i<n;i++){const a=i*Math.PI*2/n;v.push([x+Math.sin(a)*r,y,z+Math.cos(a)*r]);}const f=[];for(let i=0;i<n;i++){const j=(i+1)%n;f.push([i,j,n+j],[i,n+j,n+i]);if(i>0&&i<n-1)f.push([0,i+1,i],[n,n+i,n+i+1]);}addMesh(solids,id,v,f);}
-function steep(solids,id,r){const{x,y,z,w,d,h}=r,v=[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,0,d/2],[-w/2,0,d/2],[0,h,-d*.2],[0,h,d*.2]].map(p=>[p[0]+x,p[1]+y,p[2]+z]);addMesh(solids,id,v,[[0,4,1],[1,4,5],[1,5,2],[2,5,3],[3,5,4],[3,4,0],[0,1,2],[0,2,3]]);cornice(solids,id,x,y,z,w,d);}
+function towerTrim(solids,id,x,z,r,bottom,top){cornice(solids,id,x,bottom+.14,z,r*1.9,r*1.9);for(const b of towerCornerStrips(x,z,r,bottom,top))addBox(solids,id,b.x,b.y,b.z,b.w,b.h,b.d);}
+function spireTrim(solids,id,x,y,z,r,h){frustum(solids,id,x,z,r*1.04,r*.91,y-.11,y+.11);frustum(solids,id,x,z,.075,.025,y+h+.065,y+h+1.215,7);frustum(solids,id,x,z,.10,0,y+h+1.11,y+h+1.73,6);for(const seam of spireSeams(x,y,z,r,h))addCapsule(solids,id,seam);}
+function steep(solids,id,r){const{x,y,z,w,d,h}=r,v=[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,0,d/2],[-w/2,0,d/2],[0,h,-d*.2],[0,h,d*.2]].map(p=>[p[0]+x,p[1]+y,p[2]+z]);addMesh(solids,id,v,[[0,4,1],[1,4,5],[1,5,2],[2,5,3],[3,5,4],[3,4,0],[0,1,2],[0,2,3]]);cornice(solids,id,x,y,z,w,d);for(const seam of steepRoofSeams(r))addCapsule(solids,`${id}:seam`,seam);}
 
 export function castleSolids(rings=2){
  const stage=Math.max(0,Math.min(2,Math.floor(rings)));if(cache.has(stage))return cache.get(stage);
  const m=castleMassing(stage),solids=[];
- for(const wall of m.walls){for(let tier=0;tier<m.count;tier++)for(const[b,box]of castleWallBoxes(wall,tier,m.count).entries())addBox(solids,`${wall.id}:${tier}:${b}`,box.x,box.y,box.z,box.w,box.h,box.d);cornice(solids,wall.id,wall.x,wall.top,wall.z,wall.w+.1,wall.d+.08);}
- m.roofs.forEach((r,i)=>steep(solids,`roof:${i}`,r));
+ for(const wall of m.walls){for(let tier=0;tier<m.count;tier++){for(const[b,box]of castleWallBoxes(wall,tier,m.count).entries())addBox(solids,`${wall.id}:${tier}:${b}`,box.x,box.y,box.z,box.w,box.h,box.d);for(const p of castleWallWindows(wall,tier,m.count))addWindow(solids,`${wall.id}:window:${tier}`,p);}cornice(solids,wall.id,wall.x,wall.top,wall.z,wall.w+.1,wall.d+.08);}
+ m.roofs.forEach((r,i)=>{steep(solids,`roof:${i}`,r);for(const side of[-1,1]){const z=r.z+side*r.d*.2;frustum(solids,`roof:${i}:finial`,r.x,z,.065,.026,r.y+r.h-.02,r.y+r.h+1.02,7);frustum(solids,`roof:${i}:finial`,r.x,z,.085,0,r.y+r.h+.895,r.y+r.h+1.345,6);}});
  for(let tier=0;tier<m.count;tier++){
   const y=KAIJU_DECK_Y+tier*KAIJU_FLOOR_SPACING,hi=tier===m.count-1?m.highest+2.4:y+KAIJU_FLOOR_SPACING;
   addBox(solids,`core:${tier}`,0,(y+hi)/2,-12,2.7,hi-y,3);for(const side of[-1,1])addBox(solids,`core-pier:${tier}`,side*1.28,(y+hi)/2,-13.5,.14,hi-y,.2);
   addBox(solids,`floor:${tier}`,0,y-.31,-12,10.8,.52,10.8);addBox(solids,`paving:${tier}`,0,y+.045,-12,10.8,.09,10.8);cornice(solids,`floor-rim:${tier}`,0,y-.46,-12,10.7,10.7);
-  for(const side of[-1,1]){addBox(solids,`walk:${tier}`,side*5,y+.098,-12,.72,.022,10.32);addBox(solids,`walk:${tier}`,0,y+.098,-12+side*4.8,10.32,.022,.72);addBox(solids,`rail:${tier}`,side*5.36,y+.78,-12,.12,.13,10.7);addBox(solids,`rail:${tier}`,0,y+.78,-12+side*5.36,10.7,.13,.12);}
+  for(const b of castleFloorDetails(y))addBox(solids,`floor-detail:${tier}`,b.x,b.y,b.z,b.w,b.h,b.d);
+  for(const side of[-1,1])addWindow(solids,`core-window:${tier}`,{x:side*.65,y:y+1,z:-13.53,rotation:Math.PI,w:.37,h:2.15});
+  for(const x of[-3.65,-2.55,2.55,3.65])addWindow(solids,`floor-window:${tier}`,{x,y:y-1.36,z:-17.08,rotation:Math.PI,w:.23,h:.70});
  }
  for(const[i,t]of m.shafts.entries()){
-  const{x,z,r,top,h}=t;for(let tier=0;tier<m.count;tier++){const bottom=Math.max(t.bottom,tier?KAIJU_DECK_Y+tier*KAIJU_FLOOR_SPACING:t.bottom),end=Math.min(top,tier===m.count-1?top:KAIJU_DECK_Y+(tier+1)*KAIJU_FLOOR_SPACING);if(end>bottom){frustum(solids,`shaft:${i}:${tier}`,x,z,r*1.07,r,bottom,end);cornice(solids,`shaft-cornice:${i}:${tier}`,x,bottom+.14,z,r*1.9,r*1.9);}}frustum(solids,`spire:${i}`,x,z,r*1.2*1.09,0,top+.11,top+h+.11);
+  const{x,z,r,top,h}=t;for(let tier=0;tier<m.count;tier++){const bottom=Math.max(t.bottom,tier?KAIJU_DECK_Y+tier*KAIJU_FLOOR_SPACING:t.bottom),end=Math.min(top,tier===m.count-1?top:KAIJU_DECK_Y+(tier+1)*KAIJU_FLOOR_SPACING);if(end>bottom){frustum(solids,`shaft:${i}:${tier}`,x,z,r*1.07,r,bottom,end);towerTrim(solids,`shaft-trim:${i}:${tier}`,x,z,r,bottom,end);for(const p of towerWindows(x,z,r,bottom,end))addWindow(solids,`shaft-window:${i}:${tier}`,p);}}frustum(solids,`spire:${i}`,x,z,r*1.2*1.09,0,top+.11,top+h+.11);spireTrim(solids,`spire-trim:${i}`,x,top,z,r*1.2,h);
  }
  addBox(solids,'upper-needle-support',4.7,m.shafts[0].bottom-.20,-17.98,1.6,.4,.42);
- const annexY=m.highest+(m.count>2?-8.4:-2.5);frustum(solids,'annex',-5.7,-6.4,.6*1.07,.6,annexY-4.1,annexY+1.8);frustum(solids,'annex-roof',-5.7,-6.4,.78*1.09,0,annexY+1.91,annexY+5.41);
+ const annexY=m.highest+(m.count>2?-8.4:-2.5);frustum(solids,'annex',-5.7,-6.4,.6*1.07,.6,annexY-4.1,annexY+1.8);towerTrim(solids,'annex-trim',-5.7,-6.4,.6,annexY-4.1,annexY+1.8);frustum(solids,'annex-roof',-5.7,-6.4,.78*1.09,0,annexY+1.91,annexY+5.41);for(const p of towerWindows(-5.7,-6.4,.6,annexY-4.1,annexY+1.8))addWindow(solids,'annex-window',p);spireTrim(solids,'annex-roof-trim',-5.7,annexY+1.8,-6.4,.78,3.5);
  cache.set(stage,solids);return solids;
 }
 
 function span(a,b,min,max,pad=0){let lo=0,hi=1;for(let i=0;i<3;i++){const d=b[i]-a[i];if(Math.abs(d)<1e-10){if(a[i]<min[i]-pad||a[i]>max[i]+pad)return null;continue;}let x=(min[i]-pad-a[i])/d,y=(max[i]+pad-a[i])/d;if(x>y)[x,y]=[y,x];lo=Math.max(lo,x);hi=Math.min(hi,y);if(lo>hi)return null;}return [lo,hi];}
 function triangleHit(a,b,t){const d=b.map((v,i)=>v-a[i]),e=t[1].map((v,i)=>v-t[0][i]),f=t[2].map((v,i)=>v-t[0][i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],p=cross(d,f),det=dot(e,p);if(Math.abs(det)<1e-10)return null;const q=a.map((v,i)=>v-t[0][i]),u=dot(q,p)/det;if(u<0||u>1)return null;const r=cross(q,e),v=dot(d,r)/det;if(v<0||u+v>1)return null;const h=dot(f,r)/det;return h>=0&&h<=1?h:null;}
-function segmentHit(solids,a,b,pad=0){let best=null;for(const s of solids){const interval=span(a,b,s.min,s.max,pad);if(!interval)continue;let t=interval[0];if(s.triangles){let closest=null;for(const tri of s.triangles){const h=triangleHit(a,b,tri);if(h!==null&&(closest===null||h<closest))closest=h;}if(closest===null)continue;t=closest;}if(!best||t<best.t)best={id:s.id,t,point:a.map((v,i)=>v+(b[i]-v)*t)};}return best;}
+function capsuleHit(a,b,cap,pad){const d=b.map((v,i)=>v-a[i]),e=cap.b.map((v,i)=>v-cap.a[i]),r=a.map((v,i)=>v-cap.a[i]),dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2],A=dot(d,d),E=dot(e,e),B=dot(d,e),C=dot(d,r),F=dot(e,r),clamp=x=>Math.max(0,Math.min(1,x));let s=A*E-B*B>1e-12?clamp((B*F-C*E)/(A*E-B*B)):0,t=E>1e-12?(B*s+F)/E:0;if(t<0){t=0;s=clamp(-C/A);}else if(t>1){t=1;s=clamp((B-C)/A);}const q=r.map((v,i)=>v+d[i]*s-e[i]*t);return dot(q,q)<=(cap.r+pad)**2?s:null;}
+function segmentHit(solids,a,b,pad=0){let best=null;for(const s of solids){const interval=span(a,b,s.min,s.max,pad);if(!interval)continue;let t=interval[0];if(s.capsule){t=capsuleHit(a,b,s.capsule,pad);if(t===null)continue;}else if(s.triangles){let closest=null;for(const tri of s.triangles){const h=triangleHit(a,b,tri);if(h!==null&&(closest===null||h<closest))closest=h;}if(closest===null)continue;t=closest;}if(!best||t<best.t)best={id:s.id,t,point:a.map((v,i)=>v+(b[i]-v)*t)};}return best;}
 
 export function cannonMuzzleLocal(slot,level,yaw,barrel=0){const p=kaijuSlotPosition(slot),m=CANNON_MOUNT,x=level>1?(barrel===0?-1:1)*m.doubleX*m.scaleX:0,z=m.muzzleZ*m.scaleZ,y=KAIJU_DECK_Y+p.y+m.districtY+m.turretY+m.barrelY*m.scaleY,c=Math.cos(yaw),s=Math.sin(yaw);return {breech:{x:p.x+c*x,y,z:p.z-s*x},muzzle:{x:p.x+c*x+s*z,y,z:p.z-s*x+c*z}};}
 const xyz=p=>[p.x,p.y,p.z];

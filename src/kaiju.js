@@ -349,7 +349,12 @@ function organicLoft(group, sections, mat, relief, region='') {
   for(let i=0;i<=rings;i++){
     const t=i/rings,c=centre.getPoint(t),r=radii.getPoint(t);
     for(let j=0;j<=edges;j++){
-      const a=j/edges*Math.PI*2,p=new T.Vector3(c.x+Math.sin(a)*Math.max(.025,r.x),c.y,c.z+Math.cos(a)*Math.max(.025,r.y));
+      const a=j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a);
+      // Rib cages, forearms and shins have broad planes around bone rather than
+      // the circular cross-section of a hose. Rounded edges remain continuous.
+      const plane=region==='torso'?.22*formBell(t,.62,.27):region==='forearm'?.25*formBell(t,.61,.32):region==='shin'?.20*formBell(t,.51,.33):.14*formBell(t,.43,.34);
+      const exponent=1-plane,sx=Math.sign(sin)*Math.abs(sin)**exponent,sz=Math.sign(cos)*Math.abs(cos)**exponent;
+      const p=new T.Vector3(c.x+sx*Math.max(.025,r.x),c.y,c.z+sz*Math.max(.025,r.y));
       relief?.(p,a,t);positions.push(p.x,p.y,p.z);uv.push(j/edges,region?1-t:p.y*.105);
       if(i<rings&&j<edges){const v=i*(edges+1)+j,b=v+1,c=v+edges+1,d=c+1;indices.push(...(upward?[v,b,c,b,d,c]:[v,c,b,b,c,d]));}
     }
@@ -391,14 +396,17 @@ function anatomicalSkin(region,base){
       if(region==='thigh')form-=front*11*formBell(side,.50,.13)*formBell(t,.50,.3);
       if(lower)form+=front*9*formBell(side,.16,.09)*formBell(t,.67,.24);
     }
-    const shade=208+front*8-back*24+wave*8+form,i=(y*width+x)*4;
-    colour.data.set([shade+flush,shade-7-flush*.46,shade-18-flush*.58,255],i);
-    const r=237-front*10+back*6-wave*3-Math.max(0,form)*.45;rough.data.set([r,r,r,255],i);
+    const exposed=region==='torso'?.62+.38*formBell(t,.53,.34):.60+.40*formBell(t,.48,.36);
+    const ventral=((Math.cos(a)+1)*.5)**1.7*exposed,variation=wave*4+form*.57,i=(y*width+x)*4;
+    // Dark weathered outer hide and warmer protected skin establish a creature
+    // identity at ordinary play distance, with gradual anatomical boundaries.
+    colour.data.set([72+ventral*87+variation+flush*.40,88+ventral*42+variation-flush*.15,82+ventral*27+variation-flush*.22,255],i);
+    const r=252-ventral*30-wave*2-Math.max(0,form)*.35;rough.data.set([r,r,r,255],i);
   }
   c.putImageData(colour,0,0);s.putImageData(rough,0,0);
   const map=new T.CanvasTexture(canvas),roughnessMap=new T.CanvasTexture(surface);map.colorSpace=T.SRGBColorSpace;
   for(const texture of [map,roughnessMap]){texture.wrapS=T.RepeatWrapping;texture.wrapT=T.ClampToEdgeWrapping;texture.anisotropy=8;}
-  const mat=base.clone();mat.map=map;mat.roughnessMap=roughnessMap;mat.roughness=.93;mat.name='Anatomical skin: '+region;anatomicalMaterials.set(region,mat);return mat;
+  const mat=base.clone();mat.color.setHex(0xffffff);mat.map=map;mat.roughnessMap=roughnessMap;mat.roughness=.93;mat.name='Anatomical skin: '+region;anatomicalMaterials.set(region,mat);return mat;
 }
 
 let fleshTexture,fleshBump;
@@ -428,12 +436,14 @@ function organicTorso(frame, m) {
   const bell=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.6,-.20,2.99,2.27],[0,28,-.39,3.73,2.41],
     [0,31.2,-.22,2.43,1.95],[0,34.5,-.32,3.11,2.32],[0,38.4,-.47,4.50,3.00],
-    [0,41.9,-.49,5.38,3.10],[0,43.65,-.32,5.82,2.71],[0,45.05,-.12,4.73,2.16],
-    [0,46.8,.25,2.38,1.74],[0,49.65,1.05,1.42,1.22]],m.skin,(p,a)=>{
+    [0,41.9,-.49,5.46,3.10],[0,43.65,-.32,5.87,2.79],[0,45.4,-.12,4.91,2.24],
+    [0,47.0,.25,2.81,1.90],[0,49.65,1.05,1.62,1.30]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),side=Math.abs(Math.sin(a));
       // Pectoral, abdominal and oblique changes are relief in the same mesh,
       // leaving smooth transitions instead of disconnected oval muscle pieces.
       p.z+=front*(1.04*bell(p.y,41.4,1.76)*bell(Math.abs(p.x),2.28,1.60)-.16*bell(p.x,0,.30)*bell(p.y,39.8,4.8));
+      p.z+=front*.88*bell(p.y,42.1,3.35)*(.62+.38*side);
+      p.z+=front*.70*bell(Math.abs(p.x),3.75,.82)*bell(p.y,42.5,2.85);
       p.z-=front*.34*bell(p.y,39.2+.16*Math.abs(p.x),.38)*bell(Math.abs(p.x),2.24,1.47);
       p.z+=front*.36*bell(p.y,44.16-.22*Math.abs(p.x),.35)*bell(Math.abs(p.x),2.2,1.9);
       for(let i=0;i<3;i++){p.z+=front*.43*bell(p.y,36.4-i*1.82,.70)*bell(Math.abs(p.x),.94,.73);p.z-=front*.11*bell(p.y,35.48-i*1.82,.22)*bell(Math.abs(p.x),1.12,.86);}
@@ -441,6 +451,9 @@ function organicTorso(frame, m) {
       p.x+=Math.sign(p.x)*.32*side*bell(p.y,36.8,3)*Math.sin((p.y-34)*2.1+side*.9);
       p.z+=front*.27*side*bell(p.y,28.9+Math.abs(p.x)*.23,.46);
       p.z-=front*.26*side*bell(p.y,30.0+Math.abs(p.x)*.15,.44);
+      const neckLine=1.10+(49.25-p.y)*.37;
+      p.z+=front*.42*bell(Math.abs(p.x),neckLine,.32)*bell(p.y,47.1,2.30);
+      p.z-=front*.18*bell(Math.abs(p.x),.55,.40)*bell(p.y,47.4,1.80);
     },'torso');
   for (const side of [-1, 1]) {
     // Blunt shoulder osteoderms and swept bone horns create a living silhouette.
@@ -627,8 +640,8 @@ function organicLeg(rig, limbs, side, m) {
 
 function createFleshKaiju(frame, rig, limbs) {
   const m = {
-    skin: fleshMaterial(0x948073,.80),
-    warm: fleshMaterial(0xa08673,.82),
+    skin: fleshMaterial(0xa99782,.80),
+    warm: fleshMaterial(0xb39b81,.82),
     ridge: fleshMaterial(0x776f62,.87),
     bone: material('bone', 0xb4a47e, { roughness: .77 }),
     tooth: material('bone', 0xd6c9a7, { roughness: .61 }),

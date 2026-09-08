@@ -1,16 +1,16 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial,box,cylinder,cone,beam,batchStatic} from './materials.js';
 import {KAIJU_DECK_Y,KAIJU_CENTER,KAIJU_FLOOR_SPACING,KAIJU_FLOOR_SLOTS,kaijuFloorCount,kaijuTowerTop,kaijuWalkFloors,RING_SLOTS} from './city-layout.js';
-import {castleMassing,castleWallBoxes} from './castle-collision.js';
+import {castleMassing,castleWallBoxes,castleWallWindows,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofSeams,spireSeams} from './castle-collision.js';
 export {kaijuSlotPosition} from './city-layout.js';
 const M=(kind,color)=>getMaterial(kind,color);
 function mesh(group,geometry,material,x=0,y=0,z=0){const o=new T.Mesh(geometry,material);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;}
-function pointedShape(w,h){const s=new T.Shape();s.moveTo(-w/2,0);s.lineTo(-w/2,h*.63);s.quadraticCurveTo(-w*.43,h*.82,0,h);s.quadraticCurveTo(w*.43,h*.82,w/2,h*.63);s.lineTo(w/2,0);s.closePath();return s;}
+function pointedShape(w,h){const s=new T.Shape(),points=lancetOutline(w,h);s.moveTo(...points[0]);for(const q of points.slice(1))s.lineTo(...q);s.closePath();return s;}
 function lancet(group,x,y,z,rotation,w,h,p,lit=false){
  const g=new T.Group();g.position.set(x,y,z);g.rotation.y=rotation;group.add(g);
  mesh(g,new T.ExtrudeGeometry(pointedShape(w+.16,h+.12),{depth:.045,bevelEnabled:false,curveSegments:4}),p.trim);
  const pane=mesh(g,new T.ExtrudeGeometry(pointedShape(w,h),{depth:.02,bevelEnabled:false,curveSegments:4}),lit?p.light:p.glass,0,.035,.046);pane.castShadow=false;
- box(g,.045,h*.8,.045,p.dark,0,h*.4,.089);box(g,w*.88,.04,.04,p.dark,0,h*.39,.087);box(g,w+.28,.08,.22,p.trim,0,-.01,.05);
+ for(const b of lancetDetails(w,h))box(g,b.w,b.h,b.d,p[b.material],b.x,b.y,b.z);
 }
 function pointedArch(group,a,b,y,rise,p,width=.12){
  const middle=[(a[0]+b[0])/2,y+rise,(a[1]+b[1])/2];
@@ -22,19 +22,14 @@ function cornice(group,x,y,z,w,d,p){box(group,w+.15,.15,d+.15,p.trim,x,y,z);box(
 function roof(group,x,y,z,r,h,p){
  cylinder(group,r*.91,r*1.04,.22,p.trim,x,y,z,8);
  cone(group,r*1.09,h,p.roof,x,y+h*.5+.11,z,8);
- for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;beam(group,[x+Math.sin(a)*r*.79,y+.12,z+Math.cos(a)*r*.79],[x,y+h+.14,z],.025,p.metal);}
+ for(const seam of spireSeams(x,y,z,r,h))beam(group,seam.a,seam.b,seam.r,p.metal);
  cylinder(group,.025,.075,1.15,p.metal,x,y+h+.64,z,7);cone(group,.10,.62,p.metal,x,y+h+1.42,z,6);
 }
 function towerSegment(group,x,z,r,bottom,top,p,seed,windows=true){
  const h=top-bottom;cylinder(group,r,r*1.07,h,p.wall,x,bottom+h/2,z,8);
  cornice(group,x,bottom+.14,z,r*1.9,r*1.9,p);
- for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;box(group,.11,h+.1,.11,p.trim,x+Math.sin(a)*r*.9,bottom+h/2,z+Math.cos(a)*r*.9);}
- if(windows&&h>2.2){
-  for(let row=0;row<Math.floor(h/3.4);row++)for(let face=0;face<4;face++){
-   const a=face*Math.PI/2,yy=bottom+.9+row*3.4;
-   lancet(group,x+Math.sin(a)*r*.94,yy,z+Math.cos(a)*r*.94,a,r*.40,Math.min(2.0,h-1.1),p,(seed+row*3+face)%7===1);
-  }
- }
+ for(const b of towerCornerStrips(x,z,r,bottom,top))box(group,b.w,b.h,b.d,p.trim,b.x,b.y,b.z);
+ if(windows)for(const q of towerWindows(x,z,r,bottom,top))lancet(group,q.x,q.y,q.z,q.rotation,q.w,q.h,p,(seed+q.row*3+q.face)%7===1);
 }
 function balcony(group,x,y,z,w,d,p,front=true){
  box(group,w,.34,d,p.wall,x,y-.22,z);box(group,w+.08,.09,d+.08,p.paving,x,y+.045,z);
@@ -53,15 +48,7 @@ function floor(group,tier,deckY,p){
  // Each floor has exactly the same plan: a keep and four supported wards.
  box(group,10.8,.52,10.8,p.wall,0,y-.31,z);box(group,10.8,.09,10.8,p.paving,0,y+.045,z);
  cornice(group,0,y-.46,z,10.7,10.7,p);
- for(const side of[-1,1]){
-  box(group,.72,.022,10.32,p.walk,side*5,y+.098,z);
-  box(group,10.32,.022,.72,p.walk,0,y+.098,z+side*4.8);
-  // Low open tracery keeps the occupied floor visible from the outer camera.
-  box(group,.12,.13,10.7,p.trim,side*5.36,y+.78,z);
-  for(let zz=-4.8;zz<=4.8;zz+=1.2){box(group,.16,.66,.16,p.wall,side*5.36,y+.39,z+zz);box(group,.22,.08,.22,p.trim,side*5.36,y+.80,z+zz);}
-  box(group,10.7,.13,.12,p.trim,0,y+.78,z+side*5.36);
-  for(let xx=-4.8;xx<=4.8;xx+=1.2)box(group,.14,.67,.16,p.wall,xx,y+.4,z+side*5.36);
- }
+ for(const b of castleFloorDetails(y))box(group,b.w,b.h,b.d,p[b.material],b.x,b.y,b.z);
  // The structural ribs are below the floors, outside all district interiors.
  for(const side of[-1,1])for(const zz of[-3.4,3.4]){
   beam(group,[side*5.28,y-.65,z+zz],[side*4.84,y-2.0,z+zz],.14,p.wall);
@@ -76,8 +63,7 @@ function steepRoof(group,x,y,z,w,d,h,p){
  for(const f of faces)for(const i of f){pos.push(...v[i]);uv.push(v[i][0]/w+.5,v[i][1]/h);}
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();mesh(group,geometry,p.roof,x,y,z);
  cornice(group,x,y,z,w,d,p);
- for(const i of[0,1,2,3])beam(group,[x+v[i][0],y,z+v[i][2]],[x,y+h,z+(i<2?-d*.2:d*.2)],.033,p.metal);
- beam(group,[x,y+h,z-d*.2],[x,y+h,z+d*.2],.06,p.metal);
+ for(const seam of steepRoofSeams({x,y,z,w,d,h}))beam(group,seam.a,seam.b,seam.r,p.metal);
  for(const side of[-1,1]){cylinder(group,.026,.065,1.04,p.metal,x,y+h+.50,z+side*d*.2,7);cone(group,.085,.45,p.metal,x,y+h+1.12,z+side*d*.2,6);}
 }
 
@@ -98,11 +84,7 @@ export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
    const lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);if(hi<=lo)continue;
    const shell=shells[tier],h=hi-lo;
    for(const b of castleWallBoxes({x,z,w,d,bottom,top,gunLane},tier,count,deckY))box(shell,b.w,b.h,b.d,b.trim==='edge'?p.edge:b.trim?p.trim:p.wall,b.x,b.y,b.z);
-   const spacing=3.25,start=bottom+1.25;
-   for(let y=start+Math.max(0,Math.ceil((lo-start)/spacing))*spacing;y+2.15<hi+.01;y+=spacing){
-    if(front)for(const xx of(w>3?[-w*.27,w*.27]:[0])){if(gunLane!==null&&Math.abs(x+xx-gunLane)<1.18)continue;lancet(shell,x+xx,y,z-d*.5-.025,Math.PI,w>3?.55:Math.min(.6,w*.42),2.30,p,(seed+Math.round(y/spacing)+Math.round(xx*4))%7===0);}
-    else for(const dz of[-d*.28,d*.28])lancet(shell,x+Math.sign(x)*(w*.5+.025),y,z+dz,Math.sign(x)*Math.PI/2,.54,2.3,p,(seed+Math.round(y/spacing))%7===0);
-   }
+   for(const q of castleWallWindows({x,z,w,d,bottom,top,gunLane,front,seed},tier,count,deckY))lancet(shell,q.x,q.y,q.z,q.rotation,q.w,q.h,p,q.lit);
   }
   cornice(shellAt(top),x,top,z,w+.10,d+.08,p);
  }

@@ -76,3 +76,12 @@ test('castle masonry blocks oblique cannon damage while its forward port stays u
   assert.ok(result.active,'The actual forward port must remain useful at every castle growth stage');
  }
 });
+
+test('projecting castle sills, roof seams and railing posts block curved cannon shots',()=>{
+ for(const variant of ['cyborg','flesh'])for(const {slot,degrees,enemyFaction} of [{slot:13,degrees:-30,enemyFaction:'crawler'},{slot:16,degrees:30,enemyFaction:'airship'},{slot:17,degrees:70,enemyFaction:'airship'}]){
+  const s=createGame('kaiju',variant);s.rings=2;s.buildings.fill(null);s.buildings[7]={type:'keep',level:1,remaining:0};s.buildings[slot]={type:'cannon',level:1,remaining:0};s.battle={enemyFaction};
+  const p=batteryPosition('kaiju',slot),yaw=kaijuSlotPosition(slot).rotation+degrees*Math.PI/180;
+  const result=batterySolution(s,slot,{x:0,z:0,angle:0},{x:p.x+Math.sin(yaw)*50,z:p.z+Math.cos(yaw)*50},54);
+  assert.ok(result.inArc&&result.inRange);assert.equal(result.active,false);assert.ok(String(result.blocker).startsWith('castle:'),`The projecting trim at slot ${slot} must participate in obstruction`);
+ }
+});

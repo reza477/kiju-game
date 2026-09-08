@@ -46,5 +46,8 @@ The first builder attempt includes the vertical castle with inspectable floors, 
 |---|---|---|---|
 | 1 | `fd3e5a4` | [Independent review](art-reviews/variants-01.md) | **FAIL — 6.7/10**, 0 runtime errors; enclosing castle walls obscure floor inspection |
 | 2 | `c47a1ea` | [Independent review](art-reviews/variants-02.md) | **FAIL — 7.0/10**, floor inspection fixed; no new confirmed errors in the critic's evidence, aesthetic threshold not met |
+| 3 | `7d67b0a` | [Independent review](art-reviews/variants-03.md) | **FAIL — 7.0/10**, main cannon obstruction fixed; three known curved-shot collisions with projecting trim remain |
 
 Round 2 replaces open shelving with larger keep and roof masses, exposes the selected floor's residents and plots, joins the flesh body into continuous anatomical surfaces, and deepens the drill's helical cutting flight. The critic independently captured 42 views. A separate builder geometry diagnostic subsequently confirmed that some allowed oblique cannon paths cross the castle shell; this is being addressed in round 3, without changing the critic's bounded findings.
+
+Round 3 shares principal castle solids between rendering and weapon obstruction, preserves real gun ports and stops barrels before walls. It also refines flesh landmarks, regional skin response and supported stance, and adds axial wear to the drill core. The critic independently captured 46 views and reproduced 525 barrel samples, clear/blocked combat, and the variant contact suite. A broader builder diagnostic identified three remaining curved paths through a sill, roof seam and railing post. The final round addresses that trim coverage along with the ranked anatomy and castle hierarchy work.
