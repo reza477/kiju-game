@@ -25,7 +25,7 @@ function updateDistricts(city,buildings,rings=2){
   setCityRings(city,rings);
   const signature=JSON.stringify([rings,buildings.map(b=>b?[b.type,b.level,b.remaining>0,b.facing]:null)]);
   if(signature===city.signature)return;city.signature=signature;
-  disposeGroup(city.districts);disposeGroup(city.plots);city.districts.clear();city.plots.clear();city.districtStacks=[];city.batteries=[];
+  disposeGroup(city.districts);disposeGroup(city.plots);city.districts.clear();city.plots.clear();city.districtStacks=[];city.batteries=[];city.activityStations=[];
   buildings.forEach((b,i)=>{
     const p=city.slotPositions[i],hit=city.slots[i];
     hit.userData.locked=city.faction==='kaiju'&&p.ring>rings;hit.rotation.y=p.rotation??0;
@@ -36,6 +36,7 @@ function updateDistricts(city,buildings,rings=2){
     const bounds=new T.Box3().setFromObject(district);let h=Math.max(1,bounds.max.y);
     if(city.layout==='tower'&&p.tier<kaijuFloorCount(rings)-1&&h>7.1){district.scale.y*=7.1/h;h=7.1;}
     district.position.set(p.x,p.y+.18,p.z);hit.scale.y=h+.18;hit.position.y=p.y+(h+.18)/2;
+    if(!(b.remaining>0)&&district.userData.activityStation)city.activityStations.push({...district.userData.activityStation,slot:i,tier:p.tier??0});
     district.traverse(o=>{if(o.userData.smokestack)city.districtStacks.push(o);});
     if(b.remaining>0){
       district.scale.y*=.5;

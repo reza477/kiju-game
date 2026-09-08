@@ -4,6 +4,33 @@ import {KAIJU_DECK_Y,KAIJU_CENTER,KAIJU_FLOOR_SPACING,KAIJU_FLOOR_SLOTS,kaijuFlo
 import {castleMassing,castleWallBoxes,castleWallWindows,castleStructuralDetails,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofShape,steepRoofSeams,spireSeams} from './castle-collision.js';
 export {kaijuSlotPosition} from './city-layout.js';
 const M=(kind,color)=>getMaterial(kind,color);
+const fortressMaterials=new Map();
+function fortressSurface(kind,color,role){
+ const key=`${kind}:${color}:${role}`;if(fortressMaterials.has(key))return fortressMaterials.get(key);
+ const material=M(kind,color).clone();material.name=`Castle ${role}`;material.userData.shared=true;
+ material.normalScale.setScalar(role==='foundation'?.44:role==='tracery'?.18:.28);
+ material.onBeforeCompile=shader=>{
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vFortressPosition;').replace('#include <begin_vertex>','#include <begin_vertex>\nvFortressPosition=position;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vFortressPosition;').replace('#include <map_fragment>',`
+   #ifdef USE_MAP
+    vec4 stoneSample=texture2D(map,vMapUv);
+    float stoneWear=dot(stoneSample.rgb,vec3(.2126,.7152,.0722));
+    // Keep the scanned relief, but let the authored limestone and basalt read
+    // as separate materials instead of every face inheriting brown mortar.
+    diffuseColor.rgb*=mix(stoneSample.rgb,vec3(stoneWear),.78)*1.55+vec3(.035);
+    diffuseColor.a*=stoneSample.a;
+   #endif
+   vec3 fp=vFortressPosition;
+   float verticalRain=pow(.5+.5*sin((fp.x+fp.z*.43)*3.1+sin(fp.x*.81-fp.z*.37)*2.1),8.);
+   float weatherField=.5+.5*sin(fp.y*.19+sin(fp.x*.43+fp.z*.61)*2.3);
+   diffuseColor.rgb*=1.-verticalRain*weatherField*.17;
+   float damp=1.-smoothstep(27.,43.,fp.y);
+   diffuseColor.rgb*=mix(vec3(1.),vec3(.79,.87,.88),damp*.55);
+  `);
+ };
+ material.customProgramCacheKey=()=> 'fortress-limestone-weather-v1';
+ fortressMaterials.set(key,material);return material;
+}
 function mesh(group,geometry,material,x=0,y=0,z=0){const o=new T.Mesh(geometry,material);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;}
 function pointedShape(w,h){const s=new T.Shape(),points=lancetOutline(w,h);s.moveTo(...points[0]);for(const q of points.slice(1))s.lineTo(...q);s.closePath();return s;}
 function lancet(group,x,y,z,rotation,w,h,p,lit=false){
@@ -71,7 +98,7 @@ function steepRoof(group,x,y,z,w,d,h,p){
 export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
  const massing=castleMassing(rings,deckY),{stage,count,highest,totalTop,mainCrown,leftCrown,rearCrown,leftWingTop,rightWingTop,rearTop}=massing;
  const group=new T.Group();group.name='Clustered Gothic castle backpack';
- const p={wall:M('stone',enemy?0x737984:0x848b8e),trim:M('plaster',0xb7ad9c),edge:M('stone',0x9b9d9d),roof:M('roof',0x945442),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
+ const p={wall:fortressSurface('stone',enemy?0x8e9796:0x92978f,'keep'),wing:fortressSurface('stone',0x7d8b8b,'secondary wings'),dressed:fortressSurface('plaster',0x96998f,'dressed chambers'),foundation:fortressSurface('stone',0x687576,'foundation'),trim:fortressSurface('plaster',0xb0ac9e,'tracery'),edge:fortressSurface('stone',0x8a9594,'structural stone'),roof:M('roof',0x875043),metal:M('metal',0x706967),dark:M('metal',0x343641),paving:M('pavement',0x868781),walk:M('pavement',0xaaa391),light:M('window',0xc1c9bb),glass:M('glass',0x68828e)};
  const floors=[],shells=[];
  for(let tier=0;tier<count;tier++){
   const g=new T.Group();g.name=`Castle floor ${tier+1}`;Object.assign(g.userData,{towerTier:tier,tier,noBatch:true});group.add(g);floors.push(g);floor(g,tier,deckY,p);
@@ -80,11 +107,15 @@ export function createCastleBackpack(deckY=KAIJU_DECK_Y,enemy=false,rings=1){
  // Every exterior piece is clipped at floor boundaries for reversible inspection.
  const shellAt=y=>shells[Math.max(0,Math.min(count-1,Math.floor((y-deckY)/KAIJU_FLOOR_SPACING)))];
  function wallVolume(x,z,w,d,bottom,top,seed,front=true,gunLane=null,id='wall'){
+  const mainMaterial=/belfry|crown|lantern/.test(id)?p.dressed:/wing|spine|gallery/.test(id)?p.wing:p.wall,foundationTop=deckY+(count>2?6.1:1.6);
   for(let tier=0;tier<count;tier++){
    const lo=Math.max(bottom,tier?deckY+tier*KAIJU_FLOOR_SPACING:bottom),hi=Math.min(top,tier===count-1?top:deckY+(tier+1)*KAIJU_FLOOR_SPACING);if(hi<=lo)continue;
    const shell=shells[tier],h=hi-lo;
    const descriptor={id,x,z,w,d,bottom,top,gunLane,front,seed};
-   for(const b of castleWallBoxes(descriptor,tier,count,deckY))box(shell,b.w,b.h,b.d,b.trim==='edge'?p.edge:b.trim?p.trim:p.wall,b.x,b.y,b.z);
+   for(const b of castleWallBoxes(descriptor,tier,count,deckY)){
+    if(b.trim)box(shell,b.w,b.h,b.d,b.trim==='edge'?p.edge:p.trim,b.x,b.y,b.z);
+    else {const low=b.y-b.h/2,high=b.y+b.h/2,split=Math.max(low,Math.min(high,foundationTop));if(split>low)box(shell,b.w,split-low,b.d,p.foundation,b.x,(low+split)/2,b.z);if(high>split)box(shell,b.w,high-split,b.d,mainMaterial,b.x,(split+high)/2,b.z);}
+   }
    for(const q of castleWallWindows(descriptor,tier,count,deckY))lancet(shell,q.x,q.y,q.z,q.rotation,q.w,q.h,p,q.lit);
   }
   cornice(shellAt(top),x,top,z,w+.10,d+.08,p);

@@ -123,6 +123,26 @@ function regionAt(x, z) {
     meadow: Math.max(patch(55, 65, 45, 42), patch(-115, -110, 39, 37))
   };
 }
+// These named ecotones share one field between the ground and the vegetation.
+// They frame the initial journeys without filling the route itself with props.
+function ecologyAt(x,z) {
+  if(Math.max(Math.abs(x),Math.abs(z))>225)return {woods:0,wet:0,broken:0,open:0};
+  const lobe=(cx,cz,rx,rz)=>Math.exp(-(((x-cx)/rx)**2+((z-cz)/rz)**2));
+  let route=Infinity;
+  for(const [cx,cz]of RESOURCE_CLEARINGS){
+    const dx=cx+30,dz=cz-40,t=Math.max(0,Math.min(1,((x+30)*dx+(z-40)*dz)/(dx*dx+dz*dz)));
+    route=Math.min(route,Math.hypot(x+30-dx*t,z-40-dz*t));
+  }
+  const open=smooth(10,18,route)*(protectedResource(x,z,2)?0:1)*(1-smooth(195,225,Math.max(Math.abs(x),Math.abs(z))));
+  const edge=noise(x*.066+31,z*.057-8),d=shoreDistance(x,z),beach=bankWidth(x,z);
+  const west=Math.max(lobe(-93,38,43,29),lobe(-75,80,31,24),lobe(-137,-29,37,40));
+  const east=lobe(108,58,40,35);
+  const woods=Math.max(west,east)*smooth(.27,.66,edge)*smooth(beach+7,beach+18,d)*open;
+  const bend=Math.max(lobe(riverX(24)-riverWidth(24)-9,24,20,32),lobe(riverX(93)+riverWidth(93)+9,93,20,28));
+  const wet=bend*smooth(-1,2,d)*(1-smooth(beach+7,beach+16,d))*open;
+  const broken=Math.max(lobe(-95,-1,25,29),lobe(76,8,30,25))*smooth(.30,.68,noise(x*.041-3,z*.049+9))*open;
+  return {woods,wet,broken,open};
+}
 function groundTexture(data, size, colour = false, repeat = false) {
   const texture = new T.DataTexture(data, size, size, T.RGBAFormat);
   texture.colorSpace = colour ? T.SRGBColorSpace : T.NoColorSpace;
@@ -175,14 +195,14 @@ function groundAlbedo() {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
     const dx = (heights[row * size + Math.min(size - 1, col + 1)] - heights[row * size + Math.max(0, col - 1)]) / (spacing * 2);
     const dz = (heights[Math.min(size - 1, row + 1) * size + col] - heights[Math.max(0, row - 1) * size + col]) / (spacing * 2);
-    const slope = Math.hypot(dx, dz), region = regionAt(x, z), d = shoreDistance(x, z);
+    const slope = Math.hypot(dx, dz), region = regionAt(x, z), d = shoreDistance(x, z), eco=ecologyAt(x,z);
     const broad = noise(x * .012 + 14, z * .012 - 8), veins = noise(x * .026 - 2, z * .026 + 9);
     const ruin = ruinFootprint(x, z), ash = region.ash * .65 + ruin * .35;
     const mineral = smooth(.17, .49, slope) * smooth(8, 27, y);
     const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
     const crest=smooth(24,58,y)*smooth(165,255,Math.max(Math.abs(x),Math.abs(z)))*smooth(.27,.65,veins);
     const talus=region.slate*smooth(9,25,y)*smooth(.43,.62,noise(x*.054+11,z*.039-2));
-    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62);
+    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70);
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
     const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
@@ -190,16 +210,18 @@ function groundAlbedo() {
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
     forest*=smooth(7,20,d)*(1-region.meadow*.8)*(isClearing(x,z,4)?0:1);
+    forest=Math.max(forest,eco.woods*.98);
     c.lerp(palette.litter,forest*.82).lerp(palette.moss,forest*(1-smooth(.42,.65,veins))*.27);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
     c.lerp(palette.gravel, bank * (.74+veins*.25)).lerp(palette.riverbed, 1 - smooth(waterline-1,waterline+.7,d));
+    c.lerp(palette.litter,eco.woods*.55).lerp(palette.moss,eco.wet*.60).lerp(palette.wet,eco.wet*(1-smooth(beach,beach+8,d))*.66);
     // Geological striations are broad and follow the ridge, without vertex-sized
     // colour noise. The close detail comes from material-specific tiled textures.
     c.multiplyScalar(.96 + veins * .07);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255; colourData[offset + 3] = 255;
-    const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9));
+    const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9,eco.wet*.94));
     weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255); weightData[offset + 2] = Math.round(soilWeight * 255); weightData[offset + 3] = 255;
   }
   return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
@@ -815,6 +837,79 @@ function createSlateLandmark(group, records) {
   stone.finish('The Three Sisters slate outcrop');
 }
 
+function composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount) {
+  const shelves=new Instances(group,fracturedRockGeometry(),getMaterial('rock',0xffffff));
+  const candidates=records.filter(record=>{
+    if(Math.max(Math.abs(record.x),Math.abs(record.z))>185)return false;
+    const e=ecologyAt(record.x,record.z);
+    return Math.max(e.woods,e.wet,e.broken)>.10;
+  }).sort((a,b)=>Math.hypot(a.x+30,a.z-40)-Math.hypot(b.x+30,b.z-40));
+  let bushes=0,fernCount=0,ledges=0,relocated=0;
+  const safe=(x,z)=>!protectedResource(x,z,2)&&ecologyAt(x,z).open>.28&&terrainNormal(x,z).y>.88&&sceneryHeight(x,z)>-.45;
+  for(let i=looseGrassCount;i<grass.items.length;i++){
+    const item=grass.items[i];if(item.windMotion?.[0]!==.44)continue;
+    const e=ecologyAt(item.x,item.z),rand=random(i*881+7251),side=Math.sign(item.x-riverX(item.z));
+    const z=item.z+(rand()-.5)*6.5,beach=bankWidth(item.x,z),waterline=-3+(beach+3)*.61;
+    const x=riverX(z)+side*(riverWidth(z)+waterline+1.2+rand()*4.0);
+    if(protectedResource(x,z,2))continue;
+    const y=sceneryHeight(x,z);if(y<-.53)continue;
+    const patch=smooth(.33,.63,noise(x*.058+13,z*.083));
+    const scale=.42+patch*(.76+e.wet*.92);
+    Object.assign(item,{x,y,z,sx:.8*scale,sy:1.65*scale,sz:.8*scale,windRoot:[x,y,z,1.65*scale],colour:e.wet>.15?0x75904c:0x949763});
+  }
+  for(const record of candidates){
+    const e=ecologyAt(record.x,record.z),rand=random(Math.abs(record.x*73511+record.z*29663)*100);
+    const first=shrubs.items.length,fernFirst=ferns.items.length;
+    const wet=e.wet>Math.max(e.woods,e.broken),power=Math.max(e.woods,e.wet,e.broken);
+    // A few substantial, overlapping masses form a ragged skirt around trees
+    // and rock toes. Their low outer branches meet fern/grass, then open route.
+    for(let j=0;j<3&&bushes<120;j++){
+      const angle=rand()*TAU,radius=(1.6+rand()*2.4)*record.size;
+      const x=record.x+Math.cos(angle)*radius,z=record.z+Math.sin(angle)*radius;
+      if(!safe(x,z))continue;
+      const s=1.35+rand()*.68+power*.38,y=sceneryHeight(x,z),height=s*(wet?.52:.66);
+      const index=shrubs.add(x,y+height*.72,z,s,height,s*.83,wet?0x537f56:record.kind==='rock'?0x7d8050:0x3c632e,angle);
+      shrubs.items[index].windRoot=[x,y,z,height*2.2];bushes++;
+    }
+    for(let j=0;j<2&&fernCount<96;j++){
+      const angle=rand()*TAU,radius=(2.3+rand()*2.8)*record.size;
+      const x=record.x+Math.cos(angle)*radius,z=record.z+Math.sin(angle)*radius;
+      if(!safe(x,z))continue;
+      const s=1.5+rand()*.7;ferns.add(x,sceneryHeight(x,z)+.035,z,s,s*.80,s,wet?0x5e834d:0x64813b,angle);fernCount++;
+    }
+    if(shrubs.items.length>first)record.parts.push({batch:shrubs,first,count:shrubs.items.length-first});
+    if(ferns.items.length>fernFirst)record.parts.push({batch:ferns,first:fernFirst,count:ferns.items.length-fernFirst});
+    if(wet&&record.kind==='rock'&&ledges<28){
+      const first=shelves.items.length,side=Math.sign(record.x-riverX(record.z));
+      for(let j=0;j<3&&ledges<28;j++){
+        const x=record.x+side*(1.7+j*.68),z=record.z+(j-1)*1.53+(rand()-.5)*1.4;
+        if(!safe(x,z))continue;
+        const y=sceneryHeight(x,z),sx=1.8+rand()*1.5,sz=2.5+rand()*1.8,sy=.65+rand()*.8;
+        shelves.add(x,y-sy*.25,z,sx,sy,sz,[0x6c8290,0x7b9396,0x93a5a4][j],side*.25+(rand()-.5)*1.6);ledges++;
+      }
+      if(shelves.items.length>first)record.parts.push({batch:shelves,first,count:shelves.items.length-first});
+    }
+  }
+  // Reuse the old loose grass inventory: move a minority into the ecological
+  // patches, rather than adding an expensive carpet over the whole map.
+  for(let i=0;i<looseGrassCount;i++){
+    if(i%3!==0||!candidates.length)continue;
+    const record=candidates[(i*73)%candidates.length],rand=random(12771+i*173);
+    for(let attempt=0;attempt<8;attempt++){
+      const angle=rand()*TAU,radius=(1.0+rand()*5.2)*Math.min(1.45,record.size);
+      const x=record.x+Math.cos(angle)*radius,z=record.z+Math.sin(angle)*radius,e=ecologyAt(x,z);
+      if(!safe(x,z)||Math.max(e.woods,e.wet,e.broken)<.09)continue;
+      const h=(e.wet>.15?1.65:1.08)+rand()*.78,y=sceneryHeight(x,z),item=grass.items[i];
+      Object.assign(item,{x,y:y+.025,z,sx:1.8+rand()*1.4,sy:h,sz:1.8+rand()*1.4,yaw:angle,
+        colour:e.wet>.15?0x82964f:e.broken>.2?0x9e995e:0x708b43,
+        windRoot:[x,y,z,h],windFlex:[e.wet>.15?.39:.26,.016],windMotion:[e.wet>.15?.48:.82,2.1]});
+      record.parts.push({batch:grass,first:i,count:1});relocated++;break;
+    }
+  }
+  const mesh=shelves.finish('Exposed wet-bank bedding shelves');
+  return {bushes,ferns:fernCount,ledges,relocatedGrass:relocated,patchAnchors:candidates.length,mesh};
+}
+
 export function createLandscape() {
   const group = new T.Group(); group.name = 'The reclaimed lowlands';
   const ground = createGround(); group.add(ground);
@@ -871,6 +966,7 @@ export function createLandscape() {
     grass.add(x, y + .02, z, h, h, h, [0x99a46b, 0x7f9855, 0xb0ae72, 0x7c9056][i % 4], rand() * TAU);
     if (i % 4 === 0) flowers.add(x, y + h * .5, z, .09, .06, .09, i % 3 ? 0xe7d8a7 : 0xb4acb7);
   }
+  const looseGrassCount=grass.items.length;
   // Pebbles and reeds emphasize the waterline without a hard painted border.
   for (let z = -380; z <= 380; z += 4) for (const side of [-1, 1]) {
     const x = riverX(z) + side * (riverWidth(z) + 3.5 + rand() * 2.5), y = sceneryHeight(x, z);
@@ -908,11 +1004,13 @@ export function createLandscape() {
   // Upland geology now belongs to the connected height field. The former
   // detached repeated ridge-bed instances are removed; save anchors stay put.
   composeRegions(trees,shrubs,grass);createSlateLandmark(group,records);
+  const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
   const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
+  stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
   group.traverse(mesh => { if (mesh.userData.windAnimated) stats.animatedVegetationInstances += mesh.count; });
   let actors = [];

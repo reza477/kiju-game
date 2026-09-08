@@ -44,7 +44,7 @@ export function castleMassing(rings=2,deckY=KAIJU_DECK_Y){
   {id:'gate-belfry',x:-4.7,z:-19.70,w:3.72,d:4.12,bottom:leftCrown-7.8,top:leftCrown,seed:8,front:true},
   {id:'left-wing',x:-5.86,z:-11.98,w:.65,d:8.3,bottom:deckY-.3,top:leftWingTop,seed:7,front:false},
   {id:'right-wing',x:5.82,z:-9.48,w:.65,d:6.3,bottom:deckY-2.5,top:rightWingTop,seed:3,front:false},
-  {id:'rear-spine',x:0,z:-6.1,w:3.5,d:1.15,bottom:deckY-2.5,top:rearTop,seed:1,front:false}
+  {id:'rear-spine',x:0,z:-6.1,w:3.5,d:1.15,bottom:deckY-2.5,top:rearTop,seed:1,front:true}
  ];
  const roofs=[{x:.8,y:mainCrown,z:-18.76,w:6.78,d:3.54,h:9.28},{x:-4.7,y:leftCrown,z:-19.70,w:4.34,d:4.66,h:8.4},{x:-5.86,y:leftWingTop,z:-11.98,w:.96,d:8.45,h:4},{x:5.82,y:rightWingTop,z:-9.48,w:.94,d:6.46,h:3.1},{x:0,y:rearTop,z:-6.1,w:3.7,d:1.85,h:5}];
  // The grown keep rises from a broad lower hall into an offset, narrower crown.

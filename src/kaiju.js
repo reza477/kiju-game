@@ -482,7 +482,7 @@ function fleshMaterial(colour,roughness=.8){
 
 function organicTorso(frame, m) {
   const bell=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
-  organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.5,-.50,3.03,2.31],[0,27.8,-.62,3.82,2.61],
+  const torsoSkin=organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.5,-.50,3.03,2.31],[0,27.8,-.62,3.82,2.61],
     [0,29.5,-.44,3.24,2.33],[0,31.3,-.25,2.62,2.02],[0,34.2,-.45,3.32,2.45],
     [0,37.3,-.61,4.64,3.03],[0,40.7,-.58,5.56,3.09],[0,42.7,-.4,5.79,2.95],
     [0,44.0,-.15,5.62,2.62],[0,45.35,.02,4.36,2.36],[0,46.7,.48,3.08,1.97],
@@ -518,6 +518,14 @@ function organicTorso(frame, m) {
       p.z-=front*.26*bell(p.y,45.2,.38)*bell(p.x,0,.55);
       p.z+=front*.27*bell(Math.abs(p.x),.78+(48.2-p.y)*.38,.23)*bell(p.y,46.6,1.7);
     },'torso');
+  const source=torsoSkin.geometry.attributes.position,breath=[],recovery=[];
+  for(let i=0;i<source.count;i++){
+    const x=source.getX(i),y=source.getY(i),z=source.getZ(i),chest=bell(y,40.7,4.3),upper=bell(y,43.3,4.0),a=.038*upper;
+    breath.push(x*(1+.023*chest),y+.075*chest,z+(z>0?.31:-.19)*chest);
+    recovery.push(x*Math.cos(a)-z*Math.sin(a),y-.13*upper*Math.min(1,Math.abs(x)/5),x*Math.sin(a)+z*Math.cos(a));
+  }
+  torsoSkin.geometry.morphAttributes.position=[new T.Float32BufferAttribute(breath,3),new T.Float32BufferAttribute(recovery,3)];torsoSkin.updateMorphTargets();torsoSkin.userData.noBatch=true;torsoSkin.name='Breathing flesh torso';
+  frame.userData.fleshAnatomy={torso:torsoSkin};
   for (const side of [-1, 1]) {
     // Blunt shoulder osteoderms and swept bone horns create a living silhouette.
     for (let i = 0; i < 3; i++) {
@@ -531,6 +539,7 @@ function organicTorso(frame, m) {
 function organicHead(frame, m) {
   const skull = new T.Group(); skull.name = 'Living titan skull, jaw and swept horns';
   skull.position.set(0, 49.5, 1.5); frame.add(skull);
+  skull.userData.noBatch=true;frame.userData.fleshAnatomy.head=skull;
   // One sculpted cranial envelope gives the forehead, zygomatic arch and snout
   // a shared surface. The jaw is a broad hinged volume below the real mouth gap.
   organicLoft(skull,[[0,-.77,.16,1.20,1.28],[0,-.30,.08,1.83,1.79],
@@ -775,4 +784,15 @@ export function createHumanoidKaiju(frame, rig, limbs, variant = 'cyborg') {
   torso(frame, m); head(frame, m);
   for (const side of [-1, 1]) { createLeg(rig, limbs, side, m); createArm(rig, limbs, side, m); }
   backpackHarness(frame, m);
+}
+
+/** Soft tissue recovery; the load frame and every contact pivot stay unchanged. */
+export function animateFleshAnatomy(city,time,moving){
+  const anatomy=city.frame?.userData.fleshAnatomy;if(!anatomy)return;
+  const phase=(city.gaitDistance??0)/16*Math.PI*2,effort=moving?1:.35,breath=.5+.5*Math.sin(time*(moving?1.83:1.39)),strikeAge=time-city.strikeTime;
+  const afterStrike=strikeAge>=.7&&strikeAge<2.6?Math.exp(-(strikeAge-.7)*2.7)*Math.sin((strikeAge-.7)*4.2):0;
+  anatomy.torso.morphTargetInfluences[0]=.22+breath*(.52+effort*.26)+afterStrike*.16;
+  anatomy.torso.morphTargetInfluences[1]=moving?Math.sin(phase-.40)*.90:Math.sin(time*.56)*.10;
+  anatomy.head.rotation.set(-.014-(moving?.020*Math.sin(phase*2-.8):breath*.012)+afterStrike*.023,moving?-.030*Math.sin(phase-.30):Math.sin(time*.31)*.016,-city.rig.rotation.z*.58);
+  anatomy.head.position.y=49.5+.065*breath-(moving?.08*Math.abs(Math.sin(phase-.40)):0);
 }

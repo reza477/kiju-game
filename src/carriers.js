@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial as m,box,cylinder as cyl,cone,sphere,beam,batchStatic,disposeGroup} from './materials.js';
 import {createPerimeterQuarter,createStreetDetails} from './architecture.js';
-import {createHumanoidKaiju} from './kaiju.js';
+import {createHumanoidKaiju,animateFleshAnatomy} from './kaiju.js';
 import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
 import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
@@ -127,7 +127,7 @@ export function makeCity(faction,enemy=false,rings=1,variant){
 }
 
 export function animateCity(city,time,moving,populationCount=28){
-  if(city.faction==='kaiju')animateTitan(city,time,moving);
+  if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);}
   else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
   const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;
   for(const spinner of city.spinners){
@@ -138,7 +138,7 @@ export function animateCity(city,time,moving,populationCount=28){
     }else if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   }
   if(city.drillHinge)animateDrillContact(city,time);
-  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,visibleFloor:city.inspectedFloor});
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}

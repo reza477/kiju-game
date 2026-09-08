@@ -93,7 +93,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  }
  const data=Array.from({length:MAX_PEOPLE},(_,i)=>wardrobe(faction,i));
  const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
-  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler()}};
+  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler(),groupInverse:new T.Matrix4(),stationMatrix:new T.Matrix4(),rootInverse:new T.Matrix4(),bodyInverse:new T.Quaternion(),leftTarget:new T.Vector3(),rightTarget:new T.Vector3(),stationPoint:new T.Vector3()}};
  group.userData.wardrobeNames=citizens.wardrobeNames;
  group.userData.worldHumanHeight=.8;
  animateCitizens(citizens,0,false,24,{rings,slotPositions,layout});
@@ -198,15 +198,18 @@ function towerCirculate(citizens,time,count,rings){
 }
 
 /** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
-export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor}={}){
+export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[]}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
  const count=Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
  const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings):circular?circulate(citizens,time,count,rings):null;
- const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles}=citizens.scratch;
+ const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles,groupInverse,stationMatrix,rootInverse,bodyInverse,leftTarget,rightTarget,stationPoint}=citizens.scratch;
  const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
- const activities={walking:0,carrying:0,reading:0,working:0,conversation:0,resting:0};
+ const stations=activityStations.filter(s=>s.foot?.parent&&(!Number.isFinite(visibleFloor)||s.tier===visibleFloor)).slice(0,Math.min(3,count));
+ citizens.group.updateWorldMatrix(true,false);groupInverse.copy(citizens.group.matrixWorld).invert();
+ for(let i=0;i<stations.length;i++){const s=stations[i];s.foot.updateWorldMatrix(true,false);stationMatrix.multiplyMatrices(groupInverse,s.foot.matrixWorld);stationPoint.setFromMatrixPosition(stationMatrix);direction.set(0,0,1).transformDirection(stationMatrix);routes[i]={x:stationPoint.x,y:stationPoint.y,z:stationPoint.z,yaw:Math.atan2(direction.x,direction.z),walking:false,errand:true,distance:0,route:'building-workplace',tier:s.tier,level:s.tier+1,station:s};}
+ const activities={walking:0,carrying:0,reading:0,working:0,gardening:0,conversation:0,resting:0};citizens.stationContacts=[];
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
  function put(name,x,y,z,sx,sy,sz,tint,rx=0,ry=0,rz=0,quaternion=null){
   const bucket=citizens.buckets[name],n=bucket.count++;
@@ -229,29 +232,36 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   put('limbs',(ax+bx)/2,(ay+by)/2,(az+bz)/2,width,length,width,tint,0,0,0,part.quaternion);
  }
  for(let i=0;i<count;i++){
-  const p=citizens.data[i],route=routes[i];citizens.routes.push({id:i,...route});
+  const p=citizens.data[i],route=routes[i];citizens.routes.push({id:i,...route,station:undefined,stationSlot:route.station?.slot});
   citizens.styleCounts[p.wardrobe]=(citizens.styleCounts[p.wardrobe]??0)+1;
   if(layout==='tower'&&Number.isFinite(visibleFloor)&&route.tier>visibleFloor)continue;
   const unit=citizens.humanScale,stridePhase=route.distance*citizens.carrierScale/.34*TAU+p.phase,gait=route.walking?Math.sin(stridePhase):0,idle=route.walking?0:Math.sin(time*1.15+p.phase);
   const bob=route.walking?Math.abs(gait)*.003:Math.sin(time*1.8+p.phase)*.001;
-  const carrying=i%12===2,working=route.errand&&i%12===7&&!route.social,reading=route.errand&&i%4===0&&!carrying&&!route.social;
+  const station=route.station,carrying=!station&&i%12===2,working=station?['forge','carpentry'].includes(station.kind):route.errand&&i%12===7&&!route.social,reading=station?station.kind==='ledger':route.errand&&i%4===0&&!carrying&&!route.social,gardening=station?.kind==='garden';
   let partner=-1,nearest=1.36/citizens.carrierScale;
-  if(route.errand&&!carrying&&!working&&!reading)for(let j=0;j<count;j++){
-   const r=routes[j];if(j===i||!r.errand||Math.abs(r.y-route.y)>.01||j%12===2||(!r.social&&(j%12===7||j%4===0)))continue;
+  if(!station&&route.errand&&!carrying&&!working&&!reading)for(let j=0;j<count;j++){
+   const r=routes[j];if(j===i||r.station||!r.errand||Math.abs(r.y-route.y)>.01||j%12===2||(!r.social&&(j%12===7||j%4===0)))continue;
    const distance=Math.hypot(r.x-route.x,r.z-route.z);if(distance<nearest){nearest=distance;partner=j;}
   }
   let turn=0;if(partner>=0){const r=routes[partner];turn=Math.atan2(r.x-route.x,r.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
-  else if(working){
+  else if(working&&!station){
    // A repair stop looks toward the closest district on this same floor.
    // Feet remain on the pavement; only the carried work and upper body turn.
    let closest=null,best=Infinity;for(const p of slotPositions){if(Math.abs((p.y??0)-route.y)>.1)continue;const d=(p.x-route.x)**2+(p.z-route.z)**2;if(d<best){best=d;closest=p;}}
    if(closest){turn=Math.atan2(closest.x-route.x,closest.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
   }
   const torsoTurn=T.MathUtils.clamp(turn*.64,-1.35,1.35),headTurn=T.MathUtils.clamp(turn-torsoTurn,-1.15,1.15);
-  body.setFromEuler(angles.set(working?.11:reading?.055:carrying?.025:0,torsoTurn,working?Math.sin(time*6.1+p.phase)*.016:0));
+  body.setFromEuler(angles.set(station?.19:working?.11:reading?.055:carrying?.025:0,torsoTurn,working&&!station?Math.sin(time*6.1+p.phase)*.016:0));
   head.setFromEuler(angles.set(working?.20:reading?.22:0,headTurn,partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
-  const activityName=carrying?'carrying':working?'working':reading?'reading':partner>=0?'conversation':route.walking?'walking':'resting';activities[activityName]++;citizens.routes.at(-1).activity=activityName;
+  const activityName=gardening?'gardening':carrying?'carrying':working?'working':reading?'reading':partner>=0?'conversation':route.walking?'walking':'resting';activities[activityName]++;citizens.routes.at(-1).activity=activityName;
   root.position.set(route.x,route.y,route.z);root.rotation.set(0,route.yaw,0);root.scale.set(unit*p.widthFactor,unit*p.heightFactor,unit*p.depthFactor);root.updateMatrix();
+  if(station){
+   rootInverse.copy(root.matrix).invert();bodyInverse.copy(body).invert();
+   for(const [marker,target]of[[station.left,leftTarget],[working?station.contact:station.right,rightTarget]]){marker.getWorldPosition(target);target.applyMatrix4(groupInverse).applyMatrix4(rootInverse);target.y-=.415;target.applyQuaternion(bodyInverse);target.y+=.415;}
+   if(working)rightTarget.y+=.118+(.5+.5*Math.sin(time*5.1+p.phase))*.06;
+   else if(gardening){rightTarget.y+=.012+.030*(.5+.5*Math.sin(time*2.1+p.phase));rightTarget.x+=Math.sin(time*1.4+p.phase)*.020;}
+   else rightTarget.x+=Math.sin(time*.8+p.phase)*.012;
+  }
   const trouser=citizens.faction==='airship'?p.accent:citizens.faction==='kaiju'?0x292a35:0x343d46;
   const sleeve=p.primary,shoe=citizens.faction==='airship'?0x68513f:0x292b31;
   put('torso',0,.52+bob,0,p.skirt?.188:.207,.245,.138,p.primary,route.walking?.018:0,0,gait*.012);
@@ -279,31 +289,32 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(i%7===3)put('hair',0,.686,.048,.038,.021,.029,p.hairTone);
   if(p.hat==='hood')put('hair',0,.738,-.044,.084,.092,.081,p.primary);
   for(let side=-1;side<=1;side+=2){
-   const swing=gait*side,hip=side*.051,shoulder=side*.105;
+   const swing=gait*side,hip=side*(station?.061:.051),shoulder=side*.105;
    // Stance feet move backward at exactly the route speed. Only the returning
    // foot lifts; sole height stays on the authored floor at the planted phase.
    const phase=((stridePhase/TAU+(side<0?.5:0))%1+1)%1,stance=phase<.60,u=stance?phase/.60:(phase-.60)/.40;
-   const ankleZ=(stance?.102-.204*u:-.102+.204*u)/p.depthFactor,lift=route.walking&&!stance?Math.sin(u*Math.PI)*.040:0;
+   const ankleZ=station?(side<0?-.036:.033):(stance?.102-.204*u:-.102+.204*u)/p.depthFactor,lift=route.walking&&!stance?Math.sin(u*Math.PI)*.040:0;
    const kneeZ=ankleZ*.45+(route.walking&&!stance?.025*Math.sin(u*Math.PI):.013);
    segment(hip,.414+bob,0,hip,.232+lift*.42,kneeZ,p.skirt?.069:citizens.faction==='airship'?.101:.080,trouser);
    segment(hip,.232+lift*.42,kneeZ,hip,.071+lift,ankleZ,.065,trouser);
    put('shoes',hip,.021+lift,ankleZ+.030,.042,.030,.076,shoe);
    put('trim',hip,.043+lift,ankleZ+.065,.034,.009,.016,p.trim);
    const activity=p.id%4,gesture=route.errand&&(side===1||activity===0||activity===2),armSwing=-swing;
-   const handX=side*(carrying||reading||working?.096:.118);
-   const elbowZ=carrying?.073:.014+armSwing*.044+(gesture?.045:0);
-   const handZ=carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
+   const target=side<0?leftTarget:rightTarget,handX=station?target.x:side*(carrying||reading||working?.096:.118);
+   const elbowZ=station?target.z*.52:carrying?.073:.014+armSwing*.044+(gesture?.045:0);
+   const handZ=station?target.z:carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
    const hammerStroke=.5+.5*Math.sin(time*6.1+p.phase);
-   const handY=carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
+   const handY=station?target.y:carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
    put('shoulders',shoulder,.605,0,.034,.042,.045,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    wrist.setFromUnitVectors(up,direction.set(side*.114-handX,.498-handY,elbowZ-handZ).normalize());
    handPosition.set(0,.030,0).applyQuaternion(wrist);segment(side*.114,.498,elbowZ,handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
    put('skin',handX,handY,handZ,.023,.029,.022,p.skinTone,0,0,0,wrist);
+   if(station){stationPoint.setFromMatrixPosition(matrix).applyMatrix4(citizens.group.matrixWorld);citizens.stationContacts.push({id:i,slot:station.slot,kind:station.kind,side,hand:stationPoint.toArray()});}
    handPosition.set(-side*.019,.005,.010).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.009,.018,.010,p.skinTone,0,0,0,wrist);
    for(let finger=0;finger<2;finger++){handPosition.set(side*(finger-.5)*.014,-.025,.004).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.007,.017,.011,p.skinTone,0,0,0,wrist);}
    handPosition.set(0,.036,0).applyQuaternion(wrist);put('cuffs',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.053,.024,.053,p.accent,0,0,0,wrist);
-   if(working&&side===1){put('trim',handX,handY-.044,handZ,.012,.112,.014,0x8b6950);put('bags',handX,handY-.104,handZ,.068,.028,.033,0x59646a);}
+   if(working&&side===1){put('trim',handX,handY-.044,handZ,.012,.112,.014,0x8b6950);put('bags',handX,handY-.104,handZ,.068,.028,.033,0x59646a);if(station){stationPoint.set(0,-.5,0).applyMatrix4(matrix).applyMatrix4(citizens.group.matrixWorld);citizens.stationContacts.push({id:i,slot:station.slot,kind:station.kind,side:'tool',hand:stationPoint.toArray()});}}
   }
   if(p.skirt)put('skirt',0,p.robe?.286:.284,0,p.robe?.255:.287,p.robe?.362:.345,.241,p.robe?p.primary:p.accent);
   if(p.tails)put('tails',0,citizens.faction==='crawler'&&p.style===4?.318:.278,-.012,.276,citizens.faction==='crawler'&&p.style===4?.244:.345,.246,p.primary,.015+gait*.018);
@@ -317,12 +328,12 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   // Seams, pocket flaps and the folded shirt collar describe garments at a
   // close street camera without adding a separate draw call for each person.
   for(const side of[-1,1]){put('trim',side*.066,.479,.071,.046,.009,.011,p.primary,0,0,side*.06);put('trim',side*.027,.638,.031,.045,.034,.013,p.accent,0,0,side*.35);}
-  if(working){
+  if(working&&!station){
    put('bags',0,.443,.163,.202,.025,.109,0xa48a65);put('trim',-.06,.461,.167,.055,.006,.060,0x70757a);
-  }else if(reading){
+  }else if(reading&&!station){
    put('bags',0,.508,.144,.163,.012,.109,0x53453c,.32);put('bags',0,.518,.143,.149,.009,.099,0xd9c9a6,.32);
    put('trim',0,.523,.146,.006,.005,.091,0x88714e,.32);
-  }else if(i%12===2){
+  }else if(carrying){
    put('bags',0,.431,.134,.174,.10,.125,0xa28761);put('trim',0,.432,.199,.011,.107,.009,0x5d5144);put('trim',0,.486,.139,.174,.008,.011,0x5d5144);
    for(let row=0;row<3;row++)put('trim',0,.401+row*.028,.198,.170,.006,.008,0x6d5944);
   }

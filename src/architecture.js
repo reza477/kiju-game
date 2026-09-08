@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import { getMaterial, box, cylinder, sphere, beam } from './materials.js';
+import { getMaterial, box, cylinder, sphere, beam, batchStatic } from './materials.js';
 
 // Architectural scale is deliberately exaggerated: roof silhouettes, deep cornices
 // and inset glazing remain legible while the whole city is moving.
@@ -287,7 +287,7 @@ function housing(group, level, faction, p) {
       }
     }
     entrance(local, 0, d / 2 + .075, .23, p, faction, .23, .62);
-    const awning = box(local, w * .84, .055, .38, M('fabric', i % 2 ? p.accent : 0xd2b77a), 0, .99, d / 2 + .23);
+    const awning = box(local, w * .84, .055, .38, M('fabric', i % 2 ? p.accent : 0xd2b77a), 0, 1.37, d / 2 + .23);
     awning.rotation.x = -.14;
     if (i !== 1) {
       box(local, w * .65, .12, .19, M('wood', p.dark), 0, 1.39, d / 2 + .13);
@@ -449,6 +449,39 @@ function armory(group, level, faction, p) {
   steps(group, 0, 1.46, .82, .1, p);
 }
 
+// Small inhabited forecourts sit below weapon height. Their authored contact
+// markers let residents meet a real surface after deck scaling and upgrades.
+function activityStation(group,type,faction,p){
+  if(!['housing','farm','sawmill','foundry'].includes(type))return;
+  const station=new T.Group();station.name=`${type} inhabited forecourt`;station.userData.noBatch=true;
+  const unit=faction==='kaiju'?1/.55:1,edge=faction==='kaiju'?1.60:1.29;
+  station.position.set(type==='farm'?.52:-.54,0,edge);group.add(station);
+  const width=.62*unit,depth=.32*unit,top=.235;
+  box(station,width,.055,depth,M('pavement',p.light),0,top-.0275,.12*unit);
+  const height=top+.425*unit,tableZ=-.055*unit;
+  box(station,.53*unit,.042*unit,.25*unit,M(type==='foundry'?'metal':'wood',type==='foundry'?0x717977:0x947553),0,height-.021*unit,tableZ);
+  for(const x of[-.205,.205])for(const z of[-.135,.025])box(station,.045*unit,.425*unit,.045*unit,M('wood',p.dark),x*unit,top+.2125*unit,z*unit);
+  const foot=new T.Object3D();foot.name='Supported worker feet';foot.position.set(0,top,.17*unit);foot.rotation.y=Math.PI;station.add(foot);
+  const marker=(name,x,y,z)=>{const o=new T.Object3D();o.name=name;o.position.set(x,y,z);station.add(o);return o;};
+  const kind=type==='housing'?'ledger':type==='farm'?'garden':type==='sawmill'?'carpentry':'forge';
+  const left=marker('Left hand contact',.09*unit,height+.025*unit,tableZ),right=marker('Right hand contact',-.09*unit,height+.025*unit,tableZ);
+  if(kind==='ledger'){
+    box(station,.27*unit,.018*unit,.18*unit,M('fabric',p.accent),0,height+.009*unit,tableZ);
+    for(const side of[-1,1])box(station,.123*unit,.013*unit,.164*unit,M('plaster',0xd9caaa),side*.068*unit,height+.024*unit,tableZ).rotation.z=side*.055;
+  }else if(kind==='garden'){
+    box(station,.44*unit,.053*unit,.19*unit,M('wood',0x7b6545),0,height+.0265*unit,tableZ);
+    box(station,.40*unit,.014*unit,.155*unit,M('soil',0x564c31),0,height+.06*unit,tableZ);
+    for(let i=0;i<5;i++){sphere(station,.045*unit,M('foliage',i%2?0x8d9d51:0x547447),(i-2)*.078*unit,height+.095*unit,tableZ,1,.68,.8);}
+    left.position.y=right.position.y=height+.114*unit;
+  }else{
+    box(station,.40*unit,.030*unit,.10*unit,M(kind==='forge'?'metal':'wood',kind==='forge'?0x8d979b:0xb49b6b),0,height+.015*unit,tableZ);
+    for(const x of[-.18,.18])box(station,.015*unit,.025*unit,.125*unit,M('metal',0x66716b),x*unit,height+.040*unit,tableZ);
+    left.position.y=height+.052*unit;right.position.y=height+.148*unit;
+  }
+  group.userData.activityStation={kind,foot,left,right,contact:marker('Work surface',0,height+.031*unit,tableZ)};
+  batchStatic(station);
+}
+
 export function createDistrict(type, level = 1, faction = 'kaiju') {
   const group = new T.Group();
   const p = palettes[faction] || palettes.kaiju;
@@ -463,6 +496,7 @@ export function createDistrict(type, level = 1, faction = 'kaiju') {
   else if (type === 'cannon') artillery(group, level, faction, p);
   else if (type === 'armor') armory(group, level, faction, p);
   else housing(group, level, faction, p);
+  activityStation(group,type,faction,p);
   return group;
 }
 
