@@ -17,15 +17,16 @@ const VEGETATION_GLSL = `
   uniform float uVegetationTime;
   attribute vec4 windRoot;
   attribute vec2 windFlex;
+  attribute vec2 windMotion;
   ${WIND_GLSL}
   vec3 rootedWindOffset(vec3 p) {
     vec2 anchor = (modelMatrix * vec4(windRoot.xyz, 1.0)).xz;
     vec3 breeze = worldWind(uVegetationTime, anchor);
     float tip = clamp((p.y - windRoot.y) / max(windRoot.w, .1), 0.0, 1.2);
     float phase = anchor.x * .021 + anchor.y * .013;
-    float pulse = .58 + .42 * sin(uVegetationTime * .81 + phase);
+    float pulse = .58 + .42 * sin(uVegetationTime * windMotion.x + phase);
     float bend = min(.70, windFlex.x * pow(tip, 1.65) * (.22 + breeze.z * .78) * pulse);
-    float flutter = windFlex.y * tip * tip * sin(uVegetationTime * 2.4 + phase + p.x * .57 + p.z * .33);
+    float flutter = windFlex.y * tip * tip * sin(uVegetationTime * windMotion.y + phase + p.x * .57 + p.z * .33);
     return vec3(breeze.x * bend - breeze.y * flutter, -abs(bend) * tip * .018, breeze.y * bend + breeze.x * flutter);
   }
 `;
@@ -47,21 +48,23 @@ function vegetationShader(shader) {
   shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + VEGETATION_GLSL).replace('#include <begin_vertex>', VEGETATION_TRANSFORM);
 }
 function animateVegetation(mesh, items, kind) {
-  const roots = new Float32Array(items.length * 4), flex = new Float32Array(items.length * 2);
+  const roots = new Float32Array(items.length * 4), flex = new Float32Array(items.length * 2), motion = new Float32Array(items.length * 2);
   items.forEach((item, i) => {
     const root = item.windRoot || [item.x, item.y - (kind === 'grass' ? 0 : item.sy), item.z, Math.max(.2, item.sy * (kind === 'grass' ? .85 : 2))];
     roots.set(root, i * 4);
     flex.set(item.windFlex || (item.windRoot ? [.66, kind === 'wood' ? .004 : .055] : [kind === 'grass' ? Math.min(.40, item.sy * .24) : .14, kind === 'wood' ? 0 : .025]), i * 2);
+    motion.set(item.windMotion || (kind === 'grass' && !item.windRoot ? [1.03, 2.8] : [.73, 2.4]), i * 2);
     if (kind === 'wood' && !item.windRoot) flex.set([0, 0], i * 2); // Felled logs stay still.
   });
   mesh.geometry.setAttribute('windRoot', new T.InstancedBufferAttribute(roots, 4));
   mesh.geometry.setAttribute('windFlex', new T.InstancedBufferAttribute(flex, 2));
+  mesh.geometry.setAttribute('windMotion', new T.InstancedBufferAttribute(motion, 2));
   const key = mesh.material.uuid;
   if (!windMaterials.has(key)) {
-    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v1';
+    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v2';
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, side: material.side });
     const distance = new T.MeshDistanceMaterial({ side: material.side });
-    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v1'; }
+    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v2'; }
     windMaterials.set(key, { material, depth, distance });
   }
   const passes = windMaterials.get(key); mesh.material = passes.material; mesh.customDepthMaterial = passes.depth; mesh.customDistanceMaterial = passes.distance;
@@ -376,20 +379,39 @@ function createWater() {
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>' + common + '\nuniform sampler2D uRiverRippleTexture;')
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec3 riverWind = worldWind(uRiverTime, vRiverPosition.xz);
-        float longWave = vRiverPosition.z * 2.7 + sin(vRiverPosition.x * .7) * .7 - uRiverTime * 1.1;
-        float crossWave = vRiverPosition.x * 5.3 + vRiverPosition.z * 1.7 - uRiverTime * 1.6 - riverWind.x * 1.8;
-        float ripple = pow(max(0.0, sin(longWave)), 24.0) * (.009 + riverWind.z * .009) + pow(max(0.0, sin(crossWave)), 30.0) * .006;
-        diffuseColor.rgb += vec3(.45, .60, .56) * ripple;
+        // Stream coordinates follow the existing channel, instead of drawing
+        // intersecting wave lines across its world-aligned surface.
+        float alongRiver = vRiverPosition.z;
+        float riverCentre = 5.0 + 22.0 * sin(alongRiver * .009) + 7.0 * sin(alongRiver * .020);
+        float acrossRiver = vRiverPosition.x - riverCentre;
+        float channelWidth = 9.7 + 1.8 * sin(alongRiver * .015 + 1.5);
+        float channelSlope = .198 * cos(alongRiver * .009) + .14 * cos(alongRiver * .020);
+        vec2 streamTangent = normalize(vec2(channelSlope, 1.0));
+        vec2 streamAcross = vec2(streamTangent.y, -streamTangent.x);
+        float bankNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .014, alongRiver * .007)).r - .53;
+        float edgeDistance = abs(acrossRiver) / channelWidth;
+        float shallows = pow(clamp(edgeDistance + bankNoise * .18, 0.0, 1.0), 2.8);
+        // Analytic depth tint avoids triangular bands from the coarse water mesh.
+        diffuseColor.rgb = mix(vec3(.0086, .0704, .0704), vec3(.159, .283, .231), shallows);
+        diffuseColor.rgb *= .92 + .08 * sin(alongRiver * .026 + .7);
+        float wetEdge = smoothstep(.86 + bankNoise * .09, 1.03, edgeDistance);
+        diffuseColor.rgb *= 1.0 - wetEdge * .07;
       `)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        vec2 rippleUV = vRiverPosition.xz * .17 - vec2(.013, .025) * uRiverTime - riverWind.xy * .6;
-        float slopeX = (texture2D(uRiverRippleTexture, rippleUV).r - .53) * (.012 + riverWind.z * .014);
-        float slopeZ = (texture2D(uRiverRippleTexture, rippleUV.yx * vec2(-.83, 1.17) + vec2(.37, .61)).r - .53) * (.012 + riverWind.z * .014);
-        normal = normalize(mat3(viewMatrix) * vec3(-slopeX, 1.0, -slopeZ));
+        // Constant downstream advection cannot accelerate as game time grows;
+        // crosswind only adds a small, bounded lateral perturbation.
+        float crosswind = dot(riverWind.xy, streamAcross);
+        vec2 rippleUV = vec2(acrossRiver * .25, alongRiver * .085 - uRiverTime * .068);
+        rippleUV.x -= crosswind * .025 + sin(uRiverTime * .21 + alongRiver * .007) * .012;
+        float rippleStrength = (.023 + riverWind.z * .023) * (1.0 - shallows * .30);
+        float crossSlope = (texture2D(uRiverRippleTexture, rippleUV).r - .53) * rippleStrength;
+        float streamSlope = (texture2D(uRiverRippleTexture, rippleUV * vec2(.83, 1.17) + vec2(.37, .61)).r - .53) * rippleStrength * .7;
+        vec2 surfaceSlope = streamAcross * crossSlope + streamTangent * streamSlope;
+        normal = normalize(mat3(viewMatrix) * vec3(-surfaceSlope.x, 1.0, -surfaceSlope.y));
       `)
       .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
-  material.customProgramCacheKey = () => 'gust-river-v1';
+  material.customProgramCacheKey = () => 'gust-river-v2';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };
@@ -628,6 +650,13 @@ function composeRegions(trees, shrubs, grass) {
       const sparse=(.12+patch*1.16)*(1-region.ash*.65)*(1-ruinFootprint(item.x,item.z)*.92);
       item.sx*=sparse;item.sy*=sparse;item.sz*=sparse;
     }
+    if (!item.windMotion) {
+      // The same broad density field places groves and shelters their undergrowth.
+      // This metadata changes the response only, never the saved prop positions.
+      const exposure = 1 - smooth(.43, .68, noise(item.x * .015 + 20, item.z * .015 + 12));
+      item.windFlex = [Math.min(.36, item.sy * .22) * (.52 + exposure * .48), .015 + exposure * .013];
+      item.windMotion = [.86 + exposure * .20, 2.5 + exposure * .5];
+    }
     const c=new T.Color(item.colour);c.lerp(new T.Color(0x768768),region.slate*.6);c.lerp(new T.Color(0xaa9a69),region.meadow*.6);item.colour=c.getHex();
   }
 }
@@ -715,7 +744,11 @@ export function createLandscape() {
       const size = .35 + rand() * .6, first = rocks.add(x, y + .12, z, size, .22, .4, 0xa9a995, rand() * TAU);
       register(`shore:${z}:${side}`, 'rock', x, z, size, [{ batch: rocks, first, count: 1 }]);
     }
-    for (let j = 0; j < 4; j++) grass.add(x + side * rand() * 1.5, y, z + rand() * 2, .8, 1.65, .8, 0x8d9d62, rand() * TAU);
+    for (let j = 0; j < 4; j++) {
+      const reed = grass.add(x + side * rand() * 1.5, y, z + rand() * 2, .8, 1.65, .8, 0x8d9d62, rand() * TAU);
+      grass.items[reed].windFlex = [.43, .012];
+      grass.items[reed].windMotion = [.44, 1.35];
+    }
   }
   composeRegions(trees,shrubs,grass);createSlateLandmark(group,records);
   const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');

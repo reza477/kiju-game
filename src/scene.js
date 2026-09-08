@@ -6,6 +6,7 @@ import {createDistrict,createVacantPlot} from './architecture.js';
 import {createLandscape,createResourceSite} from './landscape.js';
 import {Presentation,Atmosphere,createSky,setSkyLighting} from './presentation.js';
 import {getLightingPreset} from './lighting.js';
+import {CityLighting} from './city-lighting.js';
 import {KAIJU_CENTER,kaijuRingRadius} from './city-layout.js';
 import {terrainHeight,terrainNormal} from './terrain.js';
 import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armaments.js';
@@ -98,6 +99,7 @@ export class GameScene {
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
     this.landscape=createLandscape();this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
     this.presentation=new Presentation(this.renderer,this.camera);this.atmosphere=new Atmosphere(this.scene);
+    this.cityLighting=new CityLighting(this.scene);
     this.pickables=[];this.labels=[];this.enemyCities=[];this.fx=[];this.lastEvent=0;this.preview=false;
     this.view='city';this.yaw=.72;this.pitch=.55;this.zoom=80;this.focus=new T.Vector3();this.ray=new T.Raycaster();this.pointer=new T.Vector2();this.light='day';this.quality='high';this.routeTarget=null;
     this.cinematic=new CinematicCamera(matchMedia('(prefers-reduced-motion: reduce)').matches?'steady':'cinematic');this.cameraBasePosition=new T.Vector3();this.cameraAim=new T.Vector3();this.cameraDesired=new T.Vector3();this.cameraPrevious=new T.Vector3();this.cameraVelocity=new T.Vector3();
@@ -114,6 +116,7 @@ export class GameScene {
   }
 
   setGame(s,options={}){
+    this.cityLighting.reset();
     if(this.city){this.city.root.removeFromParent();disposeGroup(this.city.root);}
     for(const city of this.enemyCities){city.root.removeFromParent();disposeGroup(city.root);}
     for(const site of this.labels){site.removeFromParent();disposeGroup(site);}
@@ -158,7 +161,7 @@ export class GameScene {
     const wide=this.camera.aspect<1.2?1.4:1,yaw=this.yaw+effects.yaw,zoom=desiredZoom*wide*(1+effects.dolly),horizontal=Math.cos(this.pitch)*zoom;
     this.cameraDesired.set(this.focus.x+Math.sin(yaw)*horizontal,this.focus.y+Math.sin(this.pitch)*zoom,this.focus.z+Math.cos(yaw)*horizontal);
     this.cameraDesired.y=Math.max(this.cameraDesired.y,terrainHeight(this.cameraDesired.x,this.cameraDesired.z)+(this.view==='people'?1.2:3));
-    this.cameraBasePosition.lerp(this.cameraDesired,1-Math.exp(-dt*6));this.camera.position.copy(this.cameraBasePosition);
+    if(this.snapCamera){this.cameraBasePosition.copy(this.cameraDesired);this.snapCamera=false;}else this.cameraBasePosition.lerp(this.cameraDesired,1-Math.exp(-dt*6));this.camera.position.copy(this.cameraBasePosition);
     const scale=Math.min(1,desiredZoom*.006);this.camera.position.x+=Math.cos(yaw)*effects.right*scale;this.camera.position.z-=Math.sin(yaw)*effects.right*scale;this.camera.position.y+=effects.up*scale;
     this.cameraAim.copy(this.focus);if(travelling&&dt>0&&!battle){delta.multiplyScalar(1/dt).clampLength(0,14);this.cameraAim.addScaledVector(delta,effects.lead);}
     const fov=42+effects.fov;if(Math.abs(this.camera.fov-fov)>.0001){this.camera.fov=fov;this.camera.updateProjectionMatrix();}
@@ -248,7 +251,7 @@ export class GameScene {
       const cx=(b.player.x+b.enemy.x)/2,cz=(b.player.z+b.enemy.z)/2;
       if(this.lastMode!=='battle')this.battleZoomFactor=1;
       focus=new T.Vector3(cx,(this.city.root.position.y+enemy.root.position.y)/2+14,cz);desiredZoom=Math.max(112,distance(b.player,b.enemy)*1.02+66)*(this.battleZoomFactor??1);
-      if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+2.1;this.pitch=.4;this.lastEvent=0;this.cinematic.transition('battle');}
+      if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+2.1;this.pitch=.4;this.lastEvent=0;this.focus.copy(focus);this.snapCamera=true;this.cinematic.transition('battle');}
       for(const event of b.events){if(event.id<=this.lastEvent)continue;this.lastEvent=event.id;if(b.time-event.time<1.1)this.createEffect(event);}
       actors.push({id:'player',faction:s.faction,...b.player,moving:!b.result,scale:this.city.scale},{id:enemy.id,faction:enemy.faction,...b.enemy,moving:!b.result,scale:enemy.scale});
     }else{
@@ -258,7 +261,7 @@ export class GameScene {
       if(this.view==='people'){focus=this.city.rig.localToWorld(new T.Vector3(circular?0:1.525,this.city.deckY+.7,circular?KAIJU_CENTER.z-2.55:3.55));}
       for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;placeCity(city,enemy.x,enemy.z,-.8);animateCity(city,s.time,false);animateWeapons(city,null,s.time);}
       animateWeapons(this.city,null,s.time);
-      if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.cinematic.reset();}
+      if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.focus.copy(focus);this.snapCamera=true;this.cinematic.reset();}
       actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale});
     }
     this.lastMode=s.mode;this.labels.forEach(g=>g.visible=!battle);
@@ -273,6 +276,7 @@ export class GameScene {
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
     this.focus.lerp(focus,1-Math.exp(-dt*5));
     this.applyLighting(1-Math.exp(-dt*4));this.sun.position.copy(this.focus).add(this.sunOffset);this.sun.target.position.copy(this.focus);this.rim.position.set(this.focus.x+70,this.focus.y+35,this.focus.z-55);this.rim.target.position.copy(this.focus);
+    this.cityLighting.update(this.city,battle?this.enemyCities.find(c=>c.id===s.battle.enemyId):null,this.lightingCurrent);
     // A tight shadow frustum follows the city; the world view covers a wider area.
     const shadowExtent=this.view==='world'&&!battle?160:battle?120:this.view==='people'?20:62;
     if(this.sun.shadow.camera.right!==shadowExtent){Object.assign(this.sun.shadow.camera,{left:-shadowExtent,right:shadowExtent,top:shadowExtent,bottom:-shadowExtent});this.sun.shadow.camera.updateProjectionMatrix();}

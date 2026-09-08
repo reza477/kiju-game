@@ -77,8 +77,8 @@ export const attackDelay=kind=>kind==='impact'?.7:.55;
 function event(b,kind,from,to,damage,details={}){const hit={id:++b.seq,kind,from:{...from},to:{...to},damage,time:b.time,impactAt:b.time+attackDelay(kind),...details};b.events.push(hit);b.events=b.events.slice(-30);(b.pendingHits??=[]).push({eventId:hit.id,source:details.source,damage,impactAt:hit.impactAt});}
 function resolveHits(s){const b=s.battle,remaining=[];for(const hit of b.pendingHits??[]){if(hit.impactAt>b.time+1e-8){remaining.push(hit);continue;}if(hit.source==='enemy')s.hp-=hit.damage;else{b.enemyHp-=hit.damage;b.damage+=hit.damage;}}b.pendingHits=remaining;outcome(s);if(b.result)b.pendingHits=[];}
 function outcome(s){const b=s.battle;if(!b||b.result)return;
- if(s.hp<=0){s.hp=0;b.result='defeat';note(s,'The city has fallen. Your people need a new beginning.');}
- else if(b.enemyHp<=0){b.enemyHp=0;b.result='victory';s.enemies.find(e=>e.id===b.enemyId).defeated=true;s.stats.victories++;s.resources.wood+=95;s.resources.iron+=100;s.resources.food+=65;note(s,'Victory. Salvaged 95 wood, 100 iron, and 65 food.');}}
+ if(s.hp<=0){s.hp=0;b.result='defeat';b.finishedAt=s.time;note(s,'The city has fallen. Your people need a new beginning.');}
+ else if(b.enemyHp<=0){b.enemyHp=0;b.result='victory';b.finishedAt=s.time;s.enemies.find(e=>e.id===b.enemyId).defeated=true;s.stats.victories++;s.resources.wood+=95;s.resources.iron+=100;s.resources.food+=65;note(s,'Victory. Salvaged 95 wood, 100 iron, and 65 food.');}}
 // Centre spacing follows the different hull widths and the titan's arm reach.
 export function meleeReach(attacker,target){return attacker==='kaiju'?(target==='kaiju'?12:18):attacker==='crawler'?(target==='kaiju'?16:24):target==='kaiju'?14:22;}
 export function weaponStatus(s){
@@ -138,6 +138,7 @@ export function deserialize(raw){
  if(s.enemies.some(e=>!FACTIONS[e.faction]||![e.x,e.z].every(Number.isFinite)))return null;
  if(s.mode==='battle'&&(!s.battle||!FACTIONS[s.battle.enemyFaction]||!s.enemies.some(e=>e.id===s.battle.enemyId)||!['player','enemy'].every(k=>[s.battle[k]?.x,s.battle[k]?.z,s.battle[k]?.angle].every(Number.isFinite))||!['enemyHp','enemyMaxHp','time','reload','enemyReload','abilityCooldown'].every(k=>Number.isFinite(s.battle[k]))))return null;
  if(s.mode==='battle'){s.battle.pendingHits??=[];if(!Array.isArray(s.battle.pendingHits)||s.battle.pendingHits.length>64||s.battle.pendingHits.some(h=>!['player','enemy'].includes(h.source)||!Number.isInteger(h.eventId)||!Number.isFinite(h.damage)||h.damage<0||h.damage>10000||!Number.isFinite(h.impactAt)||h.impactAt<0||h.impactAt>s.battle.time+.71))return null;}
+ if(s.mode==='battle'&&s.battle.finishedAt!==undefined&&(!Number.isFinite(s.battle.finishedAt)||s.battle.finishedAt<0||s.battle.finishedAt>s.time))return null;
  s.paused=false;s.speed=1;return s;
  }catch{return null;}
 }

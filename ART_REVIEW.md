@@ -20,3 +20,13 @@ Round 4 adds aimed fist contact, supported crouching and stepping, walking recov
 **Final gate: failed. Four rounds completed; no fifth attempt.** The final critic independently captured 73 screenshots and reran six contact cases. Spatial fist contact and travelling impact placement are resolved in the observed sequences, but health decreases during wind-up/flight before the visible hit. The score also remains below 8.5 on art quality alone. The final report ranks the remaining environment composition, hero form and weight, citizen activity, material and effect work for a later update.
 
 The private repository contains the review reports. Screenshots remain on this PC under `artifacts/` and are excluded from source backup.
+
+## Camera, atmosphere and lighting — prototype 0.5
+
+The owner's next update starts a separate cycle, retaining the same global rubric and four-round maximum. The prior reports remain unchanged. The new scope is cinematic camera effects, coherent environmental movement and stronger lighting; version 0.5 also addresses the previous damage/contact timing defect.
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `324191e` | [Independent review](art-reviews/cinematic-01.md) | **FAIL — 6.8/10**, 0 runtime errors; brief player clipping on battle entry |
+
+The first builder attempt passed 40 Node tests, 13 browser smoke checks, the integrated 26-view living-world audit, a revised 31-view cinematic capture suite and six physical contact cases. Preserved scenery identities, rooted wind/shadow deformation, quality-mode brightness and bounded atmosphere allocation were checked separately. Independent evidence goes under `artifacts/critic-cinematic-XX/`; reports go under `art-reviews/cinematic-XX.md`.

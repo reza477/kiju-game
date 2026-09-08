@@ -43,7 +43,9 @@ export class Presentation {
               float gap=depth-other;
               shade+=smoothstep(.06,.3,gap)*(1.-smoothstep(.45,2.4,gap));
             }
-            colour*=1.-aoStrength*shade/12.;
+            // This short-range contact term serves the street camera. Fade it
+            // before distant depth quantization can contour flat terrain.
+            colour*=1.-aoStrength*(1.-smoothstep(20.,45.,depth))*shade/12.;
           }
           // Glow is extracted from scene-linear radiance, before the output
           // transform. The soft knee preserves the shape of bright windows.
@@ -135,44 +137,60 @@ function softParticleTexture(){
 }
 
 function createLowMist(texture){
-  const geometry=new T.PlaneGeometry(1,1),seeds=new Float32Array(24);
+  const geometry=new T.PlaneGeometry(1,1),seeds=new Float32Array(24),densities=new Float32Array(24),floors=new Float32Array(24);
   const material=new T.ShaderMaterial({name:'Localized wind-driven valley mist',transparent:true,depthWrite:false,fog:true,
-    uniforms:{...T.UniformsUtils.clone(T.UniformsLib.fog),map:{value:texture},time:{value:0},tint:{value:new T.Color()},opacity:{value:.13}},
+    uniforms:{...T.UniformsUtils.clone(T.UniformsLib.fog),map:{value:texture},time:{value:0},tint:{value:new T.Color()},opacity:{value:.23},sunDirection:{value:new T.Vector3()},sunColor:{value:new T.Color()},sunStrength:{value:0}},
     vertexShader:`
-      attribute float mistSeed;uniform float time;varying vec2 vUv;varying float vSeed;
+      attribute float mistSeed,mistDensity,mistFloor;uniform float time;varying vec2 vUv;varying float vSeed,vDensity,vFloor;varying vec3 vWorldPosition;
       #include <fog_pars_vertex>
       ${WIND_GLSL}
       void main(){
-        vUv=uv;vSeed=mistSeed;
+        vUv=uv;vSeed=mistSeed;vDensity=mistDensity;vFloor=mistFloor;
         vec4 centre=instanceMatrix*vec4(0.,0.,0.,1.);
         vec3 breeze=worldWind(time,centre.xz);
-        centre.xz+=breeze.xy*sin(time*.045+mistSeed)*3.5;
+        centre.xz+=breeze.xy*sin(time*.075+mistSeed)*6.;
+        vec2 billboard=position.xy*vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
+        vec3 cameraRight=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]);
+        vec3 cameraUp=vec3(viewMatrix[0][1],viewMatrix[1][1],viewMatrix[2][1]);
+        vWorldPosition=(modelMatrix*centre).xyz+cameraRight*billboard.x+cameraUp*billboard.y;
         vec4 mvPosition=modelViewMatrix*centre;
-        mvPosition.xy+=position.xy*vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
+        mvPosition.xy+=billboard;
         gl_Position=projectionMatrix*mvPosition;
         #include <fog_vertex>
       }`,
     fragmentShader:`
-      uniform sampler2D map;uniform float time,opacity;uniform vec3 tint;varying vec2 vUv;varying float vSeed;
+      uniform sampler2D map;uniform float time,opacity,sunStrength;uniform vec3 tint,sunDirection,sunColor;varying vec2 vUv;varying float vSeed,vDensity,vFloor;varying vec3 vWorldPosition;
       #include <fog_pars_fragment>
       ${NOISE_GLSL}
       void main(){
         float edge=texture2D(map,vUv).a;
-        float billow=cloudNoise(vUv*vec2(4.5,2.2)+vec2(vSeed-time*.013,vSeed*.7));
-        float alpha=edge*smoothstep(.20,.70,billow)*opacity;
-        gl_FragColor=vec4(tint,alpha);
+        float billow=cloudNoise(vUv*vec2(4.5,2.2)+vec2(vSeed-time*.035,vSeed*.7));
+        vec3 viewRay=normalize(vWorldPosition-cameraPosition);
+        float forward=pow(max(dot(viewRay,sunDirection),0.),8.);
+        float distanceFade=smoothstep(3.,13.,length(vWorldPosition-cameraPosition));
+        float density=smoothstep(.20,.70,billow)*vDensity*(.86+.14*sin(time*.04+vSeed));
+        // Fade in world height before the billboard meets its receiving
+        // surface; depth clipping alone made hard horizontal stripes on water.
+        float surfaceFade=smoothstep(vFloor,vFloor+1.45,vWorldPosition.y);
+        float alpha=min(.17,edge*density*opacity*(1.+forward*.6))*distanceFade*surfaceFade;
+        // Cool air remains subdued away from the sun. Looking through a low
+        // pocket toward the real key light reveals warmer forward scattering.
+        vec3 radiance=tint*(.72+billow*.28)+sunColor*sunStrength*forward*.65;
+        gl_FragColor=vec4(radiance,alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
         #include <fog_fragment>
       }`});
   const mist=new T.InstancedMesh(geometry,material,24),matrix=new T.Matrix4(),position=new T.Vector3(),scale=new T.Vector3(),rotation=new T.Quaternion();
-  const distribution=[8,5,11,2,14,7,9,4,12,1,15,6,10,3,13,0];
+  // Uneven pockets leave clear foreground gaps and separate the river bends
+  // and ruined western valley. Performance retains the first six river pockets.
+  const riverZ=[-88,-8,29,94,170,-135,-69,8,52,113,-180,210,-108,-23,76,143];
   for(let i=0;i<24;i++){
-    const z=-220+distribution[i%16]*28.7,x=i<16?riverX(z)+Math.sin(i*2.1)*5:-131+(i-16)*5.7;
-    const wz=i<16?z:-74+Math.sin(i*2.4)*13,y=terrainHeight(x,wz)+.7;
-    position.set(x,y,wz);scale.set(22+i%4*5,2.6+i%3*.65,1);matrix.compose(position,rotation,scale);mist.setMatrixAt(i,matrix);seeds[i]=i*1.731;
+    const z=riverZ[i%16],x=i<16?riverX(z)+Math.sin(i*2.1)*5:-131+(i-16)*5.7;
+    const wz=i<16?z:-74+Math.sin(i*2.4)*13,floor=Math.max(terrainHeight(x,wz),i<16?-.50:-Infinity)+.08;
+    position.set(x,floor+1.3,wz);scale.set(24+i%4*5,3.6+i%3*.65,1);matrix.compose(position,rotation,scale);mist.setMatrixAt(i,matrix);seeds[i]=i*1.731;densities[i]=i<6?1.0:i<16?.62:.84;floors[i]=floor;
   }
-  geometry.setAttribute('mistSeed',new T.InstancedBufferAttribute(seeds,1));mist.name='Low mist over river and western gully';mist.frustumCulled=false;mist.userData.noBatch=true;return mist;
+  geometry.setAttribute('mistSeed',new T.InstancedBufferAttribute(seeds,1));geometry.setAttribute('mistDensity',new T.InstancedBufferAttribute(densities,1));geometry.setAttribute('mistFloor',new T.InstancedBufferAttribute(floors,1));mist.name='Low mist over river and western gully';mist.frustumCulled=false;mist.userData.noBatch=true;return mist;
 }
 
 export class Atmosphere {
@@ -193,7 +211,7 @@ export class Atmosphere {
     for(let i=this.maxPuffs;i<this.puffs.length;i++){this.puffs[i].active=false;this.puffs[i].sprite.visible=false;}
   }
   setLighting(mode){
-    const p=settingsFor(mode);this.mist.material.uniforms.tint.value.set(p.mist);this.mist.material.uniforms.opacity.value=p.mistOpacity;
+    const p=settingsFor(mode),u=this.mist.material.uniforms;u.tint.value.set(p.mist);u.opacity.value=p.mistOpacity;u.sunDirection.value.fromArray(p.sunPosition).normalize();u.sunColor.value.set(p.sun);u.sunStrength.value=p.intensity*.22;
     this.smokeColor.set(p.cloudShade);this.dustColor.set(p.groundLight);
     for(const puff of this.puffs)puff.sprite.material.color.copy(puff.kind==='smoke'?this.smokeColor:this.dustColor);
   }
