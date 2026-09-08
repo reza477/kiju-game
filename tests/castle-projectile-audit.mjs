@@ -43,7 +43,7 @@ try{
   disposeGroup(rig);return {samples,allowed:samples.filter(s=>s.active).length,collisions:samples.filter(s=>s.hit)};
  });
  report.battles=[];
- for(const scenario of [{slot:13,degrees:-30,variant:'flesh',targetVariant:'standard'},{slot:16,degrees:30,variant:'cyborg',targetVariant:'horizontal'},{slot:17,degrees:70,variant:'flesh',targetVariant:'vertical'}]){
+ for(const scenario of [{slot:13,degrees:-30,variant:'flesh',targetVariant:'standard'},{slot:16,degrees:10,variant:'cyborg',targetVariant:'horizontal'},{slot:17,degrees:70,variant:'flesh',targetVariant:'vertical'}]){
   const result=await page.evaluate(async scenario=>{
    const sim=await import('/src/simulation.js'),{batteryPosition}=await import('/src/weapon-layout.js'),{kaijuSlotPosition}=await import('/src/city-layout.js'),{state:s,scene:g}=window.__colossus;
    Object.assign(s,sim.createGame('kaiju',scenario.variant));s.rings=2;s.buildings.fill(null);s.buildings[7]={type:'keep',level:1,remaining:0};s.buildings[scenario.slot]={type:'cannon',level:1,remaining:0};

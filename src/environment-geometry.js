@@ -39,7 +39,7 @@ export function branchSprayGeometry(needles = false) {
 
 export function grassTuftGeometry() {
   const b=builder(), rand=random(81951);
-  for(let i=0;i<7;i++) {
+  for(let i=0;i<6;i++) {
     const a=i*2.39996, h=.42+rand()*.49, base=new T.Vector3(Math.cos(a)*.19,0,Math.sin(a)*.19);
     const middle=base.clone().add(new T.Vector3(Math.cos(a)*.10,h*.59,Math.sin(a)*.10));
     const tip=base.clone().add(new T.Vector3(Math.cos(a)*.35,h,Math.sin(a)*.35));

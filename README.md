@@ -41,9 +41,9 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
-Version 0.7 rebuilds the tree crowns with forked branches and individual folded leaves and needles, adds rooted undergrowth and fractured ridge beds, and blends scanned grass, forest soil and stone surfaces. Masonry, roof slates, wood, bark and metal use local color, normal and roughness maps. Baked material coordinates keep masonry scale consistent while cities move. An HDR sky environment supplies reflected light; surface-oriented contact shading works in both Streets and City views.
+Version 0.7 rebuilds the tree crowns with forked branches and individual folded leaves and needles, adds rooted undergrowth, eroded cliffs and geological beds, and blends scanned grass, forest soil and exposed rock surfaces. Masonry, roof slates, wood, bark and metal use local color, normal and roughness maps. Baked material coordinates keep masonry scale consistent while cities move. An HDR sky environment supplies reflected light; surface-oriented contact shading works in both Streets and City views. Painted armor, bare steel and dark mechanical recesses retain distinct surface responses.
 
-The flesh titan has a sculpted skull and jaw, stronger brow and anatomical planes, regional hide color/roughness, and the same supported walking and punch rig. Citizens have layered clothing, more defined heads and a distance-driven gait with planted soles. District windows have recessed glazing and sills; roof edges and garden leaves have physical depth. The six carriers, castle floors, weapon clearances and saves are retained.
+The flesh titan has a sculpted skull and jaw, a broader neck/shoulder connection, regional hide color/roughness and continuous weighted limb surfaces. Its supported walk shifts under the castle's weight. Citizens have layered clothing, defined faces, planted soles and carrying, repair, reading and conversation poses. The Gothic backpack gains a projecting choir, overhanging bell chamber and connected roofed galleries; district windows have recessed glazing and sills. The six carriers, castle floors, weapon clearance rules and saves are retained. [Verification and review history](BEAUTY_VERIFICATION.md) records the independent art scores separately from functional checks.
 
 ## Sound
 

@@ -13,6 +13,7 @@ export function terrainNoise(x, z) {
   const mix = (a, b, t) => a + (b - a) * t;
   return mix(mix(hash(ix, iz), hash(ix + 1, iz), tx), mix(hash(ix, iz + 1), hash(ix + 1, iz + 1), tx), tz);
 }
+const ramp=(a,b,v)=>Math.max(0,Math.min(1,(v-a)/(b-a)));
 export function riverX(z) { return 5 + Math.sin(z * .009) * 22 + Math.sin(z * .020) * 7; }
 export function riverWidth(z) { return 8 + 1.8 * Math.sin(z * .015 + 1.5); }
 export function shoreDistance(x, z) { return Math.abs(x - riverX(z)) - riverWidth(z); }
@@ -53,9 +54,14 @@ function baseHeight(x, z) {
     const notch=terrainNoise(along*.035+seed,d*.011+seed)*13+terrainNoise(along*.081+seed,seed)*4;
     const segments=.28+.72*smoothstep(.18,.76,terrainNoise(along*.014+seed,seed));
     const crest=amplitude*(.76+terrainNoise(along*.009+seed,seed)*.39)*segments-notch;
-    const face=d>=0 ? (1-smoothstep(1,15,d))*.42+(1-smoothstep(25,34,d))*.24+(1-smoothstep(40,94,d))*.34 : Math.exp(d/112);
+    const face=d>=0 ? (1-ramp(2,14,d))*.42+(1-ramp(22,29,d))*.24+(1-ramp(36,94,d))*.34 : Math.exp(d/112);
+    const warp=terrainNoise(along*.018+seed,seed)*2.9;
+    const channel=Math.max(0,terrainNoise(along*.076+warp+seed,d*.006+seed)-.39);
+    const erosion=channel*channel*68;
+    const planes=(terrainNoise(along*.07+seed,d*.05+seed)-.5)*3.6;
+    const exposed=(smoothstep(-9,-2,d)*(1-smoothstep(43,57,d)));
     const drainage=(terrainNoise(along*.055+seed,d*.025)-.5)*5.5;
-    return Math.max(0,crest*face+drainage*smoothstep(.08,.62,face));
+    return Math.max(0,crest*face+(drainage-erosion+planes*exposed)*smoothstep(.08,.62,face));
   };
   const westAxis=-244+Math.sin(z*.012)*22+Math.sin(z*.031)*8;
   const eastAxis=249+Math.sin(z*.010+1.4)*25+Math.sin(z*.028)*8;
@@ -91,19 +97,19 @@ export function terrainNormal(x, z) {
   return { x: -dx / length, y: 1 / length, z: -dz / length };
 }
 
-// The same 300 intervals concentrate resolution where cities can travel. Spacing
-// grows continuously beyond the playable area, avoiding a visible LOD boundary.
+// Keep the precise 2 m walking surface, and allocate more vertices to the outer
+// cliff faces where their physical fractures affect the visible silhouette.
+export const TERRAIN_SEGMENTS=400;
 export function terrainGridCoordinate(index) {
-  const distance = Math.abs(index - 150), outer = Math.max(0, distance - 105);
-  const coordinate = distance <= 105 ? distance * 2 : 210 +
-    (outer <= 10 ? outer * 2 + .375 * outer * outer : 57.5 + (outer - 10) * 9.5);
-  return Math.fround(Math.sign(index - 150) * coordinate);
+  const distance = Math.abs(index - 200);
+  const coordinate=distance<=90?distance*2:distance<=150?180+(distance-90)*3:360+(distance-150)*4.8;
+  return Math.fround(Math.sign(index - 200) * coordinate);
 }
-const groundGrid = Array.from({ length: 301 }, (_, i) => terrainGridCoordinate(i));
+const groundGrid = Array.from({ length: TERRAIN_SEGMENTS+1 }, (_, i) => terrainGridCoordinate(i));
 function groundInterval(value) {
-  let low = 0, high = 300;
+  let low = 0, high = TERRAIN_SEGMENTS;
   while (high - low > 1) { const mid = (low + high) >> 1; if (value < groundGrid[mid]) high = mid; else low = mid; }
-  return Math.min(299, low);
+  return Math.min(TERRAIN_SEGMENTS-1, low);
 }
 export function renderedTerrainHeight(x, z) {
   if (Math.abs(x) > 600 || Math.abs(z) > 600) return terrainHeight(x, z);

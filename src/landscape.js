@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial, box, cylinder, cone } from './materials.js';
-import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, bankWidth, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
+import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, TERRAIN_SEGMENTS, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, bankWidth, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
 import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
@@ -169,7 +169,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x43662f, dry: 0x7e844f, meadow: 0xa29356, soil: 0x937c5c, litter:0x484938, moss:0x4b6739, ash: 0x716b5f, slate: 0x848d88, wet: 0x365e48, gravel: 0xb2a686, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x395d29, dry: 0x7e844f, meadow: 0xa29356, soil: 0x806c50, litter:0x353d2b, moss:0x4b6739, ash: 0x716b5f, slate: 0x46545e, wet: 0x365e48, gravel: 0xa49676, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = heightAt(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -181,11 +181,12 @@ function groundAlbedo() {
     const mineral = smooth(.17, .49, slope) * smooth(8, 27, y);
     const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
     const crest=smooth(24,58,y)*smooth(165,255,Math.max(Math.abs(x),Math.abs(z)))*smooth(.27,.65,veins);
-    const stone = Math.min(.95, mineral * (.5 + region.slate * .5) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83);
+    const talus=region.slate*smooth(9,25,y)*smooth(.43,.62,noise(x*.054+11,z*.039-2));
+    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62);
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
     const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
-    c.copy(palette.grass).lerp(palette.dry, smooth(.30, .83, broad) * .7).lerp(palette.meadow, region.meadow * .64);
+    c.copy(palette.grass).lerp(palette.dry, smooth(.48, .80, broad) * .7).lerp(palette.meadow, region.meadow * .69);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
     forest*=smooth(7,20,d)*(1-region.meadow*.8)*(isClearing(x,z,4)?0:1);
@@ -198,7 +199,7 @@ function groundAlbedo() {
     c.multiplyScalar(.96 + veins * .07);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255; colourData[offset + 3] = 255;
-    const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8));
+    const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9));
     weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255); weightData[offset + 2] = Math.round(soilWeight * 255); weightData[offset + 3] = 255;
   }
   return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
@@ -370,10 +371,10 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
 }
 
 function createGround() {
-  const geometry = new T.PlaneGeometry(1200, 1200, 300, 300); geometry.rotateX(-Math.PI / 2);
+  const geometry = new T.PlaneGeometry(1200, 1200, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS); geometry.rotateX(-Math.PI / 2);
   const pos = geometry.attributes.position, normals = geometry.attributes.normal, uv = geometry.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
-    const x = terrainGridCoordinate(i % 301), z = terrainGridCoordinate(Math.floor(i / 301));
+    const columns=TERRAIN_SEGMENTS+1,x=terrainGridCoordinate(i%columns),z=terrainGridCoordinate(Math.floor(i/columns));
     const normal = terrainNormal(x, z);
     pos.setXYZ(i, x, heightAt(x, z), z); normals.setXYZ(i, normal.x, normal.y, normal.z);
     uv.setXY(i, (x + 600) / 1200, (600 - z) / 1200);
@@ -409,34 +410,47 @@ function createGround() {
       float detail = dot(weights, vec3(grassDetail, slateDetail, soilDetail));
       diffuseColor.rgb *= .79 + detail * .42;
       vec3 surfaceWeights=weights*uSurfaceFlags;
-      vec2 uvGrass=vGroundXZ/uSurfaceScale.x,uvSlate=vGroundXZ/uSurfaceScale.y,uvSoil=vGroundXZ/uSurfaceScale.z;
+      float escarpment=smoothstep(.20,.63,1.0-abs(normalize(vGroundNormal).y));
+      // World-space projection must keep a fixed scale across changing slopes.
+      // Varying the UV divisor by the normal produces contour-like distortion.
+      float mineralScale=uSurfaceScale.y;
+      vec2 uvGrass=vGroundXZ/uSurfaceScale.x,uvSlate=vGroundXZ/mineralScale,uvSoil=vGroundXZ/uSurfaceScale.z;
       // Project exposed rock on all three axes. The real cliff faces keep their
       // mineral grain instead of stretching a top-down photograph vertically.
       vec3 rockFaces=pow(abs(normalize(vGroundNormal)),vec3(4.0));rockFaces/=max(.001,rockFaces.x+rockFaces.y+rockFaces.z);
-      vec2 uvRockX=vGroundPosition.zy/uSurfaceScale.y,uvRockZ=vGroundPosition.xy/uSurfaceScale.y;
+      vec2 uvRockX=vGroundPosition.zy/mineralScale,uvRockZ=vGroundPosition.xy/mineralScale;
       vec3 rockAlbedo=texture2D(uSurfaceSlate,uvRockX).rgb*rockFaces.x+texture2D(uSurfaceSlate,uvSlate).rgb*rockFaces.y+texture2D(uSurfaceSlate,uvRockZ).rgb*rockFaces.z;
+      // Metre-scale beds and joints read at the City camera. They follow a common
+      // tilted bedding plane, with erosion breaks instead of random colour dots.
+      float erosionPhase=(texture2D(uSurfaceSoil,vGroundXZ*.005).r-.4)*7.0;
+      float bedding=(vGroundPosition.y+vGroundPosition.x*.17+vGroundPosition.z*.07+erosionPhase)/11.0;
+      float bedEdge=min(fract(bedding),1.0-fract(bedding));
+      float joint=1.0-smoothstep(.018,.080,bedEdge);
+      float bedColour=texture2D(uSurfaceSoil,vec2(floor(bedding)*.079+.3,.27)).r;
+      vec3 strataTint=mix(vec3(.40,.48,.54),vec3(.69,.67,.59),smoothstep(.16,.42,bedColour));
+      rockAlbedo*=mix(vec3(.74,.81,.84),strataTint*(1.0-joint*.32),escarpment);
       vec3 realAlbedo=texture2D(uSurfaceGrass,uvGrass).rgb*surfaceWeights.x+rockAlbedo*surfaceWeights.y+texture2D(uSurfaceSoil,uvSoil).rgb*surfaceWeights.z;
       float realBlend=dot(surfaceWeights,vec3(1.0));
       diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.66+diffuseColor.rgb*.34,realBlend*mix(.64,.18,weights.x));
     `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
       float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+rockRoughness*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
-      roughnessFactor=clamp(mix(roughnessFactor,surfaceRoughness,realBlend*.68),.68,1.0);
+      roughnessFactor=clamp(mix(roughnessFactor,surfaceRoughness,realBlend*.68)+escarpment*joint*.06,.68,1.0);
     `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       vec2 surfaceNormal=(texture2D(uNormalGrass,uvGrass).xy-.5)*surfaceWeights.x+(texture2D(uNormalSoil,uvSoil).xy-.5)*surfaceWeights.z;
       vec2 rockNx=texture2D(uNormalSlate,uvRockX).xy-.5,rockNy=texture2D(uNormalSlate,uvSlate).xy-.5,rockNz=texture2D(uNormalSlate,uvRockZ).xy-.5;
       vec3 rockNormal=vec3(0.0,rockNx.y,rockNx.x)*rockFaces.x+vec3(rockNy.x,0.0,rockNy.y)*rockFaces.y+vec3(rockNz.x,rockNz.y,0.0)*rockFaces.z;
-      normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)+rockNormal*surfaceWeights.y)*.66);
+      normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*.66+rockNormal*surfaceWeights.y*mix(.75,1.15,escarpment)));
     `);
   };
-  material.customProgramCacheKey = () => 'eroded-triplanar-terrain-v2';
+  material.customProgramCacheKey = () => 'fractured-geology-terrain-v3';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness];
   ground.userData.setGroundTextures = textures => {
     for(const[kind,key,axis]of[['grass','Grass','x'],['slate','Slate','y'],['soil','Soil','z']]) {
       const entry=textures?.[kind]; if(!entry?.map)continue;
       surfaceUniforms['uSurface'+key].value=entry.map;surfaceUniforms['uNormal'+key].value=entry.normalMap||neutralNormal;surfaceUniforms['uRough'+key].value=entry.roughnessMap||neutralRoughness;
-      surfaceUniforms.uSurfaceFlags.value[axis]=1;surfaceUniforms.uSurfaceScale.value[axis]=Math.max(.5,entry.scale||8);
+      surfaceUniforms.uSurfaceFlags.value[axis]=1;surfaceUniforms.uSurfaceScale.value[axis]=kind==='slate'?12:Math.max(.5,entry.scale||8);
     }
   };
   return ground;

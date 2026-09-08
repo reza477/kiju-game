@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial,box,cylinder,cone,beam,batchStatic} from './materials.js';
 import {KAIJU_DECK_Y,KAIJU_CENTER,KAIJU_FLOOR_SPACING,KAIJU_FLOOR_SLOTS,kaijuFloorCount,kaijuTowerTop,kaijuWalkFloors,RING_SLOTS} from './city-layout.js';
-import {castleMassing,castleWallBoxes,castleWallWindows,castleStructuralDetails,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofSeams,spireSeams} from './castle-collision.js';
+import {castleMassing,castleWallBoxes,castleWallWindows,castleStructuralDetails,lancetOutline,lancetDetails,towerWindows,towerCornerStrips,castleFloorDetails,steepRoofShape,steepRoofSeams,spireSeams} from './castle-collision.js';
 export {kaijuSlotPosition} from './city-layout.js';
 const M=(kind,color)=>getMaterial(kind,color);
 function mesh(group,geometry,material,x=0,y=0,z=0){const o=new T.Mesh(geometry,material);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;}
@@ -59,7 +59,7 @@ function floor(group,tier,deckY,p){
 }
 
 function steepRoof(group,x,y,z,w,d,h,p){
- const v=[[-w/2,0,-d/2],[w/2,0,-d/2],[w/2,0,d/2],[-w/2,0,d/2],[0,h,-d*.20],[0,h,d*.20]],faces=[[0,4,1],[1,4,5],[1,5,2],[2,5,3],[3,5,4],[3,4,0]],pos=[],uv=[];
+ const {vertices:v,faces}=steepRoofShape({w,d,h}),pos=[],uv=[];
  for(const f of faces)for(const i of f){pos.push(...v[i]);uv.push(v[i][0]/w+.5,v[i][1]/h);}
  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.computeVertexNormals();mesh(group,geometry,p.roof,x,y,z);
  cornice(group,x,y,z,w,d,p);

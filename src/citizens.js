@@ -16,19 +16,34 @@ const geometryCache=new Map();
 function geometry(name,create){if(!geometryCache.has(name)){const value=create();value.userData.shared=true;geometryCache.set(name,value);}return geometryCache.get(name);}
 let plainMaterial;
 function plain(){if(!plainMaterial){plainMaterial=new T.MeshStandardMaterial({color:0xffffff,roughness:.86,metalness:0});plainMaterial.userData.shared=true;}return plainMaterial;}
+let faceSurface;
+function faceMaterial(){if(!faceSurface){faceSurface=plain().clone();faceSurface.vertexColors=true;faceSurface.roughness=.72;faceSurface.userData.shared=true;}return faceSurface;}
+function thickCloth(g,thickness){
+ const p=g.attributes.position,n=g.attributes.normal,u=g.attributes.uv,positions=[],uv=[],indices=Array.from(g.index.array),edges=new Map(),count=p.count;
+ for(let side=0;side<2;side++)for(let i=0;i<count;i++){positions.push(p.getX(i)-side*n.getX(i)*thickness,p.getY(i)-side*n.getY(i)*thickness,p.getZ(i)-side*n.getZ(i)*thickness);uv.push(u.getX(i),u.getY(i));}
+ for(let i=0;i<g.index.count;i+=3){const a=g.index.getX(i),b=g.index.getX(i+1),c=g.index.getX(i+2);indices.push(c+count,b+count,a+count);for(const[x,y]of[[a,b],[b,c],[c,a]]){const key=Math.min(x,y)+':'+Math.max(x,y);if(edges.has(key))edges.delete(key);else edges.set(key,[x,y]);}}
+ for(const[a,b]of edges.values())indices.push(a,b+count,b,a,a+count,b+count);
+ g.dispose();const result=new T.BufferGeometry();result.setAttribute('position',new T.Float32BufferAttribute(positions,3));result.setAttribute('uv',new T.Float32BufferAttribute(uv,2));result.setIndex(indices);result.computeVertexNormals();return result;
+}
 function capeGeometry(){
  const g=new T.BufferGeometry(),positions=[],uv=[],indices=[],columns=18,rows=14;
  for(let y=0;y<=rows;y++)for(let x=0;x<=columns;x++){const u=x/columns,v=y/rows,a=u*2-1,w=.32+.19*v;positions.push(a*w,.55-v*(1.04+.045*Math.cos(a*Math.PI)),-.055-.28*v-.09*(1-a*a)+.035*Math.cos(a*Math.PI*5)*(v*.7+.3));uv.push(u,v);if(x<columns&&y<rows){const i=y*(columns+1)+x;indices.push(i,i+columns+1,i+1,i+1,i+columns+1,i+columns+2);}}
- g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
+ g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return thickCloth(g,.035);
 }
 function torsoGeometry(){
  const g=new T.CylinderGeometry(.5,.5,1,24,12),p=g.attributes.position;
  for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),waist=bell(y,-.25,.20),width=.99-.20*waist-.10*bell(y,.50,.10),fold=.015*Math.sin(a*9+y*12)*(.45+.55*waist);p.setXYZ(i,p.getX(i)*width+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}
  g.computeVertexNormals();return g;
 }
-function citizenHead(){const g=new T.SphereGeometry(1,24,18),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),jaw=y<-.15?1-.25*(-y-.15):1;let zz=z;if(z>0){zz+=.13*bell(y,-.36,.21);zz-=.10*bell(Math.abs(x),.37,.19)*bell(y,.08,.19);zz+=.08*bell(y,.34,.12);}p.setXYZ(i,x*jaw,y,zz);}g.computeVertexNormals();return g;}
+function citizenHead(){const g=new T.SphereGeometry(1,32,26),p=g.attributes.position,colors=[];for(let i=0;i<p.count;i++){
+ const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z),jaw=1-.22*bell(y,-.58,.32),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);let zz=z;
+ if(z>0){zz+=.23*bell(y,-.48,.19)*bell(x,0,.49);zz-=.15*eye;zz+=.15*bell(y,.35,.10);zz+=.19*bell(Math.abs(x),.53,.20)*bell(y,-.14,.19);zz+=.13*bell(x,0,.15)*bell(y,.0,.40);zz-=.10*bell(Math.abs(x),.25,.08)*bell(y,-.32,.16);}
+ p.setXYZ(i,x*jaw,y,zz);const shade=1-.21*eye*front-.08*bell(y,-.65,.13)*front,cheek=bell(Math.abs(x),.50,.26)*bell(y,-.18,.22)*front;colors.push(shade,shade-.065*cheek,shade-.09*cheek);
+ }g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;}
 function hairGeometry(){const g=new T.SphereGeometry(1,24,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.atan2(x,z),lock=.025*Math.cos(a*13+y*8);p.setXYZ(i,x*(1+lock),y+(z>0?.12*Math.sin(x*2):0),z*(1+lock));}g.computeVertexNormals();return g;}
-function garmentGeometry(tails=false){const g=new T.CylinderGeometry(.30,.5,1,32,12,tails,Math.PI/3,tails?Math.PI*4/3:TAU),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),pleat=.019*Math.cos(a*16)*(1.15-y),bias=.012*Math.sin(a*5+y*5);p.setXYZ(i,p.getX(i)+Math.sin(a)*(pleat+bias),y,p.getZ(i)+Math.cos(a)*(pleat+bias));}g.computeVertexNormals();return g;}
+function garmentGeometry(tails=false){const g=new T.CylinderGeometry(.30,.5,1,32,16,true,Math.PI/3,tails?Math.PI*4/3:TAU),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),pleat=.024*Math.cos(a*16)*(1.15-y),bias=.016*Math.sin(a*5+y*5),hem=.018*bell(y,-.48,.035);p.setXYZ(i,p.getX(i)+Math.sin(a)*(pleat+bias+hem),y,p.getZ(i)+Math.cos(a)*(pleat+bias+hem));}g.computeVertexNormals();return thickCloth(g,.037);}
+function lapelGeometry(){const s=new T.Shape();s.moveTo(-.5,.5);s.lineTo(.38,.34);s.lineTo(.16,-.1);s.lineTo(-.35,-.5);s.lineTo(-.08,.16);s.closePath();const g=new T.ExtrudeGeometry(s,{depth:.14,bevelEnabled:true,bevelThickness:.025,bevelSize:.025,bevelSegments:1,steps:1});g.translate(0,0,-.04);return g;}
+function cuffGeometry(){return new T.LatheGeometry([[.38,-.5],[.5,-.5],[.51,-.35],[.50,.42],[.47,.5],[.37,.5],[.38,-.5]].map(p=>new T.Vector2(...p)),20);}
 function shoeGeometry(){const g=new T.SphereGeometry(1,18,12),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(z>0?1: .80),Math.max(-.70,y),z);}g.computeVertexNormals();return g;}
 function waistcoatGeometry(){const g=new T.BoxGeometry(1,1,1,8,10,1),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),x=p.getX(i);p.setXYZ(i,x*(.84+.14*Math.cos(y*4)),y,p.getZ(i)+.23*(1-4*x*x));}g.computeVertexNormals();return g;}
 function sleeveGeometry(){const g=new T.CylinderGeometry(.40,.46,1,16,8),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),fold=.025*Math.sin(y*26+a*2)*bell(Math.abs(y),.36,.15);p.setXYZ(i,p.getX(i)+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}g.computeVertexNormals();return g;}
@@ -60,13 +75,13 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  const cube=geometry('citizen-box',()=>new T.BoxGeometry(1,1,1));
  const specs={
   torso:[geometry('citizen-tailored-torso',torsoGeometry),cloth,1],shoulders:[sphere,cloth,2],
-  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,14],heads:[geometry('citizen-head',citizenHead),solid,1],
+  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,14],heads:[geometry('citizen-head',citizenHead),faceMaterial(),1],
   shoes:[geometry('citizen-shoe',shoeGeometry),solid,2],hair:[geometry('citizen-hair',hairGeometry),solid,6],
   skirt:[geometry('citizen-skirt',()=>garmentGeometry()),cloth,1],
   tails:[geometry('citizen-coattails',()=>garmentGeometry(true)),cloth,1],
   cape:[geometry('citizen-cape',capeGeometry),cloth,1],collar:[cylinder,cloth,1],
   headwear:[cylinder,cloth,3],brim:[cylinder,cloth,1],
-  details:[geometry('citizen-detail',()=>new T.SphereGeometry(1,10,8)),solid,22],trim:[cube,cloth,30],bags:[cube,cloth,4]
+  details:[geometry('citizen-detail',()=>new T.SphereGeometry(1,10,8)),solid,26],trim:[cube,cloth,30],bags:[cube,cloth,4],lapels:[geometry('citizen-folded-lapel',lapelGeometry),cloth,2],cuffs:[geometry('citizen-lined-cuff',cuffGeometry),cloth,2]
  };
  const buckets={},instances={};
  for(const [name,[shape,material,perPerson]]of Object.entries(specs)){
@@ -78,7 +93,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  }
  const data=Array.from({length:MAX_PEOPLE},(_,i)=>wardrobe(faction,i));
  const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
-  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),angles:new T.Euler()}};
+  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler()}};
  group.userData.wardrobeNames=citizens.wardrobeNames;
  group.userData.worldHumanHeight=.8;
  animateCitizens(citizens,0,false,24,{rings,slotPositions,layout});
@@ -189,7 +204,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  const count=Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
  const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings):circular?circulate(citizens,time,count,rings):null;
- const {root,part,matrix,direction,up,color,body,head,angles}=citizens.scratch;
+ const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles}=citizens.scratch;
  const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
  const activities={walking:0,carrying:0,reading:0,working:0,conversation:0,resting:0};
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
@@ -200,7 +215,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(quaternion)part.quaternion.copy(quaternion);else part.rotation.set(rx,ry,rz);
   // Turn the face and shoulders toward a task while leaving pelvis, legs and
   // planted shoe matrices on the authored route. Tools follow the same pose.
-  if(y>.675&&(Math.abs(x)<.08||name==='headwear'||name==='brim'||name==='hair')){
+  if(y>.675&&(Math.abs(x)<.07||name==='headwear'||name==='brim'||name==='hair')){
    part.position.y-=.674;part.position.applyQuaternion(head);part.position.y+=.674;part.quaternion.premultiply(head);
   }
   if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='limbs'))){
@@ -226,6 +241,12 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    const distance=Math.hypot(r.x-route.x,r.z-route.z);if(distance<nearest){nearest=distance;partner=j;}
   }
   let turn=0;if(partner>=0){const r=routes[partner];turn=Math.atan2(r.x-route.x,r.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
+  else if(working){
+   // A repair stop looks toward the closest district on this same floor.
+   // Feet remain on the pavement; only the carried work and upper body turn.
+   let closest=null,best=Infinity;for(const p of slotPositions){if(Math.abs((p.y??0)-route.y)>.1)continue;const d=(p.x-route.x)**2+(p.z-route.z)**2;if(d<best){best=d;closest=p;}}
+   if(closest){turn=Math.atan2(closest.x-route.x,closest.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
+  }
   const torsoTurn=T.MathUtils.clamp(turn*.64,-1.35,1.35),headTurn=T.MathUtils.clamp(turn-torsoTurn,-1.15,1.15);
   body.setFromEuler(angles.set(working?.11:reading?.055:carrying?.025:0,torsoTurn,working?Math.sin(time*6.1+p.phase)*.016:0));
   head.setFromEuler(angles.set(working?.20:reading?.22:0,headTurn,partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
@@ -237,14 +258,16 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(p.vest)put('vest',0,.532+bob,.070,.129,.172,.014,p.accent);
   put('skin',0,.660,0,.033,.036,.031,p.skinTone);
   put('heads',0,.731+bob,.006,.060,.074,.057,p.skinTone);
-  put('skin',0,.727+bob,.065,.010,.022,.011,p.skinTone);
-  put('skin',0,.715+bob,.071,.014,.011,.014,p.skinTone);
+  put('skin',0,.727+bob,.066,.009,.023,.010,p.skinTone);
+  put('skin',0,.715+bob,.073,.012,.010,.013,p.skinTone);
   for(const side of [-1,1]){
    put('skin',side*.057,.734,.004,.011,.022,.012,p.skinTone);
    put('details',side*.022,.739+bob,.059,.010,.0055,.0038,0xdbd3b8);
    put('details',side*.022,.739+bob,.062,.0048,.005,.0028,i%3===0?0x4c6570:0x543a25);
    put('details',side*.022,.739+bob,.064,.0024,.004,.0017,0x202228);
    put('details',side*.024,.751+bob,.059,.014,.0025,.003,p.hairTone,0,0,side*.10);
+   put('details',side*.022,.744+bob,.061,.012,.0033,.0035,p.skinTone,0,0,side*.10);
+   put('details',side*.022,.734+bob,.061,.0105,.0022,.0034,p.skinTone,0,0,-side*.06);
    put('details',side*.007,.709+bob,.079,.0035,.002,.002,0x715043);
   }
   put('details',0,.699+bob,.063,.014,.0027,.0035,0x855e52);
@@ -274,11 +297,12 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    const handY=carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
    put('shoulders',shoulder,.605,0,.034,.042,.045,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
-   segment(side*.114,.498,elbowZ,handX,handY+.023,handZ,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
-   put('skin',handX,handY,handZ,.024,.030,.025,p.skinTone);
-   put('skin',handX-side*.020,handY+.005,handZ+.010,.010,.020,.012,p.skinTone,0,0,side*.3);
-   for(let finger=0;finger<2;finger++)put('skin',handX+side*(finger-.5)*.014,handY-.019,handZ+.007,.008,.017,.013,p.skinTone,working||carrying?-.35:0);
-   put('trim',handX,handY+.030,handZ,.053,.018,.050,p.accent);
+   wrist.setFromUnitVectors(up,direction.set(side*.114-handX,.498-handY,elbowZ-handZ).normalize());
+   handPosition.set(0,.030,0).applyQuaternion(wrist);segment(side*.114,.498,elbowZ,handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
+   put('skin',handX,handY,handZ,.023,.029,.022,p.skinTone,0,0,0,wrist);
+   handPosition.set(-side*.019,.005,.010).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.009,.018,.010,p.skinTone,0,0,0,wrist);
+   for(let finger=0;finger<2;finger++){handPosition.set(side*(finger-.5)*.014,-.025,.004).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.007,.017,.011,p.skinTone,0,0,0,wrist);}
+   handPosition.set(0,.036,0).applyQuaternion(wrist);put('cuffs',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.053,.024,.053,p.accent,0,0,0,wrist);
    if(working&&side===1){put('trim',handX,handY-.044,handZ,.012,.112,.014,0x8b6950);put('bags',handX,handY-.104,handZ,.068,.028,.033,0x59646a);}
   }
   if(p.skirt)put('skirt',0,p.robe?.286:.284,0,p.robe?.255:.287,p.robe?.362:.345,.241,p.robe?p.primary:p.accent);
@@ -287,7 +311,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(p.collar)put('collar',0,.658,-.007,.112,.076,.105,p.primary);
   put('trim',0,.411,.005,.174,.022,.123,p.trim);
   if(p.vest){
-   for(const side of [-1,1])put('trim',side*.047,.574,.085,citizens.faction==='crawler'?.029:.014,.114,.010,citizens.faction==='crawler'?p.primary:p.trim,0,0,-side*.27);
+   for(const side of [-1,1])put('lapels',side*.045,.591,.079,.060,.121,.062,citizens.faction==='crawler'?p.primary:p.accent,0,side<0?Math.PI:0,-side*.18);
    for(let n=0;n<3;n++)put('details',0,.492+n*.032,.074,.004,.004,.004,p.trim);
   }
   // Seams, pocket flaps and the folded shirt collar describe garments at a
@@ -300,6 +324,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    put('trim',0,.523,.146,.006,.005,.091,0x88714e,.32);
   }else if(i%12===2){
    put('bags',0,.431,.134,.174,.10,.125,0xa28761);put('trim',0,.432,.199,.011,.107,.009,0x5d5144);put('trim',0,.486,.139,.174,.008,.011,0x5d5144);
+   for(let row=0;row<3;row++)put('trim',0,.401+row*.028,.198,.170,.006,.008,0x6d5944);
   }
   if(citizens.faction==='crawler'){put('trim',0,.626,.075,.077,.024,.012,0xd2c5aa);put('trim',0,.604,.086,.023,.047,.012,p.accent,0,0,.13);}
   if(citizens.faction==='airship'){

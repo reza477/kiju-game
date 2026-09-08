@@ -425,6 +425,12 @@ function anatomicalSkin(region,base){
     }else if(region==='head'||region==='jaw'){
       form-=front*12*formBell(t,.39,.10)*formBell(side,.57,.17);
       form+=front*10*formBell(t,.63,.11);flush=front*10*formBell(t,.27,.12);
+    }else if(region==='arm'||region==='leg'||region==='hand'){
+      const joint=region==='arm'?.52:region==='leg'?.48:.65;
+      flush=20*formBell(t,joint,.085)+6*formBell(t,.16,.12);
+      form-=front*14*formBell(t,joint+.015,.020);
+      form+=front*12*formBell(side,.26,.19)*formBell(t,.70,.23);
+      form-=side*10*formBell(t,.29,.15);
     }else{
       const lower=region==='forearm'||region==='shin',joint=lower?.10:.87;
       flush=16*formBell(t,joint,.095)+7*formBell(t,.30,.12);
@@ -434,12 +440,12 @@ function anatomicalSkin(region,base){
       if(lower)form+=front*9*formBell(side,.16,.09)*formBell(t,.67,.24);
     }
     const exposed=region==='torso'?.62+.38*formBell(t,.53,.34):region==='head'||region==='jaw'?.78:.60+.40*formBell(t,.48,.36);
-    const ventral=((Math.cos(a)+1)*.5)**1.7*exposed,freckle=Math.sin(a*31+Math.sin(t*76)*1.8)*Math.sin(t*119+Math.sin(a*27)),variation=wave*4+form*.57+freckle*2.1,i=(y*width+x)*4;
+    const ventral=((Math.cos(a)+1)*.5)**1.7*exposed,freckle=Math.sin(a*31+Math.sin(t*76)*1.8)*Math.sin(t*119+Math.sin(a*27)),variation=wave*5+form*.70+freckle*2.1,i=(y*width+x)*4;
     // Dark weathered outer hide and warmer protected skin establish a creature
     // identity at ordinary play distance, with gradual anatomical boundaries.
-    const hide=(1-front)*(.60+.40*formBell(t,.58,.33)),mottle=Math.sin(a*5+Math.sin(t*19))*Math.sin(t*27+a*3),weather=hide*(12+7*mottle);
+    const hide=(1-front)*(.60+.40*formBell(t,.58,.33)),mottle=Math.sin(a*5+Math.sin(t*19))*Math.sin(t*27+a*3),weather=hide*(13+9*mottle);
     colour.data.set([72+ventral*72+variation+flush*.55-weather,91+ventral*32+variation-flush*.11-weather*.45,83+ventral*22+variation-flush*.25-weather*.65,255],i);
-    const r=239-ventral*43-wave*4-Math.max(0,form)*.35;rough.data.set([r,r,r,255],i);
+    const r=241-ventral*56-wave*6-Math.max(0,form)*.48-8*formBell(t,.5,.12);rough.data.set([r,r,r,255],i);
     // Fine creases follow longitudinal skin tension, while broad anatomical
     // shadowing comes from geometry. This avoids repeating pebble-sized bumps.
     const grain=Math.sin(a*151+Math.sin(t*195)*1.3)*Math.sin(t*337+a*19),crease=Math.pow(Math.max(0,Math.sin(a*19+t*75+Math.sin(t*11)*2)),18);
@@ -479,8 +485,8 @@ function organicTorso(frame, m) {
   organicLoft(frame,[[0,24.15,.2,.28,.45],[0,25.5,-.50,3.03,2.31],[0,27.8,-.62,3.82,2.61],
     [0,29.5,-.44,3.24,2.33],[0,31.3,-.25,2.62,2.02],[0,34.2,-.45,3.32,2.45],
     [0,37.3,-.61,4.64,3.03],[0,40.7,-.58,5.56,3.09],[0,42.7,-.4,5.79,2.95],
-    [0,44.0,-.15,5.40,2.45],[0,45.35,.12,3.83,2.00],[0,46.7,.59,2.43,1.73],
-    [0,48.15,1.08,1.70,1.49],[0,49.65,1.20,1.54,1.29]],m.skin,(p,a)=>{
+    [0,44.0,-.15,5.62,2.62],[0,45.35,.02,4.36,2.36],[0,46.7,.48,3.08,1.97],
+    [0,47.8,.95,2.09,1.60],[0,48.8,1.08,1.71,1.39]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),side=Math.abs(Math.sin(a));
       // Pectoral, abdominal and oblique changes are relief in the same mesh,
       // leaving smooth transitions instead of disconnected oval muscle pieces.
@@ -505,6 +511,12 @@ function organicTorso(frame, m) {
       p.z-=back*.37*bell(Math.abs(p.x),2.8,1.1)*bell(p.y,42.8,2.3);
       p.z-=back*.38*bell(Math.abs(p.x),1.60,1.45)*bell(p.y,27.3,1.7);
       p.z+=front*.34*bell(Math.abs(p.x),2.15,.50)*bell(p.y,28.7,1.15);
+      // The trapezius rises into the nape; the sternocleidomastoid inserts into
+      // a broad clavicle. These are changes to the same envelope, not cuffs.
+      p.z-=back*.66*bell(p.y,45.1,2.2)*bell(Math.abs(p.x),2.1,1.7);
+      p.z+=front*.30*bell(p.y,44.7-Math.abs(p.x)*.19,.36)*bell(Math.abs(p.x),2.6,1.9);
+      p.z-=front*.26*bell(p.y,45.2,.38)*bell(p.x,0,.55);
+      p.z+=front*.27*bell(Math.abs(p.x),.78+(48.2-p.y)*.38,.23)*bell(p.y,46.6,1.7);
     },'torso');
   for (const side of [-1, 1]) {
     // Blunt shoulder osteoderms and swept bone horns create a living silhouette.
@@ -518,12 +530,12 @@ function organicTorso(frame, m) {
 
 function organicHead(frame, m) {
   const skull = new T.Group(); skull.name = 'Living titan skull, jaw and swept horns';
-  skull.position.set(0, 50.6, 1.5); frame.add(skull);
+  skull.position.set(0, 49.5, 1.5); frame.add(skull);
   // One sculpted cranial envelope gives the forehead, zygomatic arch and snout
   // a shared surface. The jaw is a broad hinged volume below the real mouth gap.
   organicLoft(skull,[[0,-.77,.16,1.20,1.28],[0,-.30,.08,1.83,1.79],
-    [0,.37,-.04,2.14,1.90],[0,1.08,-.22,2.03,1.99],[0,1.85,-.43,1.92,1.85],
-    [0,2.60,-.56,1.55,1.48],[0,3.12,-.64,.78,.88],[0,3.40,-.67,.03,.06]],m.skin,(p,a)=>{
+    [0,.37,-.04,2.14,1.90],[0,1.08,-.22,2.18,2.04],[0,1.85,-.43,2.02,1.85],
+    [0,2.60,-.56,1.68,1.48],[0,3.12,-.64,.94,.88],[0,3.40,-.67,.03,.06]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),x=Math.abs(p.x);
       p.z+=front*(.38*formBell(p.y,-.34,.40)*formBell(x,.36,.97)+.43*formBell(p.y,.62,.95)*formBell(x,0,.37));
       p.z-=front*.69*formBell(x,1.24,.45)*formBell(p.y,.47,.33);
@@ -531,13 +543,17 @@ function organicHead(frame, m) {
       p.z+=front*.36*formBell(x,1.56,.47)*formBell(p.y,-.05,.32);
       p.x+=Math.sign(p.x)*.16*formBell(p.y,.02,.40)*formBell(x,1.80,.37);
       p.z-=front*.18*formBell(x,1.29,.19)*formBell(p.y,-.42,.36);
+      p.z+=front*.27*formBell(p.y,1.22,.21)*formBell(x,1.12,.86);
+      p.z-=front*.19*formBell(p.y,1.9,.52)*formBell(x,0,.22);
+      p.z+=front*.25*formBell(x,1.75,.34)*formBell(p.y,-.33,.52);
     },'head');
-  organicLoft(skull,[[0,-2.48,.75,.76,.43],[0,-2.26,.91,1.31,.86],[0,-1.93,.80,1.63,1.23],
-    [0,-1.47,.42,1.91,1.39],[0,-.94,.25,1.72,1.34]],m.skin,(p,a)=>{
+  organicLoft(skull,[[0,-2.43,.70,.96,.48],[0,-2.23,.80,1.45,.91],[0,-1.93,.73,1.81,1.24],
+    [0,-1.47,.40,1.99,1.39],[0,-.94,.25,1.77,1.34]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a));p.z+=front*.51*formBell(p.y,-1.93,.52);
       p.x+=Math.sign(p.x)*.13*formBell(p.y,-1.5,.24);
+      p.z-=front*.13*formBell(p.x,0,.21)*formBell(p.y,-2.0,.29);
     },'jaw');
-  sphere(skull,1,m.mouth,0,-.89,1.75,1.05,.15,.31);
+  sphere(skull,1,m.mouth,0,-.89,1.75,.93,.085,.29);
   for (const side of [-1, 1]) {
     // A deep orbit supports a wet amber globe, with actual eyelid contours.
     sphere(skull,1,m.mouth,side*1.26,.48,1.46,.49,.31,.23);
@@ -555,8 +571,8 @@ function organicHead(frame, m) {
     organicSweep(skull, [[side * 1.95, -.15, -.2], [side * 2.53, .2, -.85],
       [side * 2.77, 1.12, -1.8]], [.43, .29, .012], m.ridge, 18);
     // Larger outer fangs frame shorter teeth; no metal mouth grille remains.
-    for (let i = 0; i < 4; i++) {
-      const x = side * (.22 + i * .25), fang = i === 3 ? .30 : .12,z=1.99-Math.abs(x)*.29;
+    for (let i = 0; i < 3; i++) {
+      const x = side * (.30 + i * .29), fang = i === 2 ? .22 : .07,z=1.99-Math.abs(x)*.29;
       organicSweep(skull, [[x, -.77-i*.038, z], [x * .98, -.77-i*.038 - fang * .64, z+.035],
         [x * .95, -.77-i*.038 - fang, z]], [.07 + i * .012, .048, .004], m.tooth, 12);
     }
@@ -567,8 +583,11 @@ function organicHead(frame, m) {
 }
 
 function organicHand(arm, side, m) {
+  m={...m,skin:m.extremity,warm:m.extremityWarm,ridge:m.extremityRidge};
   const palm = new T.Group(); palm.position.set(side * 2.13, -22.05, 2.6); arm.add(palm);
-  organicMuscle(palm, [0, .67, -.03], [0, -1.25, .18], 1.17, .68, m.skin);
+  organicLoft(palm,[[0,1.18,-.05,.62,.63],[0,.58,-.02,.84,.66],[0,-.20,.05,1.06,.59],[0,-.81,.14,1.12,.46],[0,-1.20,.18,.94,.35]],m.skin,(p,a)=>{
+    p.z-=Math.max(0,-Math.cos(a))*.10*formBell(p.y,-.3,.65)*Math.cos(p.x*11);
+  });
   sphere(palm, 1, m.warm, -side * .56, -.58, .36, .63, .81, .34);
   const digits = new T.Group(), fist = new T.Group();
   digits.name = 'Open titan fingers'; fist.name = 'Closed striking fist'; palm.add(digits, fist);
@@ -577,10 +596,8 @@ function organicHand(arm, side, m) {
     const y = -1.02 + Math.abs(finger - 1.5) * .08;
     const points = [[fx, y, .10], [fx + side * .05, y - length, .31],
       [fx + side * .04, y - length * 1.65, .66], [fx - side * .02, y - length * 2.04, 1.00]];
-    for (let segment = 0; segment < 3; segment++) {
-      organicMuscle(digits, points[segment], points[segment + 1], .26 - segment * .028, .23 - segment * .022, m.skin);
-      sphere(digits, .25 - segment * .025, m.ridge, ...points[segment], 1, .89, 1);
-    }
+    organicSweep(digits,points,[.27,.25,.22,.18],m.skin,24);
+    for (let segment = 0; segment < 3; segment++)sphere(digits,.25-segment*.025,m.ridge,...points[segment],1,.68,.92);
     const tip = points[3];
     organicSweep(digits, [tip, [tip[0], tip[1] - .35, tip[2] + .26],
       [tip[0], tip[1] - .42, tip[2] + .72]], [.20, .13, .008], m.claw, 12);
@@ -675,7 +692,7 @@ function organicLeg(rig, limbs, side, m, frame) {
       p.z+=front*.13*formBell(Math.sin(a),-side*.1,.15)*formBell(t,.49,.25);
     },'shin');
   const footStart = leg.children.length;
-  sphere(leg, 1, m.skin, ...ankle, .90, 1.11, .96);
+  sphere(leg, 1, m.extremity, ...ankle, .90, 1.11, .96);
   // Plantigrade soft heel/instep with an actual planar underside. Its minimum
   // y matches the original plated sole, so the existing terrain IK is unchanged.
   const soleY = -25.41, geometry = new T.SphereGeometry(1, 28, 18);
@@ -686,12 +703,12 @@ function organicLeg(rig, limbs, side, m, frame) {
       position.getZ(i) * 2.47);
   }
   geometry.computeVertexNormals();
-  addMesh(leg, geometry, m.skin, side * .18, soleY + .725, .69);
-  organicMuscle(leg, [side * .18, -23.48, -.4], [side * .18, -24.30, 1.63], 1.04, 1.17, m.warm);
+  addMesh(leg, geometry, m.extremity, side * .18, soleY + .725, .69);
+  organicMuscle(leg, [side * .18, -23.48, -.4], [side * .18, -24.30, 1.63], 1.04, 1.17, m.extremityWarm);
   for (let toe = 0; toe < 3; toe++) {
     const tx = side * .18 + (toe - 1) * .89, front = toe === 1 ? 3.28 : 2.99;
-    organicMuscle(leg, [tx, -24.58, 1.39], [tx, -24.69, front], .43, .43, m.skin);
-    sphere(leg, .41, m.ridge, tx, -24.58, front - .22, 1, .82, 1.10);
+    organicMuscle(leg, [tx, -24.58, 1.39], [tx, -24.69, front], .43, .43, m.extremity);
+    sphere(leg, .41, m.extremityRidge, tx, -24.58, front - .22, 1, .82, 1.10);
     organicSweep(leg, [[tx, -24.63, front], [tx, -24.66, front + .56],
       [tx, -24.98, front + 1.07]], [.32, .23, .009], m.claw, 16);
   }
@@ -727,6 +744,7 @@ function createFleshKaiju(frame, rig, limbs) {
     skin: fleshMaterial(0xa99782,.80),
     warm: fleshMaterial(0xb39b81,.82),
     ridge: fleshMaterial(0x776f62,.87),
+    extremity:fleshMaterial(0x859383,.79),extremityWarm:fleshMaterial(0x9b9980,.80),extremityRidge:fleshMaterial(0x6e7969,.86),
     bone: material('bone', 0xb4a47e, { roughness: .77 }),
     tooth: material('bone', 0xd6c9a7, { roughness: .61 }),
     claw: material('bone', 0x343931, { roughness: .68 }),
