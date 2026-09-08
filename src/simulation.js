@@ -1,4 +1,5 @@
 import {kaijuSlotPosition} from './city-layout.js';
+import {verticalOrder} from './vertical-city.js';
 import {CARRIER_VARIANTS,VARIANTS_BY_FACTION,normalizeVariant} from './variants.js';
 import {batterySolution,defaultFacing,normalizeAngle} from './weapon-layout.js';
 export const SAVE_KEY = 'colossus-wake-save-v1';
@@ -48,15 +49,16 @@ export function createGame(faction='kaiju',variant) {
  enemies:createRivals(faction,variant),
  battle:null,log:[],stats:{gathered:0,built:0,victories:0},paused:false,speed:1,gathering:null,starving:false,rings:faction==='kaiju'?1:2,ringConstruction:null,worldDamage:{expedition:[],battle:[]}};
  s.buildings[7]={type:'keep',level:1,remaining:0};s.buildings[11]={type:'housing',level:1,remaining:0};s.buildings[13]={type:'farm',level:1,remaining:0};
+ if(faction==='kaiju')s.towerOrder=[7,11,13];
  note(s,'Your city wakes. Set a course for the Sunken Grove.'); return s;
 }
 function pay(s,cost){if(Object.entries(cost).some(([k,v])=>s.resources[k]<v))return false;for(const [k,v]of Object.entries(cost))s.resources[k]-=v;return true;}
 export const ringCost={wood:90,iron:65};
 export const slotUnlocked=(s,i)=>s.faction!=='kaiju'||kaijuSlotPosition(i).ring<=(s.rings??1);
 export function expandRing(s){
- if(s.mode!=='expedition'||s.faction!=='kaiju'||s.rings>=2||s.ringConstruction)return {ok:false,message:'The upper wards cannot be added right now.'};
- if(!pay(s,ringCost))return {ok:false,message:'Upper wards need 90 wood and 65 iron.'};
- s.ringConstruction={remaining:12,target:2};note(s,'Raising the upper wards above the lower castle.');return {ok:true};
+ if(s.mode!=='expedition'||s.faction!=='kaiju'||s.rings>=2||s.ringConstruction)return {ok:false,message:'The castle harness cannot be reinforced right now.'};
+ if(!pay(s,ringCost))return {ok:false,message:'Harness reinforcement needs 90 wood and 65 iron.'};
+ s.ringConstruction={remaining:12,target:2};note(s,'Reinforcing the harness to support a taller castle.');return {ok:true};
 }
 export function setBatteryFacing(s,slot,angle){
  const b=s.buildings[slot];if(s.mode!=='expedition'||b?.type!=='cannon'||!Number.isFinite(angle))return {ok:false,message:'Select a battery between battles to change its direction.'};
@@ -64,9 +66,12 @@ export function setBatteryFacing(s,slot,angle){
 }
 export function build(s,type,slot) {
  const b=BUILDINGS[type];if(s.mode!=='expedition'||!b||type==='keep'||!Number.isInteger(slot)||slot<0||slot>=20||s.buildings[slot])return {ok:false,message:'Choose an empty district on the city deck.'};
- if(!slotUnlocked(s,slot))return {ok:false,message:'Raise the upper wards before placing a district here.'};
+ if(!slotUnlocked(s,slot))return {ok:false,message:'Reinforce the harness to support more storeys.'};
  if(!pay(s,b.cost))return {ok:false,message:'More wood or iron is needed.'};
- s.buildings[slot]={type,level:1,remaining:b.time,...(type==='cannon'?{facing:defaultFacing(s.faction,slot)}:{})};note(s,`${b.name} construction started.`);return {ok:true};
+ const order=s.faction==='kaiju'?verticalOrder(s.buildings,s.towerOrder):null;
+ s.buildings[slot]={type,level:1,remaining:b.time,...(type==='cannon'?{facing:s.faction==='kaiju'?Math.PI:defaultFacing(s.faction,slot)}:{})};
+ if(order)s.towerOrder=[...order,slot];
+ note(s,`${b.name} construction started${order?` on storey ${order.length+1}`:''}.`);return {ok:true};
 }
 export function upgradeCost(b){return {wood:30*b.level,iron:35*b.level};}
 export function upgrade(s,slot){const b=s.buildings[slot];if(s.mode!=='expedition'||!b||b.remaining>0||b.level>=3)return {ok:false,message:'This district cannot be upgraded yet.'};
@@ -126,7 +131,7 @@ function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;r
 export function tick(s,dt,input={x:0,z:0}){
  if(s.paused)return;dt=clamp(dt,0,.25)*s.speed;s.time+=dt;s.day=1+Math.floor(s.time/90);
  if(s.mode==='battle'){tickBattle(s,dt,input);return;}
- if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,'The upper wards are ready. Thirteen elevated district plots are available.');}}
+ if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,'Harness reinforced. Build up to 20 storeys, one district above another.');}}
  for(const b of s.buildings){if(!b||b.remaining<=0)continue;b.remaining=Math.max(0,b.remaining-dt);if(b.remaining===0){if(b.upgrading){b.level++;delete b.upgrading;}s.stats.built++;if(b.type==='armor')s.hp=Math.min(maxHull(s),s.hp+120);if(b.type==='keep')s.hp=Math.min(maxHull(s),s.hp+80);note(s,`${BUILDINGS[b.type].name} is ready.`);}}
  s.resources.food=Math.max(0,s.resources.food+income(s).food*dt);s.starving=s.resources.food<=0;
  if(s.starving)s.population=Math.max(8,s.population-.08*dt);else if(s.population<capacity(s))s.population=Math.min(capacity(s),s.population+.055*dt);
@@ -145,6 +150,8 @@ export function deserialize(raw){
  if(!['expedition','battle'].includes(s.mode))return null;
  if(s.buildings.some(b=>b&&(!BUILDINGS[b.type]||!Number.isInteger(b.level)||b.level<1||b.level>3||!Number.isFinite(b.remaining)||b.remaining<0)))return null;
  if(s.buildings.some(b=>b?.facing!==undefined&&!Number.isFinite(b.facing)))return null;
+ if(s.towerOrder!==undefined&&(!Array.isArray(s.towerOrder)||s.towerOrder.length>20||s.towerOrder.some(i=>!Number.isInteger(i)||i<0||i>=20)||new Set(s.towerOrder).size!==s.towerOrder.length))return null;
+ if(s.faction==='kaiju')s.towerOrder=verticalOrder(s.buildings,s.towerOrder);
  const requiredRing=s.faction==='kaiju'?Math.max(1,...s.buildings.flatMap((b,i)=>b?[kaijuSlotPosition(i).ring]:[])):2;
  if(s.rings!==undefined&&(!Number.isInteger(s.rings)||s.rings<0||s.rings>2))return null;
  s.rings=Math.max(s.rings??requiredRing,requiredRing);

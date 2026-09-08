@@ -500,6 +500,94 @@ export function createDistrict(type, level = 1, faction = 'kaiju') {
   return group;
 }
 
+/** A single inhabited castle storey. Its roof is the next storey's floor;
+ * building functions occupy fitted rooms instead of separate miniature houses.
+ * Workers and their contact furniture retain the same natural dimensions. */
+export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1)){
+  const group=new T.Group();group.name=`Gothic ${type} storey`;
+  const p={...palettes.kaiju,wall:0x798180,light:0xb2b4a5,roof:0x64484c,trim:0x939c96,dark:0x303842};
+  const ceiling=Math.max(2.9,height-.38),wallTop=ceiling-.34;
+  const stone=M('stone',p.wall),trim=M('stone',p.trim),dark=M('metal',p.dark),wood=M('wood',0x77624e);
+  box(group,3.30,.18,3.18,M('pavement',0x878b81),0,.09,0);
+  box(group,3.37,.045,3.24,trim,0,.185,0);
+  group.userData.verticalDistrict={type,level,storeyHeight:height,ceiling};
+
+  // Four corner piers and a continuous upper lintel make these spaces part
+  // of one vertical fortress, with an open forecourt for the inhabitants.
+  for(const x of[-1.52,1.52])for(const z of[-1.34,.87]){
+    box(group,.20,wallTop-.18,.22,stone,x,(wallTop+.18)/2,z);
+    box(group,.29,.12,.31,trim,x,wallTop-.10,z);
+  }
+  box(group,3.30,.12,2.54,trim,0,wallTop+.02,-.24);
+  for(const side of[-1,1])beam(group,[side*1.52,wallTop-.63,.89],[side*.63,wallTop-.02,.89],.050,trim);
+  if(type==='farm'){
+    // A sheltered cloister garden, not a field spread across another deck.
+    for(const x of[-.91,.91]){
+      box(group,.81,.36,1.86,stone,x,.39,-.26);
+      box(group,.72,.07,1.76,M('soil',0x514532),x,.60,-.26);
+      for(let i=0;i<6;i++)leafyCrop(group,x,.63,-.97+i*.28,M('foliage',i%2?0x748955:0x537951),i+level);
+      for(const z of[-1.10,.63])box(group,.055,wallTop-.72,.055,wood,x,(wallTop+.72)/2,z);
+      box(group,.06,.06,1.82,wood,x,wallTop-.04,-.26);
+    }
+    const glazing=new T.Group();glazing.position.z=-1.40;
+    for(const x of[-.95,0,.95])window(glazing,x,.89,0,.60,Math.min(1.48,wallTop-1.08),p,true,true);
+    group.add(glazing);
+    for(const x of[-.43,.43])cylinder(group,.21,.26,.41,M('stone',0x876253),x,.40,.89,12);
+  }else if(type==='sawmill'||type==='foundry'){
+    const forge=type==='foundry';
+    box(group,2.92,wallTop-.22,.32,stone,0,(wallTop+.22)/2,-1.25);
+    box(group,1.21,1.16,1.04,forge?M('brick',0x66574f):wood,.58,.80,-.56);
+    if(forge){
+      archedPanel(group,.89,.85,.58,.36,-.025,dark,true);
+      archedPanel(group,.66,.62,.58,.40,.013,M('window',0xce7950),true);
+      box(group,.76,.20,.76,dark,.58,1.48,-.56);
+      chimney(group,.58,1.58,-.56,Math.max(.4,ceiling-2.0),p,.30);
+      for(let i=0;i<4;i++)box(group,.30,.15,.41,M('metal',0x778380),-.92,.30+i*.155,-.55);
+    }else{
+      const saw=cylinder(group,.45,.45,.035,dark,.61,1.09,.05,24);saw.rotation.x=Math.PI/2;
+      for(let i=0;i<6;i++){const angle=i*Math.PI/3;box(group,.10,.16,.043,trim,.61+Math.sin(angle)*.46,1.09+Math.cos(angle)*.46,.05).rotation.z=-angle;}
+      for(let i=0;i<5;i++){const log=cylinder(group,.13,.13,1.30,wood,-.88,.38+(i%2)*.27,-.53+Math.floor(i/2)*.31,10);log.rotation.z=Math.PI/2;}
+      box(group,1.60,.09,.43,wood,.3,.54,.30);
+    }
+    window(group,-.83,1.48,-1.06,.56,Math.min(.78,wallTop-1.62),p,true,true);
+    box(group,1.02,.36,.07,M('fabric',p.accent),-.38,wallTop-.42,.95);
+  }else{
+    const chapel=type==='keep',armory=type==='armor';
+    box(group,2.95,wallTop-.22,1.46,stone,0,(wallTop+.22)/2,-.67);
+    const front=.079;
+    if(chapel){
+      entrance(group,0,front,.23,p,'kaiju',.72,1.45);
+      for(const x of[-1.04,1.04])window(group,x,.59,front,.36,Math.min(1.80,wallTop-.83),p,true,true);
+      const roseY=wallTop-.53;
+      cylinder(group,.31,.31,.026,M('glass',0x8f7184),0,roseY,front+.045,24).rotation.x=Math.PI/2;
+      const rim=addMesh(group,new T.TorusGeometry(.33,.034,6,24),trim,0,roseY,front+.071);
+      for(let i=0;i<6;i++)box(group,.025,.59,.025,trim,0,roseY,front+.09).rotation.z=i*Math.PI/6;
+      rim.name='Chapter hall rose window';
+      for(const x of[-.85,.85])box(group,.34,.78,.045,M('fabric',p.accent),x,wallTop-.75,front+.095);
+    }else if(armory){
+      entrance(group,0,front,.23,p,'kaiju',.81,1.55);
+      for(const x of[-1.06,1.06]){
+        box(group,.31,.84,.15,dark,x,1.27,front+.12);
+        sphere(group,.19,M('metal',0x939c98),x,1.76,front+.16,1,.70,.54);
+        beam(group,[x-.20,.56,front+.23],[x+.20,1.72,front+.23],.027,trim);
+        box(group,.35,.08,.04,trim,x,1.18,front+.26);
+      }
+      for(const x of[-.85,.85])box(group,.42,.35,.54,wood,x,.40,.69);
+    }else{
+      for(const x of[-.88,.88]){
+        entrance(group,x,front,.23,p,'kaiju',.61,1.29);
+        window(group,x,1.73,front,.57,Math.min(.80,wallTop-1.91),p,true,true);
+      }
+      box(group,.18,wallTop-.27,.14,trim,0,(wallTop+.27)/2,front+.05);
+      for(const x of[-1.29,1.29]){box(group,.28,.24,.29,wood,x,.34,.65);sphere(group,.19,M('foliage',0x647958),x,.59,.65,1,.8,1);}
+    }
+    // Narrow leaded side windows keep the room legible around the tower.
+    for(const side of[-1,1]){const flank=new T.Group();flank.position.set(side*1.49,0,-.65);flank.rotation.y=side*Math.PI/2;window(flank,0,.89,0,.58,Math.min(1.43,wallTop-1.11),p,true,true);group.add(flank);}
+  }
+  activityStation(group,type,'kaiju',p);
+  return group;
+}
+
 export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
   const group = new T.Group();
   const p = palettes[faction] || palettes.kaiju;

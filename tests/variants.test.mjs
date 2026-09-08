@@ -3,7 +3,17 @@ import assert from 'node:assert/strict';
 import {CARRIER_VARIANTS} from '../src/variants.js';
 import {createGame,serialize,deserialize,startBattle,meleeReach,expandRing,tick,build,fire,ability} from '../src/simulation.js';
 import {batteryPosition,batterySolution} from '../src/weapon-layout.js';
-import {kaijuWalkFloors,kaijuSlotPosition} from '../src/city-layout.js';
+import {KAIJU_SCALE} from '../src/city-layout.js';
+import {createVerticalLayout,VERTICAL_SLOT_ORDER} from '../src/vertical-city.js';
+import {castleShotClearance,castleSolids} from '../src/castle-collision.js';
+
+function towerFixture(count=3,variant='cyborg'){
+ const s=createGame('kaiju',variant);s.rings=count>7?2:1;s.buildings.fill(null);s.towerOrder=VERTICAL_SLOT_ORDER.slice(0,count);
+ for(const slot of s.towerOrder)s.buildings[slot]={type:'farm',level:1,remaining:0};
+ return s;
+}
+const towerLayout=s=>createVerticalLayout(s.buildings,s.towerOrder);
+const mountPosition=(s,slot)=>batteryPosition('kaiju',slot,s.variant,towerLayout(s));
 
 test('every selectable carrier starts with the other five distinct variants',()=>{
  for(const [variant,{faction}] of Object.entries(CARRIER_VARIANTS)){
@@ -26,12 +36,17 @@ test('cross-faction and mismatched battle variants are rejected',()=>{
  s.variant='drill';s.enemies[0].variant='vertical';assert.equal(deserialize(serialize(s)),null);
  const b=createGame();b.x=b.enemies[0].x;b.z=b.enemies[0].z;startBattle(b,b.enemies[0].id);b.battle.enemyVariant='flesh';assert.equal(deserialize(serialize(b)),null);
 });
-test('upper wards add height while preserving the castle footprint and existing plots',()=>{
- const s=createGame('kaiju','flesh'),before=Array.from({length:20},(_,i)=>kaijuSlotPosition(i));
- assert.equal(kaijuWalkFloors(s.rings).length,2);assert.ok(expandRing(s).ok);for(let i=0;i<48;i++)tick(s,.25);
- const floors=kaijuWalkFloors(s.rings);assert.equal(floors.length,5);assert.deepEqual(Array.from({length:20},(_,i)=>kaijuSlotPosition(i)),before);
- for(const floor of floors){assert.deepEqual(floor.path,floors[0].path);assert.equal(floor.y,floor.tier*8.2);}
- assert.ok(build(s,'cannon',19).ok);assert.ok(batteryPosition('kaiju',19).y>batteryPosition('kaiju',0).y+15);
+test('harness expansion grants capacity; each new district adds a supported floor above the existing city',()=>{
+ const s=createGame('kaiju','flesh'),before=towerLayout(s);
+ assert.equal(before.floors.length,3);assert.ok(expandRing(s).ok);for(let i=0;i<48;i++)tick(s,.25);
+ assert.equal(s.rings,2);assert.deepEqual(towerLayout(s),before,'Unused capacity must not manufacture empty castle storeys');
+ assert.ok(build(s,'cannon',19).ok);const after=towerLayout(s);
+ assert.equal(after.floors.length,before.floors.length+1);
+ assert.deepEqual(after.footprint,before.footprint);assert.deepEqual(after.floors.slice(0,-1),before.floors);
+ const floor=after.floors.at(-1);assert.equal(floor.slot,19);assert.equal(floor.y,before.height);
+ assert.deepEqual(floor.path,before.floors[0].path);
+ const p=mountPosition(s,19),base=mountPosition(s,7);
+ assert.equal(p.x,base.x);assert.equal(p.z,base.z);assert.ok(p.y>base.y);
 });
 test('drill hull elongates mounts and physical melee spacing',()=>{
  const standard=batteryPosition('crawler',17,'standard'),drill=batteryPosition('crawler',17,'drill');
@@ -51,38 +66,51 @@ test('the ground drill uses real ranged attacks against airborne rivals',()=>{
   const before=b.enemyHp;tick(s,.25);tick(s,.25);assert.equal(b.enemyHp,before);tick(s,.05);assert.equal(b.enemyHp,before-89);
  }
 });
-test('low castle guns cannot fire through the titan, while upper guns can clear its shoulders',()=>{
- const s=createGame('kaiju');s.buildings.fill(null);s.rings=2;
- for(const slot of [13,18])s.buildings[slot]={type:'cannon',level:1,remaining:0,facing:0};
- const low=batterySolution(s,13,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,18,{x:0,z:0,angle:0},{x:0,z:45},54);
- assert.equal(low.blocker,'carrier');assert.equal(low.active,false);assert.equal(high.blocker,null);assert.equal(high.active,true);
- s.buildings[13].facing=Math.PI;const rear=batterySolution(s,13,{x:0,z:0,angle:0},{x:0,z:-45},54);assert.equal(rear.blocker,null);assert.ok(rear.active);
+test('low castle guns hit the titan while a genuinely built high floor clears its shoulders and still respects masonry',()=>{
+ for(const variant of ['cyborg','flesh']){
+  const s=towerFixture(12,variant),lowSlot=s.towerOrder[0],highSlot=s.towerOrder.at(-1);
+  for(const slot of [lowSlot,highSlot])s.buildings[slot]={type:'cannon',level:1,remaining:0,facing:0};
+  const low=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,highSlot,{x:0,z:0,angle:0},{x:0,z:45},54);
+  assert.equal(low.blocker,'carrier');assert.equal(low.active,false);
+  assert.ok(mountPosition(s,highSlot).y>51*KAIJU_SCALE,'Upper mount must physically be above the head');
+  assert.notEqual(high.blocker,'carrier');assert.ok(String(high.blocker).startsWith('castle:vertical:apse-'));
+  assert.equal(high.active,false,'Clearing the titan does not permit firing through the castle apse');
+  s.buildings[lowSlot].facing=Math.PI;const rear=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:-45},54);
+  assert.equal(rear.blocker,null);assert.ok(rear.active,'The castle portal faces outward behind the carrier');
+ }
 });
 
-test('castle masonry blocks oblique cannon damage while its forward port stays usable',()=>{
- for(const variant of ['cyborg','flesh'])for(const {slot,level,offset} of [{slot:11,level:1,offset:15},{slot:11,level:1,offset:30},{slot:0,level:1,offset:60},{slot:0,level:3,offset:70}]){
-  const s=createGame('kaiju',variant);s.rings=2;s.buildings.fill(null);s.buildings[slot]={type:'cannon',level,remaining:0};
+test('vertical castle masonry blocks oblique cannon damage while its outward port stays usable',()=>{
+ for(const variant of ['cyborg','flesh'])for(const {level,offset} of [{level:1,offset:30},{level:1,offset:-30},{level:3,offset:35},{level:3,offset:40}]){
+  const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};
   const rival=s.enemies.find(e=>e.variant==='standard');s.x=rival.x;s.z=rival.z;startBattle(s,rival.id);
-  const b=s.battle,p=batteryPosition('kaiju',slot),yaw=kaijuSlotPosition(slot).rotation+offset*Math.PI/180;
+  const b=s.battle,p=mountPosition(s,slot),yaw=towerLayout(s).positions[slot].rotation+offset*Math.PI/180;
   b.player={x:0,z:0,angle:0};b.enemy={x:p.x+Math.sin(yaw)*45,z:p.z+Math.cos(yaw)*45,angle:Math.PI};b.autoFire=false;b.enemyReload=999;
-  const result=batterySolution(s,slot,b.player,b.enemy,54);assert.ok(result.inArc);assert.equal(result.active,false);assert.ok(String(result.blocker).startsWith('castle:'));
+  const result=batterySolution(s,slot,b.player,b.enemy,54);assert.ok(result.inArc&&result.inRange);assert.equal(result.active,false);assert.ok(String(result.blocker).startsWith('castle:vertical:front-cheek:'));
   assert.ok(fire(s));const event=b.events.at(-1);assert.ok(!event.mounts.includes(slot),'A blocked district must not add a muzzle or damage to the attack');
-  const withoutCannon=deserialize(serialize(s));withoutCannon.buildings[slot]=null;withoutCannon.battle.reload=0;withoutCannon.battle.events=[];
+  const withoutCannon=deserialize(serialize(s));withoutCannon.buildings[slot]={type:'farm',level,remaining:0};withoutCannon.battle.reload=0;withoutCannon.battle.events=[];
   assert.ok(fire(withoutCannon));assert.equal(event.damage,withoutCannon.battle.events.at(-1).damage);
  }
- for(const rings of [0,1,2]){
-  const s=createGame('kaiju');s.rings=rings;s.buildings.fill(null);s.buildings[11]={type:'cannon',level:3,remaining:0};s.battle={enemyFaction:'crawler'};
-  const p=batteryPosition('kaiju',11),result=batterySolution(s,11,{x:0,z:0,angle:0},{x:p.x,z:p.z-45},54);
-  assert.ok(result.active,'The actual forward port must remain useful at every castle growth stage');
+ for(const count of [1,3,7,20]){
+  const s=towerFixture(count),slot=s.towerOrder[Math.min(1,count-1)];s.buildings[slot]={type:'cannon',level:3,remaining:0};s.battle={enemyFaction:'crawler'};
+  const p=mountPosition(s,slot),result=batterySolution(s,slot,{x:0,z:0,angle:0},{x:p.x,z:p.z-45},54);
+  assert.equal(result.blocker,null);assert.ok(result.active,'A built lower outward port stays useful as further storeys are added above it');
  }
 });
 
-test('projecting castle sills, roof seams and railing posts block curved cannon shots',()=>{
- // The enlarged belfry moves its actual roof seam into the +10 degree lane.
- for(const variant of ['cyborg','flesh'])for(const {slot,degrees,enemyFaction} of [{slot:13,degrees:-30,enemyFaction:'crawler'},{slot:16,degrees:10,enemyFaction:'airship'},{slot:17,degrees:70,enemyFaction:'airship'}]){
-  const s=createGame('kaiju',variant);s.rings=2;s.buildings.fill(null);s.buildings[7]={type:'keep',level:1,remaining:0};s.buildings[slot]={type:'cannon',level:1,remaining:0};s.battle={enemyFaction};
-  const p=batteryPosition('kaiju',slot),yaw=kaijuSlotPosition(slot).rotation+degrees*Math.PI/180;
-  const result=batterySolution(s,slot,{x:0,z:0,angle:0},{x:p.x+Math.sin(yaw)*50,z:p.z+Math.cos(yaw)*50},54);
-  assert.ok(result.inArc&&result.inRange);assert.equal(result.active,false);assert.ok(String(result.blocker).startsWith('castle:'),`The projecting trim at slot ${slot} must participate in obstruction`);
+test('actual vertical castle portal trim, corner shafts and lancet frames stop curved cannon shots',()=>{
+ for(const variant of ['cyborg','flesh'])for(const {level,degrees,enemyFaction,solid} of [
+  {level:3,degrees:20,enemyFaction:'crawler',solid:'vertical:gun-portal:1:0'},
+  {level:1,degrees:40,enemyFaction:'airship',solid:'vertical:corner:1:-1:-1'},
+  {level:1,degrees:45,enemyFaction:'airship',solid:'vertical:side-arch:1:-1:0:0'},
+ ]){
+  const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};s.battle={enemyFaction};
+  const layout=towerLayout(s),p=mountPosition(s,slot),yaw=layout.positions[slot].rotation+degrees*Math.PI/180;
+  const target={x:p.x+Math.sin(yaw)*50,y:enemyFaction==='airship'?18:10,z:p.z+Math.cos(yaw)*50};
+  const result=batterySolution(s,slot,{x:0,z:0,angle:0},target,54);
+  const clearance=castleShotClearance({layout,slot,level,yaw,target:Object.fromEntries(Object.entries(target).map(([axis,value])=>[axis,value/KAIJU_SCALE]))});
+  assert.ok(result.inArc&&result.inRange);assert.equal(result.active,false);assert.equal(result.blocker,`castle:${solid}`);
+  assert.equal(clearance.barrelClear,true,'The fixture must test the curved projectile beyond a physically clear barrel');
+  assert.equal(clearance.hit?.id,solid);assert.ok(castleSolids(s.rings,layout).some(s=>s.id===solid),'The hit must name an actual shared rendered solid');
  }
 });

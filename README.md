@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.7
+# Colossus Wake — PC prototype 0.8
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; models and sound design are original procedural work, with bundled CC0 surface scans and HDR lighting. See [asset credits](ASSET_CREDITS.md).
 
@@ -13,10 +13,10 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 ## First expedition
 
 1. Choose Thornbound (kaiju), Commonwealth (crawler), or Saffron Courts (airship), then choose one of its two carrier versions.
-2. Build a **Timber guild**: choose it in the bottom bar, then choose an empty deck plot or a numbered district in the left panel.
+2. Build a **Timber guild**: choose it in the bottom bar. Gothic cities use **Add above castle**; tank and flying cities use an empty deck plot or numbered district.
 3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Crews gather wood automatically while stopped near the deposit.
 4. Add **Hanging gardens** for food, an **Ironworks** for faster iron collection near ruins, and **Dwellings** for population growth. Select a built district to upgrade it (maximum level 3).
-5. As Thornbound, use **Raise upper wards** to expand the vertical castle from seven to twenty plots (90 wood, 65 iron, 12 seconds). New floors rise above the existing wards. Use **Inspect castle level** to visit a floor in Streets view; upper floors are cut away for visibility.
+5. Every Gothic district becomes a new storey directly above the previous top. Upgrades raise that storey and lift everything above it. **Reinforce castle harness** increases capacity from seven to twenty storeys (90 wood, 65 iron, 12 seconds) without creating empty floors. Use **Inspect castle storey** to visit and upgrade a district in Streets view.
 6. Build **Gun batteries** and **Bulwarks** before battle. Select each battery to choose its facing. Perimeter plots offer clearer firing lines; tall buildings can block a cannon. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
 7. Repair between battles. Defeat all five rivals to secure the region. New expeditions include all six carrier versions: yours and five opponents. Existing saves retain their original opponents.
 
@@ -73,14 +73,14 @@ Version 0.2 replaces the simple block models with a more detailed, stylized city
 
 Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
 
-Existing saves remain compatible. The same twenty kaiju district IDs map to castle floors without changing buildings, upgrades, or resources. Older saves with a previously occupied outer plot receive the upper wards automatically. Missing carrier versions receive compatible defaults. The title screen shows a developed city as a preview; a new expedition starts with three districts.
+Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts.
 
 ## What is implemented
 
 - Six playable carrier versions across three factions: flesh/cyborg titans with vertical Gothic castles, armored/drill crawlers, and horizontal/four-upright-balloon air cities.
 - Animated creatures, tracks/propellers, and citizens in distinct faction clothing.
 - Third-person orbit camera, close city view, strategic world camera and minimap.
-- Twenty district plots, vertical kaiju ward expansion, timed construction, three upgrade levels, local food economy and population growth/starvation.
+- Twenty district slots: cumulative vertical Gothic storeys and horizontal tank/airship plots, timed construction, three upgrade levels, local food economy and population growth/starvation.
 - Wood, iron and food deposits; city travel, automatic gathering, finite deposit amounts.
 - Separate tactical battle state, five enemy cities in new games, faction-specific AI, projectiles, ranged/melee weapons, special abilities, retreat, victory/defeat, and salvage rewards.
 - Configurable battery facing, firing arcs, cannon obstruction, rotating turrets, recoil, and muzzle-origin projectiles.
@@ -89,7 +89,7 @@ Existing saves remain compatible. The same twenty kaiju district IDs map to cast
 
 ## Scope of this version
 
-This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual jobs, inventories, or navigation around every building. Building placement uses fixed plots, with five castle floors and three district upgrade levels. Citizens circulate on supported floor routes; they do not yet travel between floors. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and five encounter opponents in new games, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. Carrier variants currently share their faction's economy and base combat statistics. The art uses procedural geometry with original and scanned materials; its quality is judged separately in the independent reviews below.
+This is a playable browser-based PC prototype. Citizens are animated visual agents; they do not yet have individual inventories or navigation around every building. Gothic cities stack up to twenty occupied storeys, with three upgrade levels per district; other factions use fixed horizontal plots. Citizens circulate and work on supported floors but do not yet travel between floors. Battles use simplified horizontal movement; hills do not block shots and airship altitude is visual. Destruction affects ambient scenery, not resource deposits or individual city buildings. There is one region and five encounter opponents in new games, with no multiplayer, diplomacy, tech tree, procedural campaigns, or offline time progression. Carrier variants currently share their faction's economy and base combat statistics. The art uses procedural geometry with original and scanned materials; its quality is judged separately in the independent reviews below.
 
 Phone input and responsive UI are included as a starting point. Actual iPhone performance, Safari/WebGL behavior, packaging, touch camera refinements, and App Store distribution remain future work. A native iOS build will require macOS/Xcode and device testing.
 

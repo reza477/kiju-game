@@ -1,5 +1,9 @@
 # Visual development review gate
 
+## Gothic construction rule
+
+For both flesh and cyborg kaijus, **every newly constructed district is a new storey directly above the previous top**, on the same backpack footprint. District upgrades increase their storey's height and lift all storeys above it. Never return to several districts placed side by side on prebuilt castle floors. Tank and airship cities continue to build horizontally. Preserve construction order and district IDs across saves. Harness reinforcement only increases supported capacity; it does not create empty floors. This is the owner's explicit clarification of vertical growth.
+
 Follow the owner's visual review loop for character animation, assets, and environment work.
 
 1. Complete a concrete builder attempt and run the checks relevant to the changes.

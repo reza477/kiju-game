@@ -5,7 +5,8 @@ import {
   serialize, deserialize, startBattle, setBatteryFacing,
   weaponStatus, fire, FACTIONS,
 } from '../src/simulation.js';
-import { RING_SLOTS, KAIJU_CENTER, KAIJU_SCALE, kaijuSlotPosition } from '../src/city-layout.js';
+import { RING_SLOTS, KAIJU_CENTER, KAIJU_SCALE } from '../src/city-layout.js';
+import { createVerticalLayout } from '../src/vertical-city.js';
 import { facingOf, batteryArc, batteryPosition, batterySolution } from '../src/weapon-layout.js';
 import { terrainHeight, terrainNormal, protectedResource, RESOURCE_CENTRES } from '../src/terrain.js';
 import { CinematicCamera } from '../src/cinematic-camera.js';
@@ -52,14 +53,22 @@ test('attack framing follows the impact clock and relinquishes the tactical view
   c.manual();assert.equal(frame(.7).focus,0);c.setMode('steady');assert.equal(frame(.7).focus,0);
 });
 
-test('a new vertical castle preserves seven initial plots across two occupied floors', () => {
+test('a new Gothic city reserves seven districts but builds one floor per occupied district', () => {
   const state = createGame('kaiju');
   assert.equal(state.rings, 1);
   assert.deepEqual(state.buildings.flatMap((b, id) => b ? [id] : []), [7, 11, 13]);
   assert.deepEqual(Array.from({ length: 20 }, (_, id) => id).filter(id => slotUnlocked(state, id)), RING_SLOTS.slice(0, 2).flat().sort((a, b) => a - b));
-  const plots=Array.from({length:20},(_,id)=>kaijuSlotPosition(id));
-  assert.deepEqual([...new Set(plots.map(p=>p.y))].sort((a,b)=>a-b),[0,8.2,16.4,24.599999999999998,32.8]);
-  for (const p of plots){assert.ok(Math.abs(p.x)<=3.1);assert.ok(Math.abs(p.z-KAIJU_CENTER.z)<=2.4+1e-9);assert.equal(p.y,p.tier*8.2);}
+  const layout=createVerticalLayout(state.buildings,state.towerOrder);
+  assert.deepEqual(layout.floors.map(f=>f.slots),[[7],[11],[13]]);
+  assert.equal(layout.floors.length,state.buildings.filter(Boolean).length);
+  for (const [tier,floor] of layout.floors.entries()){
+    const p=layout.positions[floor.slot];
+    assert.equal(p.x,KAIJU_CENTER.x);assert.equal(p.z,KAIJU_CENTER.z);
+    assert.equal(p.tier,tier);assert.equal(p.y,floor.y);
+    if(tier)assert.equal(floor.y,layout.floors[tier-1].y+layout.floors[tier-1].height);
+  }
+  assert.ok(layout.positions[0].vacant);
+  assert.equal(layout.positions[0].y,layout.height,'An empty district reserves the next storey, not another horizontal plot');
   const before = { ...state.resources };
   assert.equal(build(state, 'housing', RING_SLOTS[2][0]).ok, false);
   assert.deepEqual(state.resources, before);
@@ -215,8 +224,10 @@ test('a rear mount outside its own range adds no damage even while base guns rea
 test('kaiju mount coordinates preserve the scaled backpack offset through city rotation', () => {
   const state = createGame('kaiju'), slot = 11;
   state.buildings[slot] = { type: 'cannon', level: 1, remaining: 0, facing: Math.PI };
-  const local = batteryPosition('kaiju', slot), plot = kaijuSlotPosition(slot);
-  assert.ok(Math.abs(local.z - (KAIJU_CENTER.z - 2.4) * KAIJU_SCALE) < 1e-10);
+  const layout=createVerticalLayout(state.buildings,state.towerOrder),plot=layout.positions[slot];
+  const local = batteryPosition('kaiju', slot,state.variant,layout);
+  assert.equal(local.x,0);
+  assert.ok(Math.abs(local.z - KAIJU_CENTER.z * KAIJU_SCALE) < 1e-10);
   const attacker = { x: 100, z: -20, angle: Math.PI / 2 };
   const solution = batterySolution(state, slot, attacker, { x: 65, z: -20-plot.x*KAIJU_SCALE }, FACTIONS.kaiju.range);
   assert.ok(Math.abs(solution.position.x - (100 + plot.z * KAIJU_SCALE)) < 1e-10);

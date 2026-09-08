@@ -170,10 +170,11 @@ function circulate(citizens,time,count,rings){
 
 // Each resident belongs to a supported cloister floor. Independent traffic
 // loops avoid inventing flying shortcuts between the vertically stacked wards.
-function towerCirculate(citizens,time,count,rings){
- const signature=`${count}:${rings}`,old=citizens.towerCirculation;
+function towerCirculate(citizens,time,count,rings,verticalLayout){
+ const floors=verticalLayout?verticalLayout.floors.filter(f=>!f.underConstruction):kaijuWalkFloors(rings);
+ const signature=`${count}:${rings}:${verticalLayout?.signature??''}:${verticalLayout?JSON.stringify(floors.map(f=>[f.slot,f.tier,f.y,f.height,f.path])):''}`,old=citizens.towerCirculation;
  if(!old||old.signature!==signature||time<old.time){
-  const lanes=kaijuWalkFloors(rings).map(f=>({...f,ids:[],length:0,segments:[]}));
+  const lanes=floors.map(f=>({...f,ids:[],length:0,segments:[]}));
   for(const lane of lanes){
    lane.path.forEach((a,i)=>{const b=lane.path[(i+1)%lane.path.length],length=Math.hypot(b.x-a.x,b.z-a.z);lane.segments.push({a,b,start:lane.length,length,yaw:Math.atan2(b.x-a.x,b.z-a.z)});lane.length+=length;});
   }
@@ -198,15 +199,16 @@ function towerCirculate(citizens,time,count,rings){
 }
 
 /** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
-export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[]}={}){
+export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[],verticalLayout}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
- const count=Math.min(limit,requested);
+ const occupiedFloors=verticalLayout?.floors.filter(f=>!f.underConstruction);
+ const count=layout==='tower'&&occupiedFloors?.length===0?0:Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
- const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings):circular?circulate(citizens,time,count,rings):null;
+ const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings,verticalLayout):circular?circulate(citizens,time,count,rings):null;
  const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles,groupInverse,stationMatrix,rootInverse,bodyInverse,leftTarget,rightTarget,stationPoint}=citizens.scratch;
  const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
- const stations=activityStations.filter(s=>s.foot?.parent&&(!Number.isFinite(visibleFloor)||s.tier===visibleFloor)).slice(0,Math.min(3,count));
+ const stations=activityStations.filter(s=>s.foot?.parent&&(!occupiedFloors||occupiedFloors.some(f=>f.slot===s.slot))&&(!Number.isFinite(visibleFloor)||s.tier===visibleFloor)).slice(0,Math.min(3,count));
  citizens.group.updateWorldMatrix(true,false);groupInverse.copy(citizens.group.matrixWorld).invert();
  for(let i=0;i<stations.length;i++){const s=stations[i];s.foot.updateWorldMatrix(true,false);stationMatrix.multiplyMatrices(groupInverse,s.foot.matrixWorld);stationPoint.setFromMatrixPosition(stationMatrix);direction.set(0,0,1).transformDirection(stationMatrix);routes[i]={x:stationPoint.x,y:stationPoint.y,z:stationPoint.z,yaw:Math.atan2(direction.x,direction.z),walking:false,errand:true,distance:0,route:'building-workplace',tier:s.tier,level:s.tier+1,station:s};}
  const activities={walking:0,carrying:0,reading:0,working:0,gardening:0,conversation:0,resting:0};citizens.stationContacts=[];

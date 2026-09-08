@@ -3,6 +3,8 @@ import {getMaterial as m,box,cylinder as cyl,cone,sphere,beam,batchStatic,dispos
 import {createPerimeterQuarter,createStreetDetails} from './architecture.js';
 import {createHumanoidKaiju,animateFleshAnatomy} from './kaiju.js';
 import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
+import {createVerticalLayout} from './vertical-city.js';
+import {createVerticalCastle} from './vertical-castle.js';
 import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
 import {addCarrierWeapons} from './armaments.js';
@@ -84,10 +86,14 @@ function airship(frame,rig,spinners,variant){
   return{envelopes};
 }
 
-export function setCityRings(city,rings){
-  if(city.faction!=='kaiju'||city.rings===rings)return;
+export function setCityRings(city,rings,buildings,order){
+  if(city.faction!=='kaiju')return;
+  const layout=buildings?createVerticalLayout(buildings,order):null;
+  if(city.rings===rings&&city.verticalLayout?.signature===layout?.signature)return;
   if(city.foundation){city.foundation.removeFromParent();disposeGroup(city.foundation);}
-  city.foundation=createCastleBackpack(city.deckY,city.enemy,rings);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;
+  city.verticalLayout=layout;
+  if(layout)city.slotPositions=layout.positions;
+  city.foundation=layout?createVerticalCastle(city.deckY,city.enemy,layout):createCastleBackpack(city.deckY,city.enemy,rings);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;
 }
 
 export function makeCity(faction,enemy=false,rings=1,variant){
@@ -138,7 +144,7 @@ export function animateCity(city,time,moving,populationCount=28){
     }else if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   }
   if(city.drillHinge)animateDrillContact(city,time);
-  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}

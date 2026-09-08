@@ -27,3 +27,9 @@ body.in-streets .build-tray,body.in-streets .objective,body.in-streets .journal,
 .tower-floor-control{display:block;margin-top:12px;font-size:10px;color:#d4bf8e}
 .tower-floor-control select{display:block;width:100%;margin-top:6px;padding:8px 5px;border:1px solid #d4cbab55;background:#253c33;color:#efe7d4;font:11px 'Segoe UI',sans-serif}
 @media(max-width:540px){.variant-options span{font-size:13px}.variant-options button{padding:9px}.variant-options small{font-size:8px}.tower-floor-control select{font-size:9px}}
+/* Gothic construction is a single upward stack, never a deck placement grid. */
+.vertical-build{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.stack-direction{font-size:11px;letter-spacing:.14em;color:#e3c998}
+.stack-preview{display:flex;flex-direction:column;gap:3px;border-left:2px solid #b995674d;padding-left:9px}
+.stack-preview span{padding:7px 9px;background:#ada38612;border-bottom:1px solid #bdad8f26;font-size:12px;color:#cbc8b7}
+.vertical-build small{font-size:11px;color:#b1b6a9;line-height:1.5}

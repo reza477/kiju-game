@@ -65,8 +65,8 @@ export function animateWeapons(city,target,time){
     }
     if(city.faction==='kaiju'&&!weapon.base){
       const prior=weapon.aimClearance;
-      if(!prior||prior.rings!==city.rings||prior.desired!==desired){
-        weapon.aimClearance={rings:city.rings,desired,physical:nearestCastleYaw({rings:city.rings,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
+      if(!prior||prior.rings!==city.rings||prior.layout!==city.verticalLayout?.signature||prior.desired!==desired){
+        weapon.aimClearance={rings:city.rings,layout:city.verticalLayout?.signature,desired,physical:nearestCastleYaw({rings:city.rings,layout:city.verticalLayout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
       }
       weapon.turret.rotation.y=weapon.aimClearance.physical;
     }else weapon.turret.rotation.y=desired;
