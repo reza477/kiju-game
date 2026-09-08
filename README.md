@@ -17,7 +17,7 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Crews gather wood automatically while stopped near the deposit.
 4. Add **Hanging gardens** for food, an **Ironworks** for faster iron collection near ruins, and **Dwellings** for population growth. Select a built district to upgrade it (maximum level 3).
 5. Every Gothic district becomes a new storey directly above the previous top. Upgrades raise that storey and lift everything above it. **Reinforce castle harness** increases capacity from seven to twenty storeys (90 wood, 65 iron, 12 seconds) without creating empty floors. Use **Inspect castle storey** to visit and upgrade a district in Streets view.
-6. Build **Gun batteries** and **Bulwarks** before battle. Select each battery to choose its facing. Perimeter plots offer clearer firing lines; tall buildings can block a cannon. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
+6. Build **Gun batteries** and **Bulwarks** before battle. Select each battery to choose its facing. Gothic batteries fire through their storey's outward portal; on tank and flying cities, perimeter plots offer clearer firing lines. Masonry, the carrier and other buildings can obstruct a shot. Move near a rival via the minimap, select it, approach, then engage. Rivals only attack after you choose to engage.
 7. Repair between battles. Defeat all five rivals to secure the region. New expeditions include all six carrier versions: yours and five opponents. Existing saves retain their original opponents.
 
 ## Controls
@@ -40,6 +40,8 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Melee spacing follows the target hull, including the drill crawler's longer nose. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
 ## Graphics update
+
+Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts. See [vertical construction verification](VERTICAL_GROWTH_VERIFICATION.md).
 
 Version 0.7 rebuilds the tree crowns with forked branches and individual folded leaves and needles, adds rooted undergrowth, eroded cliffs and geological beds, and blends scanned grass, forest soil and exposed rock surfaces. Masonry, roof slates, wood, bark and metal use local color, normal and roughness maps. Baked material coordinates keep masonry scale consistent while cities move. An HDR sky environment supplies reflected light; surface-oriented contact shading works in both Streets and City views. Painted armor, bare steel and dark mechanical recesses retain distinct surface responses.
 
@@ -72,8 +74,6 @@ The visual-review passes add a stronger backpack frame, planted soles on slopes,
 Version 0.2 replaces the simple block models with a more detailed, stylized city-builder presentation. Districts have textured masonry, layered roofs, windows, balconies, chimneys, gardens, and street furniture. Carriers have articulated limbs, mechanical details, or stitched horizontal lift envelopes. The landscape includes varied forests, planted fields, industrial ruins, a river, and distant terrain. Citizens, propellers, smoke, and water are animated.
 
 Use **Detail** in the lower-right corner to cycle **high**, **balanced**, and **performance**. High uses sharper shadows, contact shading, subtle bloom, and higher resolution; performance reduces resolution and disables dynamic shadows and postprocessing. Use **Light** to preview **day**, **dusk**, and **night**, including illuminated windows. Lighting is a visual setting; it does not alter resource production or combat.
-
-Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts.
 
 ## What is implemented
 
@@ -114,7 +114,8 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/simulation.js`: game state, economy, building, travel, combat, saving.
 - `src/scene.js`: scene integration, camera, picking, shadows, combat effects.
 - `src/architecture.js`, `src/carriers.js`: districts, city carriers, animation.
-- `src/kaiju.js`, `src/castle.js`, `src/city-layout.js`: flesh/cyborg titans, vertical Gothic backpack, shared floor geometry and scale.
+- `src/vertical-city.js`, `src/vertical-castle.js`: ordered Gothic storeys, cumulative heights, architecture and shared collision surfaces.
+- `src/kaiju.js`, `src/city-layout.js`: flesh/cyborg titans, carrier scale and historical slot identities. `src/castle.js` retains the older castle fixture for legacy geometry checks.
 - `src/variants.js`, `src/carrier-variants.js`: selectable variant identities, spiral drill and upright lift balloons.
 - `src/citizens.js`: faction wardrobes, routes, and instanced human animation.
 - `src/armaments.js`, `src/weapon-layout.js`: weapon models, muzzle markers, firing directions and obstruction.
@@ -125,6 +126,9 @@ The game uses plain JavaScript modules and a vendored copy of Three.js 0.185.1 (
 - `src/style.css`: desktop and touch layouts.
 - `npm test`: simulation, vertical expansion, six variants, save migration, weapon geometry, and terrain checks.
 - `node tests/browser-smoke.mjs`: build, gather, battle, save, and responsive browser checks.
+- `node tests/vertical-growth-browser.mjs`: actual public construction controls, upgrades, save/resume, 20-storey inspection and horizontal construction on the other four carriers. `MIXED_DISTRICTS=1` varies the paid late-game building orders.
+- `node tests/vertical-citizens.mjs`: occupied storey support, compact rooms, activity contact, lamps, upgrades and pause.
+- `node tests/vertical-weapons.mjs`: rendered cannon barrels and curved projectiles against actual castle masonry at several stack heights.
 - `node tests/living-world-audit.mjs`: vertical expansion, humans, carrier scale, destruction persistence, tracks, protected gathering, weapon facing and muzzle origins, save migration, and mobile layout. `backpack-audit.mjs` forwards to this audit.
 - `node tests/variants-art-capture.mjs`: fresh normal-HUD multi-angle and motion captures of all six variants, populated upper wards, floor inspection and mobile layout.
 - `node tests/variants-contact-audit.mjs`: physical fist/drill contact against actual rival variants at both speeds, attached impacts and paused animation.

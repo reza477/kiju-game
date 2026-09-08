@@ -80,6 +80,16 @@ test('major chapters recess real masonry while every promenade retains conservat
  assert.ok(extent('vertical:floor:4')<extent('vertical:floor:0')-.35,'Recesses must change real massing');
  assert.ok(extent('vertical:floor:8')>extent('vertical:floor:4')+.20,'An upper occupied chamber establishes another structural stage');
  assert.ok(d.some(s=>s.id.includes('chapter-corbel:8')));assert.ok(d.some(s=>s.material==='recess'));assert.ok(d.some(s=>s.material==='industry'));assert.ok(d.some(s=>s.material==='gardenStone'));
+ const shoulders=d.filter(s=>s.id.startsWith('vertical:spine-shoulder:'));assert.equal(shoulders.length,2);assert.notEqual(shoulders[0].tier,shoulders[1].tier,'Spines finish at unequal occupied levels');
+ const leftCorbel=d.find(s=>s.id==='vertical:chapter-corbel:8:-1:-4.63'),rightCorbel=d.find(s=>s.id==='vertical:chapter-corbel:8:1:-4.63');assert.ok(Math.abs(Math.min(...leftCorbel.vertices.map(v=>v[1]))-Math.min(...rightCorbel.vertices.map(v=>v[1])))>.5,'Supports have deliberately unequal structural transitions');
+ for(const f of l.floors){
+  const greenery=d.filter(s=>s.tier===f.tier&&s.id.includes('garden-foliage:'));
+  assert.equal(greenery.length,f.type==='farm'?12:0,'Visible planted crowns belong only to actual farms');
+  if(f.type==='farm'){
+   assert.ok(d.some(s=>s.tier===f.tier&&s.id.includes('garden-trellis-rail:')));
+   assert.ok(!d.some(s=>s.tier===f.tier&&s.id.includes('choir-light:')&&(/:west:|:east:/).test(s.id)),'Opaque side glazing must not hide the living garden');
+  }
+ }
  // A 0.55m local body envelope is deliberately wider than the citizens'
  // shoulders/capes after the kaiju's .55 world scale. Probe at four body heights
  // around the entire walking centreline, including corners and side spines.

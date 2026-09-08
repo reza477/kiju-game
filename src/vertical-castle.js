@@ -78,6 +78,11 @@ export function verticalCastleDescriptors(layout,deckY=34){
   const direction=new T.Vector3(...b).sub(new T.Vector3(...a)),q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),direction.clone().normalize());
   const vertices=rectVertices(0,0,r*2,r*2,0,direction.length()).map(v=>new T.Vector3(...v).applyQuaternion(q).add(new T.Vector3(...a)).toArray());add(id,tier,material,{vertices,faces:BOX_FACES});
  };
+ const plantedCrown=(id,tier,x,y,z,sx,sy,sz)=>{
+  const geometry=new T.IcosahedronGeometry(1,1),position=geometry.attributes.position,vertices=[],faces=[];
+  for(let i=0;i<position.count;i++){const px=position.getX(i),py=position.getY(i),pz=position.getZ(i),irregular=1+.07*Math.sin(px*7+pz*4+py*3);vertices.push([x+px*sx*irregular,y+py*sy,z+pz*sz*irregular]);}
+  for(let i=0;i<vertices.length;i+=3)faces.push([i,i+1,i+2]);geometry.dispose();add(id,tier,'garden',{vertices,faces});
+ };
  const column=(id,tier,material,x,z,r0,r1,bottom,top,segments=8,shell=true)=>{
   const vertices=[],faces=[];for(const[y,r]of[[bottom,r0],...(r1>0?[[top,r1]]:[])])for(let i=0;i<segments;i++){const a=i/segments*Math.PI*2+Math.PI/8;vertices.push([x+Math.cos(a)*r,y,z+Math.sin(a)*r]);}
   if(r1===0)vertices.push([x,top,z]);
@@ -191,8 +196,17 @@ export function verticalCastleDescriptors(layout,deckY=34){
    for(let slat=0;slat<5;slat++)block(`workshop-louver:${tier}:${side}:${slat}`,tier,'metal',side*4.38,y+.91+slat*.18,CENTRE_Z,.035,.07,1.43);
   }
   if(f.type==='farm')for(const side of[-1,1]){
-   block(`garden-box:${tier}:${side}`,tier,'copper',side*4.10,y+.91,CENTRE_Z,.48,.24,1.64);
-   for(let leaf=0;leaf<7;leaf++)column(`garden-shrub:${tier}:${side}:${leaf}`,tier,'garden',side*4.11,CENTRE_Z-.66+leaf*.22,.18,.05,y+1.01,y+1.3+(leaf%3)*.14,6);
+   block(`garden-box:${tier}:${side}`,tier,'copper',side*4.08,y+.91,CENTRE_Z,.50,.28,2.46);
+   block(`garden-soil:${tier}:${side}`,tier,'foundation',side*4.08,y+1.06,CENTRE_Z,.42,.055,2.32);
+   for(const[plant,dz]of[-.88,0,.87].entries()){
+    const top=1.51+(plant%2)*.18;column(`garden-stem:${tier}:${side}:${plant}`,tier,'wood',side*4.08,CENTRE_Z+dz,.035,.022,y+1.06,y+top+.25,6);
+    plantedCrown(`garden-foliage:${tier}:${side}:${plant}:lower`,tier,side*4.08,y+1.43,CENTRE_Z+dz,.24,.33,.41);
+    plantedCrown(`garden-foliage:${tier}:${side}:${plant}:upper`,tier,side*4.10,y+top+.26,CENTRE_Z+dz+.10,.23,.35,.35);
+   }
+   for(const dz of[-1.23,1.23])block(`garden-trellis-post:${tier}:${side}:${dz}`,tier,'copper',side*4.28,y+1.75,CENTRE_Z+dz,.055,1.72,.055);
+   for(const lift of[1.3,1.9,2.55])block(`garden-trellis-rail:${tier}:${side}:${lift}`,tier,'copper',side*4.28,y+lift,CENTRE_Z,.055,.045,2.5);
+   // Two broad climbing stems are legible through the open greenhouse bay.
+   for(const direction of[-1,1])beam(`garden-trained-vine:${tier}:${side}:${direction}`,tier,'garden',[side*4.29,y+1.10,CENTRE_Z+direction*.9],[side*4.29,y+2.53,CENTRE_Z-direction*.7],.035);
   }
   if(f.type==='cannon')for(const side of[-1,1]){block(`gun-cheek-plate:${tier}:${side}`,tier,'metal',side*2.38,y+1.14,front-.27,.49,1.75,.09);for(const dz of[-.62,.62])block(`gun-cheek-rivet:${tier}:${side}:${dz}`,tier,'trim',side*2.38,y+1.14+dz,front-.294,.10,.10,.045);}
  }
@@ -209,7 +223,9 @@ export function verticalCastleDescriptors(layout,deckY=34){
     const cut=points=>clipOutline(points,lo,hi),surface=cut(archOutline(w-.04,total-.045));
     if(surface.length<3)continue;
     const paneOrigin=[x+Math.sin(angle)*.039,base,z+(angle===0?-.04:Math.cos(angle)*.039)];
-    add(`choir-light:${start}:${bay}:${tier}`,tier,(start/4+(bay==='front-left'?1:0))%5===1?'light':'glass',prism(surface,.035,paneOrigin,angle));
+    // The actual garden has an open growing bay: opaque glazing would hide
+    // its plants from City view and turn the greenery into an invisible detail.
+    if(!(f.type==='farm'&&(bay==='west'||bay==='east')))add(`choir-light:${start}:${bay}:${tier}`,tier,(start/4+(bay==='front-left'?1:0))%5===1?'light':'glass',prism(surface,.035,paneOrigin,angle));
     for(let edge=0;edge<inner.length-1;edge++){
      const points=cut([inner[edge],inner[edge+1],outer[edge+1],outer[edge]]);
      if(points.length>=3)add(`choir-frame:${start}:${bay}:${tier}:${edge}`,tier,'trim',prism(points,depth,[x,base,z],angle));
@@ -224,7 +240,7 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // Unequal, uninterrupted masonry spines carry the composition vertically.
  // They are clipped only for inspection and end at actual occupied boundaries.
  const finished=floors.filter(f=>!(f.underConstruction&&!f.upgrading));
- for(const[spine,side,fraction,dz]of[[0,-1,.57,1.48],[1,1,.82,-1.48]]){
+ for(const[spine,side,fraction,dz]of[[0,-1,.47,1.48],[1,1,.87,-1.48]]){
   if(!finished.length)continue;const endIndex=Math.min(finished.length-1,Math.max(0,Math.ceil(finished.length*fraction)-1)),end=finished[endIndex],endY=deckY+end.y+end.height;
   for(const f of finished.slice(0,endIndex+1)){
    const tier=f.tier,y=deckY+f.y,lo=tier===0?deckY-3.1:y-.16,hi=Math.min(y+f.height,endY);
@@ -232,7 +248,10 @@ export function verticalCastleDescriptors(layout,deckY=34){
    block(`buttress arris:${spine}:${tier}`,tier,'edge',side*4.31,(lo+hi)/2,CENTRE_Z+dz,.13,hi-lo,.24);
    if(tier%2===0)block(`spine-arrowloop:${spine}:${tier}`,tier,'dark',side*4.338,y+1.6,CENTRE_Z+dz,.042,1.20,.19);
   }
-  roof(`buttress-pinnacle:${spine}`,end.tier,side*4.01,endY,CENTRE_Z+dz,.60,1.1,spine?2.4:3.1);
+  // Unequal projected shoulders finish within occupied chapters rather than
+  // both needles landing on another repeated chamber belt.
+  add(`spine-shoulder:${spine}`,end.tier,'edge',{vertices:rectVertices(side*4.01,CENTRE_Z+dz,.63,1.64,endY-(spine?1.55:2.35),endY+.12,.57,.76),faces:BOX_FACES});
+  roof(`buttress-pinnacle:${spine}`,end.tier,side*4.01,endY+.14,CENTRE_Z+dz,.60,1.64,spine?2.15:3.35);
  }
  // This compound crown moves with the newest occupied storey. A narrow belfry,
  // offset octagonal tower and lower roofed chapel replace the single broad cap.
@@ -301,11 +320,12 @@ export function verticalCastleDescriptors(layout,deckY=34){
   // Genuine tapered stone corbels carry the wider upper chamber back into
   // the recessed chapter below, outside the residents' protected corridor.
   for(const side of[-1,1])for(const dz of[-4.63,4.63]){
-   const vertices=[];
-   for(const[yy,x0,x1,z0,z1]of[[y-.87,3.42,3.78,dz<0?-4.50:4.25,dz<0?-4.25:4.50],[y-.16,3.50,4.26,dz-.36,dz+.36]]){
+   const rise=(f.tier===8?(side<0?2.15:1.30):(side<0?1.45:2.35))+(dz<0?.15:0),vertices=[];
+   for(const[yy,x0,x1,z0,z1]of[[y-rise,3.55,3.81,dz<0?-4.52:4.29,dz<0?-4.29:4.52],[y-.82,3.53,4.10,dz-.28,dz+.28],[y-.16,3.50,4.26,dz-.36,dz+.36]]){
     for(const[x,z]of[[x0,z0],[x1,z0],[x1,z1],[x0,z1]])vertices.push([side*x,yy,CENTRE_Z+z]);
    }
-   add(`chapter-corbel:${f.tier}:${side}:${dz}`,f.tier,'edge',{vertices,faces:side<0?BOX_FACES.map(a=>[...a].reverse()):BOX_FACES});
+   const faces=[[0,1,2],[0,2,3],[8,10,9],[8,11,10]];for(let ring=0;ring<2;ring++)for(let corner=0;corner<4;corner++){const a=ring*4+corner,b=ring*4+(corner+1)%4;faces.push([a,b+4,b],[a,a+4,b+4]);}
+   add(`chapter-corbel:${f.tier}:${side}:${dz}`,f.tier,'edge',{vertices,faces:side<0?faces.map(a=>[...a].reverse()):faces});
   }
  }
  return cachePut(descriptorCache,key,out);

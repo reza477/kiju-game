@@ -14,7 +14,7 @@ export const BUILDINGS = {
   farm:{name:'Hanging gardens',cost:{wood:30,iron:15},time:7,icon:'❧',description:'+0.8 food per second. Keeps your citizens fed.'},
   sawmill:{name:'Timber guild',cost:{wood:25,iron:20},time:7,icon:'⚒',description:'Doubles timber gathering near woodland per level.'},
   foundry:{name:'Ironworks',cost:{wood:35,iron:25},time:8,icon:'⬡',description:'Doubles iron gathering near ruins per level.'},
-  cannon:{name:'Gun battery',cost:{wood:25,iron:45},time:9,icon:'✣',description:'+9 ranged damage per level when its firing arc reaches the target. Buildings can block cannon fire; outer positions have clearer lines.'},
+  cannon:{name:'Gun battery',cost:{wood:25,iron:45},time:9,icon:'✣',description:'+9 ranged damage per level when the battery has range, aim and a clear firing path.'},
   armor:{name:'Bulwark',cost:{wood:30,iron:50},time:8,icon:'◇',description:'+120 maximum hull and repairs that much on completion.'}
 };
 export const WORLD_NODES = [

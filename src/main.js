@@ -47,7 +47,7 @@ function districtGrid(){
 }
 function batteryControls(slot,b){
  const facing=facingOf(state.faction,slot,b),arc=Math.round(batteryArc(state.faction)*180/Math.PI);
- return `<div class="battery-placement"><div class="eyebrow">WEAPON DIRECTION · ${arc}° ARC</div><p>${state.faction==='airship'?'Missiles clear your buildings and turn through a wide arc.':'Cannon fire needs a clear line past your other buildings. Outer positions offer better coverage.'}</p><div class="bearing-controls">${[['Fore',0],['Starboard',Math.PI/2],['Aft',Math.PI],['Port',-Math.PI/2],['Face outward',defaultFacing(state.faction,slot)]].map(([label,a])=>`<button data-facing="${a}" data-aim-slot="${slot}" class="${Math.abs(normalizeAngle(facing-a))<.01?'active':''}">${label}</button>`).join('')}</div><small>Gold outline: firing arc · ${FACTIONS[state.faction].range} m range</small></div>`;
+ return `<div class="battery-placement"><div class="eyebrow">WEAPON DIRECTION · ${arc}° ARC</div><p>${state.faction==='airship'?'Missiles clear your buildings and turn through a wide arc.':state.faction==='kaiju'?"Face outward aligns with this storey's rear portal. Masonry and the kaiju can block other angles.":'Cannon fire needs a clear line past your other buildings. Outer positions offer better coverage.'}</p><div class="bearing-controls">${[['Fore',0],['Starboard',Math.PI/2],['Aft',Math.PI],['Port',-Math.PI/2],['Face outward',defaultFacing(state.faction,slot)]].map(([label,a])=>`<button data-facing="${a}" data-aim-slot="${slot}" class="${Math.abs(normalizeAngle(facing-a))<.01?'active':''}">${label}</button>`).join('')}</div><small>Gold outline: firing arc · ${FACTIONS[state.faction].range} m range</small></div>`;
 }
 function renderSelection(){
  let html='';

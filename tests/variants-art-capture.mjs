@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';import path from 'node:path';import {h
 const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/variants-builder-01');await fs.mkdir(out,{recursive:true});
 const browser=await pw.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
-const report={fixture:'1440x960 normal HUD. Existing tick/render/UI functions advance under deterministic clock. Populated upper-ward shots use a labeled late-game building fixture after paid expansion. Only transient pause/toast overlays hidden.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
+const report={fixture:'1440x960 normal HUD. Existing tick/render/UI functions advance under deterministic clock. Populated 20-storey Gothic shots use a labeled late-game building fixture after paid harness reinforcement. Only transient pause/toast overlays hidden.',screenshots:[],observations:[],checks:[],errors:[],remote:[]};
 const versions={cyborg:'kaiju',flesh:'kaiju',standard:'crawler',drill:'crawler',horizontal:'airship',vertical:'airship'};
 const selected=process.env.VARIANTS?process.env.VARIANTS.split(','):Object.keys(versions);assert.ok(selected.every(v=>versions[v]));report.variants=selected;
 const step=(p,t)=>p.evaluate(t=>window.__reviewStep(t),t);
@@ -37,9 +37,11 @@ try{
    await page.locator('[data-view="city"]').click();await page.locator('#expand-ring').click();await page.evaluate(()=>{window.__colossus.state.paused=false;window.__colossus.advance(12.5);window.__colossus.state.paused=true;});await step(page,.2);
    assert.equal(await page.evaluate(()=>window.__colossus.state.rings),2);
    await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;for(let i=0;i<20;i++)if(!s.buildings[i])s.buildings[i]={type:i%4===0?'cannon':i%3===0?'housing':i%3===1?'foundry':'farm',level:1,remaining:0};g.setView('city');});await step(page,1.5);await capture(page,variant+'-expanded-city');
-   await page.evaluate(()=>{const g=window.__colossus.scene;g.yaw+=Math.PI;g.pitch=.19;g.zoom=94;});await step(page,1.5);await capture(page,variant+'-expanded-reverse');
-   await page.locator('#tower-floor').selectOption('2');await step(page,1.5);const middle=await capture(page,variant+'-level3-streets');assert.equal(middle.visibleFloor,2);
-   await page.locator('#tower-floor').selectOption('4');await step(page,1.5);const crown=await capture(page,variant+'-level5-streets');assert.equal(crown.visibleFloor,4);
+   await page.evaluate(()=>{const g=window.__colossus.scene;g.yaw+=Math.PI;g.pitch=.19;g.zoom=Math.max(94,(g.city.verticalLayout.height+12)*g.city.scale*2.85);});await step(page,1.5);await capture(page,variant+'-expanded-reverse');
+   const count=await page.locator('#tower-floor option').count();assert.equal(count,20,'The fully populated Gothic fixture has twenty occupied storeys.');
+   const middleTier=Math.floor(count/2),topTier=count-1;
+   await page.locator('#tower-floor').selectOption(String(middleTier));await step(page,1.5);const middle=await capture(page,variant+`-level${middleTier+1}-middle-streets`);assert.equal(middle.visibleFloor,middleTier);
+   await page.locator('#tower-floor').selectOption(String(topTier));await step(page,1.5);const crown=await capture(page,variant+`-level${topTier+1}-crown-streets`);assert.equal(crown.visibleFloor,topTier);
   }
   if(variant==='vertical'){
    assert.equal(await page.evaluate(()=>window.__colossus.scene.city.envelopes.filter(o=>o.userData.carrierEnvelope==='vertical').length),4);
