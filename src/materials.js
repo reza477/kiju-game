@@ -42,14 +42,9 @@ function surfaceTexture(kind) {
       for (let j = 0; j < 11; j++) {c.beginPath();c.moveTo(i * 32 + j * 3, 0);c.bezierCurveTo(i * 32 + j * 3 + 6, 160, i * 32 + j * 3 - 7, 350, i * 32 + j * 3, size);c.stroke();}
     }
   } else if (kind === 'skin') {
-    c.fillStyle = '#a3ada0';c.fillRect(0, 0, size, size);
-    for (let row = -1; row < 35; row++) for (let col = -1; col < 30; col++) {
-      const v = 135 + rng() * 85;
-      const x = col * 19 + (row % 2 ? 9.5 : 0), y = row * 16;
-      c.fillStyle = `rgb(${v},${v + 7},${v})`;c.strokeStyle = '#253b3470';c.lineWidth = 1.3;
-      c.beginPath();c.ellipse(x, y, 9.2, 8.1, 0, 0, Math.PI * 2);c.fill();c.stroke();
-      c.fillStyle = '#edffe819';c.beginPath();c.ellipse(x - 2, y - 2, 4, 2, -.3, 0, Math.PI * 2);c.fill();
-    }
+    const gradient=c.createLinearGradient(0,0,size,0);gradient.addColorStop(0,'#a9acaa');gradient.addColorStop(.5,'#bfc1bb');gradient.addColorStop(1,'#a9acaa');c.fillStyle=gradient;c.fillRect(0,0,size,size);
+    // Restrained tendon striation follows the form instead of tiled pebble scales.
+    for(let i=0;i<38;i++){const x=rng()*size;c.strokeStyle=i%3?'#555f6210':'#e5e7d913';c.lineWidth=.5+rng();c.beginPath();c.moveTo(x,0);c.bezierCurveTo(x-8,150,x+12,350,x,size);c.stroke();}
   } else if (kind === 'foliage') {
     c.fillStyle='#76836a';c.fillRect(0,0,size,size);
     for(let i=0;i<2600;i++){

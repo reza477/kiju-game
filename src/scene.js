@@ -1,5 +1,5 @@
 import * as T from '../vendor/three.module.js';
-import {distance,FACTIONS} from './simulation.js';
+import {distance,FACTIONS,weaponStatus} from './simulation.js';
 import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,setWindowLighting} from './materials.js';
 import {makeCity,animateCity,slotPosition,setCityRings} from './carriers.js';
 import {createDistrict,createVacantPlot} from './architecture.js';
@@ -46,7 +46,11 @@ function updateDistricts(city,buildings,rings=2){
 function placeCity(city,x,z,angle){
   city.heading=angle;city.root.position.set(x,terrainHeight(x,z),z);
   if(city.faction==='crawler'){
-    const n=terrainNormal(x,z),up=new T.Vector3(n.x,n.y,n.z),forward=new T.Vector3(Math.sin(angle),0,Math.cos(angle));
+    const sin=Math.sin(angle),cos=Math.cos(angle);let height=0,dx=0,dz=0;
+    // Fit the chassis to its tread footprint instead of the terrain at one point.
+    for(const side of [-9,9])for(const along of [-9,0,9]){const h=terrainHeight(x+cos*side+sin*along,z-sin*side+cos*along);height+=h;dx+=side*h;dz+=along*h;}
+    dx/=486;dz/=324;const up=new T.Vector3(-cos*dx-sin*dz,1,sin*dx-cos*dz).normalize(),forward=new T.Vector3(sin,0,cos);
+    city.root.position.y=height/6-.5*up.y;
     const right=new T.Vector3().crossVectors(up,forward).normalize();forward.crossVectors(right,up).normalize();
     city.root.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
   }else city.root.rotation.set(0,angle,0);
@@ -106,10 +110,11 @@ export class GameScene {
 
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='circular';this.view=view;
-    this.zoom=view==='world'?230:view==='people'?19:backpack?(view==='carrier'?92:80):80;
+    this.zoom=view==='world'?230:view==='people'?12:backpack?(view==='carrier'?80:this.preview?80:this.city.rings>1?40:30):this.preview?80:58;
     const backpackPitch=(view==='carrier'||this.preview)?.25:.64;
-    this.pitch=view==='world'?.88:view==='people'?.42:backpack?backpackPitch:.55;
+    this.pitch=view==='world'?.88:view==='people'?.38:backpack?backpackPitch:.6;
     if(backpack&&view==='carrier')this.yaw=this.state.angle+.75;
+    else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
     else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
   }
 
@@ -125,7 +130,7 @@ export class GameScene {
   setLighting(mode){
     this.light=mode;
     const settings={day:{fog:0xc3d4cf,top:0x6199c2,bottom:0xe0e8db,sun:0xffedd4,intensity:3.9,ambient:.85,windows:.12,exposure:1.02},dusk:{fog:0xa9b1b7,top:0x7887b5,bottom:0xedc9a6,sun:0xffb978,intensity:2.8,ambient:1.05,windows:.85,exposure:1.07},night:{fog:0x233d57,top:0x102d50,bottom:0x557387,sun:0xa6c7ff,intensity:.72,ambient:.68,windows:2.5,exposure:1.08}}[mode];
-    this.scene.fog=new T.FogExp2(settings.fog,mode==='night'?.0028:.00225);
+    this.scene.fog=new T.FogExp2(settings.fog,mode==='night'?.0018:mode==='dusk'?.00135:.0009);
     this.sky.material.uniforms.top.value.set(settings.top);this.sky.material.uniforms.bottom.value.set(settings.bottom);this.sun.color.set(settings.sun);this.sun.intensity=settings.intensity;this.ambient.intensity=settings.ambient;
     this.scene.environmentIntensity=mode==='night'?.22:.45;this.presentation.material.uniforms.exposure.value=settings.exposure;setWindowLighting(settings.windows);
   }
@@ -153,14 +158,19 @@ export class GameScene {
     const battle=this.state.battle,fromEnemy=event.source==='enemy'||!event.source&&(event.kind==='enemyShot'||battle&&distance(event.from,battle.enemy)<distance(event.from,battle.player));
     const source=fromEnemy?opponent:this.city,target=fromEnemy?this.city:opponent;
     if(!source||!target)return;
-    const end=target.root.localToWorld(new T.Vector3(0,target.faction==='kaiju'?29:target.deckY,0));
+    const toward=target.root.worldToLocal(source.root.getWorldPosition(new T.Vector3()));toward.y=0;toward.normalize();
+    const halfX=target.faction==='kaiju'?4:target.faction==='crawler'?10:8,halfZ=target.faction==='kaiju'?3:target.faction==='crawler'?12:9;
+    const edge=1/Math.max(.001,Math.sqrt((toward.x/halfX)**2+(toward.z/halfZ)**2));
+    const end=target.root.localToWorld(new T.Vector3(toward.x*edge,target.faction==='kaiju'?32:target.deckY-1,toward.z*edge));
     for(const shot of weaponMuzzles(source,event.mounts||[],this.state.time,event.kind==='impact',event.base!==false)){
       const start=shot.point,group=new T.Group(),material=new T.MeshBasicMaterial({color:fromEnemy?0xff8750:0xffd789,transparent:true,opacity:1});
-      const object=new T.Mesh(shot.missile?new T.ConeGeometry(.16,.72,10):new T.SphereGeometry(event.kind==='impact'?.25:.13,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
-      const trail=new T.Mesh(new T.ConeGeometry(.095,shot.missile?2.5:1.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.5}));trail.rotation.x=Math.PI/2;trail.position.z=-.7;group.add(trail);
-      this.scene.add(group);this.fx.push({object:group,ball:object,trail,start,end:end.clone(),age:0,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player'});
+      const object=new T.Mesh(shot.missile?new T.ConeGeometry(.27,1.15,10):new T.SphereGeometry(event.kind==='impact'?.45:.25,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
+      const trail=new T.Mesh(new T.ConeGeometry(.18,shot.missile?5:3.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.8}));trail.rotation.x=Math.PI/2;trail.position.z=-1.3;group.add(trail);
+      const burst=new T.Group();burst.visible=false;group.add(burst);
+      for(let i=0;i<9;i++){const spark=new T.Mesh(new T.TetrahedronGeometry(.22),new T.MeshBasicMaterial({color:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
+      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),age:0,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player'});
       if(event.kind!=='impact'){
-        const flash=new T.Mesh(new T.SphereGeometry(.48,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
+        const flash=new T.Mesh(new T.SphereGeometry(.85,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
         this.fx.push({object:flash,flash:true,start,age:0});
       }
     }
@@ -176,6 +186,7 @@ export class GameScene {
       const enemy=this.enemyCities.find(c=>c.id===b.enemyId);for(const city of this.enemyCities)city.root.visible=city===enemy;
       placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);animateCity(enemy,s.time,!b.result);
       animateWeapons(this.city,b.enemy,s.time);animateWeapons(enemy,b.player,s.time);this.city.root.updateMatrixWorld(true);enemy.root.updateMatrixWorld(true);
+      for(const status of weaponStatus(s).batteries){const weapon=this.city.batteries.find(w=>w.slot===status.slot);weapon?.indicator.material.color.setHex(status.active?0xc9ff97:status.blocker!==null?0xff6852:0x638793);}
       const cx=(b.player.x+b.enemy.x)/2,cz=(b.player.z+b.enemy.z)/2;
       focus=new T.Vector3(cx,(this.city.root.position.y+enemy.root.position.y)/2+14,cz);desiredZoom=Math.max(130,distance(b.player,b.enemy)*1.02+66);
       if(this.lastMode!=='battle'){this.savedYaw=this.yaw;this.savedPitch=this.pitch;this.yaw=Math.atan2(b.enemy.x-b.player.x,b.enemy.z-b.player.z)+1.05;this.pitch=.4;this.lastEvent=0;}
@@ -218,8 +229,8 @@ export class GameScene {
     for(let i=this.fx.length-1;i>=0;i--){
       const fx=this.fx[i];fx.age+=s.paused?0:dt;
       if(fx.flash){fx.object.material.opacity=Math.max(0,1-fx.age/.12);if(fx.age>.12){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}continue;}
-      const t=Math.min(1,fx.age/.55);fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:3);fx.object.lookAt(fx.end);
-      if(t>=1){fx.trail.visible=false;fx.ball.scale.setScalar(1+(fx.age-.55)*8);fx.ball.material.opacity=Math.max(0,1-(fx.age-.55)*3);if(fx.age>1){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
+      const flight=fx.kind==='impact'?.32:.55,t=Math.min(1,fx.age/flight);fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:fx.kind==='impact'?.25:3);fx.object.lookAt(fx.end);
+      if(t>=1){const hitAge=fx.age-flight;fx.trail.visible=false;fx.burst.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*2);spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>.55){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.presentation.render(this.scene);
   }

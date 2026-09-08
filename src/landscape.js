@@ -12,6 +12,24 @@ const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
 
+function regionAt(x, z) {
+  const patch = (cx, cz, rx, rz) => Math.exp(-(((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2));
+  return {
+    ash: Math.max(patch(40, -45, 38, 43), patch(-110, 90, 43, 39)),
+    slate: Math.max(patch(124, -86, 81, 83), patch(-151, -42, 43, 72)),
+    meadow: Math.max(patch(55, 65, 45, 42), patch(-115, -110, 39, 37))
+  };
+}
+function quietGroundTexture() {
+  const size = 128, data = new Uint8Array(size * size * 4);
+  for (let z = 0; z < size; z++) for (let x = 0; x < size; x++) {
+    const value = Math.round(232 + noise(x * .071, z * .071) * 14 + noise(x * .36, z * .36) * 4), i = (z * size + x) * 4;
+    data[i] = data[i + 1] = data[i + 2] = value; data[i + 3] = 255;
+  }
+  const texture = new T.DataTexture(data, size, size, T.RGBAFormat); texture.colorSpace = T.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = T.RepeatWrapping; texture.repeat.set(56, 56); texture.magFilter = texture.minFilter = T.LinearFilter; texture.needsUpdate = true; return texture;
+}
+
 function random(seed) { let n = seed >>> 0; return () => { n = (n * 1664525 + 1013904223) >>> 0; return n / 4294967296; }; }
 function isClearing(x, z, margin = 0) {
   return Math.hypot(x + 30, z - 40) < 24 + margin ||
@@ -135,37 +153,46 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
 
 function createGround() {
   const geometry = new T.PlaneGeometry(1200, 1200, 300, 300); geometry.rotateX(-Math.PI / 2);
-  const pos = geometry.attributes.position, colours = [], lush = new T.Color(0x709658), dry = new T.Color(0x99a878), sand = new T.Color(0xc0b599), rock = new T.Color(0x909786);
+  const pos = geometry.attributes.position, colours = [], lush = new T.Color(0x687f54), dry = new T.Color(0x939766), sand = new T.Color(0xb4ab8e), rock = new T.Color(0x9ba49b);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), y = heightAt(x, z), d = shoreDistance(x, z);
     pos.setY(i, y);
     const variation = noise(x * .014, z * .014) * .78 + noise(x * .042, z * .042) * .16 + noise(x * .11, z * .11) * .06;
     const c = lush.clone().lerp(dry, smooth(.40, .78, variation));
-    c.lerp(sand, (1 - smooth(1, 8, d)) * .9);
+    const region = regionAt(x, z), breakup = .86 + noise(x * .043 + 7, z * .043 - 11) * .14;
+    c.lerp(new T.Color(0xa89972), region.meadow * .68);
+    c.lerp(new T.Color(0x8c7865), region.ash * breakup * .92);
+    c.lerp(new T.Color(0x8c998e), region.slate * breakup * .72);
+    // Dark wet margin, mineral gravel, then green floodplain: a readable bank.
+    c.lerp(new T.Color(0x486659), (1 - smooth(6, 24, d)) * .42);
+    c.lerp(sand, smooth(-1, 2, d) * (1 - smooth(5, 12, d)) * .93);
+    c.lerp(new T.Color(0x435b53), 1 - smooth(-3, 1, d));
     // Pale weathered ridgelines and darker sheltered meadows make elevation read
     // from the normal city camera, rather than relying only on cast shadows.
     const exposedRidge = smooth(15, 31, y) * (.58 + noise(x * .034 + 17, z * .034) * .42);
     c.lerp(rock, exposedRidge * .84);
     if (y > 38) c.lerp(new T.Color(0xb4b5a3), smooth(38, 78, y) * .65);
-    c.multiplyScalar(.90 + noise(x * .12, z * .12) * .17); colours.push(c.r, c.g, c.b);
+    c.multiplyScalar(.96 + noise(x * .024, z * .024) * .08); colours.push(c.r, c.g, c.b);
   }
   geometry.setAttribute('color', new T.Float32BufferAttribute(colours, 3)); geometry.computeVertexNormals();
   const material = getMaterial('terrain', 0xffffff, { vertexColors: true, roughness: 1 }).clone();
-  material.map = material.map.clone(); material.map.repeat.set(75, 75); material.bumpMap = material.map; material.bumpScale = .018;
+  material.map = quietGroundTexture(); material.bumpMap = material.map; material.bumpScale = .006;
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   return ground;
 }
 function createWater() {
-  const positions = [], uvs = [], indices = [], length = 1180, segments = 320, across = 6;
+  const positions = [], uvs = [], indices = [], colours = [], length = 1180, segments = 320, across = 6;
   for (let i = 0; i <= segments; i++) {
     const z = -length / 2 + i / segments * length, centre = riverX(z), width = riverWidth(z) + 1.7;
     for (let j = 0; j <= across; j++) {
       positions.push(centre + (j / across * 2 - 1) * width, -.57, z); uvs.push(j / across, i / segments * 75);
+      const edge = Math.abs(j / across * 2 - 1), colour = new T.Color(0x174b4b).lerp(new T.Color(0x6f9184), edge ** 2.4);
+      colour.multiplyScalar(.92 + .08 * Math.sin(z * .026 + .7)); colours.push(colour.r, colour.g, colour.b);
       if (i < segments && j < across) { const a = i * (across + 1) + j, b = a + across + 1; indices.push(a, b, a + 1, b, b + 1, a + 1); }
     }
   }
-  const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setIndex(indices); geometry.computeVertexNormals();
-  const material = new T.MeshPhysicalMaterial({ color: 0x318d8c, roughness: .22, metalness: .27, clearcoat: .75, clearcoatRoughness: .2, side: T.DoubleSide });
+  const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
+  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .30, metalness: .12, clearcoat: .48, clearcoatRoughness: .25, side: T.DoubleSide });
   const time = { value: 0 };
   material.onBeforeCompile = shader => {
     shader.uniforms.uRiverTime = time;
@@ -173,9 +200,9 @@ function createWater() {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += sin(position.z * 1.2 + uRiverTime * 1.4) * 0.027 + cos(position.x * 2.1 + position.z * .35 - uRiverTime) * .025;\nvRiverPosition = transformed;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uRiverTime;\nvarying vec3 vRiverPosition;')
       .replace('#include <color_fragment>', `#include <color_fragment>
-        float wave = sin(vRiverPosition.z * 2.4 + sin(vRiverPosition.x * 1.3) * 2.0 - uRiverTime * 1.6);
-        float ripple = pow(max(0.0, wave), 24.0) * (0.06 + 0.05 * sin(vRiverPosition.x * 1.8 + vRiverPosition.z * .15));
-        float depthTint = .05 * sin(vRiverPosition.x * .09 + vRiverPosition.z * .07);
+        float wave = sin(vRiverPosition.z * 1.45 + sin(vRiverPosition.x * 1.3) * 2.0 - uRiverTime * 1.35);
+        float ripple = pow(max(0.0, wave), 32.0) * (0.019 + 0.012 * sin(vRiverPosition.x * 1.8 + vRiverPosition.z * .15));
+        float depthTint = .015 * sin(vRiverPosition.x * .09 + vRiverPosition.z * .07);
         diffuseColor.rgb += vec3(.45, .6, .56) * ripple + vec3(depthTint * .3, depthTint, depthTint);
       `);
   };
@@ -403,6 +430,30 @@ function createWorldInteractions(group, records) {
   };
 }
 
+function composeRegions(trees, shrubs, grass) {
+  for (const batch of [trees.leaves, trees.needles, shrubs]) for (const item of batch.items) {
+    const region = regionAt(item.x,item.z), wet = 1-smooth(9,30,shoreDistance(item.x,item.z)), c = new T.Color(item.colour);
+    c.lerp(new T.Color(0x405f4e),wet*.44); c.lerp(new T.Color(0x697765),region.slate*.42); c.lerp(new T.Color(0x777548),region.ash*.30);
+    item.colour=c.getHex();
+  }
+  for(const item of grass.items){
+    const region=regionAt(item.x,item.z),bank=shoreDistance(item.x,item.z)<9;
+    if(!bank){const sparse=1-region.ash*.76-region.slate*.25;item.sx*=sparse;item.sy*=sparse;item.sz*=sparse;}
+    const c=new T.Color(item.colour);c.lerp(new T.Color(0x979b7c),region.slate*.6);c.lerp(new T.Color(0xaa9a69),region.meadow*.6);item.colour=c.getHex();
+  }
+}
+function createSlateLandmark(group, records) {
+  const geometry=new T.CylinderGeometry(.46,.58,1,6),p=geometry.attributes.position;
+  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(1-y*.28)+z*.15,y+x*.13,z*(1+y*.18));}geometry.computeVertexNormals();
+  const stone=new Instances(group,geometry,getMaterial('soil',0xffffff,{roughness:1}));
+  // Three weathered bedding slabs form one recognizable ridge, not extra scatter.
+  for(const [i,x,z,w,h,d,yaw]of [[0,143,-15,5.5,7.5,9,.22],[1,148,-10,5,12,8,.15],[2,153,-6,4.5,9.1,7,.10]]){
+    const first=stone.add(x,heightAt(x,z)+h*.40,z,w,h,d,[0x929e98,0xb1b8ab,0x86958e][i],yaw);
+    records.push({id:`landmark:slate:${i}`,kind:'rock',x,z,size:w,parts:[{batch:stone,first,count:1}]});
+  }
+  stone.finish('The Three Sisters slate outcrop');
+}
+
 export function createLandscape() {
   const group = new T.Group(); group.name = 'The reclaimed lowlands';
   const ground = createGround(); group.add(ground);
@@ -478,6 +529,7 @@ export function createLandscape() {
     }
     for (let j = 0; j < 4; j++) grass.add(x + side * rand() * 1.5, y, z + rand() * 2, .8, 1.65, .8, 0x8d9d62, rand() * TAU);
   }
+  composeRegions(trees,shrubs,grass);createSlateLandmark(group,records);
   const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
@@ -558,9 +610,12 @@ function addIronRuins(group, node, rand) {
     }
   }
   if (!oldTown) {
-    cylinder(group, 1.15, 1.8, 10, getMaterial('brick', 0x9c785f), -10, 5, -9, 12);
-    cylinder(group, 1.37, 1.37, .45, getMaterial('stone', 0xb3ad95), -10, 10, -9, 12);
-    cylinder(group, 1.05, 1.05, .04, getMaterial('metal', 0x394744), -10, 10.25, -9, 12);
+    cylinder(group, 1.1, 1.8, 17, getMaterial('brick', 0x997050), -10, 8.5, -9, 12);
+    cylinder(group, 1.32, 1.32, .45, getMaterial('stone', 0xb3ad95), -10, 17, -9, 12);
+    cylinder(group, 1.02, 1.02, .04, getMaterial('metal', 0x394744), -10, 17.25, -9, 12);
+    for(const x of [-8,7])d.pipe.link([x,0,3],[x,12.3,3],.21,0x7f6850);
+    for(const y of [11.6,13.1])d.pipe.link([-8,y,3],[7,y,3],.19,0x8e7456);
+    for(let i=0;i<5;i++)d.pipe.link([-8+i*3,11.6,3],[-5+i*3,13.1,3],.10,0x746d57);
     cylinder(group, 2.1, 2.1, 4, getMaterial('metal', 0x82968c), 8.5, 6.1, 6, 16);
     cone(group, 2.3, .7, getMaterial('metal', 0xa5afa0), 8.5, 8.45, 6, 16);
     for (const dx of [-1.4, 1.4]) for (const dz of [-1.4, 1.4]) d.metal.add(8.5 + dx, 2.3, 6 + dz, .19, 4.6, .19, 0x657568);
@@ -568,6 +623,16 @@ function addIronRuins(group, node, rand) {
     for (let i = 0; i < 3; i++) {
       d.pipe.add(4.5 + i * 1.2, .5, 10, .5, .95, .5, i % 2 ? 0x9e7352 : 0x628a83);
       d.pipe.link([5 + i * 1.5, 1.2, -1], [5 + i * 1.5, 1.2, 3.6], .25, 0x8b7c64);
+    }
+  } else {
+    // A fractured aqueduct is the old town's strong silhouette and orientation cue.
+    const stone=getMaterial('stone',0xa6a99b);
+    for(const x of [-7,0,7]){
+      const shape=new T.Shape();shape.moveTo(-3.4,0);shape.lineTo(3.4,0);shape.lineTo(3.4,10);shape.lineTo(-3.4,10);shape.closePath();
+      const arch=new T.Path();arch.moveTo(-2.35,0);arch.lineTo(-2.35,5.25);arch.absarc(0,5.25,2.35,Math.PI,0,true);arch.lineTo(2.35,0);arch.closePath();shape.holes.push(arch);
+      const geometry=new T.ExtrudeGeometry(shape,{depth:1.7,bevelEnabled:true,bevelSize:.10,bevelThickness:.1,bevelSegments:1,steps:1,curveSegments:10});
+      const wall=new T.Mesh(geometry,stone);wall.position.set(x,0,-12.8);wall.castShadow=wall.receiveShadow=true;group.add(wall);
+      box(group,6.9,.6,2.1,getMaterial('stone',0xbbb9a4),x,10.15,-11.95);
     }
   }
   for (let i = 0; i < 70; i++) {

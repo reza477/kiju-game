@@ -30,12 +30,17 @@ function mirroredPlate(group, side, outline, depth, mat, x, y, z, bevel = .12) {
 }
 
 function joint(group, x, y, z, radius, mat, trim) {
-  sphere(group, 1, mat, x, y, z, radius, radius * .83, radius * .92);
-  for (const side of [-1, 1]) {
-    const disc = cylinder(group, radius * .62, radius * .62, .22, trim, x + side * radius * .94, y, z, 20);
-    disc.rotation.z = Math.PI / 2;
-    cylinder(group, radius * .24, radius * .24, .27, mat, x + side * radius * 1.03, y, z, 16).rotation.z = Math.PI / 2;
-  }
+  // Recessed joint capsules are overlapped by the neighbouring armour cuffs.
+  // Large bright side discs made every articulation read as a toy hinge.
+  sphere(group, 1, mat, x, y, z, radius * .95, radius, radius * .91);
+  for (const side of [-1, 1])
+    muscle(group,[x+side*radius*.66,y+radius*.6,z-.14],[x+side*radius*.76,y-radius*.62,z+.1],radius*.24,radius*.37,mat);
+}
+
+function articulatedSection(parent, children, pivot, name) {
+  const section = new T.Group(); section.name = name; section.position.set(...pivot);
+  for (const child of children) { child.position.sub(section.position); section.add(child); }
+  parent.add(section); batchStatic(section); section.userData.noBatch = true; return section;
 }
 
 function cable(group, points, radius, mat) {
@@ -91,6 +96,7 @@ function createLeg(rig, limbs, side, m) {
   // A dark rear hamstring and recessed tendons keep the leg anatomical.
   cable(leg, [[-side * .9, -2.4, -.8], [-side * 1.25, -6, -1.05], [-side * .65, -10.4, -.1]], .11, m.cable);
   cable(leg, [[side * .85, -2, -.5], [side * 1.4, -7, -.8], [side * .75, -10.8, .3]], .12, m.cable);
+  const lowerStart = leg.children.length;
   joint(leg, ...knee, 1.22, m.joint, m.edge);
   mirroredPlate(leg, side, [[-1.2, .8], [1.2, .8], [1.4, -.15], [.65, -1.35], [0, -1.7], [-.8, -1.1]], .78, m.armour, knee[0], knee[1], 1.79, .13);
   mirroredPlate(leg, side, [[-.8, .5], [.8, .5], [.62, -.25], [0, -.82], [-.62, -.25]], .16, m.trim, knee[0], knee[1], 2.29, .05);
@@ -105,6 +111,7 @@ function createLeg(rig, limbs, side, m) {
     cuff.scale.z = 1.16;
   }
   // Broad plated feet have a distinct heel, instep, separated toes and a flat sole.
+  const footStart = leg.children.length;
   joint(leg, ...ankle, .83, m.joint, m.edge);
   const footOutline = [[-1.2, -1.75], [.95, -1.75], [1.35, -.9], [1.28, 2.3], [.8, 3.1], [-.85, 3.1], [-1.25, 2.25]];
   const foot = plate(leg, footOutline, 1.32, m.armour, side * .18, -24.63, .4, .12); foot.rotation.x = Math.PI / 2;
@@ -117,7 +124,10 @@ function createLeg(rig, limbs, side, m) {
     box(leg, .075, .3, 1.25, m.joint, tx + .33, -24.16, 2.58);
   }
   for (const a of [-1, 1]) box(leg, .11, .13, 1.8, m.trim, side * .18 + a * 1.27, -24.44, .75);
-  batchStatic(leg); limbs.push({ obj: leg, phase: side > 0 ? 0 : Math.PI, leg: true });
+  const footJoint = articulatedSection(leg,leg.children.slice(footStart),ankle,'Titan ankle and planted sole');
+  const lower = articulatedSection(leg,leg.children.slice(lowerStart),knee,'Titan knee and shin');
+  batchStatic(leg); leg.userData.noBatch = true;
+  limbs.push({ obj:leg, lower, foot:footJoint, knee, ankle, side, phase:side>0?0:Math.PI, leg:true });
 }
 
 function createHand(arm, side, m) {
@@ -154,6 +164,7 @@ function createArm(rig, limbs, side, m) {
   mirroredPlate(arm, side, [[-.95, .2], [.93, .55], [1.46, -1.3], [2.02, -6.7], [1.47, -8], [.11, -6.7]], .9, m.armour, side * .05, -1.1, 1.25, .14);
   mirroredPlate(arm, side, [[-.36, 0], [.3, .1], [1.33, -5.4], [.8, -6.4], [.32, -5.6]], .16, m.light, side * .15, -2.15, 1.84, .07);
   for (const offset of [-.33, .33]) cable(arm, [[side * .5, -1.7, -.95 + offset], [side * 2.4, -6.9, -.9 + offset], [side * 2.3, -10, .08 + offset]], .105, m.cable);
+  const forearmStart = arm.children.length;
   joint(arm, ...elbow, 1.12, m.joint, m.edge);
   mirroredPlate(arm, side, [[-.82, .75], [.8, .8], [1.22, -.2], [.25, -1.75], [-.6, -.7]], .63, m.armour, elbow[0], elbow[1], 1.32, .1);
   muscle(arm, [elbow[0], elbow[1] - .4, .5], [wrist[0], wrist[1] + .45, 2.32], 1.14, 1.22, m.dark);
@@ -165,7 +176,9 @@ function createArm(rig, limbs, side, m) {
   mirroredPlate(arm, side, [[-.48, 0], [.55, .1], [.42, -2.1], [0, -3.8], [-.35, -2]], .38, m.edge, side * 2.15, -11.2, -.95, .06);
   for (let i = 0; i < 4; i++) cylinder(arm, .76 - i * .03, .79 - i * .03, .22, m.joint, wrist[0], -20.3 - i * .3, 2.38, 18).scale.z = .92;
   createHand(arm, side, m);
-  batchStatic(arm); limbs.push({ obj: arm, phase: side > 0 ? Math.PI : 0, leg: false });
+  const lower = articulatedSection(arm,arm.children.slice(forearmStart),elbow,'Titan articulated elbow');
+  batchStatic(arm); arm.userData.noBatch = true;
+  limbs.push({ obj:arm, lower, side, phase:side>0?Math.PI:0, leg:false });
 }
 
 function torso(frame, m) {
@@ -200,11 +213,12 @@ function torso(frame, m) {
   // Sternum insert and neck are exposed between the shaped breastplates.
   plate(frame, [[-.32, 1.4], [.32, 1.4], [.56, -.65], [0, -2.35], [-.56, -.65]], .4, m.edge, 0, 40.25, 3.76, .08);
   plate(frame, [[-.15, .9], [.15, .9], [.23, -.51], [0, -1.18], [-.23, -.51]], .12, m.trim, 0, 40.45, 4.02, .04);
-  muscle(frame, [0, 44.9, .5], [0, 48.7, 1.3], 1.44, 1.23, m.dark);
-  for (let i = 0; i < 5; i++) {
-    const collar = cylinder(frame, 1.23, 1.3, .18, m.joint, 0, 46.1 + i * .42, .78 + i * .1, 24); collar.scale.z = .87;
+  muscle(frame, [0, 44.3, .25], [0, 49.1, 1.05], 1.56, 1.36, m.dark);
+  for (const side of [-1, 1]) {
+    muscle(frame,[side*3.8,43.4,-.7],[side*.8,48.4,.8],1.16,1.25,m.flesh);
+    mirroredPlate(frame,side,[[.3,-.4],[2.34,-.5],[2.0,1.9],[1.03,3.6],[.49,2.8]],.56,m.armour,0,44.65,1.69,.13);
+    mirroredPlate(frame,side,[[.56,1.0],[1.55,.2],[1.49,1.8],[.87,2.66]],.18,m.light,0,44.65,2.06,.07);
   }
-  for (const side of [-1, 1]) cable(frame, [[side * .68, 44.8, 1.65], [side * 1.1, 46.1, 1.85], [side * .73, 48.2, 1.83]], .12, m.edge);
   // Dorsal vertebrae are visible through the open space below the backpack.
   for (let i = 0; i < 7; i++) {
     const y = 29 + i * 2.05, z = -2.1 - Math.sin(i / 6 * Math.PI) * 1.1;
@@ -249,18 +263,20 @@ function backpackHarness(frame, m) {
     const clasp = box(frame, 1.16, 1.55, .24, buckle, side * 3.75, 41.65, 4.58); clasp.rotation.z = side * .04;
     box(frame, .66, 1.03, .12, strap, side * 3.75, 41.65, 4.74);
     for (const y of [40.2, 43.2]) cylinder(frame, .11, .11, .12, buckle, side * 3.82, y, 4.63, 12).rotation.x = Math.PI / 2;
-    // One main diagonal mount per side supports the flat circular foundation.
-    // These end in its central drum; expanding a ring never adds another tier.
+    // A compression frame runs down the spine, then under the circular drum.
+    // All long members are below the walking surface, leaving the plots clear.
     const mountZ = KAIJU_CENTER.z + 2.078;
-    const brace = [[side * 4.2, 42.3, -5.5], [side * 4.2, 43.1, KAIJU_CENTER.z + 6.8], [side * 3.15, 42.7, KAIJU_CENTER.z + 5.456], [side * 2.4, 36.1, KAIJU_CENTER.z + 4.157], [side * 1.2, 32.15, mountZ]];
-    cable(frame, brace, .27, strap);
-    cable(frame, brace.map(([x, y, z]) => [x + side * .18, y, z]), .05, buckle);
-    box(frame, 1.15, .38, 1.3, strap, side * 1.2, 32.04, mountZ);
-    cylinder(frame, .23, .23, .4, buckle, side * 1.2, 32.3, mountZ, 16);
-    cable(frame, [[side * 2.8, 25.9, -1.9], [side * 3.4, 26.3, -5.9], [side * 2.4, 29.1, KAIJU_CENTER.z + 4.2], [side * 1.2, 31.7, mountZ]], .21, m.cable);
+    beam(frame,[side*4.2,42.3,-5.5],[side*2.3,43.0,-2.9],.5,strap);
+    box(frame,1.18,12.8,.82,strap,side*2.3,36.7,-2.8);
+    beam(frame,[side*2.3,31.7,-3.1],[side*2.3,31.7,mountZ],.58,strap);
+    beam(frame,[side*2.8,26.1,-2.0],[side*2.3,31.5,mountZ],.46,strap);
+    beam(frame,[side*2.5,28.2,-5.9],[side*2.3,31.7,-5.9],.27,buckle);
+    beam(frame,[side*2.4,29.7,-8.8],[side*2.3,31.7,-8.8],.27,buckle);
+    box(frame,1.65,.66,2.2,strap,side*2.3,32.05,mountZ);
+    for(const z of [-3.25,-6.0,-8.8,mountZ])cylinder(frame,.18,.18,1.25,buckle,side*2.3,31.7,z,12).rotation.z=Math.PI/2;
   }
   waistBelt(frame, strap, buckle);
-  beam(frame, [-1.5, 31.86, KAIJU_CENTER.z + 2.078], [1.5, 31.86, KAIJU_CENTER.z + 2.078], .19, strap);
+  beam(frame, [-2.9, 31.86, KAIJU_CENTER.z + 2.078], [2.9, 31.86, KAIJU_CENTER.z + 2.078], .39, strap);
 }
 
 /** Original, upright biomechanical carrier; the caller adds the castle behind it. */

@@ -6,6 +6,7 @@ import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
 import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
 import {addCarrierWeapons} from './armaments.js';
+import {terrainHeight,terrainNormal} from './terrain.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -26,7 +27,7 @@ function crawler(frame,rig,spinners){
     for(let i=0;i<58;i++){
       const angle=i/58*Math.PI*2;
       const z=Math.sin(angle)*10.4,y=2.6+Math.cos(angle)*2;
-      const tread=box(frame,3.6,.2,1.05,steel,side*9,y,z);tread.rotation.x=-Math.atan2(Math.cos(angle)*10.4,-Math.sin(angle)*2);
+      const tread=box(frame,3.6,.2,1.05,steel,side*9,y,z);tread.rotation.x=Math.atan2(Math.sin(angle)*2,Math.cos(angle)*10.4);
       box(frame,.32,.14,.72,brass,side*10.72,y+.12,z);
     }
     for(const z of [-7.7,-4]){
@@ -117,9 +118,61 @@ export function makeCity(faction,enemy=false,rings=1){
 }
 
 export function animateCity(city,time,moving,populationCount=28){
-  const walk=moving?Math.sin(time*3.1):Math.sin(time)*.08;
-  city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:Math.abs(walk)*.11;
-  for(const limb of city.limbs){if(limb.tail){limb.obj.rotation.y=Math.sin(time*1.2)*.06;continue;}limb.obj.rotation.x=Math.sin(time*3.1+limb.phase)*(moving?.15:.015)*(limb.leg?1:1.35);if(!limb.leg&&time-city.strikeTime<.5)limb.obj.rotation.x-=Math.sin((time-city.strikeTime)/.5*Math.PI)*1.15;}
+  if(city.faction==='kaiju')animateTitan(city,time,moving);
+  else city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;
   for(const spinner of city.spinners)if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout});
+}
+
+function animateTitan(city,time,moving){
+  const position=city.root.position,previous=city.gaitPrevious;
+  const travelled=previous?Math.hypot(position.x-previous.x,position.z-previous.z):0;
+  if(moving&&travelled<8)city.gaitDistance=(city.gaitDistance??0)+travelled/city.scale;
+  city.gaitPrevious={x:position.x,z:position.z};
+  const cycle=(city.gaitDistance??0)/16,phase=cycle*Math.PI*2;
+  const sway=moving?Math.sin(phase):Math.sin(time*.65)*.12;
+  city.rig.position.set(sway*.29,moving?-1.65-Math.abs(Math.sin(phase))*.28:-.9,0);
+  city.rig.rotation.set(moving?-.023:-.012,0,sway*.009);
+  city.root.updateMatrixWorld(true);
+  for(const limb of city.limbs){
+    if(!limb.leg){
+      const stride=Math.sin(phase+limb.phase),age=time-city.strikeTime;
+      let punch=0;
+      if(age>=0&&age<.75&&limb.side>0)punch=age<.18?-.25*Math.sin(age/.18*Math.PI):Math.sin((age-.18)/.57*Math.PI)*1.18;
+      limb.obj.rotation.set((moving?stride*.15:Math.sin(time*.65+limb.phase)*.015)-punch,0,limb.side*(.018+(moving?Math.abs(stride)*.018:0)));
+      limb.lower.rotation.x=-.16-(moving?(1-stride)*.06:0)-Math.max(0,punch)*.55;
+      continue;
+    }
+    const t=((cycle+(limb.side<0?.5:0))%1+1)%1,stance=t<.62;
+    let z=-.45,lift=0;
+    if(moving){
+      if(stance)z=4.96-t*16;
+      else{const swing=(t-.62)/.38,ease=swing*swing*(3-2*swing);z=-4.96+ease*9.92;lift=Math.sin(swing*Math.PI)*2.3;}
+    }
+    // A stance foot moves backwards at exactly the carrier's travelled distance.
+    // Convert terrain contact to rig space before solving, so body sway cannot drag it.
+    const ground=new T.Vector3(limb.side*3.02,0,z);
+    city.root.localToWorld(ground);
+    if(moving&&stance){
+      if(limb.plant&&travelled<8){ground.x=limb.plant.x;ground.z=limb.plant.z;}
+      else limb.plant={x:ground.x,z:ground.z};
+    }else limb.plant=null;
+    const normal=terrainNormal(ground.x,ground.z),up=new T.Vector3(normal.x,normal.y,normal.z);
+    ground.y=terrainHeight(ground.x,ground.z)+lift*city.scale;
+    ground.addScaledVector(up,2.213*city.scale);
+    const target=city.rig.worldToLocal(ground.clone()).sub(limb.obj.position);
+    const upper=new T.Vector3(...limb.knee),lower=new T.Vector3(...limb.ankle).sub(upper);
+    const l1=upper.length(),l2=lower.length(),distance=Math.min(l1+l2-.015,Math.max(1,target.length()));
+    const axis=target.clone().normalize(),along=(l1*l1-l2*l2+distance*distance)/(2*distance);
+    const bend=new T.Vector3(0,0,1).addScaledVector(axis,-axis.z).normalize();
+    const knee=axis.multiplyScalar(along).addScaledVector(bend,Math.sqrt(Math.max(0,l1*l1-along*along)));
+    limb.obj.quaternion.setFromUnitVectors(upper.clone().normalize(),knee.clone().normalize());
+    const shin=target.clone().sub(knee).applyQuaternion(limb.obj.quaternion.clone().invert());
+    limb.lower.quaternion.setFromUnitVectors(lower.clone().normalize(),shin.normalize());
+    city.root.updateMatrixWorld(true);
+    const parentRotation=limb.lower.getWorldQuaternion(new T.Quaternion());
+    const soleRotation=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),up).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),city.heading));
+    limb.foot.quaternion.copy(parentRotation.invert()).multiply(soleRotation);
+    limb.contact=stance||!moving;limb.contactTarget=ground.clone();
+  }
 }

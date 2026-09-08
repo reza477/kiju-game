@@ -33,13 +33,16 @@ async function inspectFaction(faction){
  const result=await page.evaluate(async()=>{
   const T=await import('/vendor/three.module.js'),{terrainHeight}=await import('/src/terrain.js');const {state,scene}=window.__colossus,c=scene.city,p=c.people;
   scene.scene.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(c.root),size=bounds.getSize(new T.Vector3());
-  return {faction:state.faction,layout:c.layout,scale:c.scale,size:size.toArray(),slots:c.slotPositions.map(p=>({...p})),ring:state.rings,buildingIds:state.buildings.map((b,i)=>b?i:null).filter(i=>i!==null),wardrobes:p.wardrobeNames,styleCounts:p.styleCounts,skinTones:[...new Set(p.data.map(d=>d.skinTone))],hairTones:[...new Set(p.data.map(d=>d.hairTone))],worldHeightRange:p.worldHeightRange,visiblePeople:p.populationCount,instanceBatches:Object.keys(p.instances).length,life:scene.landscape.stats.lifeCount,terrainY:terrainHeight(state.x,state.z),rootY:c.root.position.y,contextLost:scene.renderer.getContext().isContextLost()};
+  const treadContact=faction=>faction==='crawler'?[-9,9].flatMap(x=>[-9,0,9].map(z=>{const p=c.root.localToWorld(new T.Vector3(x,.5,z));return p.y-terrainHeight(p.x,p.z);})):[];
+  return {faction:state.faction,layout:c.layout,scale:c.scale,size:size.toArray(),slots:c.slotPositions.map(p=>({...p})),ring:state.rings,buildingIds:state.buildings.map((b,i)=>b?i:null).filter(i=>i!==null),wardrobes:p.wardrobeNames,styleCounts:p.styleCounts,skinTones:[...new Set(p.data.map(d=>d.skinTone))],hairTones:[...new Set(p.data.map(d=>d.hairTone))],worldHeightRange:p.worldHeightRange,visiblePeople:p.populationCount,instanceBatches:Object.keys(p.instances).length,life:scene.landscape.stats.lifeCount,terrainY:terrainHeight(state.x,state.z),rootY:c.root.position.y,treadContact:treadContact(state.faction),contextLost:scene.renderer.getContext().isContextLost()};
  });
  assert.equal(result.faction,faction);assert.equal(result.slots.length,20);assert.ok(result.slots.every(p=>p.y===0),'Districts occupy a flat city deck.');
  assert.equal(result.wardrobes.length,8);assert.equal(new Set(result.wardrobes).size,8);assert.equal(Object.keys(result.styleCounts).length,8);
  assert.ok(result.skinTones.length>=4&&result.hairTones.length>=4);assert.ok(result.worldHeightRange[0]>=.72&&result.worldHeightRange[1]<=.86);
  assert.ok(result.visiblePeople>0&&result.visiblePeople<=48);assert.ok(result.instanceBatches<=25);
- assert.equal(result.life,57);assert.equal(result.contextLost,false);assert.ok(Math.abs(result.rootY-result.terrainY)<.01,'Carrier follows terrain height.');
+ assert.equal(result.life,57);assert.equal(result.contextLost,false);
+ if(faction==='crawler')assert.ok(Math.abs(result.treadContact.reduce((a,b)=>a+b,0)/6)<.6,'Treads follow their terrain footprint without a mean hovering gap.');
+ else assert.ok(Math.abs(result.rootY-result.terrainY)<.01,'Carrier follows terrain height.');
  if(faction==='kaiju'){assert.equal(result.layout,'circular');assert.equal(result.scale,.55);}else assert.equal(result.layout,'deck');
  report.factions.push(result);return result;
 }
