@@ -14,7 +14,7 @@ export function createVerticalLayout(buildings,order=[]){
  for(const [tier,slot]of ids.entries()){
   const b=buildings[slot],level=Math.min(3,b.level+(b.upgrading?1:0)),height=3.8+.8*(level-1);
   const path=[{x:-3,z:KAIJU_CENTER.z-3.7},{x:3,z:KAIJU_CENTER.z-3.7},{x:3,z:KAIJU_CENTER.z+3.7},{x:-3,z:KAIJU_CENTER.z+3.7}];
-  floors.push({slot,tier,level,type:b.type,y,height,underConstruction:b.remaining>0,path,slots:[slot],width:.72,surfaceOffset:.109});
+  floors.push({slot,tier,level,type:b.type,y,height,underConstruction:b.remaining>0,upgrading:!!b.upgrading,path,slots:[slot],width:.72,surfaceOffset:.109});
   positions[slot]={x:0,z:KAIJU_CENTER.z,y,tier,level:tier+1,rotation:Math.PI,ring:RING_SLOTS.findIndex(list=>list.includes(slot)),height};y+=height;
  }
  for(const slot of VERTICAL_SLOT_ORDER)if(!positions[slot])positions[slot]={x:0,z:KAIJU_CENTER.z,y,tier:ids.length,level:ids.length+1,rotation:Math.PI,ring:RING_SLOTS.findIndex(list=>list.includes(slot)),height:3.8,vacant:true};

@@ -1,5 +1,15 @@
 # Independent art review
 
+## Actual vertical Gothic construction — prototype 0.8
+
+This cycle addresses the owner's clarification that every Gothic building must add a storey directly above the last. The global rubric and four-round maximum are unchanged; earlier cycles remain closed. New work is scoped to construction, Gothic architecture and its presentation.
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `b4bd9e9` | [Independent review](art-reviews/vertical-growth-01.md) | **FAIL — 7.5/10**, zero confirmed concrete errors in 36 fresh HUD views |
+
+Round 1 independently verifies real 3-to-4-storey growth, lower upgrades lifting upper floors, fixed footprint and capacity-only harness work. The critic ranks Gothic architectural hierarchy, visible unfinished construction and district-specific façade cues as the next improvements. See [verification](VERTICAL_GROWTH_VERIFICATION.md) for functional evidence.
+
 ## Maximum visual quality and sound — prototype 0.7
 
 This new cycle follows the owner's request to push graphics further and add sound. The global rubric and four-round maximum are unchanged. Previous cycles below remain closed.
