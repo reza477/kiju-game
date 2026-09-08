@@ -164,7 +164,10 @@ function createLowMist(texture){
       ${NOISE_GLSL}
       void main(){
         float edge=texture2D(map,vUv).a;
-        float billow=cloudNoise(vUv*vec2(4.5,2.2)+vec2(vSeed-time*.035,vSeed*.7));
+        // World-space billows break up repeated camera-facing ribbon shapes.
+        // Fixed advection rates stay bounded in speed over a long expedition.
+        vec2 airCoordinate=vec2(vWorldPosition.x*.105+vWorldPosition.y*.19,vWorldPosition.z*.10-vWorldPosition.y*.11);
+        float billow=cloudNoise(airCoordinate-vec2(time*.026,time*.018)+vSeed*.7);
         vec3 viewRay=normalize(vWorldPosition-cameraPosition);
         float forward=pow(max(dot(viewRay,sunDirection),0.),8.);
         float distanceFade=smoothstep(3.,13.,length(vWorldPosition-cameraPosition));
@@ -182,13 +185,21 @@ function createLowMist(texture){
         #include <fog_fragment>
       }`});
   const mist=new T.InstancedMesh(geometry,material,24),matrix=new T.Matrix4(),position=new T.Vector3(),scale=new T.Vector3(),rotation=new T.Quaternion();
-  // Uneven pockets leave clear foreground gaps and separate the river bends
-  // and ruined western valley. Performance retains the first six river pockets.
-  const riverZ=[-88,-8,29,94,170,-135,-69,8,52,113,-180,210,-108,-23,76,143];
+  // Six principal pockets survive Performance mode. Smaller companions give
+  // existing valleys depth without laying equal-width strips over the river.
+  const river=z=>({x:riverX(z),z,river:true});
+  const anchors=[{x:-135,z:-75},{x:-73,z:83},{x:123,z:19},{x:113,z:91}];
+  const pockets=[river(29),anchors[0],river(94),anchors[1],anchors[2],anchors[3],river(-88),river(-8),river(170),river(-135),river(-69),river(52)];
+  for(let j=0;j<anchors.length;j++)for(let k=0;k<3;k++){
+    const a=anchors[j],angle=1.1+j*.81+k*2.25,radius=j===1?7:9+k*1.7;
+    pockets.push({x:a.x+Math.sin(angle)*radius,z:a.z+Math.cos(angle)*radius,companion:true});
+  }
   for(let i=0;i<24;i++){
-    const z=riverZ[i%16],x=i<16?riverX(z)+Math.sin(i*2.1)*5:-131+(i-16)*5.7;
-    const wz=i<16?z:-74+Math.sin(i*2.4)*13,floor=Math.max(terrainHeight(x,wz),i<16?-.50:-Infinity)+.08;
-    position.set(x,floor+1.3,wz);scale.set(24+i%4*5,3.6+i%3*.65,1);matrix.compose(position,rotation,scale);mist.setMatrixAt(i,matrix);seeds[i]=i*1.731;densities[i]=i<6?1.0:i<16?.62:.84;floors[i]=floor;
+    const p=pockets[i],x=p.x+(p.river?Math.sin(i*2.1)*3:0),z=p.z;
+    const floor=Math.max(terrainHeight(x,z),p.river?-.50:-Infinity)+.08,height=4.3+(i*7%5)*.72;
+    const width=p.river?12+(i*7%4)*2.7:p.companion?12+(i*3%5)*1.5:22;
+    position.set(x,floor+height*.39,z);scale.set(width,height,1);matrix.compose(position,rotation,scale);mist.setMatrixAt(i,matrix);
+    seeds[i]=i*1.731;densities[i]=p.river?.46:p.companion?.70:1.1;floors[i]=floor;
   }
   geometry.setAttribute('mistSeed',new T.InstancedBufferAttribute(seeds,1));geometry.setAttribute('mistDensity',new T.InstancedBufferAttribute(densities,1));geometry.setAttribute('mistFloor',new T.InstancedBufferAttribute(floors,1));mist.name='Low mist over river and western gully';mist.frustumCulled=false;mist.userData.noBatch=true;return mist;
 }

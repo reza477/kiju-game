@@ -28,7 +28,7 @@ export class CityLighting {
       const lens=new T.Mesh(this.geometries[4],this.glow);lens.position.z=.185;search.add(lens);
       const marker=new T.Object3D();marker.position.z=.205;search.add(marker);
       const targetMarker=new T.Object3D();rig.add(targetMarker);
-      const spot=new T.SpotLight(0xffc68d,0,18,.67,.72,2);spot.castShadow=false;scene.add(spot,spot.target);
+      const spot=new T.SpotLight(0xffc68d,0,18,.95,.90,2);spot.castShadow=false;scene.add(spot,spot.target);
       this.slots.push({city:null,rig,lamps,points,search,marker,targetMarker,spot,rings:-1});
     }
   }
@@ -47,7 +47,7 @@ export class CityLighting {
       // Small fixture stands on the parapet, outside every build plot. Its
       // upward cone reaches the rear shoulders, never the ground below.
       slot.search.position.set(0,1.08,KAIJU_CENTER.z+radius-.08);
-      slot.targetMarker.position.set(0,44.5-city.deckY,-2.75);
+      slot.targetMarker.position.set(0,42.5-city.deckY,-2.75);
       this.direction.copy(slot.targetMarker.position).sub(slot.search.position).normalize();slot.search.quaternion.setFromUnitVectors(this.up,this.direction);
     }else slot.lamps[1].group.position.set(7.62,0,3.7);
     // Rectangular decks already have a lantern at this exact promenade point.

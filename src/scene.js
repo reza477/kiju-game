@@ -122,7 +122,7 @@ export class GameScene {
     for(const site of this.labels){site.removeFromParent();disposeGroup(site);}
     for(const fx of this.fx){fx.object.removeFromParent();disposeGroup(fx.object);}this.fx=[];
     this.city=makeCity(s.faction,false,s.rings??1);this.scene.add(this.city.root);this.state=s;this.preview=!!options.preview;this.previewDistricts=previewBuildings();
-    this.cinematic.reset();this.cameraPrevious.set(s.x,0,s.z);this.lastFootfall=null;
+    this.cinematic.reset();this.cameraShot=null;this.cameraPrevious.set(s.x,0,s.z);this.lastFootfall=null;
     updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1);
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.RingGeometry(kaijuRingRadius(1),kaijuRingRadius(2),72),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,side:T.DoubleSide,wireframe:true}));ghost.rotation.x=-Math.PI/2;ghost.position.set(KAIJU_CENTER.x,this.city.deckY+.08,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
@@ -150,20 +150,23 @@ export class GameScene {
     else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
   }
 
-  setCameraMode(mode){this.cinematic.setMode(mode);}
+  setCameraMode(mode){this.cinematic.setMode(mode);this.cameraShot=null;}
 
   updateCamera(s,dt,desiredZoom,battle){
     const current=this.city.root.position,delta=this.cameraVelocity.set(current.x-this.cameraPrevious.x,0,current.z-this.cameraPrevious.z);
     this.cameraPrevious.set(current.x,0,current.z);const travelling=delta.lengthSq()>.00001&&delta.lengthSq()<64;
     const cycle=Math.floor((this.city.gaitDistance??0)/8);
     if(s.faction==='kaiju'&&travelling&&this.lastFootfall!==null&&cycle!==this.lastFootfall&&!s.paused)this.cinematic.impulse(.16,cycle%2?1:-1);this.lastFootfall=cycle;
-    const effects=this.cinematic.update({dt,time:s.time,paused:s.paused,speed:s.speed,view:this.view,battle,moving:travelling,preview:this.preview});
+    const shot=this.cameraShot,shotAge=shot?s.time-shot.born:-1,impactDelay=shot?attackDelay(shot.kind):.55;
+    if(shot&&(!battle||shotAge>impactDelay+1.05))this.cameraShot=null;
+    const effects=this.cinematic.update({dt,time:s.time,paused:s.paused,speed:s.speed,view:this.view,battle,moving:travelling,preview:this.preview,shotAge:this.cameraShot?shotAge:-1,impactDelay});
     const wide=this.camera.aspect<1.2?1.4:1,yaw=this.yaw+effects.yaw,zoom=desiredZoom*wide*(1+effects.dolly),horizontal=Math.cos(this.pitch)*zoom;
     this.cameraDesired.set(this.focus.x+Math.sin(yaw)*horizontal,this.focus.y+Math.sin(this.pitch)*zoom,this.focus.z+Math.cos(yaw)*horizontal);
     this.cameraDesired.y=Math.max(this.cameraDesired.y,terrainHeight(this.cameraDesired.x,this.cameraDesired.z)+(this.view==='people'?1.2:3));
     if(this.snapCamera){this.cameraBasePosition.copy(this.cameraDesired);this.snapCamera=false;}else this.cameraBasePosition.lerp(this.cameraDesired,1-Math.exp(-dt*6));this.camera.position.copy(this.cameraBasePosition);
     const scale=Math.min(1,desiredZoom*.006);this.camera.position.x+=Math.cos(yaw)*effects.right*scale;this.camera.position.z-=Math.sin(yaw)*effects.right*scale;this.camera.position.y+=effects.up*scale;
     this.cameraAim.copy(this.focus);if(travelling&&dt>0&&!battle){delta.multiplyScalar(1/dt).clampLength(0,14);this.cameraAim.addScaledVector(delta,effects.lead);}
+    if(this.cameraShot&&effects.focus>0){const separation=distance(s.battle.player,s.battle.enemy),weight=effects.focus*Math.min(1,60/Math.max(1,separation));this.cameraAim.lerp(this.cameraShot.end,weight);}
     const fov=42+effects.fov;if(Math.abs(this.camera.fov-fov)>.0001){this.camera.fov=fov;this.camera.updateProjectionMatrix();}
     const viewOffset=!battle&&!this.preview&&this.view==='city'?.055:0;
     if(this.viewOffset!==viewOffset||this.viewWidth!==this.canvas.clientWidth||this.viewHeight!==this.canvas.clientHeight){this.viewOffset=viewOffset;this.viewWidth=this.canvas.clientWidth;this.viewHeight=this.canvas.clientHeight;if(viewOffset)this.camera.setViewOffset(this.viewWidth,this.viewHeight,0,this.viewHeight*viewOffset,this.viewWidth,this.viewHeight);else this.camera.clearViewOffset();}
@@ -198,9 +201,9 @@ export class GameScene {
   addPointer(){
     let down=null;this.canvas.tabIndex=0;this.canvas.addEventListener('contextmenu',e=>e.preventDefault());
     this.canvas.addEventListener('pointerdown',e=>{this.canvas.focus({preventScroll:true});down={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};this.canvas.setPointerCapture(e.pointerId);});
-    this.canvas.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.lastX,dy=e.clientY-down.lastY;if(Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)down.moved=true;if(down.moved){this.cinematic.manual();this.yaw-=dx*.006;this.pitch=Math.max(.16,Math.min(1.3,this.pitch+dy*.004));}down.lastX=e.clientX;down.lastY=e.clientY;});
+    this.canvas.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.lastX,dy=e.clientY-down.lastY;if(Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)down.moved=true;if(down.moved){this.cinematic.manual();this.cameraShot=null;this.yaw-=dx*.006;this.pitch=Math.max(.16,Math.min(1.3,this.pitch+dy*.004));}down.lastX=e.clientX;down.lastY=e.clientY;});
     this.canvas.addEventListener('pointerup',e=>{if(down&&!down.moved)this.pick(e.clientX,e.clientY);down=null;});this.canvas.addEventListener('pointercancel',()=>down=null);
-    this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.cinematic.manual();if(this.state.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)+e.deltaY*.0006,.9,2.4);else this.zoom=Math.max(10,Math.min(330,this.zoom+e.deltaY*.06));},{passive:false});
+    this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.cinematic.manual();this.cameraShot=null;if(this.state.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)+e.deltaY*.0006,.9,2.4);else this.zoom=Math.max(10,Math.min(330,this.zoom+e.deltaY*.06));},{passive:false});
   }
 
   pick(x,y){
@@ -227,7 +230,9 @@ export class GameScene {
       const burst=new T.Group();burst.visible=false;group.add(burst);
       for(let i=0;i<14;i++){const debris=i>8,spark=new T.Mesh(new T.TetrahedronGeometry(debris?.36:.22),new T.MeshBasicMaterial({color:debris?0x847e70:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.debris=debris;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
       if(melee){object.visible=false;trail.visible=false;}
-      this.scene.add(group);this.fx.push({object:group,ball:object,trail,burst,start,end:end.clone(),anchor,anchorHeading:target.heading,age:0,born,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target,actor:source});
+      const effect={object:group,ball:object,trail,burst,start,end:end.clone(),anchor,anchorHeading:target.heading,age:0,born,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target,actor:source};
+      this.scene.add(group);this.fx.push(effect);
+      if((effect.slot===null||event.base===false)&&this.cinematic.mode==='cinematic'&&this.cinematic.manualTime===0&&(!fromEnemy||!this.cameraShot||this.state.time-this.cameraShot.born>1.75))this.cameraShot=effect;
       if(event.kind!=='impact'){
         const flash=new T.Mesh(new T.SphereGeometry(.85,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
         this.fx.push({object:flash,flash:true,start,age:0,born});

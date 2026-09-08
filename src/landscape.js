@@ -18,23 +18,63 @@ const VEGETATION_GLSL = `
   attribute vec4 windRoot;
   attribute vec2 windFlex;
   attribute vec2 windMotion;
+  mat3 vegetationGradient;
   ${WIND_GLSL}
   vec3 rootedWindOffset(vec3 p) {
     vec2 anchor = (modelMatrix * vec4(windRoot.xyz, 1.0)).xz;
     vec3 breeze = worldWind(uVegetationTime, anchor);
-    float tip = clamp((p.y - windRoot.y) / max(windRoot.w, .1), 0.0, 1.2);
+    float height = max(windRoot.w, .1);
+    float rawTip = (p.y - windRoot.y) / height;
+    float tip = clamp(rawTip, 0.0, 1.2);
     float phase = anchor.x * .021 + anchor.y * .013;
     float pulse = .58 + .42 * sin(uVegetationTime * windMotion.x + phase);
-    float bend = min(.70, windFlex.x * pow(tip, 1.65) * (.22 + breeze.z * .78) * pulse);
-    float flutter = windFlex.y * tip * tip * sin(uVegetationTime * windMotion.y + phase + p.x * .57 + p.z * .33);
+    float bendGain = windFlex.x * (.22 + breeze.z * .78) * pulse;
+    float freeBend = bendGain * pow(tip, 1.65);
+    float bend = min(.70, freeBend);
+    float flutterPhase = uVegetationTime * windMotion.y + phase + p.x * .57 + p.z * .33;
+    float flutter = windFlex.y * tip * tip * sin(flutterPhase);
+    // Analytic derivatives of the same offset drive the lighting normal. This
+    // avoids extra wind samples and keeps visible/depth vertex positions equal.
+    float tipSlope = rawTip > 0.0 && rawTip < 1.2 ? 1.0 / height : 0.0;
+    float bendSlope = freeBend < .70 ? bendGain * 1.65 * pow(tip, .65) * tipSlope : 0.0;
+    float flutterSlope = windFlex.y * 2.0 * tip * tipSlope * sin(flutterPhase);
+    vec3 flutterDirection = vec3(-breeze.y, 0.0, breeze.x);
+    vec3 acrossSlope = flutterDirection * (windFlex.y * tip * tip * cos(flutterPhase));
+    vec3 upSlope = vec3(breeze.x * bendSlope, -(bendSlope * tip + bend * tipSlope) * .018, breeze.y * bendSlope) + flutterDirection * flutterSlope;
+    vegetationGradient = mat3(acrossSlope * .57, upSlope, acrossSlope * .33);
     return vec3(breeze.x * bend - breeze.y * flutter, -abs(bend) * tip * .018, breeze.y * bend + breeze.x * flutter);
   }
+`;
+const VEGETATION_NORMAL = `
+  #ifdef USE_INSTANCING
+    vec3 vegetationNormalPoint = (instanceMatrix * vec4(position, 1.0)).xyz;
+    vec3 vegetationNormalOffset = rootedWindOffset(vegetationNormalPoint);
+    mat3 vegetationInstance = mat3(instanceMatrix);
+    vec3 vegetationBaseNormal = normalize(vegetationInstance * (objectNormal / vec3(
+      dot(vegetationInstance[0], vegetationInstance[0]),
+      dot(vegetationInstance[1], vegetationInstance[1]),
+      dot(vegetationInstance[2], vegetationInstance[2]))));
+    mat3 deformation = mat3(1.0) + vegetationGradient;
+    vec3 bentNormal = normalize(
+      cross(deformation[1], deformation[2]) * vegetationBaseNormal.x +
+      cross(deformation[2], deformation[0]) * vegetationBaseNormal.y +
+      cross(deformation[0], deformation[1]) * vegetationBaseNormal.z);
+    vec3 normalChange = bentNormal - vegetationBaseNormal;
+    // Keep small foliage details responsive without rolling entire crown lights.
+    bentNormal = normalize(vegetationBaseNormal + normalChange * min(1.0, .28 / max(length(normalChange), .00001)));
+    objectNormal = vec3(dot(vegetationInstance[0], bentNormal), dot(vegetationInstance[1], bentNormal), dot(vegetationInstance[2], bentNormal));
+  #endif
+  #include <defaultnormal_vertex>
 `;
 const VEGETATION_TRANSFORM = `
   #include <begin_vertex>
   #ifdef USE_INSTANCING
     vec3 vegetationPoint = (instanceMatrix * vec4(transformed, 1.0)).xyz;
-    vec3 vegetationOffset = rootedWindOffset(vegetationPoint);
+    #ifdef STANDARD
+      vec3 vegetationOffset = vegetationNormalOffset;
+    #else
+      vec3 vegetationOffset = rootedWindOffset(vegetationPoint);
+    #endif
     // Inverse of an orthogonal rotation/scale, without a per-vertex matrix inverse.
     transformed += vec3(
       dot(instanceMatrix[0].xyz, vegetationOffset) / max(dot(instanceMatrix[0].xyz, instanceMatrix[0].xyz), .0000001),
@@ -45,7 +85,7 @@ const VEGETATION_TRANSFORM = `
 `;
 function vegetationShader(shader) {
   shader.uniforms.uVegetationTime = vegetationTime;
-  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + VEGETATION_GLSL).replace('#include <begin_vertex>', VEGETATION_TRANSFORM);
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + VEGETATION_GLSL).replace('#include <defaultnormal_vertex>', VEGETATION_NORMAL).replace('#include <begin_vertex>', VEGETATION_TRANSFORM);
 }
 function animateVegetation(mesh, items, kind) {
   const roots = new Float32Array(items.length * 4), flex = new Float32Array(items.length * 2), motion = new Float32Array(items.length * 2);
@@ -61,10 +101,10 @@ function animateVegetation(mesh, items, kind) {
   mesh.geometry.setAttribute('windMotion', new T.InstancedBufferAttribute(motion, 2));
   const key = mesh.material.uuid;
   if (!windMaterials.has(key)) {
-    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v2';
+    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v3';
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, side: material.side });
     const distance = new T.MeshDistanceMaterial({ side: material.side });
-    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v2'; }
+    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v3'; }
     windMaterials.set(key, { material, depth, distance });
   }
   const passes = windMaterials.get(key); mesh.material = passes.material; mesh.customDepthMaterial = passes.depth; mesh.customDistanceMaterial = passes.distance;
@@ -397,6 +437,11 @@ function createWater() {
         float wetEdge = smoothstep(.86 + bankNoise * .09, 1.03, edgeDistance);
         diffuseColor.rgb *= 1.0 - wetEdge * .07;
       `)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        // Sheltered shallows have a broader reflection; gusts break the centre
+        // reflection gently, without changing exposure or adding bright lines.
+        roughnessFactor = clamp(roughnessFactor * mix(.92, 1.18, shallows) + (riverWind.z - .5) * .035, .25, .43);
+      `)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         // Constant downstream advection cannot accelerate as game time grows;
         // crosswind only adds a small, bounded lateral perturbation.
@@ -406,12 +451,17 @@ function createWater() {
         float rippleStrength = (.023 + riverWind.z * .023) * (1.0 - shallows * .30);
         float crossSlope = (texture2D(uRiverRippleTexture, rippleUV).r - .53) * rippleStrength;
         float streamSlope = (texture2D(uRiverRippleTexture, rippleUV * vec2(.83, 1.17) + vec2(.37, .61)).r - .53) * rippleStrength * .7;
-        vec2 surfaceSlope = streamAcross * crossSlope + streamTangent * streamSlope;
+        vec2 broadUV = vec2(acrossRiver * .018, alongRiver * .009 - uRiverTime * .0072);
+        broadUV.x -= crosswind * .003;
+        float broadStrength = (.060 + riverWind.z * .035) * (1.0 - shallows * .65);
+        float broadAcross = (texture2D(uRiverRippleTexture, broadUV).r - .53) * broadStrength;
+        float broadAlong = (texture2D(uRiverRippleTexture, broadUV + vec2(.29, .47)).r - .53) * broadStrength * .65;
+        vec2 surfaceSlope = streamAcross * (crossSlope + broadAcross) + streamTangent * (streamSlope + broadAlong);
         normal = normalize(mat3(viewMatrix) * vec3(-surfaceSlope.x, 1.0, -surfaceSlope.y));
       `)
       .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
-  material.customProgramCacheKey = () => 'gust-river-v2';
+  material.customProgramCacheKey = () => 'gust-river-v3';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };

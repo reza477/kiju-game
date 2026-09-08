@@ -43,6 +43,14 @@ function shoot(state) {
 test('cinematic offsets are bounded and decay without changing orbit state',()=>{const c=new CinematicCamera();for(let i=0;i<30;i++)c.impulse(5);assert.equal(c.pulses.length,6);let peak=0;for(let i=0;i<90;i++){const o=c.update({dt:1/60,time:i/60,battle:true});peak=Math.max(peak,Math.abs(o.right));assert.ok(Math.abs(o.right)<=.8&&Math.abs(o.up)<=.55&&o.fov<=1.1);assert.ok(Object.values(o).every(Number.isFinite));}assert.ok(peak>.1);assert.equal(c.pulses.length,0);assert.equal(c.output.fov,0);});
 test('steady, paused and direct camera control suppress cinematic motion',()=>{const c=new CinematicCamera();c.transition('battle');c.impulse(1);assert.ok(Object.values(c.update({dt:.05,time:1,battle:true})).some(v=>v!==0));const age=c.pulses[0].age;assert.ok(Object.values(c.update({dt:.1,time:1,battle:true,paused:true})).every(v=>v===0));assert.equal(c.pulses[0].age,age);c.manual();c.impulse(1);assert.equal(c.pulses.length,0);assert.ok(Object.values(c.update({dt:.05,time:2,battle:true})).every(v=>v===0));c.setMode('steady');c.transition('battle');c.impulse(1);assert.ok(Object.values(c.update({dt:.1,time:10,battle:true,moving:true})).every(v=>v===0));});
 test('close management cameras stay stable during cinematic transitions and effects',()=>{for(const view of ['city','people']){const c=new CinematicCamera();c.transition(view);c.impulse(1);const o=c.update({dt:.05,time:8,view,moving:true});assert.ok(Object.values(o).every(v=>v===0));}});
+test('attack framing follows the impact clock and relinquishes the tactical view',()=>{
+  const c=new CinematicCamera(),frame=(shotAge,extra={})=>({...c.update({dt:.05,time:shotAge,battle:true,shotAge,impactDelay:.7,...extra})});
+  assert.equal(frame(0).focus,0);assert.ok(frame(.15).focus>0);
+  const contact=frame(.7);assert.equal(contact.focus,.24);assert.ok(contact.dolly<0);
+  assert.ok(frame(1.1).focus<contact.focus);assert.equal(frame(1.8).focus,0);
+  assert.equal(frame(.7,{paused:true}).focus,0);assert.equal(frame(.7,{battle:false,view:'people'}).focus,0);
+  c.manual();assert.equal(frame(.7).focus,0);c.setMode('steady');assert.equal(frame(.7).focus,0);
+});
 
 test('a new circular city starts with its central castle and six unlocked inner plots', () => {
   const state = createGame('kaiju');
