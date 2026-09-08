@@ -404,7 +404,7 @@ function createWater() {
     }
   }
   const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
-  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .32, metalness: .10, clearcoat: .35, clearcoatRoughness: .34, side: T.DoubleSide });
+  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .29, metalness: .10, clearcoat: .24, clearcoatRoughness: .28, side: T.DoubleSide });
   const time = { value: 0 }, rippleTexture = groundDetail('soil');
   material.onBeforeCompile = shader => {
     shader.uniforms.uRiverTime = time;
@@ -430,17 +430,31 @@ function createWater() {
         vec2 streamAcross = vec2(streamTangent.y, -streamTangent.x);
         float bankNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .014, alongRiver * .007)).r - .53;
         float edgeDistance = abs(acrossRiver) / channelWidth;
-        float shallows = pow(clamp(edgeDistance + bankNoise * .18, 0.0, 1.0), 2.8);
-        // Analytic depth tint avoids triangular bands from the coarse water mesh.
-        diffuseColor.rgb = mix(vec3(.0086, .0704, .0704), vec3(.159, .283, .231), shallows);
-        diffuseColor.rgb *= .92 + .08 * sin(alongRiver * .026 + .7);
+        // The deeper channel follows the outside of each meander. Deposits sit
+        // on its inside bends, breaking the former symmetrical colour ribbon.
+        float curvature = -.001782 * sin(alongRiver * .009) - .0028 * sin(alongRiver * .020);
+        float bend = clamp(curvature / .0038, -1.0, 1.0);
+        float crossChannel = acrossRiver / channelWidth;
+        float deepAxis = crossChannel + bend * .23;
+        float bedNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .004 + .21, alongRiver * .0016 + .34)).r;
+        float reachNoise = texture2D(uRiverRippleTexture, vec2(alongRiver * .0019 + .61, acrossRiver * .004 + .17)).r;
+        float innerBank = sign(bend) * .61;
+        float barShape = exp(-pow((crossChannel - innerBank) / .27, 2.0));
+        float mineralBar = barShape * smoothstep(.12, .65, abs(bend)) * smoothstep(.42, .59, bedNoise);
+        float pool = smoothstep(.43, .63, reachNoise) * (1.0 - smoothstep(.25, .90, abs(deepAxis)));
+        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.65 + (bedNoise - .35) * 1.4) + pool * .18 - mineralBar * .66, 0.0, 1.0);
+        float shallows = pow(1.0 - depth, 1.5);
+        vec3 deepColour = mix(vec3(.0086, .0704, .0704), vec3(.009, .043, .065), pool * .72);
+        vec3 shallowColour = mix(vec3(.120, .235, .187), vec3(.173, .175, .108), mineralBar * .70);
+        diffuseColor.rgb = mix(deepColour, shallowColour, shallows);
+        diffuseColor.rgb *= .95 + (reachNoise - .53) * .20;
         float wetEdge = smoothstep(.86 + bankNoise * .09, 1.03, edgeDistance);
         diffuseColor.rgb *= 1.0 - wetEdge * .07;
       `)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         // Sheltered shallows have a broader reflection; gusts break the centre
         // reflection gently, without changing exposure or adding bright lines.
-        roughnessFactor = clamp(roughnessFactor * mix(.92, 1.18, shallows) + (riverWind.z - .5) * .035, .25, .43);
+        roughnessFactor = clamp(roughnessFactor * mix(.78, 1.29, shallows) + mineralBar * .025 + (riverWind.z - .5) * .032, .22, .43);
       `)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         // Constant downstream advection cannot accelerate as game time grows;
@@ -453,7 +467,7 @@ function createWater() {
         float streamSlope = (texture2D(uRiverRippleTexture, rippleUV * vec2(.83, 1.17) + vec2(.37, .61)).r - .53) * rippleStrength * .7;
         vec2 broadUV = vec2(acrossRiver * .018, alongRiver * .009 - uRiverTime * .0072);
         broadUV.x -= crosswind * .003;
-        float broadStrength = (.060 + riverWind.z * .035) * (1.0 - shallows * .65);
+        float broadStrength = (.083 + riverWind.z * .035) * (1.0 - shallows * .65);
         float broadAcross = (texture2D(uRiverRippleTexture, broadUV).r - .53) * broadStrength;
         float broadAlong = (texture2D(uRiverRippleTexture, broadUV + vec2(.29, .47)).r - .53) * broadStrength * .65;
         vec2 surfaceSlope = streamAcross * (crossSlope + broadAcross) + streamTangent * (streamSlope + broadAlong);
@@ -461,7 +475,7 @@ function createWater() {
       `)
       .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
-  material.customProgramCacheKey = () => 'gust-river-v3';
+  material.customProgramCacheKey = () => 'gust-river-v4';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };

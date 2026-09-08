@@ -21,9 +21,9 @@ export const LIGHTING_PRESETS = Object.freeze({
   }),
   night: Object.freeze({
     top:0x122b46,bottom:0x496878,fog:0x314c61,fogDensity:.0015,
-    sun:0xb9d5fa,sunPosition:Object.freeze([65,72,-70]),intensity:.72,
-    skyLight:0x91aed1,groundLight:0x4b5a65,ambient:.66,
-    rim:0x97b6da,rimIntensity:.88,environment:.30,
+    sun:0xb9d5fa,sunPosition:Object.freeze([65,72,-70]),intensity:1.10,
+    skyLight:0x91aed1,groundLight:0x4b5a65,ambient:.60,
+    rim:0x97b6da,rimIntensity:1.0,environment:.30,
     exposure:1.06,windows:2.15,bloom:.17,localLight:9,uplight:58,
     sunDisc:1.45,scattering:.055,cloud:0x7e99ad,cloudShade:0x294555,
     cloudOpacity:.26,mist:0x668698,mistOpacity:.28

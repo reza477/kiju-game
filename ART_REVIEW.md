@@ -29,5 +29,6 @@ The owner's next update starts a separate cycle, retaining the same global rubri
 |---|---|---|---|
 | 1 | `324191e` | [Independent review](art-reviews/cinematic-01.md) | **FAIL — 6.8/10**, 0 runtime errors; brief player clipping on battle entry |
 | 2 | `22efd80` | [Independent review](art-reviews/cinematic-02.md) | **FAIL — 6.9/10**, no confirmed visual or runtime errors; aesthetic threshold not met |
+| 3 | `4364c43` | [Independent review](art-reviews/cinematic-03.md) | **FAIL — 7.0/10**, no confirmed visual or runtime errors; aesthetic threshold not met |
 
 The first builder attempt passed 40 Node tests, 13 browser smoke checks, the integrated 26-view living-world audit, a revised 31-view cinematic capture suite and six physical contact cases. Preserved scenery identities, rooted wind/shadow deformation, quality-mode brightness and bounded atmosphere allocation were checked separately. Independent evidence goes under `artifacts/critic-cinematic-XX/`; reports go under `art-reviews/cinematic-XX.md`.
