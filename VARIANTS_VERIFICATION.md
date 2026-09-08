@@ -24,6 +24,8 @@ Each faction has two selectable versions. New expeditions contain the selected v
 
 The independent critic uses the unchanged 8.5/10 and zero-error gate, with at most four rounds. Functional checks do not constitute aesthetic approval. See [ART_REVIEW.md](ART_REVIEW.md) for the independent results.
 
+**Final independent result: 7.1/10, gate failed after all four rounds.** The critic took 69 fresh screenshots and reproduced the contact, barrel and curved-projectile checks. All previously known defects are resolved within that coverage; no remaining concrete visual/runtime errors were identified. The overall art score remains below 8.5, with anatomy, castle material/massing and citizen/environment finish still needing work. No fifth pass was performed.
+
 Castle walls and weapon logic share cached geometry with split gun ports, window frames and sills, roof seams and perimeter posts. Barrels stop at a clear physical angle; a desired shot obstructed by the castle remains blocked. These checks cover the castle and district/carrier obstacles, not terrain or complete building-by-building ballistic destruction.
 
 ## Practical limits
