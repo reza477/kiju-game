@@ -79,7 +79,11 @@ export class CityLighting {
     if(!tower)slot.rig.visible=true;
     // Rectangular decks already have a lantern at this exact promenade point.
     for(const part of ['post','bulb','cap'])slot.lamps[1][part].visible=circular;
-    slot.search.visible=circular;slot.rig.updateWorldMatrix(true,true);
+    // Its bracket is attached to the lowest exterior wall. That wall is removed
+    // when its own storey is inspected, so the fitting must leave with it.
+    if(tower){slot.search.userData.towerTier=0;slot.search.userData.inspectionShell=true;}
+    else{delete slot.search.userData.towerTier;delete slot.search.userData.inspectionShell;}
+    slot.search.visible=circular&&!(tower&&floor===0);slot.rig.updateWorldMatrix(true,true);
   }
 
   update(player,activeEnemy,preset){
@@ -95,7 +99,7 @@ export class CityLighting {
         light.intensity=local*scale*scale*(j?.8:1);light.distance=6.5*scale;
       }
       slot.marker.getWorldPosition(slot.spot.position);slot.targetMarker.getWorldPosition(slot.spot.target.position);
-      slot.spot.intensity=city.faction==='kaiju'?uplight:0;
+      slot.spot.intensity=city.faction==='kaiju'&&slot.search.visible?uplight:0;
     }
   }
 

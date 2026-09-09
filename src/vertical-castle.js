@@ -28,7 +28,7 @@ function palette(enemy){
    `);
   };m.customProgramCacheKey=()=> 'vertical-fortress-weather-v1';materialCache.set(key,m);return m;
  };
- return {wall:stone(enemy?0x87928e:0x92978f,'nave'),foundation:stone(0x677577,'foundation'),recess:stone(0x6f8180,'recessed spine'),chamber:stone(0xa9a699,'dressed chambers'),gardenStone:stone(0x87978a,'garden chambers'),industry:getMaterial('brick',0x907c6d),edge:stone(0x82918e,'buttresses'),trim:getMaterial('plaster',0xb0ad9f),roof:getMaterial('roof',0x75463f),dark:getMaterial('metal',0x303c41),metal:getMaterial('metal',0x6f736f),paving:getMaterial('pavement',0x85877f),walk:getMaterial('pavement',0xa29e8d),glass:getMaterial('glass',0x617781),light:getMaterial('window',0xb0bfae),wood:getMaterial('wood',0x947455),copper:getMaterial('copper',0x658b7c),garden:getMaterial('foliage',0x526545),banner:getMaterial('fabric',enemy?0x7f4446:0x552c40)};
+ return {wall:stone(enemy?0x87928e:0x92978f,'nave'),foundation:stone(0x657476,'foundation'),recess:stone(0x55666a,'recessed spine'),chamber:stone(0xb8b4a6,'dressed chambers'),gardenStone:stone(0x87978a,'garden chambers'),industry:getMaterial('brick',0x907c6d),edge:stone(0x9da79f,'buttresses'),trim:getMaterial('plaster',0xb0ad9f),roof:getMaterial('roof',0x643a35),dark:getMaterial('metal',0x303c41),metal:getMaterial('metal',0x6f736f),paving:getMaterial('pavement',0x85877f),walk:getMaterial('pavement',0xa29e8d),glass:getMaterial('glass',0x617781),light:getMaterial('window',0xb0bfae),wood:getMaterial('wood',0x947455),copper:getMaterial('copper',0x658b7c),garden:getMaterial('foliage',0x526545),banner:getMaterial('fabric',enemy?0x7f4446:0x552c40)};
 }
 
 function bounds(vertices){
@@ -79,7 +79,7 @@ export function verticalCastleDescriptors(layout,deckY=34){
   const compact=verticalCastleDescriptors(full,deckY).map(d=>({...d,vertices:d.vertices.map(([x,y,z])=>[x,deckY+(y-deckY)*heightScale,z])}));
   return cachePut(descriptorCache,key,compact);
  }
- const out=[],floors=layout.floors,count=floors.length,topTier=count-1,roofY=deckY+layout.height;
+ const out=[],floors=layout.floors,count=floors.length,topTier=count-1,roofY=deckY+layout.height,mature=count>=8;
  const add=(id,tier,material,shape,shell=true)=>out.push({id:`vertical:${id}`,tier,material,shell,...shape});
  const block=(id,tier,material,x,y,z,w,h,d,shell=true)=>add(id,tier,material,{vertices:rectVertices(x,z,w,d,y-h/2,y+h/2),faces:BOX_FACES},shell);
  const beam=(id,tier,material,a,b,r=.08)=>{
@@ -162,14 +162,14 @@ export function verticalCastleDescriptors(layout,deckY=34){
    // Buttressed nave flanks: real recessed windows, never texture-only holes.
    const x=side*4.10,rotation=side*Math.PI/2;
    block(`side-sill:${tier}:${side}`,tier,'wall',x,y+.45,CENTRE_Z,.36,.72,9.45);
-   block(`side-head:${tier}:${side}`,tier,'wall',x,y+h-.43,CENTRE_Z,.36,.70,9.45);
+   if(!mature||chapter)block(`side-head:${tier}:${side}`,tier,'wall',x,y+h-.43,CENTRE_Z,.36,.70,9.45);
    for(const dz of[-4.32,-1.48,1.48,4.32]){
     block(`side-pier:${tier}:${side}:${dz}`,tier,'wall',x,y+h/2,CENTRE_Z+dz,.36,h-.18,.54);
     block(`side-rib:${tier}:${side}:${dz}`,tier,'edge',side*4.27,y+h/2,CENTRE_Z+dz,.24,h+.20,.24);
    }
    const windowH=Math.max(1.40,h-1.53);
    for(const[bay,dz]of[-2.93,0,2.93].entries()){
-    if(bay===1)continue;
+    if(bay===1||mature)continue;
     arch(`side-arch:${tier}:${side}:${bay}`,tier,'trim',x,y+.86,CENTRE_Z+dz,1.86,windowH,.12,.43,rotation);
     pane(`side-light:${tier}:${side}:${bay}`,tier,x-side*.055,y+.87,CENTRE_Z+dz,1.82,windowH-.06,rotation,(tier*3+bay+(side+1))%7===1);
    }
@@ -189,9 +189,9 @@ export function verticalCastleDescriptors(layout,deckY=34){
   block(`portal-threshold:${tier}`,tier,'edge',0,y+.19,front,3.90,.20,.47);
   // Rear apse wall and its thin windowed spine carry the moving crown.
   block(`apse-lower:${tier}`,tier,'wall',0,y+.42,back,7.55,.66,.43);
-  block(`apse-head:${tier}`,tier,'wall',0,y+h-.33,back,7.55,.49,.43);
+  if(!mature||chapter)block(`apse-head:${tier}`,tier,'wall',0,y+h-.33,back,7.55,.49,.43);
   for(const x of[-3.38,-1.1,1.1,3.38])block(`apse-pier:${tier}:${x}`,tier,'wall',x,y+h/2,back,.54,h-.18,.43);
-  for(const x of[-2.23,0,2.23]){
+  for(const x of(mature?[]:[-2.23,0,2.23])){
    const wh=Math.max(1.4,h-1.45);arch(`apse-arch:${tier}:${x}`,tier,'trim',x,y+.83,back,1.36,wh,.13,.45);
    pane(`apse-light:${tier}:${x}`,tier,x,y+.84,back-.04,1.32,wh-.05,0,(tier+Math.round(x*3))%6===0);
   }
@@ -222,11 +222,17 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // lead and glazing are clipped into the owning inspection shell at each real
  // floor boundary, so a cathedral proportion never creates an extra district.
  const completedFloors=floors.filter(f=>!(f.underConstruction&&!f.upgrading));
- const choirChapters=[0,3,8,13,20];
+ const choirChapters=[0,4,8,13,20];
  for(let chapter=0;chapter<choirChapters.length-1;chapter++){
   const start=choirChapters[chapter],chapterFloors=completedFloors.slice(start,choirChapters[chapter+1]);if(!chapterFloors.length)continue;
   const first=chapterFloors[0],last=chapterFloors.at(-1),base=deckY+first.y+.82,total=last.y+last.height-first.y-1.31;
-  for(const[bay,x,z,w,depth,angle]of[['front-left',-3.02,CENTRE_Z-5.12,.72,.12,0],['front-right',3.02,CENTRE_Z-5.12,.72,.12,0],['west',-4.29,CENTRE_Z,1.86,.16,-Math.PI/2],['east',4.29,CENTRE_Z,1.86,.16,Math.PI/2]]){
+  const bays=[['front-left',-3.02,CENTRE_Z-5.12,.72,.12,0],['front-right',3.02,CENTRE_Z-5.12,.72,.12,0],['west',-4.29,CENTRE_Z,1.86,.16,-Math.PI/2],['east',4.29,CENTRE_Z,1.86,.16,Math.PI/2]];
+  if(mature){
+   for(const side of[-1,1])for(const dz of[-2.93,2.93])bays.push([`flank-${side}-${dz}`,side*4.29,CENTRE_Z+dz,1.84,.16,side*Math.PI/2]);
+   for(const x of[-2.23,0,2.23])bays.push([`rear-${x}`,x,CENTRE_Z+5.12,1.36,.14,Math.PI]);
+  }
+  for(const[bay,x,z,w,depth,angle]of bays){
+   const transverse=Math.abs(Math.sin(angle))<.5;
    const inner=archOutline(w,total),outer=archOutline(w+.20,total+.10);
    for(const f of chapterFloors){
     const tier=f.tier,lo=deckY+f.y-base,hi=lo+f.height-(f.upgrading?.8:0);
@@ -235,15 +241,15 @@ export function verticalCastleDescriptors(layout,deckY=34){
     const paneOrigin=[x+Math.sin(angle)*.039,base,z+(angle===0?-.04:Math.cos(angle)*.039)];
     // The actual garden has an open growing bay: opaque glazing would hide
     // its plants from City view and turn the greenery into an invisible detail.
-    if(!(f.type==='farm'&&(bay==='west'||bay==='east')))add(`choir-light:${start}:${bay}:${tier}`,tier,(chapter+(bay==='front-left'?1:0))%5===1?'light':'glass',prism(surface,.035,paneOrigin,angle));
+    if(!(f.type==='farm'&&(bay==='west'||bay==='east')))add(`choir-light:${start}:${bay}:${tier}`,tier,(tier*7+bay.length)%19===3?'light':'glass',prism(surface,.035,paneOrigin,angle));
     for(let edge=0;edge<inner.length-1;edge++){
      const points=cut([inner[edge],inner[edge+1],outer[edge+1],outer[edge]]);
      if(points.length>=3)add(`choir-frame:${start}:${bay}:${tier}:${edge}`,tier,'trim',prism(points,depth,[x,base,z],angle));
     }
     const bottom=Math.max(lo,0),top=Math.min(hi,total*.91),height=top-bottom;
-    if(height>.001){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-mullion:${start}:${bay}:${tier}`,tier,'dark',px,base+(bottom+top)/2,pz,angle===0?.047:.046,height,angle===0?.046:.047);}
+    if(height>.001){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-mullion:${start}:${bay}:${tier}`,tier,'dark',px,base+(bottom+top)/2,pz,transverse?.047:.046,height,transverse?.046:.047);}
     // Fine lead rails acknowledge occupied levels without a heavy stone belt.
-    const railY=Math.max(.15,Math.min(total-.22,lo+.36));if(railY>lo&&railY<hi){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-lead:${start}:${bay}:${tier}`,tier,'dark',px,base+railY,pz,angle===0?w-.09:.046,.045,angle===0?.046:w-.09);}
+    const railY=Math.max(.15,Math.min(total-.22,lo+.36));if(railY>lo&&railY<hi){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-lead:${start}:${bay}:${tier}`,tier,'dark',px,base+railY,pz,transverse?w-.09:.046,.045,transverse?.046:w-.09);}
     // Paired lancets sit within the upper choir arch. Their ribs are clipped at
     // real storeys exactly like the outer tracery, preserving floor cutaways.
     if(w>1){
@@ -263,14 +269,14 @@ export function verticalCastleDescriptors(layout,deckY=34){
   if(!finished.length)continue;const endIndex=Math.min(finished.length-1,Math.max(0,Math.ceil(finished.length*fraction)-1)),end=finished[endIndex],endY=deckY+end.y+end.height;
   for(const f of finished.slice(0,endIndex+1)){
    const tier=f.tier,y=deckY+f.y,lo=tier===0?deckY-3.1:y-.16,hi=Math.min(y+f.height,endY);
-   block(`buttress-spine:${spine}:${tier}`,tier,'foundation',side*4.01,(lo+hi)/2,CENTRE_Z+dz,.63,hi-lo,1.27);
+   block(`buttress-spine:${spine}:${tier}`,tier,'foundation',side*4.01,(lo+hi)/2,CENTRE_Z+dz,.63,hi-lo,mature?2.42:1.27);
    block(`buttress arris:${spine}:${tier}`,tier,'edge',side*4.31,(lo+hi)/2,CENTRE_Z+dz,.13,hi-lo,.24);
    if(tier%2===0)block(`spine-arrowloop:${spine}:${tier}`,tier,'dark',side*4.338,y+1.6,CENTRE_Z+dz,.042,1.20,.19);
   }
   // Unequal projected shoulders finish within occupied chapters rather than
   // both needles landing on another repeated chamber belt.
-  add(`spine-shoulder:${spine}`,end.tier,'edge',{vertices:rectVertices(side*4.01,CENTRE_Z+dz,.63,1.64,endY-(spine?1.55:2.35),endY+.12,.57,.76),faces:BOX_FACES});
-  roof(`buttress-pinnacle:${spine}`,end.tier,side*4.01,endY+.14,CENTRE_Z+dz,.60,1.64,spine?2.15:3.35);
+  add(`spine-shoulder:${spine}`,end.tier,'edge',{vertices:rectVertices(side*4.01,CENTRE_Z+dz,.63,mature?2.66:1.64,endY-(spine?1.55:2.35),endY+.12,.57,mature?2.20:.76),faces:BOX_FACES});
+  roof(`buttress-pinnacle:${spine}`,end.tier,side*4.01,endY+.14,CENTRE_Z+dz,.60,mature?2.66:1.64,spine?2.15:3.35);
  }
  // This compound crown moves with the newest occupied storey. A narrow belfry,
  // offset octagonal tower and lower roofed chapel replace the single broad cap.
@@ -290,17 +296,17 @@ export function verticalCastleDescriptors(layout,deckY=34){
   block('unfinished-hoist-load',topTier,'wood',.27,roofY+1.67,CENTRE_Z+2.55,.64,.30,.56);
  }else{
   block('roof-slab',topTier,'edge',0,roofY-.08,CENTRE_Z,8.45,.25,10.05);
-  const x=.7,z=CENTRE_Z+.1;
-  block('crown-chamber',topTier,'wall',x,roofY+1.15,z,3.1,2.3,3.9);
+  const x=.35,z=CENTRE_Z+.1,crownWidth=mature?5.1:3.1,crownDepth=mature?5.9:3.9;
+  block('crown-chamber',topTier,'wall',x,roofY+1.15,z,crownWidth,2.3,crownDepth);
   for(const side of[-1,1]){
-   for(const sx of[-1,1])block(`belfry-pier:${side}:${sx}`,topTier,'edge',x+sx*1.36,roofY+3.1,z+side*1.7,.34,1.94,.44);
-   arch(`belfry-open-arch:${side}`,topTier,'trim',x,roofY+2.25,z+side*1.72,2.35,1.65,.14,.40);
-   arch(`crown-window:${side}`,topTier,'trim',x,roofY+.27,z+side*1.99,1.12,1.72,.11,.13);
-   pane(`crown-pane:${side}`,topTier,x,roofY+.28,z+side*2.0,1.08,1.67,0,side===-1);
+   for(const sx of[-1,1])block(`belfry-pier:${side}:${sx}`,topTier,'edge',x+sx*(crownWidth/2-.19),roofY+3.1,z+side*(crownDepth/2-.25),.34,1.94,.44);
+   arch(`belfry-open-arch:${side}`,topTier,'trim',x,roofY+2.25,z+side*(crownDepth/2-.23),crownWidth-.75,1.65,.14,.40);
+   arch(`crown-window:${side}`,topTier,'trim',x,roofY+.27,z+side*(crownDepth/2+.04),1.12,1.72,.11,.13);
+   pane(`crown-pane:${side}`,topTier,x,roofY+.28,z+side*(crownDepth/2+.05),1.08,1.67,0,side===-1);
   }
   column('belfry-bell',topTier,'copper',x,z,.49,.24,roofY+2.4,roofY+3.33,12);
-  block('belfry-cornice',topTier,'trim',x,roofY+4.14,z,3.35,.18,4.1);
-  roof('cathedral-crown',topTier,x,roofY+4.24,z,3.65,4.40,3.95);
+  block('belfry-cornice',topTier,'trim',x,roofY+4.14,z,crownWidth+.25,.18,crownDepth+.2);
+  roof('cathedral-crown',topTier,x,roofY+4.24,z,crownWidth+.55,crownDepth+.50,3.95);
   column('dominant-finial',topTier,'metal',x,z,.065,.02,roofY+8.15,roofY+8.97,6);
   for(const[i,tx,tz,shoulder,high]of[[0,-2.37,CENTRE_Z-2.73,3.65,7.0],[1,2.52,CENTRE_Z+3.1,2.05,5.4]]){
    column(`crown-turret:${i}`,topTier,'wall',tx,tz,.67,.61,roofY+.03,roofY+shoulder,8);
@@ -333,12 +339,12 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // Foundation, recessed lower cloister, great hall and increasingly slender
  // upper lantern form one composition. Upper chapters never alternate back
  // into another identical wide bead every four floors.
- const chapterDepth=tier=>tier>=17?.42:tier>=14?.60:tier>=12?.76:tier>=4&&tier<8?.42:1;
+ const chapterDepth=tier=>tier>=13?.11:tier>=4&&tier<8?.11:1;
  const insetTier=tier=>chapterDepth(tier)<1;
  const recessedCoordinate=(value,centre,protectedHalf,factor)=>{const offset=value-centre,extent=Math.abs(offset);return extent<=protectedHalf?value:centre+Math.sign(offset)*(protectedHalf+(extent-protectedHalf)*factor);};
  for(const d of out){
   const f=floors[d.tier],inset=insetTier(d.tier),wall=d.material==='wall';
-  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.48,chapterDepth(d.tier)),y,recessedCoordinate(z,CENTRE_Z,4.07,chapterDepth(d.tier))]);
+  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.56,chapterDepth(d.tier)),y,recessedCoordinate(z,CENTRE_Z,4.27,Math.max(.12,chapterDepth(d.tier)))]);
   if(wall)d.material=inset?'recess':d.tier>=8?'chamber':d.tier<2?'foundation':'wall';
   if(d.id.startsWith('vertical:front-cheek:')||d.id.startsWith('vertical:apse-pier:')){
    if(['sawmill','foundry'].includes(f.type))d.material='industry';
@@ -347,6 +353,18 @@ export function verticalCastleDescriptors(layout,deckY=34){
    else if(f.type==='keep')d.material='chamber';
   }
   if(f.type==='farm'&&d.id.startsWith('vertical:choir-frame:'))d.material='copper';
+ }
+ // Broad steep shoulders join the main lower keep and great hall into the
+ // recessed galleries above. They occupy only the strip outside the real
+ // pedestrian envelope, and end on existing occupied floor boundaries.
+ for(const tier of(mature?[3,12]:[])){
+  const f=floors[tier];if(!f||f.underConstruction&&!f.upgrading)continue;
+  const top=deckY+f.y+f.height-.04,bottom=top-Math.min(2.30,f.height-.6);
+  for(const side of[-1,1]){
+   const points=[[side*3.64,top],[side*4.35,bottom],[side*4.35,bottom-.12],[side*3.64,top-.12]];
+   add(`keep-shoulder-roof:${tier}:${side}`,tier,'roof',prism(points,9.42,[0,0,CENTRE_Z]));
+   block(`keep-shoulder-eave:${tier}:${side}`,tier,'trim',side*4.30,bottom-.12,CENTRE_Z,.15,.16,9.58);
+  }
  }
  for(const f of floors){
   if(f.tier!==8||f.underConstruction&&!f.upgrading)continue;

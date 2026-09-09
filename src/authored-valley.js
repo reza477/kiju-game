@@ -16,6 +16,24 @@ export function valleyWoodland(x,z){
   return Math.max(west,east);
 }
 
+// Intermediate-scale cover follows the actual landform. Concave feet of slopes
+// retain moisture and litter; convex/exposed ground breaks into drier soil. The
+// warped 3–14 m patches describe connected tussocks rather than 60 m paint blobs.
+export function valleyGroundCover(x,z,slope,curvature=0){
+  const warpX=terrainNoise(x*.026+7,z*.029-3)-.5,warpZ=terrainNoise(x*.023-11,z*.027+13)-.5;
+  const patch=terrainNoise((x+warpX*13)*.115+31,(z+warpZ*11)*.139-7);
+  const fine=terrainNoise(x*.31+19,z*.27-8), mid=terrainNoise(x*.052+17,z*.066+9);
+  const bank=bankWidth(x,z),shore=shoreDistance(x,z);
+  const hollow=smoothstep(.0008,.018,curvature)*smoothstep(.012,.11,slope);
+  const wet=Math.min(1,hollow*.75+(1-smoothstep(bank+4,bank+25,shore))*.65);
+  const exposed=smoothstep(.045,.27,slope)*(1-hollow*.76);
+  const dry=Math.min(1,exposed*.52+smoothstep(.46,.75,mid)*.47);
+  const bare=(1-smoothstep(.23,.75,patch))*(.32+dry*.44+exposed*.16)*(1-wet*.44);
+  const cover=Math.max(0,Math.min(1,.44+patch*.48+wet*.25-exposed*.23-dry*.14));
+  const relief=Math.max(0,Math.min(1,patch*.58+fine*.22+(1-bare)*.13-hollow*.18));
+  return {patch,fine,wet,hollow,exposed,dry,bare,cover,relief};
+}
+
 /** Adds only deterministic new anchors; the historical scenery sequence is untouched. */
 export function composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt,ecologyAt,isClearing}){
   const stats={forestTrees:0,groundcover:0,forestEdgeShrubs:0,slateBeds:0,viaductSpans:0,pointBarStones:0};

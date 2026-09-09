@@ -365,7 +365,7 @@ function organicLoft(group, sections, mat, relief, region='') {
       const a=j===edges?0:j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a);
       // Rib cages, forearms and shins have broad planes around bone rather than
       // the circular cross-section of a hose. Rounded edges remain continuous.
-      const plane=region==='torso'?.22*formBell(t,.62,.27):region==='forearm'?.25*formBell(t,.61,.32):region==='shin'?.20*formBell(t,.51,.33):.14*formBell(t,.43,.34);
+      const plane=region==='torso'?.31*formBell(t,.62,.27):region==='forearm'?.38*formBell(t,.61,.32):region==='shin'?.40*formBell(t,.51,.33):region==='thigh'?.27*formBell(t,.43,.34):region==='upperarm'?.28*formBell(t,.43,.34):.14*formBell(t,.43,.34);
       const exponent=1-plane,sx=Math.sign(sin)*Math.abs(sin)**exponent,sz=Math.sign(cos)*Math.abs(cos)**exponent;
       const p=new T.Vector3(c.x+sx*Math.max(.025,r.x),c.y,c.z+sz*Math.max(.025,r.y));
       relief?.(p,a,t);positions.push(p.x,p.y,p.z);uv.push(j/edges,region?1-t:p.y*.105);
@@ -390,7 +390,7 @@ function organicLoft(group, sections, mat, relief, region='') {
 
 // Join two authored anatomical surfaces through one tangent-continuous band.
 // The result has no elbow/knee end caps or intersecting cuffs to expose in a bend.
-function joinedSkin(upper,lower,pivot){
+function joinedSkin(upper,lower,pivot,region='arm'){
   const a=upper.geometry.attributes.position,b=lower.geometry.attributes.position,edges=upper.geometry.userData.loft.edges,cols=edges+1;
   const closest=(p,rings,y)=>{let best=0,error=Infinity;for(let r=0;r<=rings;r++){const e=Math.abs(p.getY(r*cols)-y);if(e<error){error=e;best=r;}}return best;};
   const last=closest(a,upper.geometry.userData.loft.rings,pivot[1]+1.6),first=closest(b,lower.geometry.userData.loft.rings,pivot[1]-1.6),rows=[];
@@ -401,6 +401,14 @@ function joinedSkin(upper,lower,pivot){
     rows.push(p0.map((p,j)=>p.map((v,k)=>{if(k===1)return v+(p1[j][k]-v)*t;const dy=p1[j][1]-p[1],m0=(v-before[j][k])*dy/(p[1]-before[j][1]),m1=(after[j][k]-p1[j][k])*dy/(after[j][1]-p1[j][1]);return h00*v+h10*m0+h01*p1[j][k]+h11*m1;})));
   }
   for(let r=first;r<=lower.geometry.userData.loft.rings;r++)rows.push(row(b,r));
+  // Shape the connection itself, after the two lofts have been joined. This
+  // keeps an elbow crease and the kneecap/condyles in the continuous skin.
+  for(const row of rows){const cx=row.slice(0,edges).reduce((n,p)=>n+p[0]/edges,0),cz=row.slice(0,edges).reduce((n,p)=>n+p[2]/edges,0),depth=Math.max(.1,...row.map(p=>Math.abs(p[2]-cz)));
+    for(const p of row){const joint=formBell(p[1],pivot[1],.95),front=Math.max(0,(p[2]-cz)/depth),back=Math.max(0,(cz-p[2])/depth),rx=p[0]-cx;
+      if(region==='leg'){p[2]+=joint*(.15*front**5-.12*front*formBell(Math.abs(rx),.72,.25));p[0]-=rx*.08*joint*front;}
+      else{p[2]-=joint*(.24*front+.12*back**4);p[0]-=rx*.12*joint*front;}
+    }
+  }
   const positions=[],uv=[],indices=[],top=rows[0][0][1],bottom=rows.at(-1)[0][1];
   for(let r=0;r<rows.length;r++)for(let j=0;j<cols;j++){const p=rows[r][j];positions.push(...p);uv.push(j/edges,(p[1]-bottom)/(top-bottom));if(r<rows.length-1&&j<edges){const i=r*cols+j;indices.push(i,i+cols,i+1,i+1,i+cols,i+cols+1);}}
   for(const r of[0,rows.length-1]){const centre=rows[r].slice(0,edges).reduce((c,p)=>c.map((v,k)=>v+p[k]/edges),[0,0,0]),index=positions.length/3;positions.push(...centre);uv.push(.5,r===0?1:0);for(let j=0;j<edges;j++)indices.push(...(r===0?[index,r*cols+j,r*cols+j+1]:[index,r*cols+j+1,r*cols+j]));}
@@ -479,7 +487,7 @@ function organicTorso(frame, m) {
       // Pectoral, abdominal and oblique changes are relief in the same mesh,
       // leaving smooth transitions instead of disconnected oval muscle pieces.
       p.z+=front*(1.04*bell(p.y,41.4,1.76)*bell(Math.abs(p.x),2.28,1.60)-.16*bell(p.x,0,.30)*bell(p.y,39.8,4.8));
-      p.z+=front*.88*bell(p.y,42.1,3.35)*(.62+.38*side);
+      p.z+=front*.59*bell(p.y,42.1,3.35)*(.62+.38*side);
       p.z+=front*.70*bell(Math.abs(p.x),3.75,.82)*bell(p.y,42.5,2.85);
       p.z-=front*.34*bell(p.y,39.2+.16*Math.abs(p.x),.38)*bell(Math.abs(p.x),2.24,1.47);
       p.z+=front*.36*bell(p.y,44.16-.22*Math.abs(p.x),.35)*bell(Math.abs(p.x),2.2,1.9);
@@ -516,6 +524,10 @@ function organicTorso(frame, m) {
       p.z-=front*.11*bell(p.y,40.17+.61*p.x,.06)*bell(p.x,-1.75,1.1);
       p.z+=front*.13*bell(p.y,46.3,.25)*bell(ax,.42,.28);
       p.z-=back*.19*Math.cos(p.y*3.4)*bell(p.y,46.25,1.4)*bell(ax,0,1.8);
+      p.z-=front*.32*bell(p.y,43.85-.25*ax,.22)*bell(ax,2.5,1.4);
+      p.z-=front*.34*bell(ax,4.05,.40)*bell(p.y,40.5,1.55);
+      p.x-=Math.sign(p.x)*side*.25*bell(p.y,33.6,1.1);
+      p.z-=front*.30*bell(ax,1.82+.17*(36-p.y),.22)*bell(p.y,34.4,2.6);
     },'torso');
   const source=torsoSkin.geometry.attributes.position,breath=[],recovery=[];
   for(let i=0;i<source.count;i++){
@@ -539,9 +551,10 @@ function organicHead(frame, m) {
   const skull = new T.Group(); skull.name = 'Living titan skull, jaw and swept horns';
   skull.position.set(0, 49.5, 1.5); frame.add(skull);
   skull.userData.noBatch=true;frame.userData.fleshAnatomy.head=skull;
-  // One sculpted cranial envelope gives the forehead, zygomatic arch and snout
-  // a shared surface. The jaw is a broad hinged volume below the real mouth gap.
-  organicLoft(skull,[[0,-.98,.16,1.48,1.54],[0,-.70,.16,1.92,1.67],[0,-.30,.08,2.05,1.79],
+  // Cheek, muzzle, chin and nape share one envelope. The jaw opens through a
+  // local soft-tissue morph, so a circular cut can never separate the face.
+  const face=organicLoft(skull,[[0,-2.43,.70,.96,.48],[0,-2.23,.80,1.45,.91],[0,-1.93,.73,1.81,1.24],
+    [0,-1.47,.40,1.99,1.39],[0,-1.10,.30,1.88,1.48],[0,-.86,.20,1.90,1.62],[0,-.55,.16,1.98,1.72],[0,-.30,.08,2.05,1.79],
     [0,.37,-.04,2.14,1.90],[0,1.08,-.22,2.18,2.04],[0,1.85,-.43,2.02,1.85],
     [0,2.60,-.56,1.68,1.48],[0,3.12,-.64,.94,.88],[0,3.40,-.67,.03,.06]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),x=Math.abs(p.x);
@@ -554,17 +567,19 @@ function organicHead(frame, m) {
       p.z+=front*.27*formBell(p.y,1.22,.21)*formBell(x,1.12,.86);
       p.z-=front*.19*formBell(p.y,1.9,.52)*formBell(x,0,.22);
       p.z+=front*.25*formBell(x,1.75,.34)*formBell(p.y,-.33,.52);
+      p.z+=front*.46*formBell(p.y,-1.93,.52);
+      p.z-=front*.15*formBell(p.x,0,.24)*formBell(p.y,-2.02,.26);
+      p.z+=front*.20*formBell(x,1.51,.30)*formBell(p.y,-1.35,.40);
+      p.z-=front*.40*formBell(p.y,-.94,.105)*formBell(x,0,1.0);
+      p.z+=front*.11*formBell(p.y,-.75,.10)*formBell(x,0,.94);
+      p.z+=front*.17*formBell(p.y,-1.13,.12)*formBell(x,0,.91);
+      p.z-=front*.13*formBell(x,1.05,.16)*formBell(p.y,-.92,.26);
+      p.z-=front*.21*formBell(x,1.70,.39)*formBell(p.y,.88,.29);
     },'head');
-  const jaw=new T.Group();jaw.name='Breathing hinged mandible';jaw.position.set(0,-.82,.30);jaw.userData.noBatch=true;skull.add(jaw);frame.userData.fleshAnatomy.jaw=jaw;
-  const mandible=organicLoft(skull,[[0,-2.43,.70,.96,.48],[0,-2.23,.80,1.45,.91],[0,-1.93,.73,1.81,1.24],
-    [0,-1.47,.40,1.99,1.39],[0,-.72,.35,1.84,1.50]],m.skin,(p,a)=>{
-      const front=Math.max(0,Math.cos(a));p.z+=front*.51*formBell(p.y,-1.93,.52);
-      p.x+=Math.sin(a)*.13*formBell(p.y,-1.5,.24);
-      p.z-=front*.13*formBell(p.x,0,.21)*formBell(p.y,-2.0,.29);
-      p.z+=front*.19*formBell(Math.abs(p.x),1.52,.31)*formBell(p.y,-1.24,.45);
-    },'jaw');
-  mandible.position.sub(jaw.position);jaw.add(mandible);
-  const mouth=sphere(skull,1,m.mouth,0,-.89,1.75,.93,.085,.29);mouth.userData.noBatch=true;frame.userData.fleshAnatomy.mouth=mouth;
+  const skin=face.geometry.attributes.position,opening=[];
+  for(let i=0;i<skin.count;i++){const x=skin.getX(i),y=skin.getY(i),z=skin.getZ(i),jaw=T.MathUtils.smoothstep(-y,.78,1.42)*(1-.82*T.MathUtils.smoothstep(Math.abs(x),1.15,2.12)),a=.115*jaw;opening.push(x,-.82+(y+.82)*Math.cos(a)-(z-.30)*Math.sin(a),.30+(y+.82)*Math.sin(a)+(z-.30)*Math.cos(a));}
+  face.geometry.morphAttributes.position=[new T.Float32BufferAttribute(opening,3)];sculptedMorphNormals(face.geometry);face.updateMorphTargets();face.userData.noBatch=true;face.name='Continuous cheek and jaw';frame.userData.fleshAnatomy.face=face;
+  const mouth=sphere(skull,1,m.mouth,0,-.94,1.84,.85,.059,.12);mouth.userData.noBatch=true;frame.userData.fleshAnatomy.mouth=mouth;
   const eyes=[];frame.userData.fleshAnatomy.eyes=eyes;
   for (const side of [-1, 1]) {
     // A deep orbit supports a wet amber globe, with actual eyelid contours.
@@ -574,9 +589,6 @@ function organicHead(frame, m) {
     for(const part of[globe,pupil,lid])part.userData.noBatch=true;eyes.push({globe,pupil,lid,side});
     organicSweep(skull,[[side*.89,.41,1.62],[side*1.22,.37,1.62],[side*1.56,.47,1.44]], [.075,.095,.035],m.skin,18);
     sphere(skull,1,m.mouth,side*.46,-.28,2.13,.14,.080,.027);
-    // Lip folds lead into the hinge, tying the exposed teeth back to the skull.
-    organicSweep(skull,[[side*.03,-.79,2.03],[side*.56,-.83,2.00],[side*1.10,-.94,1.77]], [.035,.052,.010],m.ridge,24);
-    const lip=organicSweep(skull,[[side*.02,-1.00,1.99],[side*.57,-1.04,1.94],[side*1.13,-.99,1.72]], [.048,.063,.016],m.warm,24);lip.position.sub(jaw.position);jaw.add(lip);
     // Fine orbital folds and a warm fleshy nostril rim have restrained thickness.
     for(let fold=0;fold<3;fold++)organicSweep(skull,[[side*1.43,.03-fold*.095,1.65-fold*.035],[side*1.70,.03-fold*.13,1.44-fold*.06],[side*1.84,-.08-fold*.13,1.08]], [.021,.036,.008],m.ridge,16);
     organicSweep(skull,[[side*.30,-.30,2.12],[side*.44,-.18,2.18],[side*.60,-.30,2.05]], [.042,.073,.014],m.warm,18);
@@ -599,10 +611,9 @@ function organicHead(frame, m) {
 function organicHand(arm, side, m) {
   m={...m,skin:m.extremity,warm:m.extremityWarm,ridge:m.extremityRidge};
   const palm = new T.Group(); palm.position.set(side * 2.13, -22.05, 2.6); arm.add(palm);
-  organicLoft(palm,[[0,1.18,-.05,.62,.63],[0,.58,-.02,.84,.66],[0,-.20,.05,1.06,.59],[0,-.81,.14,1.12,.46],[0,-1.20,.18,.94,.35]],m.skin,(p,a)=>{
-    p.z-=Math.max(0,-Math.cos(a))*.10*formBell(p.y,-.3,.65)*Math.cos(p.x*11);
-  });
-  sphere(palm, 1, m.warm, -side * .56, -.58, .36, .63, .81, .34);
+  // The continuous forearm skin now forms the wrist and palm itself. The
+  // opposed thumb pad inserts into it without a separate glove-shaped cuff.
+  sphere(palm, 1, m.warm, -side * .56, -.58, .29, .48, .69, .29);
   const digits = new T.Group(), fist = new T.Group(),fingers=[];
   digits.name = 'Open titan fingers'; fist.name = 'Closed striking fist'; palm.add(digits, fist);
   for (let finger = 0; finger < 4; finger++) {
@@ -629,6 +640,8 @@ function organicHand(arm, side, m) {
   organicSweep(digits, [thumb[3], [-side * .81, -1.85, 1.63], [-side * .51, -1.74, 1.81]], [.21, .12, .008], m.claw, 12);
   organicMuscle(fist, [-side * .96, -.2, .32], [-side * .57, -.78, .95], .34, .31, m.skin);
   const marker = new T.Object3D(); marker.name = 'Physical striking knuckle'; marker.position.set(0, -1.33, .29); palm.add(marker);
+  const tissue=new Set([m.skin,m.warm,m.ridge]),surface=anatomicalSkin('arm'),v=new T.Vector3(),matrix=new T.Matrix4();palm.updateWorldMatrix(true,true);const inverse=palm.matrixWorld.clone().invert();
+  palm.traverse(part=>{if(!part.isMesh||!tissue.has(part.material))return;part.material=surface;if(part.geometry.userData.shared){part.geometry=part.geometry.clone();part.geometry.userData.shared=false;}matrix.multiplyMatrices(inverse,part.matrixWorld);const p=part.geometry.attributes.position,uv=part.geometry.attributes.uv;for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(matrix);uv.setXY(i,((Math.atan2(v.x,v.z)+Math.PI*2)%(Math.PI*2))/(Math.PI*2),0);}});
   batchStatic(digits); digits.userData.noBatch = true; batchStatic(fist); fist.userData.noBatch = true; fist.visible = false;
   batchStatic(palm); palm.userData.noBatch = true; return { palm, digits, fist, marker,fingers };
 }
@@ -642,7 +655,7 @@ function organicArm(rig, limbs, side, m, frame) {
     [side*1.82,-8.25,.44,1.36,1.38],[side*2.17,-10.4,.46,1.08,1.06],
     [side*2.2,-11.55,.5,.69,.78]],m.skin,(p,a,t)=>{
       const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),outer=Math.max(0,Math.sin(a)*side);
-      const deltoid=.32*formBell(t,.17,.15)-.18*formBell(t,.31+.06*outer,.036);
+      const deltoid=.32*formBell(t,.17,.15)-.34*formBell(t,.31+.06*outer,.050);
       p.x+=Math.sin(a)*deltoid;p.z+=Math.cos(a)*deltoid;
       p.z+=front*(.55*formBell(t,.47,.20)-.21*formBell(t,.70,.038));
       p.z-=back*.34*formBell(t,.39,.22);
@@ -651,12 +664,15 @@ function organicArm(rig, limbs, side, m, frame) {
       p.z-=front*.17*formBell(Math.sin(a),.57*side,.17)*formBell(t,.49,.28);
       p.x+=side*.28*outer*formBell(t,.22,.16);
       p.z-=back*.31*formBell(Math.abs(Math.sin(a)),.46,.25)*formBell(t,.45,.22);
+      p.z-=front*.30*formBell(Math.sin(a),side*.60,.18)*formBell(t,.47,.22);
+      p.x-=side*.20*outer*formBell(t,.61,.13);
     },'upperarm');
   const forearmStart = arm.children.length;
   const lowerSkin=organicLoft(arm,[[side*2.2,-9.92,.39,.94,.93],[side*2.2,-10.85,.39,1.18,1.20],
     [side*2.43,-13.2,.82,1.58,1.67],[side*2.47,-15.7,1.47,1.31,1.36],
     [side*2.25,-18.7,2.12,.93,.97],[side*2.13,-20.9,2.43,.74,.78],
-    [side*2.13,-21.8,2.50,.61,.62]],m.skin,(p,a,t)=>{
+    [side*2.13,-21.8,2.50,.71,.65],[side*2.13,-22.45,2.64,.91,.55],
+    [side*2.13,-23.20,2.73,.99,.39]],m.skin,(p,a,t)=>{
       const front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a));
       p.z-=back*.37*formBell(t,.10,.08);p.z-=front*.17*formBell(t,.12,.026);
       p.z+=.24*Math.cos(a*2)*Math.sin(t*Math.PI);
@@ -665,6 +681,7 @@ function organicArm(rig, limbs, side, m, frame) {
       p.z+=front*.32*pronator;
       p.z-=front*.12*formBell(Math.sin(a),-side*.42,.15)*formBell(t,.59,.26);
       p.x+=side*.15*formBell(t,.69,.23)*Math.sin(a*2);
+      p.z-=front*.25*formBell(Math.sin(a),side*.49,.13)*formBell(t,.52,.27);
     },'forearm');
   organicSweep(arm, [[side * 2.84, -12.1, -.07], [side * 3.80, -12.35, -.46],
     [side * 4.34, -13.05, -.65]], [.49, .29, .012], m.bone, 15);
@@ -693,6 +710,8 @@ function organicLeg(rig, limbs, side, m, frame) {
       p.z+=front*.38*formBell(Math.sin(a),-side*.56,.26)*formBell(t,.76,.13);
       p.x-=side*.23*front*formBell(t,.78,.10);
       p.z-=Math.max(0,-Math.cos(a))*.27*formBell(Math.abs(Math.sin(a)),.49,.24)*formBell(t,.40,.27);
+      p.z-=front*.26*formBell(Math.sin(a),side*.44,.11)*formBell(t,.48,.25);
+      p.x-=side*.20*Math.max(0,Math.sin(a)*side)*formBell(t,.57,.18);
     },'thigh');
   const lowerStart = leg.children.length;
   const lowerSkin=organicLoft(leg,[[side*.45,-10.32,.83,.98,1.02],[side*.45,-11.35,.74,1.26,1.18],
@@ -729,7 +748,7 @@ function organicLeg(rig, limbs, side, m, frame) {
       [tx, -24.98, front + 1.07]], [.32, .23, .009], m.claw, 16);
   }
   const footJoint = articulatedSection(leg, leg.children.slice(footStart), ankle, 'Titan ankle and planted sole');
-  const lowerChildren=leg.children.slice(lowerStart).filter(o=>o!==lowerSkin),skinGeometry=joinedSkin(upperSkin,lowerSkin,knee);
+  const lowerChildren=leg.children.slice(lowerStart).filter(o=>o!==lowerSkin),skinGeometry=joinedSkin(upperSkin,lowerSkin,knee,'leg');
   const lower = articulatedSection(leg,lowerChildren,knee,'Titan knee and shin');
   const vertices = []; let minimumY = Infinity;
   footJoint.traverse(o => {
@@ -803,8 +822,8 @@ export function animateFleshAnatomy(city,time,moving){
   const strike=strikeAge>=0&&strikeAge<1.3?Math.sin(Math.min(1,strikeAge/.7)*Math.PI)*Math.max(0,1-(strikeAge-.7)/.6):0;
   anatomy.head.rotation.set(-.024-(moving?.047*Math.sin(phase*2-.8):breath*.018)+afterStrike*.055-strike*.095,moving?-.047*Math.sin(phase-.30):Math.sin(time*.31)*.035,-city.rig.rotation.z*.74);
   anatomy.head.position.y=49.5+.08*breath-(moving?.15*Math.abs(Math.sin(phase-.40)):0);
-  anatomy.jaw.rotation.x=.018+breath*.023+Math.max(0,strike)*.13;
-  anatomy.mouth.scale.y=.085+breath*.015+Math.max(0,strike)*.12;
+  anatomy.face.morphTargetInfluences[0]=.12+breath*.16+Math.max(0,strike)*.69;
+  anatomy.mouth.scale.y=.059+breath*.015+Math.max(0,strike)*.095;
   const blinkPhase=((time+1.63)%6.7),blink=blinkPhase<.19?Math.sin(blinkPhase/.19*Math.PI)**2:0;
   for(const eye of anatomy.eyes){eye.globe.scale.y=.105*(1-blink*.94);eye.pupil.scale.y=.095*(1-blink*.94);eye.pupil.position.x=eye.side*1.26+Math.sin(time*.43)*.025;eye.lid.position.y=-blink*.105;}
   for(const limb of city.limbs){

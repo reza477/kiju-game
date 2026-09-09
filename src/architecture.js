@@ -9,6 +9,15 @@ const palettes = {
   airship: { wall: 0xe2d0a5, light: 0xf4e0b6, roof: 0x3e9b9b, trim: 0xcfad60, dark: 0x526868, accent: 0x3f8193, window: 0xf4ca80 },
 };
 const M = (kind, color) => getMaterial(kind, color);
+const dressedMaterials=new Map();
+function dressed(color){
+  if(!dressedMaterials.has(color)){
+    const material=M('plaster',color).clone();material.name=`Dressed architectural limestone ${color.toString(16)}`;
+    material.roughness=.86;material.normalScale.setScalar(.12);material.userData={...material.userData,shared:true,surfaceScale:1.8};
+    dressedMaterials.set(color,material);
+  }
+  return dressedMaterials.get(color);
+}
 const wallMaterial = (faction, color) => M(faction === 'crawler' ? 'brick' : faction === 'airship' ? 'plaster' : 'stone', color);
 
 function glazingMaterial(x, y, z, seed = 0) {
@@ -72,19 +81,19 @@ function archedPanel(group, width, height, x, y, z, material, pointed = false) {
 function window(group, x, y, z, w, h, p, ornate = false, pointed = false) {
   const pane = glazingMaterial(x, y, z);
   if (ornate) {
-    archedPanel(group, w + .13, h + .13, x, y - .07, z, M('stone', p.trim), pointed);
+    archedPanel(group, w + .13, h + .13, x, y - .07, z, dressed(p.trim), pointed);
     archedPanel(group, w, h, x, y, z + .035, pane, pointed);
   } else {
-    box(group, w + .1, h + .1, .065, M('stone', p.trim), x, y + h / 2, z);
+    box(group, w + .1, h + .1, .065, dressed(p.trim), x, y + h / 2, z);
     box(group, w, h, .033, pane, x, y + h / 2, z + .049);
   }
   if (w > .25) box(group, .035, h * .8, .035, M('wood', p.dark), x, y + h * .42, z + .071);
   // Thick projecting sills and narrow reveals cast actual small shadows. The
   // glazing sits behind their front edge rather than floating on the wall.
-  box(group,w+.15,.045,.16,M('stone',p.trim),x,y-.052,z+.045);
+  box(group,w+.15,.045,.16,dressed(p.trim),x,y-.052,z+.045);
   if(!ornate){
-    for(const side of[-1,1])box(group,.026,h+.036,.096,M('stone',p.trim),x+side*(w*.5+.018),y+h*.5,z+.045);
-    box(group,w+.096,.035,.106,M('stone',p.light),x,y+h+.037,z+.044);
+    for(const side of[-1,1])box(group,.026,h+.036,.096,dressed(p.trim),x+side*(w*.5+.018),y+h*.5,z+.045);
+    box(group,w+.096,.035,.106,dressed(p.light),x,y+h+.037,z+.044);
   }
   if(h>.31)box(group,w*.94,.019,.030,M('wood',p.dark),x,y+h*.46,z+.073);
 }
@@ -108,17 +117,17 @@ function facade(group, w, h, d, y, p, faction, columns = 3, floors = 3, rear = f
 }
 
 function cornice(group, w, d, y, p, x = 0, z = 0) {
-  box(group, w + .13, .085, d + .13, M('stone', p.trim), x, y, z);
-  box(group, w + .21, .065, d + .2, M('stone', p.light), x, y + .08, z);
+  box(group, w + .13, .085, d + .13, dressed(p.trim), x, y, z);
+  box(group, w + .21, .065, d + .2, dressed(p.light), x, y + .08, z);
 }
 
 function steps(group, x, z, width = .75, y = .16, p = palettes.crawler) {
-  for (let i = 0; i < 3; i++) box(group, width, .08 * (i + 1), .18, M('stone', p.trim), x, y + .04 * (i + 1), z - i * .15);
+  for (let i = 0; i < 3; i++) box(group, width, .08 * (i + 1), .18, dressed(p.trim), x, y + .04 * (i + 1), z - i * .15);
 }
 
 function chimney(group, x, y, z, height, p, width = .22) {
   box(group, width, height, width, M('brick', p.wall), x, y + height / 2, z);
-  box(group, width + .1, .095, width + .1, M('stone', p.trim), x, y + height, z);
+  box(group, width + .1, .095, width + .1, dressed(p.trim), x, y + height, z);
   box(group, width * .6, .025, width * .6, M('metal', 0x263638), x, y + height + .052, z);
   if (width >= .2) for (const side of [-1, 1]) {
     cylinder(group, width * .13, width * .18, .19, M('brick', 0x9c775b), x + side * width * .26, y + height + .16, z, 8);
@@ -151,7 +160,7 @@ function dome(group, radius, x, y, z, p, heightScale = 1) {
 
 function turret(group, x, z, height, p, faction, radius = .28) {
   cylinder(group, radius, radius * 1.14, height, wallMaterial(faction, p.wall), x, height / 2 + .18, z, faction === 'kaiju' ? 8 : 12);
-  cylinder(group, radius * 1.32, radius * 1.3, .14, M('stone', p.light), x, height - .15, z, 12);
+  cylinder(group, radius * 1.32, radius * 1.3, .14, dressed(p.light), x, height - .15, z, 12);
   cylinder(group, radius * 1.08, radius * 1.15, .09, M('gold', p.trim), x, height + .23, z, 12);
   if (faction === 'airship') dome(group, radius * 1.35, x, height + .3, z, p);
   else {
@@ -161,7 +170,7 @@ function turret(group, x, z, height, p, faction, radius = .28) {
 }
 
 function planter(group, x, z, p, size = .35) {
-  box(group, size, .18, size, M('stone', p.trim), x, .26, z);
+  box(group, size, .18, size, dressed(p.trim), x, .26, z);
   sphere(group, size * .59, M('foliage', 0x5d8b50), x, .48, z, 1, .88, 1);
 }
 
@@ -180,7 +189,7 @@ function leafyCrop(group,x,y,z,material,variation){
 }
 
 function entrance(group, x, z, y, p, faction, width = .48, height = .95) {
-  archedPanel(group, width + .22, height + .18, x, y, z, M('stone', p.light), faction === 'kaiju');
+  archedPanel(group, width + .22, height + .18, x, y, z, dressed(p.light), faction === 'kaiju');
   archedPanel(group, width, height, x, y + .04, z + .045, M('wood', p.dark), faction === 'kaiju');
   box(group, .018, height * .62, .015, M('gold', p.trim), x, y + height * .36, z + .086);
 }
@@ -195,22 +204,22 @@ function capital(group, level, faction, p) {
   group.add(glazing);
   entrance(group, 0, 1, .28, p, faction, .55, 1.08);
   steps(group, 0, 1.43, .95, .12, p);
-  for (const x of [-1.13, 1.13]) box(group, .13, h + .12, .18, M('stone', p.trim), x, h / 2 + .2, .96);
+  for (const x of [-1.13, 1.13]) box(group, .13, h + .12, .18, dressed(p.trim), x, h / 2 + .2, .96);
   if (faction === 'kaiju') {
     roof(group, 2.55, 1.65, 2.4, M('roof', p.roof), 0, h + .24, -.18);
     for (const x of [-.94, .94]) {
       turret(group, x, .57, h + 1.2, p, faction, .25);
       for (const z of [-.92, -.4]) {
-        box(group, .16, h - .2, .18, M('stone', p.trim), x * 1.23, h / 2 + .15, z);
-        beam(group, [x * 1.28, .9, z], [x * .8, h + .65, z], .052, M('stone', p.light));
+        box(group, .16, h - .2, .18, dressed(p.trim), x * 1.23, h / 2 + .15, z);
+        beam(group, [x * 1.28, .9, z], [x * .8, h + .65, z], .052, dressed(p.light));
       }
     }
     // A wheel rose window with stone spokes reads as a cathedral from afar.
-    const ring = addMesh(group, new T.TorusGeometry(.32, .049, 5, 20), M('stone', p.light), 0, h + .54, 1.055);
+    const ring = addMesh(group, new T.TorusGeometry(.32, .049, 5, 20), dressed(p.light), 0, h + .54, 1.055);
     const stained = cylinder(group, .286, .286, .03, M('glass', 0x819fae), 0, h + .54, 1.055, 20);
     stained.rotation.x = Math.PI / 2;
     for (let i = 0; i < 6; i++) {
-      const spoke = box(group, .024, .6, .034, M('stone', p.trim), 0, h + .54, 1.084);
+      const spoke = box(group, .024, .6, .034, dressed(p.trim), 0, h + .54, 1.084);
       spoke.rotation.z = i * Math.PI / 6;
     }
     ring.userData.architecturalDetail = true;
@@ -220,13 +229,13 @@ function capital(group, level, faction, p) {
     roof(group, 2.55, .86, 2.38, M('roof', p.roof), 0, h + .22, -.18, 'mansard');
     const th = h + 3.35;
     box(group, .93, 3.6, .95, wallMaterial(faction, p.wall), 0, th - 1.55, -.15);
-    for (const x of [-.43, .43]) box(group, .1, 3.64, .09, M('stone', p.light), x, th - 1.55, .34);
+    for (const x of [-.43, .43]) box(group, .1, 3.64, .09, dressed(p.light), x, th - 1.55, .34);
     cornice(group, .98, 1.02, th, p, 0, -.15);
-    box(group, 1.18, .2, 1.2, M('stone', p.light), 0, th + .23, -.15);
+    box(group, 1.18, .2, 1.2, dressed(p.light), 0, th + .23, -.15);
     roof(group, 1.24, .98, 1.27, M('roof', p.roof), 0, th + .34, -.15);
     for(const sx of[-1,1])for(const sz of[-1,1]){
-      box(group,.105,2.93,.11,M('stone',p.trim),sx*.46,th-1.29,-.15+sz*.47);
-      cylinder(group,.095,.15,.52,M('stone',p.light),sx*.50,th+.60,-.15+sz*.52,8);
+      box(group,.105,2.93,.11,dressed(p.trim),sx*.46,th-1.29,-.15+sz*.47);
+      cylinder(group,.095,.15,.52,dressed(p.light),sx*.50,th+.60,-.15+sz*.52,8);
       cylinder(group,0,.14,.44,M('roof',p.roof),sx*.50,th+1.07,-.15+sz*.52,8);
     }
     for (const angle of [0, Math.PI / 2, Math.PI]) {
@@ -247,14 +256,14 @@ function capital(group, level, faction, p) {
     dome(group, .95, 0, h + .74, -.15, p);
     for(const side of[-1,1]){
       const porch=new T.Group();porch.rotation.y=side*Math.PI/2;porch.position.set(side*1.20,0,-.15);group.add(porch);
-      for(const z of[-.72,0,.72]){cylinder(porch,.045,.075,.88,M('stone',p.light),z,h+.55,.06,10);archedPanel(porch,.49,.51,z,h+.38,.075,M('glass',0x507878),true);}
+      for(const z of[-.72,0,.72]){cylinder(porch,.045,.075,.88,dressed(p.light),z,h+.55,.06,10);archedPanel(porch,.49,.51,z,h+.38,.075,M('glass',0x507878),true);}
       box(porch,2.12,.09,.28,M('gold',p.trim),0,h+1.08,.07);
     }
     for (const x of [-1.06, 1.06]) turret(group, x, -.88, h + 1.9, p, faction, .18);
     for (const x of [-.86, -.43, .43, .86]) {
-      cylinder(group, .055, .075, 1.13, M('stone', p.light), x, .86, 1.13, 10);
+      cylinder(group, .055, .075, 1.13, dressed(p.light), x, .86, 1.13, 10);
     }
-    box(group, 2.2, .17, .44, M('stone', p.trim), 0, 1.51, 1.08);
+    box(group, 2.2, .17, .44, dressed(p.trim), 0, 1.51, 1.08);
     for (const x of [-.64, 0, .64]) archedPanel(group, .43, .58, x, 1.62, 1.01, glazingMaterial(x, 1.62, 1.01));
     for (const x of [-1, 1]) planter(group, x, 1.25, p, .27);
   }
@@ -293,7 +302,7 @@ function housing(group, level, faction, p) {
       }
       local.add(side);
     }
-    box(local, w + .035, .058, d + .02, M('stone', p.trim), 0, 1.15, 0);
+    box(local, w + .035, .058, d + .02, dressed(p.trim), 0, 1.15, 0);
     if (faction === 'airship') {
       dome(local, w * .48, 0, h + .25, -.08, p);
       box(local, w + .05, .12, .36, M('gold', p.trim), 0, 1.23, d / 2 + .1);
@@ -307,10 +316,10 @@ function housing(group, level, faction, p) {
         // A faceted oriel gives the terraced street real depth, tied back to
         // its brick wall by a stone corbel rather than flat window decals.
         const bay=new T.Group();bay.position.set(0,1.31,d/2+.07);local.add(bay);
-        cylinder(bay,.27,.19,.17,M('stone',p.trim),0,-.01,.08,5);
+        cylinder(bay,.27,.19,.17,dressed(p.trim),0,-.01,.08,5);
         box(bay,.47,.49,.23,M('wood',p.dark),0,.28,.07);
         window(bay,0,.08,.202,.34,.38,p);
-        box(bay,.57,.075,.34,M('stone',p.trim),0,.58,.08);
+        box(bay,.57,.075,.34,dressed(p.trim),0,.58,.08);
       }
     }
     entrance(local, 0, d / 2 + .075, .23, p, faction, .23, .62);
@@ -322,7 +331,7 @@ function housing(group, level, faction, p) {
     }
     if (faction === 'airship') {
       const balconyZ = d / 2 + .21;
-      box(local, w + .07, .1, .37, M('stone', p.light), 0, 1.45, balconyZ);
+      box(local, w + .07, .1, .37, dressed(p.light), 0, 1.45, balconyZ);
       box(local, w, .045, .045, M('gold', p.trim), 0, 1.79, balconyZ + .17);
       for (const side of [-1, 0, 1]) box(local, .035, .31, .035, M('gold', p.trim), side * w * .44, 1.62, balconyZ + .17);
     }
@@ -345,7 +354,7 @@ function farm(group, level, faction, p) {
   }
   const greenhouse = new T.Group();
   greenhouse.position.set(-.42, 0, -.91);
-  box(greenhouse, 1.48, .17, .88, M('stone', p.trim), 0, .31, 0);
+  box(greenhouse, 1.48, .17, .88, dressed(p.trim), 0, .31, 0);
   box(greenhouse, 1.32, .72, .78, M('glass', 0x84bbc0), 0, .71, 0);
   roof(greenhouse, 1.47, .47, .91, M('glass', 0xa8d4d0), 0, 1.06, 0);
   for (const x of [-.69, -.23, .23, .69]) {
@@ -360,7 +369,7 @@ function farm(group, level, faction, p) {
   cylinder(group, .29, .31, .75, M('metal', p.roof), .85, .64, -.88, 16);
   cylinder(group, .33, .33, .065, M('metal', p.trim), .85, 1.04, -.88, 16);
   beam(group, [.84, .72, -.52], [.84, .5, .5], .034, M('metal', p.dark));
-  box(group, 2.4, .05, .12, M('stone', p.trim), 0, .22, 1.29);
+  box(group, 2.4, .05, .12, dressed(p.trim), 0, .22, 1.29);
   if (level > 1) for (const x of [-1.12, 1.12]) {
     box(group, .07, 1.1, .07, M('wood', 0x92744b), x, .75, .48);
     beam(group, [x, 1.24, -.16], [x, 1.24, 1.1], .04, M('wood', 0x92744b));
@@ -379,7 +388,7 @@ function workshop(group, level, faction, p, foundry = false) {
     for (const [x, z, height] of [[.87, -.62, 3.6], [.85, .1, 2.8]]) {
       cylinder(group, .14, .23, height, M('brick', 0x815c43), x, .18 + height / 2, z, 12);
       for (let y = .58; y < height; y += .66) cylinder(group, .205 - y * .011, .205 - y * .011, .06, M('metal', p.dark), x, y, z, 12);
-      cylinder(group, .23, .25, .14, M('stone', p.trim), x, height + .18, z, 12);
+      cylinder(group, .23, .25, .14, dressed(p.trim), x, height + .18, z, 12);
       cylinder(group, .13, .13, .02, M('metal', 0x232e2d), x, height + .258, z, 12);
       const marker = new T.Object3D();
       marker.position.set(x, height + .3, z);
@@ -453,14 +462,14 @@ function armory(group, level, faction, p) {
   cornice(group, 2.2, 2.17, h + .17, p, 0, -.08);
   box(group, 2.2, .11, 2.16, M('roof', p.roof), 0, h + .3, -.08);
   for (const side of [-1, 1]) {
-    box(group, .2, h + .22, 2.3, M('stone', p.trim), side * 1.04, h / 2 + .2, -.08);
-    for (let z = -.97; z <= 1; z += .42) box(group, .26, .4, .21, M('stone', p.light), side * 1.06, h + .55, z);
+    box(group, .2, h + .22, 2.3, dressed(p.trim), side * 1.04, h / 2 + .2, -.08);
+    for (let z = -.97; z <= 1; z += .42) box(group, .26, .4, .21, dressed(p.light), side * 1.06, h + .55, z);
   }
-  for (const x of [-.82, -.42, 0, .42, .82]) box(group, .22, .4, .23, M('stone', p.light), x, h + .55, -1.04);
+  for (const x of [-.82, -.42, 0, .42, .82]) box(group, .22, .4, .23, dressed(p.light), x, h + .55, -1.04);
   entrance(group, 0, 1.04, .2, p, faction, .81, 1.32);
   for (const x of [-.78, .78]) {
     window(group, x, .79, 1.04, .14, .74, p, faction === 'kaiju', faction === 'kaiju');
-    box(group, .3, .08, .32, M('stone', p.light), x, .58, 1.09);
+    box(group, .3, .08, .32, dressed(p.light), x, .58, 1.09);
   }
   if (faction === 'airship') {
     dome(group, .57, 0, h + .38, -.19, p);
@@ -514,7 +523,7 @@ export function createDistrict(type, level = 1, faction = 'kaiju') {
   const p = palettes[faction] || palettes.kaiju;
   group.name = `${faction}-${type}-district`;
   box(group, 2.62, .18, 2.98, M('pavement', faction === 'airship' ? 0xc2b894 : 0xaaa796), 0, .09, 0);
-  box(group, 2.67, .045, 3.02, M('stone', p.light), 0, .185, 0);
+  box(group, 2.67, .045, 3.02, dressed(p.light), 0, .185, 0);
   if (type === 'keep') capital(group, level, faction, p);
   else if (type === 'housing') housing(group, level, faction, p);
   else if (type === 'farm') farm(group, level, faction, p);
@@ -535,14 +544,14 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
   heightScale=heightScale===.5?.5:1;
   const p={...palettes.kaiju,wall:0x798180,light:0xb2b4a5,roof:0x64484c,trim:0x939c96,dark:0x303842};
   const ceiling=Math.max(2.9,height/heightScale-.38),wallTop=ceiling-.34;
-  const stone=M('stone',p.wall),trim=M('stone',p.trim),dark=M('metal',p.dark),wood=M('wood',0x77624e);
+  const stone=M('stone',p.wall),trim=dressed(p.trim),dark=M('metal',p.dark),wood=M('wood',0x77624e);
   box(group,3.30,.18,3.18,M('pavement',0x878b81),0,.09,0);
   box(group,3.37,.045,3.24,trim,0,.185,0);
   group.userData.verticalDistrict={type,level,storeyHeight:height,ceiling:ceiling*heightScale,heightScale};
   const compact=heightScale<1;
   const compactEntrance=(x,z,width)=>{
     const doorway=new T.Group();doorway.name='Compact full-height doorway';doorway.position.set(x,.08/heightScale,z);doorway.scale.y=1/heightScale;group.add(doorway);
-    const frame=archedPanel(doorway,width+.16,1.47,0,0,0,M('stone',p.light),true);frame.name='Compact doorway surround';
+    const frame=archedPanel(doorway,width+.16,1.47,0,0,0,dressed(p.light),true);frame.name='Compact doorway surround';
     const door=archedPanel(doorway,width,1.40,0,.025,.040,M('wood',p.dark),true);door.name='Compact doorway opening';
     box(doorway,.018,.86,.015,M('gold',p.trim),0,.55,.082);
   };
@@ -662,9 +671,9 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
     g.rotation.y = angle;
     const h = 1.55 + i % 3 * .25;
     const wall = new T.Color(p.wall).offsetHSL(0, 0, (i % 3 - 1) * .055).getHex();
-    box(g, 1.65, .18, 1.46, M('stone', p.trim), 0, .02, 0);
+    box(g, 1.65, .18, 1.46, dressed(p.trim), 0, .02, 0);
     box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
-    box(g, 1.58, .12, 1.3, M('stone', p.light), 0, h + .13, -.08);
+    box(g, 1.58, .12, 1.3, dressed(p.light), 0, h + .13, -.08);
     if (faction === 'airship') {
       dome(g, .43, 0, h + .18, -.08, p, .8);
       // A projecting screened upper chamber and deep porch shade distinguish
@@ -674,12 +683,12 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
         archedPanel(g,.34,.48,xx,h-.55,.757,M('glass',0x83a19e),true);
         for(const dx of[-.07,.07])box(g,.017,.34,.035,M('gold',p.trim),xx+dx,h-.34,.805);
       }
-      box(g,1.65,.10,.51,M('stone',p.light),0,h-.70,.58);
+      box(g,1.65,.10,.51,dressed(p.light),0,h-.70,.58);
       for(const side of[-1,1])beam(g,[side*.57,h-1.12,.51],[side*.57,h-.75,.81],.041,M('gold',p.trim));
     }
     else roof(g, 1.63, faction === 'kaiju' ? .8 : .43, 1.35, M('roof', p.roof), 0, h + .2, -.08, faction === 'crawler' ? 'mansard' : 'gable');
     if(faction==='crawler'){
-      for(const side of[-1,1])for(let row=0;row<4;row++)box(g,.19,.15,.16,M('stone',p.trim),side*.665,.24+row*(h-.20)/4,.46);
+      for(const side of[-1,1])for(let row=0;row<4;row++)box(g,.19,.15,.16,dressed(p.trim),side*.665,.24+row*(h-.20)/4,.46);
       if(i%4===0){
         box(g,.77,.68,.63,wallMaterial(faction,p.wall),0,h+.42,.28);
         roof(g,.96,.63,.77,M('roof',p.roof),0,h+.75,.28);
@@ -688,7 +697,7 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
     }
     for (const xx of [-.46, 0, .46]) {
       box(g, .22, .35, .035, glazingMaterial(xx, h - .29, .509, i), xx, h - .29, .509);
-      box(g, .26, .05, .07, M('stone', p.trim), xx, h - .49, .52);
+      box(g, .26, .05, .07, dressed(p.trim), xx, h - .49, .52);
     }
     box(g, .25, .66, .045, M('wood', p.dark), 0, .49, .51);
     box(g, 1.08, .075, .4, M('fabric', i % 2 ? p.accent : 0xb99965), 0, 1.0, .68).rotation.x = -.13;
@@ -702,14 +711,22 @@ export function createVacantPlot(faction = 'kaiju', index = 0) {
   const group = new T.Group();
   const p = palettes[faction] || palettes.kaiju;
   group.name = 'buildable-plaza';
-  box(group, 2.64, .055, 3.05, M('pavement', faction === 'airship' ? 0xb8b299 : 0x868b79), 0, .035, 0);
-  box(group, 2.38, .028, 2.78, M('grass', index % 3 === 0 ? 0x8a9078 : 0x8f947d), 0, .077, 0);
+  // An unoccupied address is a useful paved court. Flush surfaces and subtle
+  // setting-out marks keep the build grid readable without a board of trays.
+  const paving=M('pavement',faction==='airship'?0xa6a899:0x7c8780),joint=M('metal',faction==='airship'?0x8f957f:0x576961);
+  box(group,2.64,.030,3.05,paving,0,.044,0);
+  for(const x of[-.66,.66])box(group,.018,.004,2.94,joint,x,.061,0);
+  for(const z of[-.74,.74])box(group,2.53,.004,.018,joint,0,.061,z);
   for (const side of [-1, 1]) for (const end of [-1, 1]) {
-    box(group, .35, .035, .04, M('stone', p.light), side * 1.1, .112, end * 1.39);
-    box(group, .04, .035, .34, M('stone', p.light), side * 1.27, .112, end * 1.24);
+    box(group,.25,.008,.025,M('gold',p.trim),side*1.12,.065,end*1.39);
+    box(group,.025,.008,.25,M('gold',p.trim),side*1.24,.065,end*1.27);
   }
-  box(group, .33, .023, .035, M('stone', p.trim), 0, .099, 0);
-  box(group, .035, .023, .33, M('stone', p.trim), 0, .099, 0);
+  box(group,.27,.008,.025,M('gold',p.trim),0,.065,0);
+  box(group,.025,.008,.27,M('gold',p.trim),0,.065,0);
+  if(index%4===1){
+    box(group,.36,.009,.52,joint,.91,.064,-1.05);
+    for(let i=0;i<5;i++)box(group,.28,.006,.024,M('metal',p.dark),.91,.073,-1.23+i*.09);
+  }
   return group;
 }
 

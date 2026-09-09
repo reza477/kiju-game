@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial} from './materials.js';
 import {KAIJU_CENTER,kaijuWalkFloors} from './city-layout.js';
+import {updateCitizenBounds} from './citizen-visibility.js';
 
 const MAX_PEOPLE=48;
 const TAU=Math.PI*2;
@@ -35,18 +36,31 @@ function torsoGeometry(){
  for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),waist=bell(y,-.25,.20),width=.99-.20*waist-.10*bell(y,.50,.10),fold=.015*Math.sin(a*9+y*12)*(.45+.55*waist);p.setXYZ(i,p.getX(i)*width+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}
  g.computeVertexNormals();return g;
 }
+function headContour(x,y,z){const front=Math.max(0,z),jaw=1-.19*bell(y,-.58,.32),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);let zz=z;
+ if(z>0){zz+=.21*bell(y,-.48,.19)*bell(x,0,.49);zz-=.18*eye;zz+=.13*bell(y,.35,.12);zz+=.16*bell(Math.abs(x),.53,.20)*bell(y,-.14,.19);zz+=.31*bell(x,0,.14)*bell(y,-.02,.36);zz-=.10*bell(Math.abs(x),.25,.08)*bell(y,-.32,.16);}
+ return[x*jaw,y,zz];}
 function citizenHead(){const g=new T.SphereGeometry(1,32,26),p=g.attributes.position,colors=[];for(let i=0;i<p.count;i++){
- const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z),jaw=1-.22*bell(y,-.58,.32),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);let zz=z;
- if(z>0){zz+=.23*bell(y,-.48,.19)*bell(x,0,.49);zz-=.15*eye;zz+=.15*bell(y,.35,.10);zz+=.19*bell(Math.abs(x),.53,.20)*bell(y,-.14,.19);zz+=.13*bell(x,0,.15)*bell(y,.0,.40);zz-=.10*bell(Math.abs(x),.25,.08)*bell(y,-.32,.16);}
- p.setXYZ(i,x*jaw,y,zz);const shade=1-.21*eye*front-.08*bell(y,-.65,.13)*front,cheek=bell(Math.abs(x),.50,.26)*bell(y,-.18,.22)*front;colors.push(shade,shade-.065*cheek,shade-.09*cheek);
+ const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);
+ p.setXYZ(i,...headContour(x,y,z));const shade=1-.16*eye*front-.07*bell(y,-.65,.13)*front,cheek=bell(Math.abs(x),.50,.26)*bell(y,-.18,.22)*front;colors.push(shade,shade-.065*cheek,shade-.09*cheek);
  }g.setAttribute('color',new T.Float32BufferAttribute(colors,3));g.computeVertexNormals();return g;}
 function hairGeometry(){const g=new T.SphereGeometry(1,24,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.atan2(x,z),lock=.025*Math.cos(a*13+y*8);p.setXYZ(i,x*(1+lock),y+(z>0?.12*Math.sin(x*2):0),z*(1+lock));}g.computeVertexNormals();return g;}
-function garmentGeometry(tails=false){const g=new T.CylinderGeometry(.30,.5,1,32,16,true,Math.PI/3,tails?Math.PI*4/3:TAU),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),pleat=.024*Math.cos(a*16)*(1.15-y),bias=.016*Math.sin(a*5+y*5),hem=.018*bell(y,-.48,.035);p.setXYZ(i,p.getX(i)+Math.sin(a)*(pleat+bias+hem),y,p.getZ(i)+Math.cos(a)*(pleat+bias+hem));}g.computeVertexNormals();return thickCloth(g,.037);}
-function lapelGeometry(){const s=new T.Shape();s.moveTo(-.5,.5);s.lineTo(.38,.34);s.lineTo(.16,-.1);s.lineTo(-.35,-.5);s.lineTo(-.08,.16);s.closePath();const g=new T.ExtrudeGeometry(s,{depth:.14,bevelEnabled:true,bevelThickness:.025,bevelSize:.025,bevelSegments:1,steps:1});g.translate(0,0,-.04);return g;}
+function scalpGeometry(hood=false){
+ const positions=[],uv=[],indices=[],edges=40,rows=18;
+ for(let row=0;row<=rows;row++)for(let j=0;j<=edges;j++){
+  const a=j===edges?0:j/edges*TAU,front=Math.max(0,Math.cos(a)),v=row/rows,line=hood?-.62+.94*front**3:-.44+.88*front**3,theta=v*Math.acos(line),x=Math.sin(a)*Math.sin(theta),y=Math.cos(theta),z=Math.cos(a)*Math.sin(theta),p=headContour(x,y,z),volume=hood?1.22:1.035;
+  const lock=hood?.009*Math.cos(a*6+v*3):.010*Math.sin(a*9+v*2)*Math.sin(theta);positions.push(p[0]*(volume+lock),p[1]*volume,p[2]*(volume+lock));uv.push(j/edges,v);
+  if(row<rows&&j<edges){const i=row*(edges+1)+j;indices.push(i,i+edges+1,i+1,i+1,i+edges+1,i+edges+2);}
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return thickCloth(g,hood?.055:.025);
+}
+function garmentGeometry(tails=false){const g=new T.CylinderGeometry(.30,.5,1,32,16,true,Math.PI/3,tails?Math.PI*4/3:TAU),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),pleat=.014*Math.cos(a*9)*(1.15-y),bias=.008*Math.sin(a*4+y*5),hem=.011*bell(y,-.48,.045);p.setXYZ(i,p.getX(i)+Math.sin(a)*(pleat+bias+hem),y,p.getZ(i)+Math.cos(a)*(pleat+bias+hem));}g.computeVertexNormals();return thickCloth(g,.037);}
+function lapelGeometry(){const s=new T.Shape();s.moveTo(-.25,.5);s.quadraticCurveTo(.16,.36,.32,.22);s.lineTo(.12,.10);s.quadraticCurveTo(-.02,-.17,-.20,-.43);s.quadraticCurveTo(-.18,-.10,-.25,.5);s.closePath();const g=new T.ExtrudeGeometry(s,{depth:.07,bevelEnabled:true,bevelThickness:.018,bevelSize:.018,bevelSegments:2,curveSegments:5,steps:1});g.translate(0,0,-.02);return g;}
 function cuffGeometry(){return new T.LatheGeometry([[.38,-.5],[.5,-.5],[.51,-.35],[.50,.42],[.47,.5],[.37,.5],[.38,-.5]].map(p=>new T.Vector2(...p)),20);}
 function shoeGeometry(){const g=new T.SphereGeometry(1,18,12),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(z>0?1: .80),Math.max(-.70,y),z);}g.computeVertexNormals();return g;}
-function waistcoatGeometry(){const g=new T.BoxGeometry(1,1,1,8,10,1),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),x=p.getX(i);p.setXYZ(i,x*(.84+.14*Math.cos(y*4)),y,p.getZ(i)+.23*(1-4*x*x));}g.computeVertexNormals();return g;}
-function sleeveGeometry(){const g=new T.CylinderGeometry(.40,.46,1,16,8),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),fold=.025*Math.sin(y*26+a*2)*bell(Math.abs(y),.36,.15);p.setXYZ(i,p.getX(i)+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}g.computeVertexNormals();return g;}
+function waistcoatGeometry(){const positions=[],uv=[],indices=[],cols=16,rows=14;for(let row=0;row<=rows;row++)for(let j=0;j<=cols;j++){
+ const u=j/cols*2-1,v=row/rows,top=.5-.30*(1-Math.abs(u))**2,bottom=-.5+.11*Math.abs(u),y=top+(bottom-top)*v,width=.49-.10*bell(y,-.28,.22),x=u*width,z=.40-1.18*u*u+.045*Math.sin(y*12+u*3)*bell(y,-.22,.24);positions.push(x,y,z);uv.push(j/cols,v);if(row<rows&&j<cols){const i=row*(cols+1)+j;indices.push(i,i+cols+1,i+1,i+1,i+cols+1,i+cols+2);}
+ }const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return thickCloth(g,.16);}
+function sleeveGeometry(){const g=new T.CylinderGeometry(.40,.46,1,16,10),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),fold=.015*Math.sin(y*12+a*2)*bell(Math.abs(y),.33,.18),taper=1-.10*bell(y,-.40,.14);p.setXYZ(i,p.getX(i)*taper+Math.sin(a)*fold,y,p.getZ(i)*taper+Math.cos(a)*fold);}g.computeVertexNormals();return g;}
 function palmGeometry(){const g=new T.SphereGeometry(1,18,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),width=.83+.15*bell(y,-.18,.57);p.setXYZ(i,x*width,y,z*(.77+.12*bell(x,-.38,.36))+.06*bell(y,.02,.6)*Math.cos(x*9));}g.computeVertexNormals();return g;}
 function movingCloth(g,cape=false){
  // Native morph targets work in the lit, shadow and distance passes alike.
@@ -95,9 +109,10 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
   torso:[geometry('citizen-tailored-torso',torsoGeometry),cloth,1],shoulders:[sphere,cloth,2],
   vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,18],hands:[geometry('citizen-palm',palmGeometry),solid,2],heads:[geometry('citizen-head',citizenHead),faceMaterial(),1],
   shoes:[geometry('citizen-shoe',shoeGeometry),solid,2],hair:[geometry('citizen-hair',hairGeometry),solid,6],
+  scalp:[geometry('citizen-fitted-scalp',()=>scalpGeometry()),solid,1],hoods:[geometry('citizen-fitted-hood',()=>scalpGeometry(true)),cloth,1],
   skirt:[geometry('citizen-skirt',()=>movingCloth(garmentGeometry())),cloth,1],
   tails:[geometry('citizen-coattails',()=>movingCloth(garmentGeometry(true))),cloth,1],
-  cape:[geometry('citizen-cape',()=>movingCloth(capeGeometry(),true)),cloth,1],collar:[cylinder,cloth,1],
+  cape:[geometry('citizen-cape',()=>movingCloth(capeGeometry(),true)),cloth,1],collar:[cylinder,cloth,2],
   headwear:[cylinder,cloth,3],brim:[cylinder,cloth,1],
   details:[geometry('citizen-detail',()=>new T.SphereGeometry(1,10,8)),solid,40],trim:[cube,cloth,36],bags:[cube,cloth,4],lapels:[geometry('citizen-folded-lapel',lapelGeometry),cloth,2],cuffs:[geometry('citizen-lined-cuff',cuffGeometry),cloth,2],braid:[geometry('citizen-braided-trim',braidGeometry),getMaterial('fabric',0xffffff,{roughness:.71}),4]
  };
@@ -105,7 +120,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  for(const [name,[shape,material,perPerson]]of Object.entries(specs)){
   const capacity=MAX_PEOPLE*perPerson,mesh=new T.InstancedMesh(shape,material,capacity);
   if(shape.userData.movingCloth)mesh.setMorphAt(0,{morphTargetInfluences:[0,0]});
-  mesh.name=`citizens-${name}`;mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.userData.noBatch=true;
+  mesh.name=`citizens-${name}`;mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=true;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.userData.noBatch=true;
   // Preallocate instance colors once. Their values are only resent when a slot changes.
   mesh.instanceColor=new T.InstancedBufferAttribute(new Float32Array(capacity*3),3);mesh.instanceColor.setUsage(T.DynamicDrawUsage);
   group.add(mesh);instances[name]=mesh;buckets[name]={mesh,capacity,count:0,colors:new Int32Array(capacity).fill(-1),colorsChanged:false};
@@ -294,8 +309,8 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(p.vest)put('vest',0,.532+bob,.070,.129,.172,.014,p.accent);
   put('skin',0,.660,0,.033,.036,.031,p.skinTone);
   put('heads',0,.731+bob,.006,.060,.074,.057,p.skinTone);
-  put('skin',0,.727+bob,.066,.009,.023,.010,p.skinTone);
-  put('skin',0,.715+bob,.073,.012,.010,.013,p.skinTone);
+  put('skin',0,.724+bob,.067,.0065,.016,.0075,p.skinTone);
+  put('skin',0,.715+bob,.074,.009,.008,.009,p.skinTone);
   const blinkPhase=((time+p.phase*.61)%(4.1+i%5*.37)),blink=blinkPhase<.17?Math.sin(blinkPhase/.17*Math.PI)**2:0;
   const gaze=partner>=0?Math.sin(time*.71+p.phase)*.0017:reading||working?.0003:Math.sin(time*.44+p.phase)*.0011;
   const speech=partner>=0?Math.max(0,Math.sin(time*8.7+p.phase))*.0017:0;
@@ -312,12 +327,11 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   put('details',0,.699+bob+speech*.3,.063,.014,.0027,.0035,0x855e52);
   put('details',0,.695+bob-speech,.063,.012,.0028,.004,0xbf8e78);
   put('details',0,.697+bob,.063,.010,.0008+speech*.7,.003,0x503c37);
-  put('hair',0,.775,-.015,.064,.034,.066,p.hairTone);
-  for(const side of[-1,1])put('hair',side*.052,.757,-.011,.011,.022,.025,p.hairTone,0,0,-side*.18);
-  if(p.hairStyle===1)put('hair',0,.749,-.078,.034,.036,.031,p.hairTone);
-  else if(p.hairStyle===2||p.hairStyle===4)put('hair',0,.722,-.040,.065,p.hairStyle===4?.090:.055,.053,p.hairTone);
-  if(i%7===3)put('hair',0,.686,.048,.038,.021,.029,p.hairTone);
-  if(p.hat==='hood')put('hair',0,.738,-.044,.084,.092,.081,p.primary);
+  put('scalp',0,.731+bob,.006,.060,.074,.057,p.hairTone);
+  if(p.hairStyle===1)put('hair',0,.745,-.060,.028,.029,.023,p.hairTone);
+  else if(p.hairStyle===2||p.hairStyle===4)put('hair',0,.718,-.052,.043,p.hairStyle===4?.072:.049,.025,p.hairTone);
+  if(i%7===3)put('hair',0,.687,.037,.030,.016,.025,p.hairTone);
+  if(p.hat==='hood')put('hoods',0,.731+bob,.003,.060,.074,.057,p.primary);
   for(let side=-1;side<=1;side+=2){
    const swing=gait*side,hip=side*(station?.061:.051),shoulder=side*.105;
    // Stance feet move backward at exactly the route speed. Only the returning
@@ -335,7 +349,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    const handZ=station?target.z:carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
    const hammerStroke=.5+.5*Math.sin(time*6.1+p.phase);
    const handY=station?target.y:carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
-   put('shoulders',shoulder,.605,0,.034,.042,.045,sleeve);
+   put('shoulders',shoulder,.602,0,.031,.036,.039,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    wrist.setFromUnitVectors(up,direction.set(side*.114-handX,.498-handY,elbowZ-handZ).normalize());
    handPosition.set(0,.030,0).applyQuaternion(wrist);segment(side*.114,.498,elbowZ,handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
@@ -353,15 +367,16 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(p.skirt)put('skirt',0,p.robe?.286:.284,0,p.robe?.255:.287,p.robe?.362:.345,.241,p.robe?p.primary:p.accent);
   if(p.tails)put('tails',0,citizens.faction==='crawler'&&p.style===4?.318:.278,-.012,.276,citizens.faction==='crawler'&&p.style===4?.244:.345,.246,p.primary,.015+gait*.018);
   if(p.cape)put('cape',0,p.style===7?.521:.416,-.076,.295,p.style===7?.22:.468,.32,p.style===4?p.accent:p.primary,.04+gait*.055);
-  if(p.collar)put('collar',0,.658,-.007,.112,.076,.105,p.primary);
-  put('trim',0,.411,.005,.174,.022,.123,p.trim);
+  if(p.collar)put('collar',0,.651,-.008,.098,.057,.091,p.primary);
+  put('collar',0,.411,.003,.177,.021,.122,p.primary);
+  put('trim',0,.411,.067,.028,.025,.010,p.trim);
   if(p.vest){
-   for(const side of [-1,1])put('lapels',side*.045,.591,.079,.060,.121,.062,citizens.faction==='crawler'?p.primary:p.accent,0,side<0?Math.PI:0,-side*.18);
+   for(const side of [-1,1])put('lapels',side*.038,.588,.076,.053,.107,.040,citizens.faction==='crawler'?p.primary:p.accent,0,side<0?Math.PI:0,-side*.12);
    for(let n=0;n<3;n++)put('details',0,.492+n*.032,.074,.004,.004,.004,p.trim);
   }
   // Seams, pocket flaps and the folded shirt collar describe garments at a
   // close street camera without adding a separate draw call for each person.
-  for(const side of[-1,1]){put('trim',side*.066,.479,.071,.046,.009,.011,p.primary,0,0,side*.06);put('trim',side*.027,.638,.031,.045,.034,.013,p.accent,0,0,side*.35);}
+  for(const side of[-1,1]){put('trim',side*.053,.479,.069,.034,.006,.007,p.primary,0,0,side*.06);put('trim',side*.022,.635,.030,.031,.023,.010,p.accent,0,0,side*.30);}
   if(working&&!station){
    put('bags',0,.443,.163,.202,.025,.109,0xa48a65);put('trim',-.06,.461,.167,.055,.006,.060,0x70757a);
   }else if(reading&&!station){
@@ -406,5 +421,6 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  citizens.group.userData.activityCounts=activities;
  citizens.group.userData.styleCounts=citizens.styleCounts;
  citizens.worldHeightRange=count?[Math.min(...citizens.data.slice(0,count).map(p=>.8*p.heightFactor)),Math.max(...citizens.data.slice(0,count).map(p=>.8*p.heightFactor))]:[0,0];
+ updateCitizenBounds(citizens);
  return citizens;
 }

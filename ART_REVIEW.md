@@ -2,7 +2,13 @@
 
 ## Full graphics upgrade — prototype 0.9
 
-This new cycle covers rendering, lighting, landscape, characters and citizens, carrier architecture, combat and presentation. All prior cycles below remain closed. The same fixed global rubric, independent screenshots, zero-error requirement and maximum of four rounds apply. The first builder attempt is verified in [graphics upgrade verification](GRAPHICS_UPGRADE_VERIFICATION.md); independent scoring is pending.
+This new cycle covers rendering, lighting, landscape, characters and citizens, carrier architecture, combat and presentation. All prior cycles below remain closed. The same fixed global rubric, independent screenshots, zero-error requirement and maximum of four rounds apply. Builder verification is in [graphics upgrade verification](GRAPHICS_UPGRADE_VERIFICATION.md).
+
+| Round | Builder revision | Independent review | Result |
+|---|---|---|---|
+| 1 | `74e97a5` | [Independent review](art-reviews/graphics-09-01.md) | **FAIL — 7.8/10** (weighted 7.775), one confirmed lantern cutaway defect, zero browser errors in 88 fresh views |
+
+Round 2 addresses the ranked terrain, flesh anatomy, castle hierarchy and close-resident findings, the lantern defect and rendering cost. No further independent score has been assigned yet.
 
 ## Cyborg castle height adjustment — prototype 0.8.1
 
