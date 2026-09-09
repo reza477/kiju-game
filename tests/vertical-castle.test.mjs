@@ -5,6 +5,7 @@ import {createVerticalLayout,VERTICAL_SLOT_ORDER} from '../src/vertical-city.js'
 import {verticalCastleDescriptors,verticalCastleSolids} from '../src/vertical-castle.js';
 
 function layout(count,level=1){const b=Array(20).fill(null);for(const[index,id]of VERTICAL_SLOT_ORDER.slice(0,count).entries())b[id]={type:['keep','housing','farm','sawmill','foundry','cannon'][index%6],level,remaining:0};return createVerticalLayout(b);}
+function routeSamples(f){return f.path.flatMap((a,i)=>{const b=f.path[(i+1)%f.path.length];return Array.from({length:9},(_,step)=>[a.x+(b.x-a.x)*step/9,a.z+(b.z-a.z)*step/9]);});}
 function rayHits(solids,from,to){
  const a=new T.Vector3(...from),b=new T.Vector3(...to),length=a.distanceTo(b),ray=new T.Ray(a,b.sub(a).normalize()),point=new T.Vector3(),hits=[];
  for(const s of solids)for(const triangle of s.triangles){const hit=ray.intersectTriangle(...triangle.map(v=>new T.Vector3(...v)),false,point);if(hit&&hit.distanceTo(a)<=length+1e-8)hits.push({id:s.id,distance:hit.distanceTo(a),point:hit.toArray()});}
@@ -19,7 +20,7 @@ test('every new Gothic storey raises the supported roof without expanding the pl
   assert.ok(Math.abs(max[1]-(34+l.height+8.97))<1e-8);
   for(const f of l.floors){
    // Samples follow the real human route, including all four supported corners.
-   for(const[x,z]of[[-3,-15.7],[0,-15.7],[3,-15.7],[3,-12],[3,-8.3],[0,-8.3],[-3,-8.3],[-3,-12]]){
+   for(const[x,z]of routeSamples(f)){
     const y=34+f.y+.109,hits=rayHits(solids,[x,y+.03,z],[x,y-.08,z]);assert.ok(hits.length,`Missing floor support on storey ${f.tier} at ${x},${z}`);
     assert.ok(Math.abs(hits[0].point[1]-y)<1e-8,`Citizen sole and top of promenade differ on storey ${f.tier}`);
    }
@@ -93,13 +94,24 @@ test('major chapters recess real masonry while every promenade retains conservat
  // A 0.55m local body envelope is deliberately wider than the citizens'
  // shoulders/capes after the kaiju's .55 world scale. Probe at four body heights
  // around the entire walking centreline, including corners and side spines.
- for(const tier of[4,5,7,8,12,15,16]){
+ for(const tier of[0,3,4,5,7,8,12,13,15,16,17,19]){
   const f=l.floors[tier],walls=solids.filter(s=>s.max[1]>=34+f.y+.25&&s.min[1]<=34+f.y+1.55);
-  for(const[x,z]of[[-3,-15.7],[0,-15.7],[3,-15.7],[3,-13.48],[3,-12],[3,-10.52],[3,-8.3],[0,-8.3],[-3,-8.3],[-3,-10.52],[-3,-12],[-3,-13.48]]){
+  for(const[x,z]of routeSamples(f)){
    for(const yOffset of[.25,.65,1.05,1.5])for(let side=0;side<16;side++){
     const angle=side*Math.PI/8,y=34+f.y+yOffset,hits=rayHits(walls,[x,y,z],[x+Math.sin(angle)*.55,y,z+Math.cos(angle)*.55]);
     assert.deepEqual(hits,[],`Body envelope clips masonry: tier${tier},${x},${z},height${yOffset},direction${side}`);
    }
   }
+ }
+});
+
+test('upper galleries narrow the real shell and supported route without moving earlier districts',()=>{
+ const a=layout(14),b=layout(20),d=verticalCastleDescriptors(b),outer=d.find(s=>s.id==='vertical:floor:19');
+ const xs=outer.vertices.map(v=>v[0]);assert.ok(Math.max(...xs)-Math.min(...xs)<8.8*.76,'The upper core needs a substantial change of silhouette');
+ for(const f of a.floors)assert.deepEqual(f.path,b.floors[f.tier].path,'Adding above must preserve every earlier derived route');
+ for(const f of b.floors){
+  assert.ok(f.path[1].x-f.path[0].x>=3.3+1.1+.04,'Natural room width and two conservative body envelopes remain available');
+  assert.ok(-12-f.path[0].z>=2.4495+.34+.55+.05,'Front circulation clears the unchanged full-size cannon muzzle and barrel radius');
+  if(f.type==='cannon')assert.ok(f.profile.pathX>=3.4&&f.profile.pathBack>=3.4,'Every battery gallery clears the complete turret sweep, including rear and side aim');
  }
 });

@@ -33,12 +33,23 @@ function capeGeometry(){
 }
 function torsoGeometry(){
  const g=new T.CylinderGeometry(.5,.5,1,24,12),p=g.attributes.position;
- for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),waist=bell(y,-.25,.20),width=.99-.20*waist-.10*bell(y,.50,.10),fold=.015*Math.sin(a*9+y*12)*(.45+.55*waist);p.setXYZ(i,p.getX(i)*width+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}
+ for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),waist=bell(y,-.25,.20),neck=1-.56*T.MathUtils.smoothstep(y,.30,.50),width=(.99-.20*waist-.10*bell(y,.50,.10))*neck,fold=.012*Math.sin(a*9+y*12)*(.45+.55*waist),front=Math.max(0,Math.cos(a));p.setXYZ(i,p.getX(i)*width+Math.sin(a)*fold*neck,y,p.getZ(i)*(1-.13*waist)*neck+Math.cos(a)*fold*neck+.020*front*bell(y,.19,.19)-.014*front*bell(Math.abs(Math.sin(a)),.56,.17)*bell(y,.24,.24));}
  g.computeVertexNormals();return g;
 }
-function headContour(x,y,z){const front=Math.max(0,z),jaw=1-.19*bell(y,-.58,.32),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);let zz=z;
- if(z>0){zz+=.21*bell(y,-.48,.19)*bell(x,0,.49);zz-=.18*eye;zz+=.13*bell(y,.35,.12);zz+=.16*bell(Math.abs(x),.53,.20)*bell(y,-.14,.19);zz+=.31*bell(x,0,.14)*bell(y,-.02,.36);zz-=.10*bell(Math.abs(x),.25,.08)*bell(y,-.32,.16);}
+function headContour(x,y,z){const front=Math.max(0,z),jaw=1-.13*bell(y,-.58,.24)-.06*bell(y,.32,.25),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);let zz=z;
+ if(z>0){
+  // Connected brow, cheekbone, muzzle and chin planes. The nose belongs to
+  // the face envelope, instead of two separate round beads on its front.
+  zz+=.22*bell(y,-.52,.17)*bell(x,0,.43);zz-=.21*eye;
+  zz+=.14*bell(y,.35,.10)*bell(x,0,.76);
+  zz+=.19*bell(Math.abs(x),.54,.21)*bell(y,-.13,.17);
+  zz+=.26*bell(x,0,.12)*bell(y,-.04,.34)+.18*bell(x,0,.19)*bell(y,-.23,.12);
+  zz-=.12*bell(Math.abs(x),.25,.08)*bell(y,-.32,.16);
+  zz-=.09*bell(Math.abs(x),.66,.20)*bell(y,-.42,.21);
+ }
  return[x*jaw,y,zz];}
+function faceDepth(x,y){const nx=x/.060,ny=(y-.731)/.074,nz=Math.sqrt(Math.max(.001,1-nx*nx-ny*ny));return .006+headContour(nx,ny,nz)[2]*.057;}
+const FACE_SURFACE={eye:faceDepth(.022,.739),brow:faceDepth(.024,.751),upperLid:faceDepth(.022,.744),lowerLid:faceDepth(.022,.734),nostril:faceDepth(.007,.709),upperLip:faceDepth(0,.699),lowerLip:faceDepth(0,.695),mouth:faceDepth(0,.697)};
 function citizenHead(){const g=new T.SphereGeometry(1,32,26),p=g.attributes.position,colors=[];for(let i=0;i<p.count;i++){
  const x=p.getX(i),y=p.getY(i),z=p.getZ(i),front=Math.max(0,z),eye=bell(Math.abs(x),.38,.20)*bell(y,.10,.19);
  p.setXYZ(i,...headContour(x,y,z));const shade=1-.16*eye*front-.07*bell(y,-.65,.13)*front,cheek=bell(Math.abs(x),.50,.26)*bell(y,-.18,.22)*front;colors.push(shade,shade-.065*cheek,shade-.09*cheek);
@@ -61,7 +72,7 @@ function waistcoatGeometry(){const positions=[],uv=[],indices=[],cols=16,rows=14
  const u=j/cols*2-1,v=row/rows,top=.5-.30*(1-Math.abs(u))**2,bottom=-.5+.11*Math.abs(u),y=top+(bottom-top)*v,width=.49-.10*bell(y,-.28,.22),x=u*width,z=.40-1.18*u*u+.045*Math.sin(y*12+u*3)*bell(y,-.22,.24);positions.push(x,y,z);uv.push(j/cols,v);if(row<rows&&j<cols){const i=row*(cols+1)+j;indices.push(i,i+cols+1,i+1,i+1,i+cols+1,i+cols+2);}
  }const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return thickCloth(g,.16);}
 function sleeveGeometry(){const g=new T.CylinderGeometry(.40,.46,1,16,10),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),fold=.015*Math.sin(y*12+a*2)*bell(Math.abs(y),.33,.18),taper=1-.10*bell(y,-.40,.14);p.setXYZ(i,p.getX(i)*taper+Math.sin(a)*fold,y,p.getZ(i)*taper+Math.cos(a)*fold);}g.computeVertexNormals();return g;}
-function palmGeometry(){const g=new T.SphereGeometry(1,18,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),width=.83+.15*bell(y,-.18,.57);p.setXYZ(i,x*width,y,z*(.77+.12*bell(x,-.38,.36))+.06*bell(y,.02,.6)*Math.cos(x*9));}g.computeVertexNormals();return g;}
+function palmGeometry(){const g=new T.SphereGeometry(1,22,16),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),width=.78+.20*bell(y,-.20,.52),knuckle=bell(y,-.60,.16),dorsal=Math.max(0,-z);p.setXYZ(i,x*width,y,z*(.65+.17*bell(x,-.38,.36))+.045*bell(y,.02,.6)*Math.cos(x*9)+dorsal*.10*bell(y,.13,.54)-.045*knuckle*bell(Math.abs(x),.43,.17));}g.computeVertexNormals();return g;}
 function movingCloth(g,cape=false){
  // Native morph targets work in the lit, shadow and distance passes alike.
  // Every authored vertex retains its exact height, including the fixed collar
@@ -257,6 +268,10 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   // Turn the face and shoulders toward a task while leaving pelvis, legs and
   // planted shoe matrices on the authored route. Tools follow the same pose.
   if(y>.675&&(Math.abs(x)<.07||name==='headwear'||name==='brim'||name==='hair')){
+   // Adult head-to-body proportions retain the authored crown height while
+   // all face, hair and hat parts stay together as one proportioned volume.
+   part.position.x*=.90;part.position.z*=.90;part.position.y=.805+(part.position.y-.805)*.88;
+   part.scale.set(part.scale.x*.90,part.scale.y*.88,part.scale.z*.90);
    part.position.y-=.674;part.position.applyQuaternion(head);part.position.y+=.674;part.quaternion.premultiply(head);
   }
   if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='hands'||name==='limbs'))){
@@ -290,8 +305,11 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    if(closest){turn=Math.atan2(closest.x-route.x,closest.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
   }
   const torsoTurn=T.MathUtils.clamp(turn*.64,-1.35,1.35),headTurn=T.MathUtils.clamp(turn-torsoTurn,-1.15,1.15);
-  body.setFromEuler(angles.set(station?.19:working?.11:reading?.055:carrying?.035:route.walking?.025:0,torsoTurn-(route.walking?gait*.075:0),working&&!station?Math.sin(time*6.1+p.phase)*.016:route.walking?gait*.019:0));
-  head.setFromEuler(angles.set(working?.20:reading?.22:route.walking?.015+.015*Math.cos(stridePhase*2):.015,headTurn+(route.walking?gait*.055:Math.sin(time*.61+p.phase)*.035),partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
+  const resting=!route.walking&&!station&&!carrying&&!reading&&!working&&partner<0,pose=i%4,weightSide=i%2?1:-1;
+  const settle=resting?weightSide*(.031+.009*Math.sin(time*.72+p.phase)):partner>=0?weightSide*.021:0;
+  const taskLean=station?(gardening?.225:reading?.165:.175)+Math.sin(time*(working?5.1:.8)+p.phase)*(working?.012:.007):working?.11:reading?.075:carrying?.045:route.walking?.025:resting?(pose===1?.040:pose===3?-.015:.012):.018;
+  body.setFromEuler(angles.set(taskLean,torsoTurn-(route.walking?gait*.075:resting?weightSide*.055:0),working&&!station?Math.sin(time*6.1+p.phase)*.016:route.walking?gait*.019:settle));
+  head.setFromEuler(angles.set(working?.20:reading?.24:route.walking?.015+.015*Math.cos(stridePhase*2):resting?(pose===1?.085:pose===3?-.065:.025):.015,headTurn+(route.walking?gait*.055:Math.sin(time*.61+p.phase)*.035)+(resting?weightSide*.085:0),partner>=0?Math.sin(time*1.2+p.phase)*.045:-settle*.70));
   const breeze=Math.sin(time*1.65+p.phase)*.38+Math.sin(time*2.7+p.phase*.73)*.16+(route.walking?Math.sin(stridePhase-.75)*.43:0);
   clothPose.morphTargetInfluences[0]=Math.max(0,-breeze);clothPose.morphTargetInfluences[1]=Math.max(0,breeze);
   const activityName=gardening?'gardening':carrying?'carrying':working?'working':reading?'reading':partner>=0?'conversation':route.walking?'walking':'resting';activities[activityName]++;citizens.routes.at(-1).activity=activityName;
@@ -307,26 +325,24 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   const sleeve=p.primary,shoe=citizens.faction==='airship'?0x68513f:0x292b31;
   put('torso',0,.52+bob,0,p.skirt?.188:.207,.245,.138,p.primary,route.walking?.018:0,0,gait*.012);
   if(p.vest)put('vest',0,.532+bob,.070,.129,.172,.014,p.accent);
-  put('skin',0,.660,0,.033,.036,.031,p.skinTone);
+  put('skin',0,.667,0,.031,.041,.029,p.skinTone);
   put('heads',0,.731+bob,.006,.060,.074,.057,p.skinTone);
-  put('skin',0,.724+bob,.067,.0065,.016,.0075,p.skinTone);
-  put('skin',0,.715+bob,.074,.009,.008,.009,p.skinTone);
   const blinkPhase=((time+p.phase*.61)%(4.1+i%5*.37)),blink=blinkPhase<.17?Math.sin(blinkPhase/.17*Math.PI)**2:0;
   const gaze=partner>=0?Math.sin(time*.71+p.phase)*.0017:reading||working?.0003:Math.sin(time*.44+p.phase)*.0011;
   const speech=partner>=0?Math.max(0,Math.sin(time*8.7+p.phase))*.0017:0;
   for(const side of [-1,1]){
    put('skin',side*.057,.734,.004,.011,.022,.012,p.skinTone);
-   put('details',side*.022,.739+bob,.059,.010,.0055*(1-blink*.96),.0038,0xdbd3b8);
-   put('details',side*.022+gaze,.739+bob,.062,.0048,.005*(1-blink*.96),.0028,i%3===0?0x4c6570:0x543a25);
-   put('details',side*.022+gaze,.739+bob,.064,.0024,.004*(1-blink*.96),.0017,0x202228);
-   put('details',side*.024,.751+bob,.059,.014,.0025,.003,p.hairTone,0,0,side*(.10+(working?.15:partner>=0?Math.sin(time*.8+p.phase)*.13:0)));
-   put('details',side*.022,.744+bob-blink*.0047,.061,.012,.0033,.0035,p.skinTone,0,0,side*.10);
-   put('details',side*.022,.734+bob,.061,.0105,.0022,.0034,p.skinTone,0,0,-side*.06);
-   put('details',side*.007,.709+bob,.079,.0035,.002,.002,0x715043);
+   put('details',side*.022,.739+bob,FACE_SURFACE.eye,.010,.0055*(1-blink*.96),.0038,0xdbd3b8);
+   put('details',side*.022+gaze,.739+bob,FACE_SURFACE.eye+.0027,.0048,.005*(1-blink*.96),.0028,i%3===0?0x4c6570:0x543a25);
+   put('details',side*.022+gaze,.739+bob,FACE_SURFACE.eye+.0042,.0024,.004*(1-blink*.96),.0017,0x202228);
+   put('details',side*.024,.751+bob,FACE_SURFACE.brow,.014,.0025,.003,p.hairTone,0,0,side*(.10+(working?.15:partner>=0?Math.sin(time*.8+p.phase)*.13:0)));
+   put('details',side*.022,.744+bob-blink*.0047,FACE_SURFACE.upperLid,.012,.0033,.0035,p.skinTone,0,0,side*.10);
+   put('details',side*.022,.734+bob,FACE_SURFACE.lowerLid,.0105,.0022,.0034,p.skinTone,0,0,-side*.06);
+   put('details',side*.007,.709+bob,FACE_SURFACE.nostril,.0035,.002,.002,0x715043);
   }
-  put('details',0,.699+bob+speech*.3,.063,.014,.0027,.0035,0x855e52);
-  put('details',0,.695+bob-speech,.063,.012,.0028,.004,0xbf8e78);
-  put('details',0,.697+bob,.063,.010,.0008+speech*.7,.003,0x503c37);
+  put('details',0,.699+bob+speech*.3,FACE_SURFACE.upperLip,.014,.0027,.0035,0x855e52);
+  put('details',0,.695+bob-speech,FACE_SURFACE.lowerLip,.012,.0028,.004,0xbf8e78);
+  put('details',0,.697+bob,FACE_SURFACE.mouth+.001,.010,.0008+speech*.7,.003,0x503c37);
   put('scalp',0,.731+bob,.006,.060,.074,.057,p.hairTone);
   if(p.hairStyle===1)put('hair',0,.745,-.060,.028,.029,.023,p.hairTone);
   else if(p.hairStyle===2||p.hairStyle===4)put('hair',0,.718,-.052,.043,p.hairStyle===4?.072:.049,.025,p.hairTone);
@@ -344,11 +360,12 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    put('shoes',hip,.021+lift,ankleZ+.030,.042,.030,.076,shoe);
    put('trim',hip,.043+lift,ankleZ+.065,.034,.009,.016,p.trim);
    const activity=p.id%4,gesture=route.errand&&(side===1||activity===0||activity===2),armSwing=-swing;
-   const target=side<0?leftTarget:rightTarget,handX=station?target.x:side*(carrying||reading||working?.096:.118);
-   const elbowZ=station?target.z*.52:carrying?.073:.014+armSwing*.044+(gesture?.045:0);
-   const handZ=station?target.z:carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
+   const hipRest=resting&&side===weightSide&&(pose===0||pose===3),foldedRest=resting&&pose===2;
+   const target=side<0?leftTarget:rightTarget,handX=station?target.x:hipRest?side*.112:foldedRest?side*.054:side*(carrying||reading||working?.096:.118);
+   const elbowZ=station?target.z*.52:carrying?.073:hipRest?-.018:foldedRest?.070:.014+armSwing*.044+(gesture?.045:0);
+   const handZ=station?target.z:hipRest?.010:foldedRest?.104:carrying?.137:reading?.147:working?.165:partner>=0?.104:.026+armSwing*.071+(gesture?(activity===1?.055:activity===2?.09:.035):0);
    const hammerStroke=.5+.5*Math.sin(time*6.1+p.phase);
-   const handY=station?target.y:carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
+   const handY=station?target.y:hipRest?.428:foldedRest?.458+side*.014:carrying?.465:working?(side===1?.555+hammerStroke*.11:.459):partner>=0?(side===1?.555+.045*Math.sin(time*2.3+p.phase):.448):gesture?(activity===0?.51:activity===1?.63+idle*.018:activity===2?.465:.42):.381;
    put('shoulders',shoulder,.602,0,.031,.036,.039,sleeve);
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    wrist.setFromUnitVectors(up,direction.set(side*.114-handX,.498-handY,elbowZ-handZ).normalize());

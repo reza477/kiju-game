@@ -7,8 +7,9 @@ This new cycle covers rendering, lighting, landscape, characters and citizens, c
 | Round | Builder revision | Independent review | Result |
 |---|---|---|---|
 | 1 | `74e97a5` | [Independent review](art-reviews/graphics-09-01.md) | **FAIL — 7.8/10** (weighted 7.775), one confirmed lantern cutaway defect, zero browser errors in 88 fresh views |
+| 2 | `45b0b9f` | [Independent review](art-reviews/graphics-09-02.md) | **FAIL — 7.9/10** (weighted 7.885), lantern corrected, zero confirmed new defects or browser errors in 70 fresh views |
 
-Round 2 addresses the ranked terrain, flesh anatomy, castle hierarchy and close-resident findings, the lantern defect and rendering cost. No further independent score has been assigned yet.
+Round 3 addresses the remaining castle silhouette, terrain transitions, flesh anatomy and carried weight, and close-resident poses. The independent score for that attempt is pending.
 
 ## Cyborg castle height adjustment — prototype 0.8.1
 

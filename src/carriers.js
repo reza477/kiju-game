@@ -207,19 +207,25 @@ function animateTitan(city,time,moving){
   const cycle=(city.gaitDistance??0)/16,phase=cycle*Math.PI*2;
   const sway=walking?Math.sin(phase):Math.sin(time*.65)*.12;
   const living=city.variant==='flesh';
-  const supportedLoad=living?(.024+Math.sin(time*.93)*.004)*(1-(strike?.weight??0)):0;
-  const reaction=hitReaction(city,time),lean=(walking?.063:.042)+supportedLoad-reaction*.052+(strike?.weight??0)*.135,roll=sway*(living?.030:.020)+reaction*.012-(strike?.weight??0)*.018;
+  // Occupied masonry drives the carried weight. Capacity reinforcement is not
+  // a load, and the compact castle contributes its actual half-height volume.
+  const heightScale=city.verticalLayout?.heightScale??1;
+  const masonry=(city.verticalLayout?.floors??[]).reduce((height,f)=>height+(f.underConstruction?(f.upgrading?f.height-.8*heightScale:0):f.height),0);
+  const load=T.MathUtils.clamp(masonry/76,0,1),freePose=1-(strike?.weight??0);
+  const supportedLoad=((living?.025:.005)+load*(living?.045:.020)+Math.sin(time*.93)*.003*(1-load*.5))*freePose;
+  const weightCatch=walking?Math.pow(.5+.5*Math.cos(phase*2),6)*(living?.33:.16)*(1+load*.45)*freePose:0;
+  const reaction=hitReaction(city,time),lean=(walking?.063:.042)+supportedLoad-reaction*.052+(strike?.weight??0)*.135,roll=sway*(living?.030:.020)*(1-load*.3)+reaction*.012-(strike?.weight??0)*.018;
   // The chest leans into the load around the hips. Hip transfer and upper-body
   // counter-roll share that pivot, rather than tilting the creature at its feet.
-  city.rig.position.set(sway*(living?.65:.50)+Math.sin(roll)*25.5,(walking?-1.75-Math.abs(Math.sin(phase))*.24:-1.35)+25.5*(1-Math.cos(lean)*Math.cos(roll))-(strike?strike.drop*strike.weight/city.scale:0),-Math.sin(lean)*Math.cos(roll)*25.5+(strike?strike.advance*strike.weight/city.scale:0));
+  city.rig.position.set(sway*(living?.78:.50)+Math.sin(roll)*25.5,(walking?-1.75-Math.abs(Math.sin(phase))*.14-weightCatch:-1.35)-load*.22*freePose+25.5*(1-Math.cos(lean)*Math.cos(roll))-(strike?strike.drop*strike.weight/city.scale:0),-Math.sin(lean)*Math.cos(roll)*25.5+(strike?strike.advance*strike.weight/city.scale:0));
   city.rig.rotation.set(lean,0,roll);
   city.root.updateMatrixWorld(true);
   const feet=[];
   for(const limb of city.limbs){
     if(!limb.leg){
       const stride=Math.sin(phase+limb.phase);
-      limb.obj.rotation.set((walking?stride*(living?.25:.20):Math.sin(time*.65+limb.phase)*.018)+reaction*.16,-sway*.025,limb.side*(.035+(walking?Math.abs(stride)*.020:0)+reaction*.07));
-      limb.lower.rotation.set(-.22-(walking?(1-stride)*.07:0),0,0);
+      limb.obj.rotation.set((walking?stride*(living?.25:.20)*(1-load*.25):Math.sin(time*.65+limb.phase)*.018)+reaction*.16,-sway*.025,limb.side*(.035+(walking?Math.abs(stride)*.020:0)+reaction*.07));
+      limb.lower.rotation.set(-.22-load*.10*freePose-(walking?(1-stride)*.07:0),0,0);
       const clenched=!!strike&&limb.side>0&&strike.age>.09&&strike.release<.85;
       limb.hand.digits.visible=!clenched;limb.hand.fist.visible=clenched;
       continue;

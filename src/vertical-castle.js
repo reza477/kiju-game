@@ -1,5 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import {getMaterial,batchStatic} from './materials.js';
+import {verticalStoreyProfile,verticalProfilePoint} from './vertical-city.js';
 
 // A single architectural plan is used by the renderer and ballistic model.
 // Vertices are in carrier-local space. Nothing in this module changes plot IDs.
@@ -217,6 +218,10 @@ export function verticalCastleDescriptors(layout,deckY=34){
    for(const direction of[-1,1])beam(`garden-trained-vine:${tier}:${side}:${direction}`,tier,'garden',[side*4.29,y+1.10,CENTRE_Z+direction*.9],[side*4.29,y+2.53,CENTRE_Z-direction*.7],.035);
   }
   if(f.type==='cannon')for(const side of[-1,1]){block(`gun-cheek-plate:${tier}:${side}`,tier,'metal',side*2.38,y+1.14,front-.27,.49,1.75,.09);for(const dz of[-.62,.62])block(`gun-cheek-rivet:${tier}:${side}:${dz}`,tier,'trim',side*2.38,y+1.14+dz,front-.294,.10,.10,.045);}
+  if(f.type==='cannon')for(const side of[-1,1]){
+   block(`battery-gallery-side:${tier}:${side}`,tier,'metal',side*4.25,y-.28,CENTRE_Z,.25,.25,10.05);
+   block(`battery-gallery-face:${tier}:${side}`,tier,'metal',0,y-.28,CENTRE_Z+side*5.05,8.72,.25,.24);
+  }
  }
  // Tall choir lights span groups of actual occupied storeys. Their masonry,
  // lead and glazing are clipped into the owning inspection shell at each real
@@ -265,21 +270,9 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // Unequal, uninterrupted masonry spines carry the composition vertically.
  // They are clipped only for inspection and end at actual occupied boundaries.
  const finished=floors.filter(f=>!(f.underConstruction&&!f.upgrading));
- for(const[spine,side,fraction,dz]of[[0,-1,.47,1.48],[1,1,.87,-1.48]]){
-  if(!finished.length)continue;const endIndex=Math.min(finished.length-1,Math.max(0,Math.ceil(finished.length*fraction)-1)),end=finished[endIndex],endY=deckY+end.y+end.height;
-  for(const f of finished.slice(0,endIndex+1)){
-   const tier=f.tier,y=deckY+f.y,lo=tier===0?deckY-3.1:y-.16,hi=Math.min(y+f.height,endY);
-   block(`buttress-spine:${spine}:${tier}`,tier,'foundation',side*4.01,(lo+hi)/2,CENTRE_Z+dz,.63,hi-lo,mature?2.42:1.27);
-   block(`buttress arris:${spine}:${tier}`,tier,'edge',side*4.31,(lo+hi)/2,CENTRE_Z+dz,.13,hi-lo,.24);
-   if(tier%2===0)block(`spine-arrowloop:${spine}:${tier}`,tier,'dark',side*4.338,y+1.6,CENTRE_Z+dz,.042,1.20,.19);
-  }
-  // Unequal projected shoulders finish within occupied chapters rather than
-  // both needles landing on another repeated chamber belt.
-  add(`spine-shoulder:${spine}`,end.tier,'edge',{vertices:rectVertices(side*4.01,CENTRE_Z+dz,.63,mature?2.66:1.64,endY-(spine?1.55:2.35),endY+.12,.57,mature?2.20:.76),faces:BOX_FACES});
-  roof(`buttress-pinnacle:${spine}`,end.tier,side*4.01,endY+.14,CENTRE_Z+dz,.60,mature?2.66:1.64,spine?2.15:3.35);
- }
  // This compound crown moves with the newest occupied storey. A narrow belfry,
  // offset octagonal tower and lower roofed chapel replace the single broad cap.
+ const actualCrownStart=out.length;
  const constructing=floors[topTier].underConstruction&&!floors[topTier].upgrading;
  if(constructing){
   const base=deckY+floors[topTier].y;
@@ -339,12 +332,11 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // Foundation, recessed lower cloister, great hall and increasingly slender
  // upper lantern form one composition. Upper chapters never alternate back
  // into another identical wide bead every four floors.
- const chapterDepth=tier=>tier>=13?.11:tier>=4&&tier<8?.11:1;
- const insetTier=tier=>chapterDepth(tier)<1;
- const recessedCoordinate=(value,centre,protectedHalf,factor)=>{const offset=value-centre,extent=Math.abs(offset);return extent<=protectedHalf?value:centre+Math.sign(offset)*(protectedHalf+(extent-protectedHalf)*factor);};
- for(const d of out){
-  const f=floors[d.tier],inset=insetTier(d.tier),wall=d.material==='wall';
-  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.56,chapterDepth(d.tier)),y,recessedCoordinate(z,CENTRE_Z,4.27,Math.max(.12,chapterDepth(d.tier)))]);
+ for(const [index,d]of out.entries()){
+  const f=floors[d.tier],profile=f.profile??verticalStoreyProfile(d.tier,f.type),inset=profile.halfWidth<4.4,wall=d.material==='wall';
+  // The broad compound crown keeps its original width over the narrower upper
+  // lantern; its flying supports stay inside the original backpack boundary.
+  if((inset||profile.kind==='battery')&&(index<actualCrownStart||d.id==='vertical:roof-slab'))d.vertices=d.vertices.map(([x,y,z])=>{const [xx,zz]=verticalProfilePoint(profile,x,z);return[xx,y,zz];});
   if(wall)d.material=inset?'recess':d.tier>=8?'chamber':d.tier<2?'foundation':'wall';
   if(d.id.startsWith('vertical:front-cheek:')||d.id.startsWith('vertical:apse-pier:')){
    if(['sawmill','foundry'].includes(f.type))d.material='industry';
@@ -353,6 +345,35 @@ export function verticalCastleDescriptors(layout,deckY=34){
    else if(f.type==='keep')d.material='chamber';
   }
   if(f.type==='farm'&&d.id.startsWith('vertical:choir-frame:'))d.material='copper';
+ }
+ // Projecting battery galleries retain room for a turret to sweep in every
+ // direction. Deep cantilever brackets visibly carry their wider floor back
+ // to the narrower occupied storey below, outside its public circulation.
+ for(const f of floors){
+  const previous=floors[f.tier-1];if(f.type!=='cannon'||!previous||previous.profile?.halfWidth>=4.4||f.underConstruction&&!f.upgrading)continue;
+  const top=deckY+f.y-.18,inner=(previous.profile??verticalStoreyProfile(previous.tier,previous.type)).halfWidth-.025;
+  for(const side of[-1,1])for(const z of[-2.2,2.2]){
+   const points=[[side*inner,top-2.15],[side*4.22,top-.10],[side*4.22,top],[side*inner,top]];
+   add(`battery-cantilever:${f.tier}:${side}:${z}`,f.tier,'foundation',prism(points,.46,[0,0,CENTRE_Z+z]));
+  }
+ }
+ // Two unequal, independent stair/buttress towers use the space outside the
+ // tapered core. Their profiles touch the lower masonry and widen only where
+ // the shared circulation contracts; they never invent another occupied floor.
+ for(const[spine,side,endTier,front]of[[0,-1,7,false],[1,1,16,true]]){
+  if(!finished.length)continue;
+  const endIndex=Math.min(finished.length-1,endTier),end=finished[endIndex],endY=deckY+end.y+end.height;
+  for(const f of finished.slice(0,endIndex+1)){
+   const profile=f.profile??verticalStoreyProfile(f.tier,f.type),narrow=profile.halfWidth<4.4,px=side*(narrow?3.60:3.91),pz=CENTRE_Z+(front?-1:1)*(narrow?4.25:4.67),r=narrow?.68:.32;
+   column(`buttress-turret:${spine}:${f.tier}`,f.tier,'foundation',px,pz,r,r,deckY+f.y-(f.tier===0?2.3:.08),deckY+f.y+f.height+.02,8);
+   if(narrow&&f.tier%4===2){
+    const paneX=px+side*(r-.015);block(`turret-arrowloop:${spine}:${f.tier}`,f.tier,'dark',paneX,deckY+f.y+1.48,pz,.032,.98,.18);
+   }
+  }
+  const px=side*3.80,pz=CENTRE_Z+(front?-4.55:4.55);
+  column(`spine-shoulder:${spine}`,end.tier,'edge',px,pz,.43,.55,endY-.54,endY+.22,8);
+  column(`buttress-pinnacle:${spine}`,end.tier,'roof',px,pz,.55,0,endY+.23,endY+(spine?4.5:6.5),8);
+  column(`buttress-finial:${spine}`,end.tier,'metal',px,pz,.035,.010,endY+(spine?4.5:6.5),endY+(spine?5.0:7.0),6);
  }
  // Broad steep shoulders join the main lower keep and great hall into the
  // recessed galleries above. They occupy only the strip outside the real

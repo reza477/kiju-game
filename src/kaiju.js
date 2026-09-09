@@ -405,7 +405,17 @@ function joinedSkin(upper,lower,pivot,region='arm'){
   // keeps an elbow crease and the kneecap/condyles in the continuous skin.
   for(const row of rows){const cx=row.slice(0,edges).reduce((n,p)=>n+p[0]/edges,0),cz=row.slice(0,edges).reduce((n,p)=>n+p[2]/edges,0),depth=Math.max(.1,...row.map(p=>Math.abs(p[2]-cz)));
     for(const p of row){const joint=formBell(p[1],pivot[1],.95),front=Math.max(0,(p[2]-cz)/depth),back=Math.max(0,(cz-p[2])/depth),rx=p[0]-cx;
-      if(region==='leg'){p[2]+=joint*(.15*front**5-.12*front*formBell(Math.abs(rx),.72,.25));p[0]-=rx*.08*joint*front;}
+      if(region==='leg'){
+        // A patella has a broad face, a narrow lower ligament and paired
+        // condyles. Carve their transitions into one weighted skin, rather
+        // than attaching a ball-shaped kneecap over the bend.
+        const patella=formBell(p[1],pivot[1]+.12,.69),ligament=formBell(p[1],pivot[1]-1.12,.66);
+        p[2]+=patella*(.27*front**3-.25*front*formBell(Math.abs(rx),.74,.20));
+        p[2]+=ligament*(.15*front**7-.12*front*formBell(Math.abs(rx),.40,.15));
+        p[2]-=.16*formBell(p[1],pivot[1]+.94,.22)*front;
+        p[0]-=rx*.115*joint*front;
+        p[0]+=Math.sign(rx)*.075*joint*formBell(Math.abs(rx),1.04,.25)*(1-front*.65);
+      }
       else{p[2]-=joint*(.24*front+.12*back**4);p[0]-=rx*.12*joint*front;}
     }
   }
@@ -622,13 +632,23 @@ function organicHand(arm, side, m) {
     const y = -1.02 + Math.abs(finger - 1.5) * .08;
     const points = [[fx, y, .10], [fx + side * .05, y - length, .31],
       [fx + side * .04, y - length * 1.65, .66], [fx - side * .02, y - length * 2.04, 1.00]];
-    organicSweep(digits,points,[.27,.25,.22,.18],m.skin,24);
-    for (let segment = 0; segment < 3; segment++)sphere(digits,.25-segment*.025,m.ridge,...points[segment],1,.68,.92);
+    const fingerSkin=organicSweep(digits,points,[.255,.25,.22,.18],m.skin,30);
+    // Flatten the dorsal plane and form each knuckle in the continuous
+    // envelope. The tips and maximum finger radius retain their old extent.
+    const digitCurve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p))),fp=fingerSkin.geometry.attributes.position;
+    for(let ring=0;ring<=30;ring++){
+      const t=ring/30,c=digitCurve.getPointAt(t),joint=1-.12*formBell(t,.16,.06)-.10*formBell(t,.55,.06);
+      for(let edge=0;edge<=24;edge++){
+        const index=ring*25+edge,dx=fp.getX(index)-c.x,dz=fp.getZ(index)-c.z;
+        fp.setXYZ(index,c.x+dx*joint,fp.getY(index),c.z+dz*(dz<0?.78:.92)*joint);
+      }
+    }
+    fingerSkin.geometry.computeVertexNormals();
     const tip = points[3];
     organicSweep(digits, [tip, [tip[0], tip[1] - .35, tip[2] + .26],
       [tip[0], tip[1] - .42, tip[2] + .72]], [.20, .13, .008], m.claw, 12);
     fingers.push(articulatedSection(digits,digits.children.slice(digitStart),points[0],`Living finger ${finger+1}`));
-    organicMuscle(palm, [fx * .6, .22, -.27], [fx, -.98, -.24], .075, .08, m.ridge);
+    organicMuscle(palm, [fx * .52, .22, -.27], [fx, -.98, -.24], .055, .045, m.ridge);
     organicMuscle(fist, [fx, -.69, .08], [fx, -1.11, .56], .31, .31, m.skin);
     organicMuscle(fist, [fx, -1.11, .56], [fx, -.53, .91], .28, .27, m.skin);
     sphere(fist, .29, m.ridge, fx, -1.10, .29, 1, 1, 1.24);
@@ -682,6 +702,13 @@ function organicArm(rig, limbs, side, m, frame) {
       p.z-=front*.12*formBell(Math.sin(a),-side*.42,.15)*formBell(t,.59,.26);
       p.x+=side*.15*formBell(t,.69,.23)*Math.sin(a*2);
       p.z-=front*.25*formBell(Math.sin(a),side*.49,.13)*formBell(t,.52,.27);
+      // Paired wrist tendons enter a flatter, fan-shaped palm. These are
+      // recessed channels and planes inside the existing hand envelope.
+      const wristBand=formBell(t,.78,.105),palmBand=formBell(t,.925,.075),across=Math.sin(a);
+      p.z-=back*(.20*wristBand+.13*palmBand);
+      p.z-=front*.18*wristBand*(formBell(across,-.32,.13)+formBell(across,.34,.13));
+      p.z-=back*.11*palmBand*(formBell(across,-.55,.13)+formBell(across,0,.13)+formBell(across,.55,.13));
+      p.x-=Math.sin(a)*.095*wristBand;
     },'forearm');
   organicSweep(arm, [[side * 2.84, -12.1, -.07], [side * 3.80, -12.35, -.46],
     [side * 4.34, -13.05, -.65]], [.49, .29, .012], m.bone, 15);
@@ -725,6 +752,10 @@ function organicLeg(rig, limbs, side, m, frame) {
       p.x+=Math.sin(a)*(.14*formBell(t,.46,.2)+.13*formBell(t,.88,.048));
       p.z-=back*.37*(formBell(Math.sin(a),side*.40,.30)*formBell(t,.36,.17)+.75*formBell(Math.sin(a),-side*.40,.30)*formBell(t,.40,.18));
       p.z+=front*.13*formBell(Math.sin(a),-side*.1,.15)*formBell(t,.49,.25);
+      const shin=formBell(t,.51,.30),ankleBand=formBell(t,.86,.085);
+      p.z-=front*.20*shin*formBell(Math.abs(Math.sin(a)),.34,.14);
+      p.x-=Math.sin(a)*.12*ankleBand;
+      p.z-=back*.16*ankleBand;
     },'shin');
   const footStart = leg.children.length;
   sphere(leg, 1, m.extremity, ...ankle, .90, 1.11, .96);

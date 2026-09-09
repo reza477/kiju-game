@@ -4,7 +4,7 @@ import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, TERRAI
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
 import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
-import { valleyWoodland, valleyGroundCover, composeAuthoredValley } from './authored-valley.js';
+import { valleyWoodland, valleyGroundCover, valleyDrainageDiagnostics, composeAuthoredValley } from './authored-valley.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -231,7 +231,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x616b45, dry: 0x827d54, meadow: 0x929064, soil: 0x756449, litter:0x464836, moss:0x596548, ash: 0x716b5f, slate: 0x46545e, wet: 0x424f39, gravel: 0xa49676, riverbed: 0x405c54 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x616b45, dry: 0x827d54, meadow: 0x929064, soil: 0x756449, litter:0x464836, moss:0x596548, ash: 0x716b5f, slate: 0x46545e, wet: 0x424f39, gravel: 0xa49676, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = heightAt(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -247,10 +247,11 @@ function groundAlbedo() {
     const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
     const crest=smooth(24,58,y)*smooth(165,255,Math.max(Math.abs(x),Math.abs(z)))*smooth(.27,.65,veins);
     const talus=region.slate*smooth(9,25,y)*smooth(.43,.62,noise(x*.054+11,z*.039-2));
-    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70);
+    const washedStone=cover.channel*smooth(.04,.20,slope)*(1-cover.fan*.6);
+    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70+washedStone*.58);
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
-    const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
+    const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
     c.copy(palette.grass).lerp(palette.dry,cover.dry*.56+smooth(.46,.78,broad)*.13).lerp(palette.meadow,region.meadow*.28);
     c.lerp(palette.soil,cover.bare*.64).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
@@ -258,6 +259,9 @@ function groundAlbedo() {
     let clearingDistance=Math.hypot(x+30,z-40);for(const [cx,cz]of RESOURCE_CLEARINGS)clearingDistance=Math.min(clearingDistance,Math.hypot(x-cx,z-cz));
     forest*=smooth(7,20,d)*(1-region.meadow*.8)*smooth(16,37,clearingDistance);
     forest=Math.max(forest,eco.woods*.98);
+    // Smaller clearings and tongues of woodland litter connect actual canopy
+    // edges to the floor; their contour is not another broad painted circle.
+    forest=smooth(.12,.86,forest+(cover.patch-.48)*.28);
     c.lerp(palette.litter,forest*(.59+cover.bare*.28)).lerp(palette.moss,forest*cover.cover*.28);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
@@ -265,6 +269,8 @@ function groundAlbedo() {
     c.lerp(palette.gravel, bank * (.37+bankPatch*.59)).lerp(palette.wet,bank*(1-bankPatch)*.36);
     c.lerp(palette.riverbed, 1 - smooth(waterline-1.4+(bankPatch-.5)*2.2,waterline+.6+(bankPatch-.5)*1.8,d));
     c.lerp(palette.litter,eco.woods*.55).lerp(palette.moss,eco.wet*.60).lerp(palette.wet,eco.wet*(1-smooth(beach,beach+8,d))*.66);
+    const channelEdge=Math.max(0,cover.bank-cover.channel*.75);
+    c.lerp(palette.sedge,channelEdge*.63).lerp(palette.drainage,cover.channel*(.58+washedStone*.22)).lerp(palette.silt,cover.fan*.65);
     // Geological striations are broad and follow the ridge, without vertex-sized
     // colour noise. The close detail comes from material-specific tiled textures.
     c.multiplyScalar(.84+cover.patch*.18+cover.fine*.08+veins*.045);
@@ -529,7 +535,7 @@ function createGround() {
       normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.50-escarpment*.29));
     `);
   };
-  material.customProgramCacheKey = () => 'landform-ground-transitions-v5';
+  material.customProgramCacheKey = () => 'connected-drainage-ground-v6';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness];
   ground.userData.setGroundTextures = textures => {
@@ -1014,18 +1020,18 @@ function composeGroundTransitions(grass,records,looseGrassCount){
     const item=grass.items[i];if(Math.max(Math.abs(item.x),Math.abs(item.z))>185||shoreDistance(item.x,item.z)<bankWidth(item.x,item.z)+2)continue;
     let cover=sample(item.x,item.z);
     if(i<looseGrassCount&&!attached[i]&&!protectedResource(item.x,item.z)){
-      let best=cover.cover+cover.wet*.45-cover.bare*.65,bx=item.x,bz=item.z;
+      let best=cover.cover+cover.wet*.45-cover.bank*.10-cover.channel*.60-cover.bare*.65,bx=item.x,bz=item.z;
       // Move existing free tufts only a few metres toward natural drainage and
       // scrub margins. Destructible tree/rock undergrowth keeps its saved anchor.
       for(const[dx,dz]of[[3.4,0],[-3.4,0],[0,3.4],[0,-3.4],[2.4,2.4],[-2.4,-2.4]]){
         const x=item.x+dx,z=item.z+dz;
         if(protectedResource(x,z)||shoreDistance(x,z)<bankWidth(x,z)+3||Math.abs(z-roadZ(x))<5)continue;
-        const c=sample(x,z),score=c.cover+c.wet*.45-c.bare*.65;
+        const c=sample(x,z),score=c.cover+c.wet*.45-c.bank*.10-c.channel*.60-c.bare*.65;
         if(score>best+.035){best=score;bx=x;bz=z;cover=c;}
       }
       if(bx!==item.x||bz!==item.z){item.x=bx;item.z=bz;item.y=sceneryHeight(bx,bz)+.025;relocated++;}
     }
-    const gain=.72+cover.cover*.42+cover.wet*.13;item.sx*=gain;item.sy*=gain;item.sz*=gain;
+    const gain=(.58+cover.cover*.57+cover.wet*.19)*(1-cover.channel*.55);item.sx*=gain;item.sy*=gain;item.sz*=gain;
     item.windRoot=[item.x,item.y,item.z,Math.max(.3,item.sy)];
     tint.copy(green).lerp(dry,cover.dry*.74+cover.bare*.33).lerp(wet,cover.wet*.63);item.colour=tint.getHex();shaped++;
   }
@@ -1137,6 +1143,7 @@ export function createLandscape() {
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
+  stats.drainage=valleyDrainageDiagnostics();
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
   group.traverse(mesh => { if (mesh.userData.windAnimated) stats.animatedVegetationInstances += mesh.count; });
   let actors = [];
@@ -1192,6 +1199,27 @@ function addWoodland(group, node, rand) {
   cylinder(group, .66, .66, .025, getMaterial('wood', 0xc1a981), stump.position.x, .713, stump.position.z, 10);
   trees.finish(); details.finish();
 }
+function addBrokenRuinWall(group,{x,z,width,height,depth=.72,yaw=0,seed=0,brick=false,windows=true}){
+  const shape=new T.Shape(),left=-width*.5,right=width*.5;
+  shape.moveTo(left,0);shape.lineTo(right,0);shape.lineTo(right,height*(seed%2?.53:.92));
+  // A connected wall survives around a directional breach. Thick returns and
+  // actual openings cast deep shadows instead of outlining an empty wire frame.
+  const profile=seed%2?[.94,.97,.76,.79,.64,.67,.48]:[.56,.62,.59,.79,.76,.98,.92];
+  for(let k=profile.length-1;k>=0;k--)shape.lineTo(left+width*k/(profile.length-1),height*profile[k]);
+  shape.lineTo(left,0);shape.closePath();
+  if(windows&&height>3){
+    for(const px of[-width*.23,width*.23]){
+      const base=.95,top=Math.min(height*.48,3.2),half=Math.min(.68,width*.12),opening=new T.Path();
+      opening.moveTo(px-half,base);opening.lineTo(px-half,top-.35);opening.quadraticCurveTo(px,top+.32,px+half,top-.35);opening.lineTo(px+half,base);opening.closePath();shape.holes.push(opening);
+    }
+  }
+  const geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelSize:.08,bevelThickness:.06,bevelSegments:1,curveSegments:5,steps:1});
+  geometry.translate(0,0,-depth*.5);
+  // Extrusion UVs retain metre scale; scanned masonry does not stretch to fit a wall.
+  const mesh=new T.Mesh(geometry,getMaterial(brick?'brick':'stone',brick?0x91715b:0x90988a));
+  mesh.name='Fractured load-bearing ruin wall';mesh.position.set(x,.30,z);mesh.rotation.y=yaw;mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
+}
+
 function addIronRuins(group, node, rand) {
   const d = siteDetails(group), oldTown = node.id === 'ruins2';
   box(group, 24, .13, 22, getMaterial('pavement', 0x90917e), 0, .02, 0);
@@ -1200,16 +1228,22 @@ function addIronRuins(group, node, rand) {
   for (let i = 0; i < buildings.length; i++) {
     const [x, z, w, depth, h] = buildings[i], mat = i % 2 ? d.brick : d.stone, colour = i % 2 ? 0x99765d : 0x8c9487;
     mat.add(x, .3, z, w + .7, .6, depth + .7, 0xa2a491);
+    addBrokenRuinWall(group,{x,z:z-depth*.5,width:w,height:h,seed:i,brick:!!(i%2)});
+    addBrokenRuinWall(group,{x:x-w*.5,z,width:depth,height:h*.69,yaw:Math.PI*.5,seed:i+1,brick:!!(i%2),windows:false});
     for (const side of [-1, 1]) {
-      mat.add(x + side * (w / 2 - .24), h / 2, z - depth / 2, .48, h, .55, colour);
+      mat.add(x + side * (w / 2 - .24), h*.40, z - depth / 2, .64, h*.80, .76, colour);
       mat.add(x + side * (w / 2 - .24), h * .43, z + depth / 2, .48, h * .86, .55, colour);
       for (let level = 1; level < h; level += 2.1) {
-        mat.add(x, level, z + side * depth / 2, w, .57, .46, colour);
-        for (let xx = -w / 2 + 1.1; xx < w / 2; xx += 1.55) if (rand() > .12) mat.add(x + xx, level + .8, z + side * depth / 2, .26, 1.25, .46, colour);
+        if(side>0)mat.add(x, level, z + side * depth / 2, w, .57, .56, colour);
+        for (let xx = -w / 2 + 1.1; xx < w / 2; xx += 1.55) {const survives=rand()>.12;if(survives&&side>0)mat.add(x + xx, level + .8, z + side * depth / 2, .36, 1.25, .56, colour);}
       }
-      mat.add(x + side * w / 2, h * .28, z, .5, h * .56, depth, colour);
+      if(side>0)mat.add(x + side * w / 2, h * .25, z, .72, h * .50, depth*.82, colour);
     }
-    d.stone.add(x, h * .62, z, w * .87, .24, depth * .67, 0xa3a495, .08);
+    // The surviving floor hugs the wall; a fallen slab forms a readable collapse
+    // at its foot, within the same resource footprint and harvesting protection.
+    d.stone.add(x-w*.19, h * .58, z-depth*.17, w * .47, .34, depth * .56, 0xa3a495, .08);
+    const slab=d.stone.add(x+w*.10,.55,z+depth*.12,w*.54,.36,depth*.63,0x9a9d8e,-.22);
+    d.stone.items[slab].rotation=new T.Quaternion().setFromEuler(new T.Euler(.12,-.22,.13));
     d.metal.add(x + w * .23, h * .65 + .8, z, .12, 1.6, .12, 0x625d50, .1);
     d.metal.add(x - w * .23, h * .65 + 1.1, z - depth * .3, .12, 2.2, .12, 0x625d50);
     if (oldTown) {

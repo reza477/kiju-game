@@ -44,7 +44,13 @@ test('harness expansion grants capacity; each new district adds a supported floo
  assert.equal(after.floors.length,before.floors.length+1);
  assert.deepEqual(after.footprint,before.footprint);assert.deepEqual(after.floors.slice(0,-1),before.floors);
  const floor=after.floors.at(-1);assert.equal(floor.slot,19);assert.equal(floor.y,before.height);
- assert.deepEqual(floor.path,before.floors[0].path);
+ const origin=after.positions[floor.slot],oldOrigin=before.positions[before.floors[0].slot];
+ assert.equal(origin.x,oldOrigin.x);assert.equal(origin.z,oldOrigin.z);
+ assert.ok(floor.profile.pathX>=3.4&&floor.profile.pathBack>=3.4,'A new battery gallery must clear the rotating cannon at natural resident size');
+ for(const point of floor.path){
+  assert.ok(Math.abs(point.x-origin.x)+.55<after.footprint.width/2,'The supported resident route must remain inside the original backpack width');
+  assert.ok(Math.abs(point.z-origin.z)+.55<after.footprint.depth/2,'The supported resident route must remain inside the original backpack depth');
+ }
  const p=mountPosition(s,19),base=mountPosition(s,7);
  assert.equal(p.x,base.x);assert.equal(p.z,base.z);assert.ok(p.y>base.y);
 });
@@ -75,7 +81,12 @@ test('low castle guns hit the titan while a genuinely built high floor clears it
   const low=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,highSlot,{x:0,z:0,angle:0},{x:0,z:45},54);
   assert.equal(low.blocker,'carrier');assert.equal(low.active,false);
   assert.ok(mountPosition(s,highSlot).y>51*KAIJU_SCALE,'Upper mount must physically be above the head');
-  assert.notEqual(high.blocker,'carrier');assert.ok(String(high.blocker).startsWith('castle:vertical:apse-'));
+  assert.notEqual(high.blocker,'carrier');
+  // The recessed upper cyborg gallery meets its opaque rear choir glazing
+  // before the lower apse sill. Both are actual rear-facing castle solids.
+  assert.match(String(high.blocker),/^castle:vertical:(?:apse-|choir-light:\d+:rear-0:)/);
+  const rearSolid=castleSolids(s.rings,towerLayout(s)).find(solid=>'castle:'+solid.id===high.blocker);
+  assert.ok(rearSolid&&rearSolid.min[2]>-12,'The blocking geometry must belong to the body-facing rear shell');
   assert.equal(high.active,false,'Clearing the titan does not permit firing through the castle apse');
   s.buildings[lowSlot].facing=Math.PI;const rear=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:-45},54);
   assert.equal(rear.blocker,null);assert.ok(rear.active,'The castle portal faces outward behind the carrier');
@@ -104,7 +115,7 @@ test('actual vertical castle portal trim, corner shafts and lancet frames stop c
  for(const variant of ['cyborg','flesh'])for(const {level,degrees,enemyFaction,solid} of [
   {level:3,degrees:20,enemyFaction:'crawler',solid:'vertical:gun-portal:1:0'},
   {level:1,degrees:40,enemyFaction:'airship',solid:'vertical:corner:1:-1:-1'},
-  {level:1,degrees:variant==='cyborg'?51:45,enemyFaction:'airship',solid:variant==='cyborg'?'vertical:side-arch:1:-1:0:7':'vertical:side-arch:1:-1:0:0'},
+  {level:1,degrees:variant==='cyborg'?54:47,enemyFaction:'airship',solid:variant==='cyborg'?'vertical:side-arch:1:-1:0:7':'vertical:side-arch:1:-1:0:0'},
  ]){
   const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};s.battle={enemyFaction};
   const layout=towerLayout(s),p=mountPosition(s,slot),yaw=layout.positions[slot].rotation+degrees*Math.PI/180;
