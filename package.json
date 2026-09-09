@@ -2,7 +2,7 @@
   "name": "local-game-prototype",
   "private": true,
   "type": "module",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "scripts": { "start": "node server.mjs", "test": "node --test tests/simulation.test.mjs tests/systems.test.mjs tests/variants.test.mjs tests/audio.test.mjs tests/vertical-growth.test.mjs tests/vertical-castle.test.mjs tests/compact-castle.test.mjs" },
   "dependencies": { "three": "0.185.1" }
 }

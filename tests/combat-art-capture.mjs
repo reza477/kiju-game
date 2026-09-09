@@ -1,5 +1,5 @@
 // Isolated, repeatable ready / firing / contact / recovery capture for reviewers.
-import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';import path from 'node:path';import {homedir} from 'node:os';import fs from 'node:fs/promises';import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url);let pw;try{pw=require('playwright');}catch{pw=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/combat-art');await fs.mkdir(out,{recursive:true});
 const browser=await pw.chromium.launch({headless:true,channel:'chrome'}),report={screenshots:[],errors:[],remote:[]};
@@ -13,5 +13,5 @@ try{for(const sequence of (process.env.SEQUENCES||'kaiju,crawler,airship,kaiju-m
  await page.evaluate(()=>window.__colossus.state.paused=false);await page.waitForFunction(()=>window.__colossus.scene.fx.some(f=>f.burst?.visible&&f.age>(f.kind==='impact'?.73:.63)&&f.age<1.1));await page.evaluate(()=>window.__colossus.state.paused=true);await capture('contact');
  await page.evaluate(()=>window.__colossus.state.paused=false);await page.waitForFunction(()=>window.__colossus.scene.fx.length===0);await page.evaluate(()=>window.__colossus.state.paused=true);await capture('recovery');
  await context.close();console.log(`Captured ${faction} combat sequence.`);
-}}catch(e){report.failure=e.message;process.exitCode=1;}finally{await browser.close();await fs.writeFile(path.join(out,'combat-capture-report.json'),JSON.stringify(report,null,2));}
+}assert.deepEqual(report.errors,[]);assert.deepEqual(report.remote,[]);}catch(e){report.failure=e.message;process.exitCode=1;}finally{await browser.close();await fs.writeFile(path.join(out,'combat-capture-report.json'),JSON.stringify(report,null,2));}
 console.log(JSON.stringify(report));

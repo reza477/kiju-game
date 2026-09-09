@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.8.1
+# Colossus Wake — PC prototype 0.9
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; models and sound design are original procedural work, with bundled CC0 surface scans and HDR lighting. See [asset credits](ASSET_CREDITS.md).
 
@@ -41,7 +41,9 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 ## Graphics update
 
-The cyborg's castle backpack is now half its previous height, with the same horizontal footprint and unchanged robot. All existing storeys remain, and new districts still build upward. Compact interiors and cannon mounts fit the shorter floors; residents retain their natural size. The flesh titan's castle keeps its original height. See [castle height verification](COMPACT_CASTLE_VERIFICATION.md).
+Version 0.9 expands the visual work across the renderer, landscape, all six carriers, citizens and combat. It adds a scene-linear bloom pyramid, clearer indirect lighting and material response, denser authored forests and ruined-world landmarks, layered carrier construction, more expressive kaiju and residents, moving garments, and richer impact particles. Use **Detail: high** for the strongest presentation; balanced and performance modes remain available. See [graphics upgrade verification](GRAPHICS_UPGRADE_VERIFICATION.md) for the checks and independent review.
+
+The cyborg's castle backpack is half its earlier height, with the same horizontal footprint and unchanged robot. All existing storeys remain, and new districts still build upward. Compact interiors and cannon mounts fit the shorter floors; residents retain their natural size. The flesh titan's castle keeps its original height. See [castle height verification](COMPACT_CASTLE_VERIFICATION.md).
 
 Version 0.8 replaces the older four-plots-per-floor layout with actual cumulative vertical construction: one Gothic district per storey, a fixed backpack footprint, and a crown that moves upward with each addition. A lower district upgrade raises all higher floors, residents, lamps and weapon mounts. New building order persists across saves; legacy saves migrate in their historical floor order without changing district IDs, levels, resources or timers. Harness capacity is retained for older expanded saves. Tank and flying cities still build horizontally. The title screen shows a developed city as a preview; a new expedition starts with three districts. See [vertical construction verification](VERTICAL_GROWTH_VERIFICATION.md).
 

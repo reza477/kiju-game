@@ -4,6 +4,7 @@ import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, TERRAI
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
 import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
+import { valleyWoodland, composeAuthoredValley } from './authored-valley.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -17,11 +18,44 @@ const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
 const vegetationTime = { value: 0 }, windMaterials = new Map();
+const metricInstanceMaterials=new Map();
+function metricInstanceMaterial(source){
+  if(!source.userData.surfaceScale)return source;
+  if(metricInstanceMaterials.has(source.uuid))return metricInstanceMaterials.get(source.uuid);
+  const m=source.clone(),prior=source.onBeforeCompile,priorKey=source.customProgramCacheKey();
+  m.userData.shared=false;
+  m.onBeforeCompile=shader=>{
+    prior.call(source,shader);
+    shader.uniforms.uScenerySurfaceScale={value:source.userData.surfaceScale};
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uScenerySurfaceScale;').replace('#include <uv_vertex>',`#include <uv_vertex>
+      #ifdef USE_INSTANCING
+        vec3 surfaceWorld=(modelMatrix*instanceMatrix*vec4(position,1.0)).xyz;
+        mat3 basis=mat3(instanceMatrix);
+        vec3 surfaceNormal=normalize(mat3(modelMatrix)*basis*(normal/vec3(dot(basis[0],basis[0]),dot(basis[1],basis[1]),dot(basis[2],basis[2]))));
+        vec3 face=abs(surfaceNormal);
+        vec2 metricUv=(face.y>face.x&&face.y>face.z)?surfaceWorld.xz:face.x>face.z?surfaceWorld.zy:surfaceWorld.xy;
+        metricUv/=uScenerySurfaceScale;
+        #ifdef USE_MAP
+          vMapUv=metricUv;
+        #endif
+        #ifdef USE_NORMALMAP
+          vNormalMapUv=metricUv;
+        #endif
+        #ifdef USE_ROUGHNESSMAP
+          vRoughnessMapUv=metricUv;
+        #endif
+      #endif
+    `);
+  };
+  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v1';
+  metricInstanceMaterials.set(source.uuid,m);return m;
+}
 const VEGETATION_GLSL = `
   uniform float uVegetationTime;
   attribute vec4 windRoot;
   attribute vec2 windFlex;
   attribute vec2 windMotion;
+  attribute float groundCoverLod;
   mat3 vegetationGradient;
   ${WIND_GLSL}
   vec3 rootedWindOffset(vec3 p) {
@@ -73,6 +107,13 @@ const VEGETATION_NORMAL = `
 const VEGETATION_TRANSFORM = `
   #include <begin_vertex>
   #ifdef USE_INSTANCING
+    // Near-field grasses settle into their matching soil colour at distance.
+    // Opaque geometry shrinks at the root, avoiding alpha shimmer and a hard pop.
+    if (groundCoverLod > .5) {
+      vec3 rootWorld = (modelMatrix * vec4(windRoot.xyz, 1.0)).xyz;
+      float coverScale = 1.0 - smoothstep(155.0, 250.0, distance(cameraPosition, rootWorld));
+      transformed *= coverScale;
+    }
     vec3 vegetationPoint = (instanceMatrix * vec4(transformed, 1.0)).xyz;
     #ifdef STANDARD
       vec3 vegetationOffset = vegetationNormalOffset;
@@ -103,12 +144,13 @@ function animateVegetation(mesh, items, kind) {
   mesh.geometry.setAttribute('windRoot', new T.InstancedBufferAttribute(roots, 4));
   mesh.geometry.setAttribute('windFlex', new T.InstancedBufferAttribute(flex, 2));
   mesh.geometry.setAttribute('windMotion', new T.InstancedBufferAttribute(motion, 2));
+  mesh.geometry.setAttribute('groundCoverLod', new T.InstancedBufferAttribute(new Float32Array(items.length).fill(kind==='grass'?1:0),1));
   const key = mesh.material.uuid;
   if (!windMaterials.has(key)) {
-    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-v3';
+    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-gust-distance-v4';
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, side: material.side });
     const distance = new T.MeshDistanceMaterial({ side: material.side });
-    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-depth-v3'; }
+    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-distance-depth-v4'; }
     windMaterials.set(key, { material, depth, distance });
   }
   const passes = windMaterials.get(key); mesh.material = passes.material; mesh.customDepthMaterial = passes.depth; mesh.customDistanceMaterial = passes.distance;
@@ -137,7 +179,7 @@ function ecologyAt(x,z) {
   const edge=noise(x*.066+31,z*.057-8),d=shoreDistance(x,z),beach=bankWidth(x,z);
   const west=Math.max(lobe(-93,38,43,29),lobe(-75,80,31,24),lobe(-137,-29,37,40));
   const east=lobe(108,58,40,35);
-  const woods=Math.max(west,east)*smooth(.27,.66,edge)*smooth(beach+7,beach+18,d)*open;
+  const woods=Math.max(Math.max(west,east)*smooth(.27,.66,edge),valleyWoodland(x,z)*smooth(.18,.58,edge))*smooth(beach+7,beach+18,d)*open;
   const bend=Math.max(lobe(riverX(24)-riverWidth(24)-9,24,20,32),lobe(riverX(93)+riverWidth(93)+9,93,20,28));
   const wet=bend*smooth(-1,2,d)*(1-smooth(beach+7,beach+16,d))*open;
   const broken=Math.max(lobe(-95,-1,25,29),lobe(76,8,30,25))*smooth(.30,.68,noise(x*.041-3,z*.049+9))*open;
@@ -206,7 +248,9 @@ function groundAlbedo() {
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
     const soil = Math.max(ruin * .91, region.meadow * .25, bank, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
-    c.copy(palette.grass).lerp(palette.dry, smooth(.48, .80, broad) * .7).lerp(palette.meadow, region.meadow * .69);
+    const tussock=noise(x*.084+23,z*.076-11), drainage=noise(x*.043+7,z*.061+3);
+    c.copy(palette.grass).lerp(palette.dry, smooth(.39, .75, broad) * .71).lerp(palette.meadow, region.meadow * .57);
+    c.lerp(palette.soil,smooth(.47,.72,drainage)*smooth(.51,.74,tussock)*.27);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
     forest*=smooth(7,20,d)*(1-region.meadow*.8)*(isClearing(x,z,4)?0:1);
@@ -214,11 +258,13 @@ function groundAlbedo() {
     c.lerp(palette.litter,forest*.82).lerp(palette.moss,forest*(1-smooth(.42,.65,veins))*.27);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
-    c.lerp(palette.gravel, bank * (.74+veins*.25)).lerp(palette.riverbed, 1 - smooth(waterline-1,waterline+.7,d));
+    const bankPatch=smooth(.27,.67,noise(x*.13+17,z*.075-8));
+    c.lerp(palette.gravel, bank * (.37+bankPatch*.59)).lerp(palette.wet,bank*(1-bankPatch)*.36);
+    c.lerp(palette.riverbed, 1 - smooth(waterline-1.4+(bankPatch-.5)*2.2,waterline+.6+(bankPatch-.5)*1.8,d));
     c.lerp(palette.litter,eco.woods*.55).lerp(palette.moss,eco.wet*.60).lerp(palette.wet,eco.wet*(1-smooth(beach,beach+8,d))*.66);
     // Geological striations are broad and follow the ridge, without vertex-sized
     // colour noise. The close detail comes from material-specific tiled textures.
-    c.multiplyScalar(.96 + veins * .07);
+    c.multiplyScalar(.91 + veins * .11 + tussock*.07);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255; colourData[offset + 3] = 255;
     const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9,eco.wet*.94));
@@ -246,7 +292,7 @@ class Instances {
   }
   finish(name = '') {
     if (!this.items.length) return null;
-    const mesh = new T.InstancedMesh(this.geometry, this.material, this.items.length);
+    const mesh = new T.InstancedMesh(this.geometry, this.wind?this.material:metricInstanceMaterial(this.material), this.items.length);
     const colour = new T.Color(); mesh.name = name;
     this.items.forEach((item, i) => {
       TEMP.position.set(item.x, item.y, item.z); TEMP.scale.set(item.sx, item.sy, item.sz);
@@ -303,14 +349,15 @@ function grassGeometry() {
   geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2));
   return geometry;
 }
-function treeBatches(group) {
+function treeBatches(group,distant=false) {
   const foliage = getMaterial('foliage', 0xffffff, {side:T.DoubleSide, vertexColors:true, roughness:.88}).clone();
   foliage.name = 'Folded living leaf surfaces'; foliage.metalness=0;
   return {
+    distant,
     wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 6, 1, true), getMaterial('bark', 0xffffff), true, 'wood'),
-    leaves: new Instances(group, branchSprayGeometry(), foliage, true, 'foliage'),
-    needles: new Instances(group, branchSprayGeometry(true), foliage, true, 'foliage'),
-    finish() { return [this.wood.finish('Tree trunks and branches'), this.leaves.finish('Broadleaf canopies'), this.needles.finish('Pine boughs')].filter(Boolean); }
+    leaves: new Instances(group, branchSprayGeometry(false,distant), foliage, !distant, 'foliage'),
+    needles: new Instances(group, branchSprayGeometry(true,distant), foliage, !distant, 'foliage'),
+    finish() { const prefix=distant?'Distant ':'';return [this.wood.finish(prefix+'Tree trunks and branches'), this.leaves.finish(prefix+'Broadleaf canopies'), this.needles.finish(prefix+'Pine boughs')].filter(Boolean); }
   };
 }
 function shapeTreeCrown(batch, starts, x, y, z, h, pine) {
@@ -453,7 +500,15 @@ function createGround() {
       rockAlbedo*=mix(vec3(.74,.81,.84),strataTint*(1.0-joint*.32),escarpment);
       vec3 realAlbedo=texture2D(uSurfaceGrass,uvGrass).rgb*surfaceWeights.x+rockAlbedo*surfaceWeights.y+texture2D(uSurfaceSoil,uvSoil).rgb*surfaceWeights.z;
       float realBlend=dot(surfaceWeights,vec3(1.0));
-      diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.66+diffuseColor.rgb*.34,realBlend*mix(.64,.18,weights.x));
+      // Two incommensurate local samples break photographic tiling while the
+      // metre-scale field retains coherent meadows, litter and wet banks.
+      vec3 grassFirst=texture2D(uSurfaceGrass,uvGrass).rgb;
+      vec3 grassSecond=texture2D(uSurfaceGrass,(vGroundXZ.yx+vec2(13.7,27.1))/(uSurfaceScale.x*1.71)).rgb;
+      float grassReflectance=clamp(.58+dot(mix(grassFirst,grassSecond,.28),vec3(.2126,.7152,.0722))*2.7,.58,1.55);
+      // The scan supplies physical grain; it must not replace green meadow and
+      // forest-litter colours with a uniform photograph of dry yellow pasture.
+      realAlbedo+=surfaceWeights.x*(diffuseColor.rgb*grassReflectance-grassFirst);
+      diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.72+diffuseColor.rgb*.28,realBlend*mix(.66,.74,weights.x));
     `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
       float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+rockRoughness*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
@@ -465,7 +520,7 @@ function createGround() {
       normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*.66+rockNormal*surfaceWeights.y*mix(.75,1.15,escarpment)));
     `);
   };
-  material.customProgramCacheKey = () => 'fractured-geology-terrain-v3';
+  material.customProgramCacheKey = () => 'authored-valley-terrain-v4';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness];
   ground.userData.setGroundTextures = textures => {
@@ -529,14 +584,23 @@ function createWater() {
         float barShape = exp(-pow((crossChannel - innerBank) / .27, 2.0));
         float mineralBar = barShape * smoothstep(.12, .65, abs(bend)) * smoothstep(.42, .59, bedNoise);
         float pool = smoothstep(.43, .63, reachNoise) * (1.0 - smoothstep(.25, .90, abs(deepAxis)));
-        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.65 + (bedNoise - .35) * 1.4) + pool * .18 - mineralBar * .66, 0.0, 1.0);
+        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.50 + (bedNoise - .35) * 1.8) + pool * .28 - mineralBar * .78, 0.0, 1.0);
         float shallows = pow(1.0 - depth, 1.5);
-        vec3 deepColour = mix(vec3(.0086, .0704, .0704), vec3(.009, .043, .065), pool * .72);
-        vec3 shallowColour = mix(vec3(.120, .235, .187), vec3(.173, .175, .108), mineralBar * .70);
+        vec3 deepColour = mix(vec3(.007, .048, .045), vec3(.005, .025, .047), pool * .83);
+        vec3 shallowColour = mix(vec3(.074, .147, .095), vec3(.176, .158, .077), mineralBar * .81);
         diffuseColor.rgb = mix(deepColour, shallowColour, shallows);
         diffuseColor.rgb *= .95 + (reachNoise - .53) * .20;
-        float wetEdge = smoothstep(.86 + bankNoise * .09, 1.03, edgeDistance);
-        diffuseColor.rgb *= 1.0 - wetEdge * .07;
+        float wetEdge = smoothstep(.72 + bankNoise * .32, 1.03, edgeDistance);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.031,.061,.037),wetEdge*(.38+bankNoise*.37));
+        // Long broken current seams curl around the inside bank, with sparse
+        // aeration at the gravel spits. Foam stays confined to physical shallows.
+        vec2 foamUV=vec2(acrossRiver*.074+sin(alongRiver*.033-uRiverTime*.16)*.12,alongRiver*.028-uRiverTime*.018);
+        float foamNoise=texture2D(uRiverRippleTexture,foamUV).r;
+        float foamGrain=texture2D(uRiverRippleTexture,foamUV*vec2(4.9,2.3)+vec2(.31,.73)).r;
+        float foam=smoothstep(.60,.70,foamNoise)*smoothstep(.44,.63,foamGrain)*smoothstep(.64,.83,edgeDistance)*(1.0-smoothstep(.92,1.01,edgeDistance));
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.36,.44,.38),foam*.32);
+        float refractedLight=pow(max(0.0,sin(acrossRiver*1.7+sin(alongRiver*.62-uRiverTime*.31))*sin(alongRiver*.93-uRiverTime*.42)),8.0);
+        diffuseColor.rgb+=vec3(.036,.044,.021)*refractedLight*mineralBar;
       `)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         // Sheltered shallows have a broader reflection; gusts break the centre
@@ -562,7 +626,7 @@ function createWater() {
       `)
       .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
-  material.customProgramCacheKey = () => 'gust-river-v4';
+  material.customProgramCacheKey = () => 'current-seams-river-v5';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };
@@ -915,7 +979,7 @@ export function createLandscape() {
   const ground = createGround(); group.add(ground);
   const { water, time: waterTime } = createWater(); group.add(water);
   createRoad(group);
-  const rand = random(196733), trees = treeBatches(group), records = [];
+  const rand = random(196733), trees = treeBatches(group), distantTrees=treeBatches(group,true), records = [];
   const register = (id, kind, x, z, size, parts) => { if (!protectedResource(x, z)) records.push({ id, kind, x, z, size, parts }); };
   const rocks = new Instances(group, fracturedRockGeometry(), getMaterial('rock', 0xffffff));
   const shrubMat=getMaterial('foliage',0xffffff,{side:T.DoubleSide,vertexColors:true,roughness:.94});
@@ -931,7 +995,7 @@ export function createLandscape() {
     const density = noise(x * .015 + 20, z * .015 + 12);
     if (density < .43 || (Math.abs(x) < 165 && Math.abs(z) < 165 && rand() < .35)) continue;
     const scale = .8 + rand() * .9;
-    const parts = addTree(trees, rand, x, sceneryHeight(x, z), z, scale, z < -130 || rand() < .32);
+    const parts = addTree(Math.max(Math.abs(x),Math.abs(z))>190?distantTrees:trees, rand, x, sceneryHeight(x, z), z, scale, z < -130 || rand() < .32);
     register(`tree:${i}`, 'tree', x, z, scale, parts);
   }
   // Dense foothill groves alternate with broad, open travel corridors.
@@ -1003,14 +1067,16 @@ export function createLandscape() {
   }
   // Upland geology now belongs to the connected height field. The former
   // detached repeated ridge-bed instances are removed; save anchors stay put.
-  composeRegions(trees,shrubs,grass);createSlateLandmark(group,records);
+  composeRegions(trees,shrubs,grass);composeRegions(distantTrees,{items:[]},{items:[]});createSlateLandmark(group,records);
   const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
-  const canopyMeshes = trees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
+  const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,ecologyAt,isClearing});
+  const canopyMeshes = trees.finish(),distantCanopyMeshes=distantTrees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
+  stats.authoredValley=authored.stats;
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
   group.traverse(mesh => { if (mesh.userData.windAnimated) stats.animatedVegetationInstances += mesh.count; });
   let actors = [];
@@ -1026,6 +1092,7 @@ export function createLandscape() {
       if (flowerMesh) flowerMesh.visible = !low;
       if (fernMesh) fernMesh.visible = !low;
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
+      distantCanopyMeshes.forEach(mesh=>{mesh.castShadow=false;});
       life.setQuality(quality);
     }
   };

@@ -5,26 +5,45 @@ import {CANNON_MOUNT as mount,nearestCastleYaw} from './castle-collision.js';
 
 function muzzleMarker(parent,x,y,z){const point=new T.Object3D();point.position.set(x,y,z);parent.add(point);return point;}
 
+function armoredCheek(parent,x,material){
+  const shape=new T.Shape([new T.Vector2(-.70,.14),new T.Vector2(-.70,.52),new T.Vector2(-.42,.78),new T.Vector2(.40,.66),new T.Vector2(.60,.35),new T.Vector2(.48,.14)]);
+  const geometry=new T.ExtrudeGeometry(shape,{depth:.085,bevelEnabled:false});geometry.translate(0,0,-.0425);
+  const plate=new T.Mesh(geometry,material);plate.rotation.y=Math.PI/2;plate.position.set(x,0,-.15);plate.castShadow=plate.receiveShadow=true;plate.name='Faceted trunnion armor';parent.add(plate);
+}
+
 export function createBattery(faction,level=1,facing=0,slot=null){
   const group=new T.Group(),turret=new T.Group(),recoil=new T.Group();group.name=faction==='airship'?'Missile battery':'Rotating cannon emplacement';
   const metal=m('metal',faction==='airship'?0x327d87:faction==='kaiju'?0x665075:0x486776),trim=m('gold',0xd3ad68),dark=m('metal',0x202f37),stone=m('stone',0x9a9f97);
   cylinder(group,1.19,1.31,.28,stone,0,.22,0,28);cylinder(group,.84,.97,.25,dark,0,.46,0,24);
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2;cylinder(group,.058,.058,.055,trim,Math.cos(a)*1.05,.389,Math.sin(a)*1.05,6);}
   turret.position.y=mount.turretY;turret.rotation.y=facing;turret.scale.set(mount.scaleX,mount.scaleY,mount.scaleZ);turret.userData.noBatch=true;group.add(turret);turret.add(recoil);
   const missile=faction==='airship',muzzles=[];
   if(missile){
     box(recoil,1.42,.34,1.6,metal,0,.32,0);
+    for(const x of[-.58,.58])beam(recoil,[x,.12,-.75],[x,.56,.74],.055,trim);
     for(const x of [-.42,.42])for(let i=0;i<(level>1?3:2);i++){
       const z=-.65+i*.55,y=.66;
       const tube=cylinder(recoil,.19,.23,1.23,dark,x,y,z,12);tube.rotation.x=Math.PI/2-.4;
       const nose=cone(recoil,.165,.48,trim,x,y+.29,z+.59,12);nose.rotation.x=Math.PI/2-.4;
+      const collar=cylinder(recoil,.215,.215,.09,metal,x,y+.20,z+.42,12);collar.rotation.x=Math.PI/2-.4;
       muzzles.push(muzzleMarker(recoil,x,y+.4,z+.8));
     }
     for(const x of [-.74,.74])box(turret,.08,.71,1.5,trim,x,.45,0);
   }else{
     box(recoil,1.45,.55,1.23,metal,0,.35,-.25);
+    for(const side of[-1,1]){
+      armoredCheek(turret,side*.745,metal);
+      cylinder(recoil,.092,.12,1.46,trim,side*.55,.19,.65,12).rotation.x=Math.PI/2;
+      cylinder(recoil,.13,.13,.52,dark,side*.55,.19,.18,12).rotation.x=Math.PI/2;
+      // A functional handwheel turns with the carriage, below the roof and
+      // outside the barrels. Its diameter stays natural in compact mounts.
+      const wheel=new T.Mesh(new T.TorusGeometry(.20,.029,6,16),trim);wheel.rotation.y=Math.PI/2;wheel.position.set(side*.85,.44,-.46);wheel.castShadow=true;turret.add(wheel);
+      for(let i=0;i<3;i++){const a=i*Math.PI/3;beam(turret,[side*.85,.44+Math.sin(a)*.19,-.46+Math.cos(a)*.19],[side*.85,.44-Math.sin(a)*.19,-.46-Math.cos(a)*.19],.018,trim);}
+    }
     for(const x of level>1?[-mount.doubleX,mount.doubleX]:[0]){
       const barrel=cylinder(recoil,.235,.29,2.1,dark,x,mount.barrelY,1.05,20);barrel.rotation.x=Math.PI/2;
       for(const z of [.25,.75,1.8]){const collar=cylinder(recoil,.3,.3,.14,trim,x,mount.barrelY,z,20);collar.rotation.x=Math.PI/2;}
+      for(const side of[-1,1])box(recoil,.028,.09,.73,metal,x+side*.229,mount.barrelY,1.26);
       const opening=cylinder(recoil,.18,.18,.015,m('metal',0x101b20),x,mount.barrelY,2.11,18);opening.rotation.x=Math.PI/2;
       muzzles.push(muzzleMarker(recoil,x,mount.barrelY,mount.muzzleZ));
     }
@@ -34,6 +53,7 @@ export function createBattery(faction,level=1,facing=0,slot=null){
   // Visible shell lockers, guard rails and a direction arrow make the mount legible.
   for(const side of [-1,1]){
     box(group,.3,.43,.76,m('wood',0x8b7052),side*.95,.39,-.72);
+    for(const z of[-.99,-.48])box(group,.32,.045,.045,dark,side*.95,.56,z);
     for(let i=0;i<3;i++)cylinder(group,.067,.067,.26,trim,side*.95,.73,-.95+i*.23,10);
     beam(group,[side*1.2,.2,-1],[side*1.2,.79,-1],.04,dark);beam(group,[side*1.2,.79,-1],[side*1.2,.79,.5],.04,dark);
   }

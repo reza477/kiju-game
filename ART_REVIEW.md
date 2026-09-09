@@ -1,5 +1,9 @@
 # Independent art review
 
+## Full graphics upgrade — prototype 0.9
+
+This new cycle covers rendering, lighting, landscape, characters and citizens, carrier architecture, combat and presentation. All prior cycles below remain closed. The same fixed global rubric, independent screenshots, zero-error requirement and maximum of four rounds apply. The first builder attempt is verified in [graphics upgrade verification](GRAPHICS_UPGRADE_VERIFICATION.md); independent scoring is pending.
+
 ## Cyborg castle height adjustment — prototype 0.8.1
 
 The owner clarified that only the cyborg castle backpack should be half-height. The robot, body weapons, castle footprint and flesh castle retain their dimensions. This bounded adjustment preserves vertical construction and saved progress; previous visual cycles remain closed.

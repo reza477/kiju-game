@@ -14,6 +14,7 @@ import {facingOf,batteryArc} from './weapon-layout.js';
 import {cannonMountProfile} from './castle-collision.js';
 import {CinematicCamera} from './cinematic-camera.js';
 import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
+import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
 export {makeCity,slotPosition};
 
 const previewBuildings=()=>{
@@ -200,7 +201,7 @@ export class GameScene {
 
   setQuality(quality){
     if(quality==='retro')quality='performance';this.quality=quality;
-    const dpr=quality==='high'?Math.min(devicePixelRatio,1.75):quality==='balanced'?Math.min(devicePixelRatio,1.2):.85;
+    const dpr=quality==='high'?Math.min(2,Math.max(1.25,devicePixelRatio)):quality==='balanced'?Math.min(devicePixelRatio,1.2):.85;
     this.renderer.setPixelRatio(dpr);this.renderer.shadowMap.enabled=quality!=='performance';
     const shadowSize=quality==='high'?4096:2048;
     if(this.sun.shadow.mapSize.x!==shadowSize){this.sun.shadow.mapSize.set(shadowSize,shadowSize);if(this.sun.shadow.map){this.sun.shadow.map.dispose();this.sun.shadow.map=null;}}
@@ -253,14 +254,14 @@ export class GameScene {
       const object=new T.Mesh(shot.missile?new T.ConeGeometry(.27,1.15,10):new T.SphereGeometry(event.kind==='impact'?.45:.25,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
       const trail=new T.Mesh(new T.ConeGeometry(.18,shot.missile?5:3.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.8}));trail.rotation.x=Math.PI/2;trail.position.z=-1.3;group.add(trail);
       const burst=new T.Group();burst.visible=false;group.add(burst);
-      for(let i=0;i<14;i++){const debris=i>8,spark=new T.Mesh(new T.TetrahedronGeometry(debris?.36:.22),new T.MeshBasicMaterial({color:debris?0x847e70:i%2?0xffc179:0xffeec2,transparent:true}));const a=i*2.399963;spark.userData.debris=debris;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);burst.add(spark);}
+      for(let i=0;i<22;i++){const debris=i>14,spark=new T.Mesh(debris?new T.DodecahedronGeometry(.15+i%3*.06):new T.BoxGeometry(.035,.035,.50+i%4*.16),debris?new T.MeshStandardMaterial({color:0x625e53,roughness:.82,transparent:true}):new T.MeshBasicMaterial({color:new T.Color(i%2?0xffc179:0xffeec2).multiplyScalar(3),transparent:true,depthWrite:false,blending:T.AdditiveBlending}));const a=i*2.399963;spark.userData.debris=debris;spark.userData.velocity=new T.Vector3(Math.sin(a)*(3+i%3),Math.cos(a)*(3+i%2),Math.sin(i*1.71)*4);spark.lookAt(spark.userData.velocity);burst.add(spark);}
       if(melee){object.visible=false;trail.visible=false;}
-      const effect={object:group,ball:object,trail,burst,start,end:end.clone(),anchor,anchorHeading:target.heading,age:0,born,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target,actor:source};
+      const effect={object:group,ball:object,trail,burst,layers:addImpactLayers(group),start,end:end.clone(),anchor,anchorHeading:target.heading,age:0,born,kind:event.kind,missile:shot.missile,slot:shot.weapon?.slot??null,source:fromEnemy?'enemy':'player',target,actor:source};
       this.scene.add(group);this.fx.push(effect);
       if((effect.slot===null||event.base===false)&&this.cinematic.mode==='cinematic'&&this.cinematic.manualTime===0&&(!fromEnemy||!this.cameraShot||this.state.time-this.cameraShot.born>1.75))this.cameraShot=effect;
       if(event.kind!=='impact'){
-        const flash=new T.Mesh(new T.SphereGeometry(.85,10,8),new T.MeshBasicMaterial({color:0xffedb2,transparent:true,opacity:1}));flash.position.copy(start);this.scene.add(flash);
-        this.fx.push({object:flash,flash:true,start,age:0,born});
+        const flash=new T.Sprite(new T.SpriteMaterial({map:combatTexture('flash'),color:new T.Color(0xffedb2).multiplyScalar(4),transparent:true,opacity:1,depthWrite:false,blending:T.AdditiveBlending}));flash.scale.setScalar(3.7);flash.position.copy(start);this.scene.add(flash);
+        this.fx.push({object:flash,flash:true,start,age:0,born,source:fromEnemy?'enemy':'player'});
       }
     }
   }
@@ -331,10 +332,11 @@ export class GameScene {
     for(const light of this.impactLights)light.intensity=0;
     for(let i=this.fx.length-1;i>=0;i--){
       const fx=this.fx[i];fx.age=Math.max(0,s.time-fx.born);
-      if(fx.flash){fx.object.material.opacity=Math.max(0,1-fx.age/.12);if(fx.age>.12){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}continue;}
+      if(fx.flash){fx.object.material.opacity=Math.max(0,1-fx.age/.12);const lamp=this.impactLights[fx.source==='enemy'?1:0],power=90*fx.object.material.opacity**2;if(power>lamp.intensity){lamp.position.copy(fx.start);lamp.intensity=power;}if(fx.age>.12){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}continue;}
       refreshImpactAnchor(fx);
       const melee=fx.kind==='impact',flight=attackDelay(fx.kind),t=fx.age+1e-8>=flight?1:fx.age/flight;
       if(melee)fx.object.position.copy(fx.end);else{fx.object.position.lerpVectors(fx.start,fx.end,t);fx.object.position.y+=Math.sin(t*Math.PI)*(fx.missile?12:3);fx.object.lookAt(fx.end);}
+      if(fx.missile&&t<1&&fx.age>=(fx.nextExhaust??0)){this.atmosphere.emit(fx.object.position,'smoke');fx.nextExhaust=fx.age+.10;}
       if(t>=1){const hitAge=Math.max(0,fx.age-flight);
         // A short, surface-local flash lights the struck armour and nearby
         // masonry. Two fixed lights cover simultaneous opposing attacks.
@@ -342,7 +344,11 @@ export class GameScene {
           const light=this.impactLights[fx.source==='enemy'?1:0],power=(melee?135:fx.missile?190:160)*Math.exp(-hitAge*13)*Math.max(0,1-hitAge/.32);
           if(power>light.intensity){this.impactDirection.copy(fx.start).sub(fx.end).normalize();light.position.copy(fx.end).addScaledVector(this.impactDirection,.75);light.intensity=power;}
         }
-        if(!fx.arrived){fx.arrived=true;fx.ball.material.color.set(0xffcd8c).multiplyScalar(3.2);fx.target.hitAt=s.time;this.atmosphere.emit(fx.end,'dust');if(fx.slot===null)this.cinematic.impulse(melee?1:fx.missile?.62:.72,fx.source==='enemy'?-1:1);}fx.trail.visible=false;fx.burst.visible=true;fx.ball.visible=true;for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*(spark.userData.debris?.85:2));spark.rotation.x=hitAge*6;}fx.ball.scale.setScalar(1+hitAge*11);fx.ball.material.opacity=Math.max(0,1-hitAge*3);if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
+        if(!fx.arrived){fx.arrived=true;fx.ball.material.color.set(0xffcd8c).multiplyScalar(3.2);fx.target.hitAt=s.time;this.atmosphere.emit(fx.end,'dust');if(fx.slot===null)this.cinematic.impulse(melee?1:fx.missile?.62:.72,fx.source==='enemy'?-1:1);}
+        fx.trail.visible=false;fx.burst.visible=true;fx.ball.visible=true;
+        for(const spark of fx.burst.children){spark.position.copy(spark.userData.velocity).multiplyScalar(hitAge*2);spark.position.y-=hitAge*hitAge*3;spark.material.opacity=Math.max(0,1-hitAge*(spark.userData.debris?.85:2));if(spark.userData.debris)spark.rotation.x=hitAge*6;}
+        updateImpactLayers(fx.layers,hitAge,fx.missile,melee);fx.ball.scale.setScalar(1+hitAge*4);fx.ball.material.opacity=Math.max(0,1-hitAge*8);
+        if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.updateCamera(s,dt,desiredZoom,battle);
     this.presentation.render(this.scene);

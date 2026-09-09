@@ -24,11 +24,17 @@ export function createCrawlerDrill(frame,rig,spinners){
     beam(frame,[side*7.1,5.6,8.8],[side*4.4,5.4,13.3],.48,steel);
     beam(frame,[side*7.1,2.5,8.8],[side*4.4,4.0,13.3],.32,dark);
     cylinder(frame,.52,.52,4.0,brass,side*5.9,5.0,10.6,18).rotation.x=Math.PI/2;
+    // Protected ram tubes and their supply lines explain the gimbal's force
+    // path; the existing animated piston and contact tip remain authoritative.
+    for(const z of[9.2,11.9])cylinder(frame,.62,.62,.20,dark,side*5.9,5.0,z,18).rotation.x=Math.PI/2;
+    tube(frame,[new T.Vector3(side*7.2,5.8,8.8),new T.Vector3(side*6.45,6.18,10.0),new T.Vector3(side*5.88,5.55,11.15)],.11,dark);
+    box(frame,1.14,.20,2.3,steel,side*6.6,5.65,10.5);
   }
   const hinge=new T.Group();hinge.name='Powered drill gimbal';hinge.position.set(0,5.45,13);hinge.userData.noBatch=true;rig.add(hinge);
   for(const side of [-1,1]){sphere(frame,.75,dark,side*5.4,5.45,12.5);cylinder(hinge,.72,.72,.68,brass,side*5.45,0,-.5,20).rotation.z=Math.PI/2;}
   const bearing=cylinder(hinge,5.5,5.5,1.2,dark,0,0,-.85,48);bearing.rotation.x=Math.PI/2;
   torus(hinge,5.05,.32,brass,0,0,-.2);
+  torus(hinge,4.58,.13,steel,0,0,.03);
   for(let i=0;i<12;i++){const a=i/12*TAU;const bolt=cylinder(hinge,.18,.18,.18,cutting,Math.cos(a)*5.05,Math.sin(a)*5.05,.08,10);bolt.rotation.x=Math.PI/2;}
   const pistons=[];
   for(let i=0;i<3;i++){const a=i/3*TAU,r=3.7,rod=cylinder(hinge,.24,.24,1,cutting,Math.cos(a)*r,Math.sin(a)*r,-.6,16);rod.rotation.x=Math.PI/2;rod.userData.noBatch=true;pistons.push(rod);}
@@ -72,8 +78,24 @@ export function createVerticalEnvelopes(frame){
       const a=seam/8*TAU,points=profile.slice(1,-1).map(([r,y])=>new T.Vector3(x+Math.cos(a)*(r+.025),neckY+y,z+Math.sin(a)*(r+.025)));
       tube(frame,points,.027,brass);
     }
+    // Broad gores are fabric panels, not tiny painted noise. Their seams follow
+    // the rounded envelope from tied neck to apex without changing its outline.
+    for(let gore=0;gore<4;gore++){
+      const a=gore/4*TAU+index*.22,positions=[],uv=[],indices=[];
+      for(const[step,[radius,y]]of profile.slice(1,-1).entries())for(let edge=0;edge<=4;edge++){
+        // Four angular spans follow the curved envelope. A single broad chord
+        // would sink through its faceted surface and make the fabric look torn.
+        const angle=a+(edge/4-.5)*.25,r=radius+.035;positions.push(x+Math.cos(angle)*r,neckY+y,z+Math.sin(angle)*r);uv.push(edge/4,y*.13);
+        if(step&&edge){const p=step*5+edge;indices.push(p-6,p-1,p-5,p-5,p-1,p);}
+      }
+      const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(positions,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();
+      const panel=new T.Mesh(g,m('fabric',index%2?0xd2bd92:0x527e79,{side:T.DoubleSide}));panel.name='Sewn envelope gore';panel.castShadow=panel.receiveShadow=true;frame.add(panel);
+    }
     const knot=cone(frame,.48,.68,collar,x,neckY-.22,z,16);knot.rotation.x=Math.PI;
     torus(frame,.42,.075,brass,x,neckY+.24,z,true);
+    cylinder(frame,.48,.54,.38,collar,x,neckY-.57,z,20);
+    torus(frame,.59,.08,brass,x,neckY-.79,z,true);
+    for(let port=0;port<4;port++){const a=port/4*TAU;beam(frame,[x+Math.cos(a)*.42,neckY-.8,z+Math.sin(a)*.42],[x+Math.cos(a)*.94,neckY-1.57,z+Math.sin(a)*.94],.06,brass);}
     torus(frame,3.92,.065,brass,x,neckY+8.7,z,true);
     for(const dx of [-1,1])for(const dz of [-1,1]){
       const deck=[side*8.0+dx*.7,17.8,z*.80+dz*.65],neck=[x+dx*.42,neckY+.65,z+dz*.42];

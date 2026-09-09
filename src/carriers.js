@@ -11,13 +11,14 @@ import {addCarrierWeapons} from './armaments.js';
 import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
 import {normalizeVariant,variantFootprint} from './variants.js';
 import {createCrawlerDrill,createVerticalEnvelopes} from './carrier-variants.js';
+import {createCrawlerBody,dressCrawlerUndercroft,createAirshipHull,dressEnvelopeCradle,createPropellerBlades} from './carrier-craft.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
 function ring(group,r,tube,material,x,y,z,rotation=0){const o=new T.Mesh(new T.TorusGeometry(r,tube,8,32),material);o.position.set(x,y,z);o.rotation.y=rotation;o.castShadow=true;group.add(o);return o;}
 function crawler(frame,rig,spinners,variant){
   const armour=m('metal',0x42565f),steel=m('metal',0x778587),dark=m('metal',0x283e47),brass=m('gold',0xad8c52);
-  box(frame,18,3.2,23,armour,0,4.5,0);box(frame,16.5,1.7,21,steel,0,6.6,-.2);
+  createCrawlerBody(frame);
   for(let side of [-1,1]){
     box(frame,3.3,3.8,22.8,dark,side*8.95,2.75,0);
     for(let z=-9;z<=9;z+=3){
@@ -42,7 +43,7 @@ function crawler(frame,rig,spinners,variant){
   }
   box(frame,20.1,.45,23.1,m('stone',0xa8aaa0),0,8,0);
   box(frame,18.3,1.35,20.7,m('brick',0x8f6151),0,8.85,0);
-  for(const side of [-1,1])for(let z=-8;z<=8;z+=1.45){box(frame,.06,.67,.62,m('window'),side*9.2,8.9,z);box(frame,.15,.09,.8,brass,side*9.2,8.46,z);}
+  dressCrawlerUndercroft(frame);
   for(let x=-7.5;x<=7.5;x+=1.5){box(frame,.62,.67,.07,m('window'),x,8.9,10.4);box(frame,.8,.1,.18,m('stone',0xc0b4a0),x,8.46,10.43);}
   if(variant!=='drill'){
     const prow=box(frame,13,2.3,2.1,steel,0,3.2,12.1);prow.rotation.x=-.27;
@@ -57,7 +58,7 @@ function crawler(frame,rig,spinners,variant){
 
 function airship(frame,rig,spinners,variant){
   const brass=m('gold',0xc09d61),wood=m('wood',0x725445),cloth=m('fabric',0xe2d4b1),teal=m('copper',0x538f8e);
-  sphere(frame,1,wood,0,15.2,0,9,2.4,11);box(frame,17,.5,18.5,brass,0,17.3,0);
+  createAirshipHull(frame);box(frame,17,.5,18.5,brass,0,17.3,0);
   const envelopes=variant==='vertical'?createVerticalEnvelopes(frame):[];
   if(variant!=='vertical')for(const side of [-1,1])for(const z of [-6.8,6.6]){
     const envelope=sphere(frame,1,cloth,side*13.2,19.4,z,3.2,3.1,7.5);envelope.name=`Horizontal airship envelope ${envelopes.length+1}`;envelope.userData.carrierEnvelope='horizontal';envelope.userData.noBatch=true;envelopes.push(envelope);
@@ -69,7 +70,7 @@ function airship(frame,rig,spinners,variant){
       const tube=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(points),24,.032,5,false),brass);frame.add(tube);
     }
     for(const dz of [-3.5,3.5]){beam(frame,[side*7.4,16.8,z+dz],[side*12.8,17.7,z+dz],.14,brass);beam(frame,[side*7.8,18,z+dz],[side*11.2,20,z+dz],.055,brass);}
-    cyl(frame,.27,.27,5,wood,side*13.2,15.7,z,16).rotation.x=Math.PI/2;
+    dressEnvelopeCradle(frame,side*13.2,19.4,z);
     const fin=box(frame,5.1,.12,2.2,teal,side*13.2,19.35,z-6.7);fin.rotation.z=side*.09;
     box(frame,.13,3.2,2.3,teal,side*13.2,19.7,z-6.75);
   }
@@ -77,7 +78,7 @@ function airship(frame,rig,spinners,variant){
     for(const z of [-9,9]){
       const prop=new T.Group();prop.position.set(side*9.6,15.75,z);rig.add(prop);
       cyl(prop,.48,.63,1.5,brass,0,0,0,20).rotation.x=Math.PI/2;
-      for(let i=0;i<4;i++){const blade=box(prop,.46,4,.13,wood,0,0,-.8);blade.rotation.z=i*Math.PI/4;}
+      createPropellerBlades(prop,wood);
       ring(prop,2.3,.065,brass,0,0,-.83);batchStatic(prop);spinners.push({obj:prop,axis:'z',speed:9});
     }
     for(let z=-7;z<=7;z+=2.5){sphere(frame,.4,m('window',0xffd58c),side*8.3,15.8,z,.6,.85,.6);beam(frame,[side*8.3,17,z],[side*8.3,16,z],.045,brass);}

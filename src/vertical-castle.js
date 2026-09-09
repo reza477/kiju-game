@@ -222,8 +222,10 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // lead and glazing are clipped into the owning inspection shell at each real
  // floor boundary, so a cathedral proportion never creates an extra district.
  const completedFloors=floors.filter(f=>!(f.underConstruction&&!f.upgrading));
- for(let start=0;start<completedFloors.length;start+=4){
-  const chapterFloors=completedFloors.slice(start,start+4),first=chapterFloors[0],last=chapterFloors.at(-1),base=deckY+first.y+.82,total=last.y+last.height-first.y-1.31;
+ const choirChapters=[0,3,8,13,20];
+ for(let chapter=0;chapter<choirChapters.length-1;chapter++){
+  const start=choirChapters[chapter],chapterFloors=completedFloors.slice(start,choirChapters[chapter+1]);if(!chapterFloors.length)continue;
+  const first=chapterFloors[0],last=chapterFloors.at(-1),base=deckY+first.y+.82,total=last.y+last.height-first.y-1.31;
   for(const[bay,x,z,w,depth,angle]of[['front-left',-3.02,CENTRE_Z-5.12,.72,.12,0],['front-right',3.02,CENTRE_Z-5.12,.72,.12,0],['west',-4.29,CENTRE_Z,1.86,.16,-Math.PI/2],['east',4.29,CENTRE_Z,1.86,.16,Math.PI/2]]){
    const inner=archOutline(w,total),outer=archOutline(w+.20,total+.10);
    for(const f of chapterFloors){
@@ -233,7 +235,7 @@ export function verticalCastleDescriptors(layout,deckY=34){
     const paneOrigin=[x+Math.sin(angle)*.039,base,z+(angle===0?-.04:Math.cos(angle)*.039)];
     // The actual garden has an open growing bay: opaque glazing would hide
     // its plants from City view and turn the greenery into an invisible detail.
-    if(!(f.type==='farm'&&(bay==='west'||bay==='east')))add(`choir-light:${start}:${bay}:${tier}`,tier,(start/4+(bay==='front-left'?1:0))%5===1?'light':'glass',prism(surface,.035,paneOrigin,angle));
+    if(!(f.type==='farm'&&(bay==='west'||bay==='east')))add(`choir-light:${start}:${bay}:${tier}`,tier,(chapter+(bay==='front-left'?1:0))%5===1?'light':'glass',prism(surface,.035,paneOrigin,angle));
     for(let edge=0;edge<inner.length-1;edge++){
      const points=cut([inner[edge],inner[edge+1],outer[edge+1],outer[edge]]);
      if(points.length>=3)add(`choir-frame:${start}:${bay}:${tier}:${edge}`,tier,'trim',prism(points,depth,[x,base,z],angle));
@@ -242,6 +244,15 @@ export function verticalCastleDescriptors(layout,deckY=34){
     if(height>.001){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-mullion:${start}:${bay}:${tier}`,tier,'dark',px,base+(bottom+top)/2,pz,angle===0?.047:.046,height,angle===0?.046:.047);}
     // Fine lead rails acknowledge occupied levels without a heavy stone belt.
     const railY=Math.max(.15,Math.min(total-.22,lo+.36));if(railY>lo&&railY<hi){const px=x+Math.sin(angle)*.055,pz=z+(angle===0?-.057:Math.cos(angle)*.055);block(`choir-lead:${start}:${bay}:${tier}`,tier,'dark',px,base+railY,pz,angle===0?w-.09:.046,.045,angle===0?.046:w-.09);}
+    // Paired lancets sit within the upper choir arch. Their ribs are clipped at
+    // real storeys exactly like the outer tracery, preserving floor cutaways.
+    if(w>1){
+     const tracerH=Math.min(3.45,total*.46),tracerY=total-tracerH-.36;
+     for(const side of[-1,1]){
+      const a=archOutline(w*.40,tracerH).map(([xx,yy])=>[xx+side*w*.235,yy+tracerY]),b=archOutline(w*.40+.072,tracerH+.048).map(([xx,yy])=>[xx+side*w*.235,yy+tracerY]);
+      for(let edge=0;edge<a.length-1;edge++){const points=cut([a[edge],a[edge+1],b[edge+1],b[edge]]);if(points.length>=3)add(`choir-tracery:${start}:${bay}:${tier}:${side}:${edge}`,tier,'trim',prism(points,.07,[x+Math.sin(angle)*.071,base,z+Math.cos(angle)*.071],angle));}
+     }
+    }
    }
   }
  }
@@ -303,16 +314,31 @@ export function verticalCastleDescriptors(layout,deckY=34){
   block('crown-gallery',topTier,'wall',-1.20,roofY+1.43,CENTRE_Z-1.45,2.52,1.25,1.78);
   roof('crown-gallery-roof',topTier,-1.20,roofY+2.08,CENTRE_Z-1.45,2.77,2.06,1.72);
   arch('gallery-support',topTier,'trim',-1.20,roofY+.02,CENTRE_Z-2.24,2.15,1.1,.14,.27);
+  // Swept flying buttresses carry the elevated belfry back to the outer wall.
+  // The exposed arches and unequal stair-tower caps bind the crown into the
+  // occupied keep instead of leaving unrelated pointed roofs on a flat slab.
+  for(const side of[-1,1])for(const[bay,dz]of[-1.07,1.73].entries()){
+   const startX=side*3.55,endX=side<0?-1.03:2.20,startY=roofY+.13,endY=roofY+3.51-(bay? .42:0),points=[];
+   for(let i=0;i<=10;i++){const t=i/10;points.push([startX+(endX-startX)*t,startY+(endY-startY)*Math.pow(t,.52)]);}
+   for(let i=10;i>=0;i--){const t=i/10;points.push([startX+(endX-startX)*t,startY+(endY-startY)*Math.pow(t,.52)+.31]);}
+   add(`crown-flying-buttress:${side}:${bay}`,topTier,'edge',prism(points,.31,[0,0,CENTRE_Z+dz]));
+   column(`crown-buttress-foot:${side}:${bay}`,topTier,'wall',startX,CENTRE_Z+dz,.27,.23,roofY-.02,roofY+.73,8);
+   column(`crown-crocket:${side}:${bay}`,topTier,'roof',startX,CENTRE_Z+dz,.29,0,roofY+.74,roofY+(side<0?1.74:2.16),8);
+  }
  }
  // Major architectural chapters change actual wall depth, not just a trim
  // colour. The centre, all occupied floor elevations and complete promenade
  // stay fixed. Alternate four-storey galleries recess beyond the walking
  // envelope; larger dressed chambers above are supported by a flared corbel.
- const insetTier=tier=>Math.floor(tier/4)%2===1;
- const recessedCoordinate=(value,centre,protectedHalf)=>{const offset=value-centre,extent=Math.abs(offset);return extent<=protectedHalf?value:centre+Math.sign(offset)*(protectedHalf+(extent-protectedHalf)*.42);};
+ // Foundation, recessed lower cloister, great hall and increasingly slender
+ // upper lantern form one composition. Upper chapters never alternate back
+ // into another identical wide bead every four floors.
+ const chapterDepth=tier=>tier>=17?.42:tier>=14?.60:tier>=12?.76:tier>=4&&tier<8?.42:1;
+ const insetTier=tier=>chapterDepth(tier)<1;
+ const recessedCoordinate=(value,centre,protectedHalf,factor)=>{const offset=value-centre,extent=Math.abs(offset);return extent<=protectedHalf?value:centre+Math.sign(offset)*(protectedHalf+(extent-protectedHalf)*factor);};
  for(const d of out){
   const f=floors[d.tier],inset=insetTier(d.tier),wall=d.material==='wall';
-  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.48),y,recessedCoordinate(z,CENTRE_Z,4.07)]);
+  if(inset)d.vertices=d.vertices.map(([x,y,z])=>[recessedCoordinate(x,0,3.48,chapterDepth(d.tier)),y,recessedCoordinate(z,CENTRE_Z,4.07,chapterDepth(d.tier))]);
   if(wall)d.material=inset?'recess':d.tier>=8?'chamber':d.tier<2?'foundation':'wall';
   if(d.id.startsWith('vertical:front-cheek:')||d.id.startsWith('vertical:apse-pier:')){
    if(['sawmill','foundry'].includes(f.type))d.material='industry';
@@ -323,7 +349,7 @@ export function verticalCastleDescriptors(layout,deckY=34){
   if(f.type==='farm'&&d.id.startsWith('vertical:choir-frame:'))d.material='copper';
  }
  for(const f of floors){
-  if(f.tier<8||f.tier%8!==0||f.underConstruction&&!f.upgrading)continue;
+  if(f.tier!==8||f.underConstruction&&!f.upgrading)continue;
   const y=deckY+f.y;
   // Genuine tapered stone corbels carry the wider upper chamber back into
   // the recessed chapter below, outside the residents' protected corridor.

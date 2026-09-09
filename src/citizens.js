@@ -17,7 +17,7 @@ function geometry(name,create){if(!geometryCache.has(name)){const value=create()
 let plainMaterial;
 function plain(){if(!plainMaterial){plainMaterial=new T.MeshStandardMaterial({color:0xffffff,roughness:.86,metalness:0});plainMaterial.userData.shared=true;}return plainMaterial;}
 let faceSurface;
-function faceMaterial(){if(!faceSurface){faceSurface=plain().clone();faceSurface.vertexColors=true;faceSurface.roughness=.72;faceSurface.userData.shared=true;}return faceSurface;}
+function faceMaterial(){if(!faceSurface){faceSurface=new T.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.66,specularIntensity:.32,sheen:.12,sheenColor:0xd88b73,sheenRoughness:.85});faceSurface.userData.shared=true;}return faceSurface;}
 function thickCloth(g,thickness){
  const p=g.attributes.position,n=g.attributes.normal,u=g.attributes.uv,positions=[],uv=[],indices=Array.from(g.index.array),edges=new Map(),count=p.count;
  for(let side=0;side<2;side++)for(let i=0;i<count;i++){positions.push(p.getX(i)-side*n.getX(i)*thickness,p.getY(i)-side*n.getY(i)*thickness,p.getZ(i)-side*n.getZ(i)*thickness);uv.push(u.getX(i),u.getY(i));}
@@ -47,6 +47,24 @@ function cuffGeometry(){return new T.LatheGeometry([[.38,-.5],[.5,-.5],[.51,-.35
 function shoeGeometry(){const g=new T.SphereGeometry(1,18,12),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x*(z>0?1: .80),Math.max(-.70,y),z);}g.computeVertexNormals();return g;}
 function waistcoatGeometry(){const g=new T.BoxGeometry(1,1,1,8,10,1),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),x=p.getX(i);p.setXYZ(i,x*(.84+.14*Math.cos(y*4)),y,p.getZ(i)+.23*(1-4*x*x));}g.computeVertexNormals();return g;}
 function sleeveGeometry(){const g=new T.CylinderGeometry(.40,.46,1,16,8),p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i)),fold=.025*Math.sin(y*26+a*2)*bell(Math.abs(y),.36,.15);p.setXYZ(i,p.getX(i)+Math.sin(a)*fold,y,p.getZ(i)+Math.cos(a)*fold);}g.computeVertexNormals();return g;}
+function palmGeometry(){const g=new T.SphereGeometry(1,18,14),p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),width=.83+.15*bell(y,-.18,.57);p.setXYZ(i,x*width,y,z*(.77+.12*bell(x,-.38,.36))+.06*bell(y,.02,.6)*Math.cos(x*9));}g.computeVertexNormals();return g;}
+function movingCloth(g,cape=false){
+ // Native morph targets work in the lit, shadow and distance passes alike.
+ // Every authored vertex retains its exact height, including the fixed collar
+ // and hem, so compact-castle headroom and the natural human scale are stable.
+ const p=g.attributes.position,poses=[],normals=[];
+ for(const sign of[-1,1]){
+  const result=new Float32Array(p.count*3);
+  for(let i=0;i<p.count;i++){
+   const x=p.getX(i),y=p.getY(i),z=p.getZ(i),loose=T.MathUtils.clamp((.5-y)/.98,0,1),weight=loose*loose;
+   const angle=sign*weight*(cape?.24:.17),c=Math.cos(angle),s=Math.sin(angle),fold=1-weight*.035*(1+Math.cos(x*19+y*9));
+   result[i*3]=(x*c-z*s)*fold;result[i*3+1]=y;result[i*3+2]=(x*s+z*c)*fold;
+  }
+  const pose=new T.Float32BufferAttribute(result,3),shape=new T.BufferGeometry();shape.setAttribute('position',pose);shape.setIndex(g.index);shape.computeVertexNormals();poses.push(pose);normals.push(shape.attributes.normal);
+ }
+ g.morphAttributes.position=poses;g.morphAttributes.normal=normals;g.userData.movingCloth=true;return g;
+}
+function braidGeometry(){const points=[];for(let i=0;i<=24;i++){const t=i/24;points.push(new T.Vector3((t-.5)*1,.13*Math.sin(t*Math.PI)-.07,.035*Math.sin(t*Math.PI*10)));}return new T.TubeGeometry(new T.CatmullRomCurve3(points),24,.035,6,false);}
 function wardrobe(faction,index){
  const set=WARDROBES[faction],style=index%8;
  const skinTone=SKIN[(index*5+Math.floor(index/6))%SKIN.length];
@@ -75,17 +93,18 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  const cube=geometry('citizen-box',()=>new T.BoxGeometry(1,1,1));
  const specs={
   torso:[geometry('citizen-tailored-torso',torsoGeometry),cloth,1],shoulders:[sphere,cloth,2],
-  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,14],heads:[geometry('citizen-head',citizenHead),faceMaterial(),1],
+  vest:[geometry('citizen-waistcoat',waistcoatGeometry),cloth,1],limbs:[geometry('citizen-sleeves',sleeveGeometry),cloth,8],skin:[sphere,solid,18],hands:[geometry('citizen-palm',palmGeometry),solid,2],heads:[geometry('citizen-head',citizenHead),faceMaterial(),1],
   shoes:[geometry('citizen-shoe',shoeGeometry),solid,2],hair:[geometry('citizen-hair',hairGeometry),solid,6],
-  skirt:[geometry('citizen-skirt',()=>garmentGeometry()),cloth,1],
-  tails:[geometry('citizen-coattails',()=>garmentGeometry(true)),cloth,1],
-  cape:[geometry('citizen-cape',capeGeometry),cloth,1],collar:[cylinder,cloth,1],
+  skirt:[geometry('citizen-skirt',()=>movingCloth(garmentGeometry())),cloth,1],
+  tails:[geometry('citizen-coattails',()=>movingCloth(garmentGeometry(true))),cloth,1],
+  cape:[geometry('citizen-cape',()=>movingCloth(capeGeometry(),true)),cloth,1],collar:[cylinder,cloth,1],
   headwear:[cylinder,cloth,3],brim:[cylinder,cloth,1],
-  details:[geometry('citizen-detail',()=>new T.SphereGeometry(1,10,8)),solid,26],trim:[cube,cloth,30],bags:[cube,cloth,4],lapels:[geometry('citizen-folded-lapel',lapelGeometry),cloth,2],cuffs:[geometry('citizen-lined-cuff',cuffGeometry),cloth,2]
+  details:[geometry('citizen-detail',()=>new T.SphereGeometry(1,10,8)),solid,40],trim:[cube,cloth,36],bags:[cube,cloth,4],lapels:[geometry('citizen-folded-lapel',lapelGeometry),cloth,2],cuffs:[geometry('citizen-lined-cuff',cuffGeometry),cloth,2],braid:[geometry('citizen-braided-trim',braidGeometry),getMaterial('fabric',0xffffff,{roughness:.71}),4]
  };
  const buckets={},instances={};
  for(const [name,[shape,material,perPerson]]of Object.entries(specs)){
   const capacity=MAX_PEOPLE*perPerson,mesh=new T.InstancedMesh(shape,material,capacity);
+  if(shape.userData.movingCloth)mesh.setMorphAt(0,{morphTargetInfluences:[0,0]});
   mesh.name=`citizens-${name}`;mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.userData.noBatch=true;
   // Preallocate instance colors once. Their values are only resent when a slot changes.
   mesh.instanceColor=new T.InstancedBufferAttribute(new Float32Array(capacity*3),3);mesh.instanceColor.setUsage(T.DynamicDrawUsage);
@@ -213,6 +232,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  citizens.group.updateWorldMatrix(true,false);groupInverse.copy(citizens.group.matrixWorld).invert();
  for(let i=0;i<stations.length;i++){const s=stations[i];s.foot.updateWorldMatrix(true,false);stationMatrix.multiplyMatrices(groupInverse,s.foot.matrixWorld);stationPoint.setFromMatrixPosition(stationMatrix);direction.set(0,0,1).transformDirection(stationMatrix);routes[i]={x:stationPoint.x,y:stationPoint.y,z:stationPoint.z,yaw:Math.atan2(direction.x,direction.z),walking:false,errand:true,distance:0,route:'building-workplace',tier:s.tier,level:s.tier+1,station:s};}
  const activities={walking:0,carrying:0,reading:0,working:0,gardening:0,conversation:0,resting:0};citizens.stationContacts=[];
+ const clothPose={morphTargetInfluences:[0,0]};
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
  function put(name,x,y,z,sx,sy,sz,tint,rx=0,ry=0,rz=0,quaternion=null){
   const bucket=citizens.buckets[name],n=bucket.count++;
@@ -224,10 +244,11 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   if(y>.675&&(Math.abs(x)<.07||name==='headwear'||name==='brim'||name==='hair')){
    part.position.y-=.674;part.position.applyQuaternion(head);part.position.y+=.674;part.quaternion.premultiply(head);
   }
-  if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='limbs'))){
+  if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='hands'||name==='limbs'))){
    part.position.y-=.415;part.position.applyQuaternion(body);part.position.y+=.415;part.quaternion.premultiply(body);
   }
   part.updateMatrix();matrix.multiplyMatrices(root.matrix,part.matrix);bucket.mesh.setMatrixAt(n,matrix);
+  if(bucket.mesh.geometry.userData.movingCloth)bucket.mesh.setMorphAt(n,clothPose);
   if(bucket.colors[n]!==tint){color.setHex(tint);bucket.mesh.setColorAt(n,color);bucket.colors[n]=tint;bucket.colorsChanged=true;}
  }
  function segment(ax,ay,az,bx,by,bz,width,tint){
@@ -254,8 +275,10 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    if(closest){turn=Math.atan2(closest.x-route.x,closest.z-route.z)-route.yaw;turn=Math.atan2(Math.sin(turn),Math.cos(turn));}
   }
   const torsoTurn=T.MathUtils.clamp(turn*.64,-1.35,1.35),headTurn=T.MathUtils.clamp(turn-torsoTurn,-1.15,1.15);
-  body.setFromEuler(angles.set(station?.19:working?.11:reading?.055:carrying?.025:0,torsoTurn,working&&!station?Math.sin(time*6.1+p.phase)*.016:0));
-  head.setFromEuler(angles.set(working?.20:reading?.22:0,headTurn,partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
+  body.setFromEuler(angles.set(station?.19:working?.11:reading?.055:carrying?.035:route.walking?.025:0,torsoTurn-(route.walking?gait*.075:0),working&&!station?Math.sin(time*6.1+p.phase)*.016:route.walking?gait*.019:0));
+  head.setFromEuler(angles.set(working?.20:reading?.22:route.walking?.015+.015*Math.cos(stridePhase*2):.015,headTurn+(route.walking?gait*.055:Math.sin(time*.61+p.phase)*.035),partner>=0?Math.sin(time*1.2+p.phase)*.045:0));
+  const breeze=Math.sin(time*1.65+p.phase)*.38+Math.sin(time*2.7+p.phase*.73)*.16+(route.walking?Math.sin(stridePhase-.75)*.43:0);
+  clothPose.morphTargetInfluences[0]=Math.max(0,-breeze);clothPose.morphTargetInfluences[1]=Math.max(0,breeze);
   const activityName=gardening?'gardening':carrying?'carrying':working?'working':reading?'reading':partner>=0?'conversation':route.walking?'walking':'resting';activities[activityName]++;citizens.routes.at(-1).activity=activityName;
   root.position.set(route.x,route.y,route.z);root.rotation.set(0,route.yaw,0);root.scale.set(unit*p.widthFactor,unit*p.heightFactor,unit*p.depthFactor);root.updateMatrix();
   if(station){
@@ -273,18 +296,22 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
   put('heads',0,.731+bob,.006,.060,.074,.057,p.skinTone);
   put('skin',0,.727+bob,.066,.009,.023,.010,p.skinTone);
   put('skin',0,.715+bob,.073,.012,.010,.013,p.skinTone);
+  const blinkPhase=((time+p.phase*.61)%(4.1+i%5*.37)),blink=blinkPhase<.17?Math.sin(blinkPhase/.17*Math.PI)**2:0;
+  const gaze=partner>=0?Math.sin(time*.71+p.phase)*.0017:reading||working?.0003:Math.sin(time*.44+p.phase)*.0011;
+  const speech=partner>=0?Math.max(0,Math.sin(time*8.7+p.phase))*.0017:0;
   for(const side of [-1,1]){
    put('skin',side*.057,.734,.004,.011,.022,.012,p.skinTone);
-   put('details',side*.022,.739+bob,.059,.010,.0055,.0038,0xdbd3b8);
-   put('details',side*.022,.739+bob,.062,.0048,.005,.0028,i%3===0?0x4c6570:0x543a25);
-   put('details',side*.022,.739+bob,.064,.0024,.004,.0017,0x202228);
-   put('details',side*.024,.751+bob,.059,.014,.0025,.003,p.hairTone,0,0,side*.10);
-   put('details',side*.022,.744+bob,.061,.012,.0033,.0035,p.skinTone,0,0,side*.10);
+   put('details',side*.022,.739+bob,.059,.010,.0055*(1-blink*.96),.0038,0xdbd3b8);
+   put('details',side*.022+gaze,.739+bob,.062,.0048,.005*(1-blink*.96),.0028,i%3===0?0x4c6570:0x543a25);
+   put('details',side*.022+gaze,.739+bob,.064,.0024,.004*(1-blink*.96),.0017,0x202228);
+   put('details',side*.024,.751+bob,.059,.014,.0025,.003,p.hairTone,0,0,side*(.10+(working?.15:partner>=0?Math.sin(time*.8+p.phase)*.13:0)));
+   put('details',side*.022,.744+bob-blink*.0047,.061,.012,.0033,.0035,p.skinTone,0,0,side*.10);
    put('details',side*.022,.734+bob,.061,.0105,.0022,.0034,p.skinTone,0,0,-side*.06);
    put('details',side*.007,.709+bob,.079,.0035,.002,.002,0x715043);
   }
-  put('details',0,.699+bob,.063,.014,.0027,.0035,0x855e52);
-  put('details',0,.695+bob,.063,.012,.0028,.004,0xbf8e78);
+  put('details',0,.699+bob+speech*.3,.063,.014,.0027,.0035,0x855e52);
+  put('details',0,.695+bob-speech,.063,.012,.0028,.004,0xbf8e78);
+  put('details',0,.697+bob,.063,.010,.0008+speech*.7,.003,0x503c37);
   put('hair',0,.775,-.015,.064,.034,.066,p.hairTone);
   for(const side of[-1,1])put('hair',side*.052,.757,-.011,.011,.022,.025,p.hairTone,0,0,-side*.18);
   if(p.hairStyle===1)put('hair',0,.749,-.078,.034,.036,.031,p.hairTone);
@@ -312,10 +339,14 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    segment(shoulder,.603,0,side*.114,.498,elbowZ,.063,sleeve);
    wrist.setFromUnitVectors(up,direction.set(side*.114-handX,.498-handY,elbowZ-handZ).normalize());
    handPosition.set(0,.030,0).applyQuaternion(wrist);segment(side*.114,.498,elbowZ,handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.049,p.style===1&&citizens.faction==='crawler'?p.skinTone:sleeve);
-   put('skin',handX,handY,handZ,.023,.029,.022,p.skinTone,0,0,0,wrist);
+   put('hands',handX,handY,handZ,.023,.029,.022,p.skinTone,0,0,0,wrist);
    if(station){stationPoint.setFromMatrixPosition(matrix).applyMatrix4(citizens.group.matrixWorld);citizens.stationContacts.push({id:i,slot:station.slot,kind:station.kind,side,hand:stationPoint.toArray()});}
    handPosition.set(-side*.019,.005,.010).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.009,.018,.010,p.skinTone,0,0,0,wrist);
-   for(let finger=0;finger<2;finger++){handPosition.set(side*(finger-.5)*.014,-.025,.004).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.007,.017,.011,p.skinTone,0,0,0,wrist);}
+   for(let finger=0;finger<4;finger++){
+    const length=finger===0||finger===3?.0135:.0165,curl=station||carrying||reading?.008:partner>=0?.002+.003*Math.sin(time*2.3+p.phase+finger):.004;
+    handPosition.set(side*(finger-1.5)*.008,-.025,curl).applyQuaternion(wrist);put('skin',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.0047,length,.008,p.skinTone,0,0,0,wrist);
+    handPosition.set(side*(finger-1.5)*.008,-.025-length*.52,curl+.007).applyQuaternion(wrist);put('details',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.0032,.004,.0018,0xcfa78c,0,0,0,wrist);
+   }
    handPosition.set(0,.036,0).applyQuaternion(wrist);put('cuffs',handX+handPosition.x,handY+handPosition.y,handZ+handPosition.z,.053,.024,.053,p.accent,0,0,0,wrist);
    if(working&&side===1){put('trim',handX,handY-.044,handZ,.012,.112,.014,0x8b6950);put('bags',handX,handY-.104,handZ,.068,.028,.033,0x59646a);if(station){stationPoint.set(0,-.5,0).applyMatrix4(matrix).applyMatrix4(citizens.group.matrixWorld);citizens.stationContacts.push({id:i,slot:station.slot,kind:station.kind,side:'tool',hand:stationPoint.toArray()});}}
   }
@@ -341,6 +372,13 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
    for(let row=0;row<3;row++)put('trim',0,.401+row*.028,.198,.170,.006,.008,0x6d5944);
   }
   if(citizens.faction==='crawler'){put('trim',0,.626,.075,.077,.024,.012,0xd2c5aa);put('trim',0,.604,.086,.023,.047,.012,p.accent,0,0,.13);}
+  if(citizens.faction==='crawler'&&p.vest){put('braid',.043,.521,.081,.061,.075,.018,p.trim,0,0,.11);put('details',.071,.514,.080,.007,.009,.003,p.trim);}
+  if(citizens.faction==='kaiju'){
+   put('braid',0,.628,.053,.106,.070,.013,p.trim);
+   put('details',0,.627,.064,.008,.011,.005,p.style%2?0x79454c:0x758fa5);
+   if(p.collar)for(const side of[-1,1])put('trim',side*.035,.643,.044,.012,.036,.007,p.accent,0,0,side*.20);
+  }
+  if(citizens.faction==='airship')for(let n=0;n<3;n++)put('braid',0,.572-n*.038,.077,.088-n*.008,.060,.018,p.trim);
   if(citizens.faction==='airship'){
    put('trim',0,.447,.068,.127,.038,.012,p.accent,0,0,-.12);
    if(p.robe)put('trim',.065,.346,.089,.037,.203,.018,p.accent,0,0,.11);
@@ -361,6 +399,7 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  }
  for(const bucket of Object.values(citizens.buckets)){
   bucket.mesh.count=bucket.count;bucket.mesh.visible=bucket.count>0;bucket.mesh.instanceMatrix.needsUpdate=true;
+  if(bucket.mesh.morphTexture)bucket.mesh.morphTexture.needsUpdate=true;
   if(bucket.colorsChanged)bucket.mesh.instanceColor.needsUpdate=true;
  }
  citizens.group.userData.populationCount=count;

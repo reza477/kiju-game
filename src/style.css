@@ -33,3 +33,19 @@ body.in-streets .build-tray,body.in-streets .objective,body.in-streets .journal,
 .stack-preview{display:flex;flex-direction:column;gap:3px;border-left:2px solid #b995674d;padding-left:9px}
 .stack-preview span{padding:7px 9px;background:#ada38612;border-bottom:1px solid #bdad8f26;font-size:12px;color:#cbc8b7}
 .vertical-build small{font-size:11px;color:#b1b6a9;line-height:1.5}
+
+/* A quieter instrument frame lets the world carry the colour and spectacle. */
+:root{--panel:#102422ed;--line:#cbb89136;--gold:#dec596}
+.panel{background:linear-gradient(145deg,#20362fed,#102220f2);border-color:#c2b4943b;box-shadow:0 12px 32px #05131536,inset 0 1px #f2dfb00c;backdrop-filter:blur(12px)}
+.vignette{background:radial-gradient(ellipse at 54% 43%,transparent 48%,#0a182117 85%,#07151e3d 100%)}
+.topbar{border-top-color:#d6c09a66}
+.resource strong,.time-controls,.stat-line,.hull,.cost{font-variant-numeric:tabular-nums}
+.seal{box-shadow:inset 0 0 0 3px #d2c0940a,0 2px 8px #0002;background:linear-gradient(145deg,#b89b5414,transparent)}
+.view-switch button.active{box-shadow:inset 0 1px #fff4d859,0 1px 6px #0002}
+.build-option:hover,.faction:hover,.variant-options button:hover{box-shadow:inset 0 1px #ecd5a228}
+#faction-description{padding:15px 18px;border-right:1px solid #d0ba8a6b;background:linear-gradient(90deg,transparent,#102320b8);backdrop-filter:blur(3px)}
+#faction-description .eyebrow{color:#e6cc99;background:#162c26d9}
+#faction-description h2{color:#f0e6cf;text-shadow:0 2px 8px #091811aa}
+#faction-description p{color:#e0e1cf;text-shadow:0 1px 5px #06130e}
+.orbit-hint{color:#e1ddc9;text-shadow:0 1px 4px #0b1b13}
+@media(prefers-reduced-motion:reduce){button{transition:none}}

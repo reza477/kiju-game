@@ -98,14 +98,17 @@ export function getMaterial(kind='stone', color, options={}) {
   const texture=scan?.map??(mapped?surfaceTexture(kind):null);
   const baseColour=new T.Color(color),luminance=baseColour.r*.2126+baseColour.g*.7152+baseColour.b*.0722;
   const painted=kind==='metal'&&luminance>.035&&(options.metalness??.43)<.55;
-  const Material=painted?T.MeshPhysicalMaterial:T.MeshStandardMaterial;
+  const cloth=kind==='fabric';
+  const Material=metallic||glazed||cloth?T.MeshPhysicalMaterial:T.MeshStandardMaterial;
   const m=new Material({color,map:texture,
     roughness:scan?1:metallic?.43:glazed?.22:kind==='skin'?.83:.92,
     metalness:metallic?.68:glazed?.24:0,
     normalMap:scan?.normalMap??null,normalScale:new T.Vector2(.55,.55),roughnessMap:scan?.roughnessMap??null,
     bumpMap:!scan&&mapped&&!glazed?texture:null,
     bumpScale:kind==='skin'?.055:kind==='brick'||kind==='stone'?.035:kind==='roof'?.022:.008,
-    ...(painted?{clearcoat:.32,clearcoatRoughness:.36}:{}),...options});
+    ...(painted?{clearcoat:.42,clearcoatRoughness:.29,metalness:.42}:{}),
+    ...(glazed?{clearcoat:.72,clearcoatRoughness:.14,ior:1.48,roughness:.18,metalness:.08}:{}),
+    ...(cloth?{sheen:.65,sheenColor:new T.Color(color).lerp(new T.Color(0xd6c8b3),.28),sheenRoughness:.78}:{}),...options});
   if(kind==='metal'){
     // The photographed plate describes wear. Multiplying its dark oxide albedo
     // by already-painted armour tints crushed the designed planes to black.
@@ -134,7 +137,16 @@ function mesh(group,geometry,m,x,y,z){const material=resolve(m);if(material.user
 // Metres-per-tile projections are baked into mesh UVs, so brickwork keeps its
 // scale on thin walls and never swims when an entire carrier walks or rotates.
 function metricUV(geometry,scale){const p=geometry.attributes.position,n=geometry.attributes.normal;if(!p||!n)return geometry;const uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){const x=Math.abs(n.getX(i)),y=Math.abs(n.getY(i)),z=Math.abs(n.getZ(i));if(y>x&&y>z){uv[i*2]=p.getX(i)/scale;uv[i*2+1]=-p.getZ(i)/scale;}else if(x>z){uv[i*2]=p.getZ(i)/scale;uv[i*2+1]=p.getY(i)/scale;}else{uv[i*2]=p.getX(i)/scale;uv[i*2+1]=p.getY(i)/scale;}}geometry.setAttribute('uv',new T.BufferAttribute(uv,2));geometry.userData.metricUV=true;return geometry;}
-export function box(g,w,h,d,m,x=0,y=0,z=0){return mesh(g,geom(`b:${w}:${h}:${d}`,()=>new T.BoxGeometry(w,h,d)),m,x,y,z);}
+function plateGeometry(w,h,d){
+  const geometry=new T.BoxGeometry(w,h,d,3,3,3),p=geometry.attributes.position,n=geometry.attributes.normal;
+  const radius=Math.min(.075,Math.min(w,h,d)*.085),half=[w/2,h/2,d/2],point=new T.Vector3(),core=new T.Vector3(),normal=new T.Vector3();
+  for(let i=0;i<p.count;i++){
+    point.fromBufferAttribute(p,i);core.set(T.MathUtils.clamp(point.x,-half[0]+radius,half[0]-radius),T.MathUtils.clamp(point.y,-half[1]+radius,half[1]-radius),T.MathUtils.clamp(point.z,-half[2]+radius,half[2]-radius));
+    normal.copy(point).sub(core).normalize();point.copy(core).addScaledVector(normal,radius);p.setXYZ(i,point.x,point.y,point.z);n.setXYZ(i,normal.x,normal.y,normal.z);
+  }
+  geometry.userData.inwardBevel=true;return geometry;
+}
+export function box(g,w,h,d,m,x=0,y=0,z=0){const material=resolve(m),bevel=/^(metal|copper|gold) /.test(material.name)&&Math.min(w,h,d)>=.14&&Math.max(w,h,d)<=8;return mesh(g,geom(`${bevel?'plate':'b'}:${w}:${h}:${d}`,()=>bevel?plateGeometry(w,h,d):new T.BoxGeometry(w,h,d)),material,x,y,z);}
 export function cylinder(g,rTop,rBottom,h,m,x=0,y=0,z=0,segments=16){return mesh(g,geom(`c:${rTop}:${rBottom}:${h}:${segments}`,()=>new T.CylinderGeometry(rTop,rBottom,h,segments)),m,x,y,z);}
 export function cone(g,r,h,m,x=0,y=0,z=0,segments=16){return cylinder(g,0,r,h,m,x,y,z,segments);}
 export function sphere(g,r,m,x=0,y=0,z=0,sx=1,sy=1,sz=1){const o=mesh(g,geom('s:'+r,()=>new T.SphereGeometry(r,24,16)),m,x,y,z);o.scale.set(sx,sy,sz);return o;}

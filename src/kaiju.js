@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial as material, box, cylinder, sphere, beam, batchStatic } from './materials.js';
 import { KAIJU_CENTER } from './city-layout.js';
+import { skinSurfaceSet } from './surface-library.js';
 
 const UP = new T.Vector3(0, 1, 0);
 
@@ -37,7 +38,19 @@ function mirroredPlate(group, side, outline, depth, mat, x, y, z, bevel = .12) {
   const centreX=(bounds.min.x+bounds.max.x)*.5,halfWidth=Math.max(.1,(bounds.max.x-bounds.min.x)*.5);
   const crown=Math.min(.42,halfWidth*.20);
   for(let i=0;i<positions.count;i++){const across=(positions.getX(i)-centreX)/halfWidth;positions.setZ(i,positions.getZ(i)+crown*(1-across*across));}
-  mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingBox();mesh.geometry.computeBoundingSphere();return mesh;
+  mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingBox();mesh.geometry.computeBoundingSphere();
+  if(depth>=.5&&bounds.max.y-bounds.min.y>2.5){
+    // Recessed seams and captive fasteners follow the curved plate itself.
+    // They sit within its bevel envelope and inherit its actual articulation.
+    const dark=material('metal',0x272e35,{roughness:.70,metalness:.48}),steel=material('metal',0x9a9990,{roughness:.38,metalness:.72});
+    const cy=(bounds.min.y+bounds.max.y)*.5,points=outline.map(([px,py])=>{const x=centreX+(px*side-centreX)*.84,y=cy+(py-cy)*.90,a=(x-centreX)/halfWidth;return[x,y,depth*.5+crown*(1-a*a)+.016];});
+    cable(mesh,[...points,points[0]],.023,dark);
+    for(let i=0;i<points.length;i+=2){const [x,y,z]=points[i],washer=cylinder(mesh,.082,.082,.020,dark,x,y,z+.006,12);washer.rotation.x=Math.PI/2;
+      cylinder(mesh,.054,.054,.025,steel,x,y,z+.018,6).rotation.x=Math.PI/2;
+      box(mesh,.045,.010,.005,dark,x,y,z+.033);
+    }
+  }
+  return mesh;
 }
 
 function joint(group, x, y, z, radius, mat, trim) {
@@ -311,14 +324,14 @@ function backpackHarness(frame, m) {
 // horns, tendons and claws from the cyborg's straight armour and metal cables.
 function organicSweep(group, points, radii, mat, segments = 24) {
   const curve = new T.CatmullRomCurve3(points.map(p => new T.Vector3(...p)));
-  const geometry = new T.TubeGeometry(curve, segments, 1, 12, false);
+  const edges=24,geometry = new T.TubeGeometry(curve, segments, 1, edges, false);
   const position = geometry.attributes.position;
   for (let ring = 0; ring <= segments; ring++) {
     const t = ring / segments, centre = curve.getPointAt(t);
     const sample = t * (radii.length - 1), index = Math.min(radii.length - 2, Math.floor(sample));
     const radius = T.MathUtils.lerp(radii[index], radii[index + 1], sample - index);
-    for (let edge = 0; edge <= 12; edge++) {
-      const i = ring * 13 + edge;
+    for (let edge = 0; edge <= edges; edge++) {
+      const i = ring * (edges+1) + edge;
       position.setXYZ(i, centre.x + (position.getX(i) - centre.x) * radius,
         centre.y + (position.getY(i) - centre.y) * radius,
         centre.z + (position.getZ(i) - centre.z) * radius);
@@ -349,7 +362,7 @@ function organicLoft(group, sections, mat, relief, region='') {
   for(let i=0;i<=rings;i++){
     const t=i/rings,c=centre.getPoint(t),r=radii.getPoint(t);
     for(let j=0;j<=edges;j++){
-      const a=j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a);
+      const a=j===edges?0:j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a);
       // Rib cages, forearms and shins have broad planes around bone rather than
       // the circular cross-section of a hose. Rounded edges remain continuous.
       const plane=region==='torso'?.22*formBell(t,.62,.27):region==='forearm'?.25*formBell(t,.61,.32):region==='shin'?.20*formBell(t,.51,.33):.14*formBell(t,.43,.34);
@@ -369,7 +382,10 @@ function organicLoft(group, sections, mat, relief, region='') {
   const normals=geometry.attributes.normal;
   for(let ring=0;ring<=rings;ring++){const a=ring*(edges+1),b=a+edges,n=new T.Vector3().fromBufferAttribute(normals,a).add(new T.Vector3().fromBufferAttribute(normals,b)).normalize();normals.setXYZ(a,n.x,n.y,n.z);normals.setXYZ(b,n.x,n.y,n.z);}
   geometry.userData.loft={rings,edges};
-  const mesh=addMesh(group,geometry,region?anatomicalSkin(region,mat):mat);mesh.name='Continuous anatomical skin';return mesh;
+  // These temporary arm/leg lofts are joined into one skin below. Their
+  // discarded materials need no texture requests; the final skin owns its map.
+  const visibleSkin=region&&!['upperarm','forearm','thigh','shin'].includes(region);
+  const mesh=addMesh(group,geometry,visibleSkin?anatomicalSkin(region):mat);mesh.name='Continuous anatomical skin';return mesh;
 }
 
 // Join two authored anatomical surfaces through one tangent-continuous band.
@@ -401,60 +417,32 @@ function bindLivingSkin(parent,frame,lower,foot,geometry,mat,pivot,region){
     indices.push(0,1,2,foot?3:2);weights.push(body,(1-body)*(1-distal),(1-body)*distal*(1-ankle),(1-body)*distal*ankle);
   }
   geometry.setAttribute('skinIndex',new T.Uint16BufferAttribute(indices,4));geometry.setAttribute('skinWeight',new T.Float32BufferAttribute(weights,4));
-  const mesh=new T.SkinnedMesh(geometry,anatomicalSkin(region,mat));mesh.name=`Continuous weighted ${region} skin`;mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.userData.noBatch=true;mesh.userData.skinRegion=region;mesh.boundingSphere=new T.Sphere(new T.Vector3(),32);parent.add(mesh);
-  parent.updateWorldMatrix(true,true);frame.updateWorldMatrix(true,true);mesh.bind(new T.Skeleton(bones));return mesh;
+  // Contractile tissue changes volume through a bend while the bones, planted
+  // soles and striking marker retain their authored positions. The response
+  // fades to zero at all attachments, rather than sliding a muscle over a joint.
+  const flex=[],release=[],leg=region==='leg';
+  for(let i=0;i<p.count;i++){
+    const x=p.getX(i),y=p.getY(i),z=p.getZ(i),along=leg?-y/24:-y/22;
+    const cx=leg?.3:(1.1+1.05*Math.tanh((-y-5)/4)),side=parent.position.x<0?-1:1,rx=x-side*cx;
+    const upper=formBell(along,.24,.15),lowerForm=formBell(along,.65,.15),anchor=Math.min(1,Math.max(0,-y/2))*Math.min(1,Math.max(0,(y+(leg?21:19))/3));
+    const contraction=anchor*(upper*.075+lowerForm*.052),tendon=anchor*formBell(along,.43,.075);
+    flex.push(x+rx*contraction,y,z+(z>0?1:-.7)*contraction*2.1-tendon*.045);
+    release.push(x-rx*anchor*.026*upper,y,z-anchor*.11*upper+anchor*.065*lowerForm);
+  }
+  geometry.morphAttributes.position=[new T.Float32BufferAttribute(flex,3),new T.Float32BufferAttribute(release,3)];sculptedMorphNormals(geometry);
+  const mesh=new T.SkinnedMesh(geometry,anatomicalSkin(region));mesh.name=`Continuous weighted ${region} skin`;mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.userData.noBatch=true;mesh.userData.skinRegion=region;mesh.boundingSphere=new T.Sphere(new T.Vector3(),32);parent.add(mesh);
+  mesh.updateMorphTargets();parent.updateWorldMatrix(true,true);frame.updateWorldMatrix(true,true);mesh.bind(new T.Skeleton(bones));return mesh;
 }
 
 const anatomicalMaterials=new Map();
 const formBell=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
-function anatomicalSkin(region,base){
+function sculptedMorphNormals(geometry){
+  geometry.morphAttributes.normal=geometry.morphAttributes.position.map(position=>{const sculpt=new T.BufferGeometry();sculpt.setAttribute('position',position);sculpt.setIndex(geometry.index);sculpt.computeVertexNormals();return sculpt.attributes.normal;});
+}
+function anatomicalSkin(region){
   if(anatomicalMaterials.has(region))return anatomicalMaterials.get(region);
-  const width=512,height=1024,canvas=document.createElement('canvas'),surface=document.createElement('canvas'),relief=document.createElement('canvas');canvas.width=surface.width=relief.width=width;canvas.height=surface.height=relief.height=height;
-  const c=canvas.getContext('2d'),s=surface.getContext('2d'),b=relief.getContext('2d'),colour=c.createImageData(width,height),rough=s.createImageData(width,height),pores=b.createImageData(width,height);
-  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-    const t=y/(height-1),a=x/width*Math.PI*2,front=Math.max(0,Math.cos(a)),back=Math.max(0,-Math.cos(a)),side=Math.abs(Math.sin(a));
-    const wave=Math.sin(a*3+Math.sin(t*8))*Math.sin(t*15+a)+.36*Math.sin(a*7-t*17);
-    let form=0,flush=0;
-    if(region==='torso'){
-      form-=front*16*formBell(t,.545+.012*side,.018)*( .4+.6*side);
-      form-=front*9*formBell(side,0,.12)*formBell(t,.48,.24);
-      for(const h of [.343,.393,.446])form-=front*8*formBell(t,h,.010)*formBell(side,.20,.25);
-      form-=front*13*formBell(t,.25+.06*side,.021)*side;
-      form+=front*9*formBell(t,.615,.075)*formBell(side,.43,.28);
-      form-=side*11*formBell(t,.52,.11);flush=front*8*formBell(t,.68,.13);
-    }else if(region==='head'||region==='jaw'){
-      form-=front*12*formBell(t,.39,.10)*formBell(side,.57,.17);
-      form+=front*10*formBell(t,.63,.11);flush=front*10*formBell(t,.27,.12);
-    }else if(region==='arm'||region==='leg'||region==='hand'){
-      const joint=region==='arm'?.52:region==='leg'?.48:.65;
-      flush=20*formBell(t,joint,.085)+6*formBell(t,.16,.12);
-      form-=front*14*formBell(t,joint+.015,.020);
-      form+=front*12*formBell(side,.26,.19)*formBell(t,.70,.23);
-      form-=side*10*formBell(t,.29,.15);
-    }else{
-      const lower=region==='forearm'||region==='shin',joint=lower?.10:.87;
-      flush=16*formBell(t,joint,.095)+7*formBell(t,.30,.12);
-      form-=front*10*formBell(t,joint+.045,.021);
-      if(region==='upperarm')form-=side*12*formBell(t,.29,.07);
-      if(region==='thigh')form-=front*11*formBell(side,.50,.13)*formBell(t,.50,.3);
-      if(lower)form+=front*9*formBell(side,.16,.09)*formBell(t,.67,.24);
-    }
-    const exposed=region==='torso'?.62+.38*formBell(t,.53,.34):region==='head'||region==='jaw'?.78:.60+.40*formBell(t,.48,.36);
-    const ventral=((Math.cos(a)+1)*.5)**1.7*exposed,freckle=Math.sin(a*31+Math.sin(t*76)*1.8)*Math.sin(t*119+Math.sin(a*27)),variation=wave*5+form*.70+freckle*2.1,i=(y*width+x)*4;
-    // Dark weathered outer hide and warmer protected skin establish a creature
-    // identity at ordinary play distance, with gradual anatomical boundaries.
-    const hide=(1-front)*(.60+.40*formBell(t,.58,.33)),mottle=Math.sin(a*5+Math.sin(t*19))*Math.sin(t*27+a*3),weather=hide*(13+9*mottle);
-    colour.data.set([72+ventral*72+variation+flush*.55-weather,91+ventral*32+variation-flush*.11-weather*.45,83+ventral*22+variation-flush*.25-weather*.65,255],i);
-    const r=241-ventral*56-wave*6-Math.max(0,form)*.48-8*formBell(t,.5,.12);rough.data.set([r,r,r,255],i);
-    // Fine creases follow longitudinal skin tension, while broad anatomical
-    // shadowing comes from geometry. This avoids repeating pebble-sized bumps.
-    const grain=Math.sin(a*151+Math.sin(t*195)*1.3)*Math.sin(t*337+a*19),crease=Math.pow(Math.max(0,Math.sin(a*19+t*75+Math.sin(t*11)*2)),18);
-    const reliefValue=132+grain*3.5+freckle*2-crease*12;pores.data.set([reliefValue,reliefValue,reliefValue,255],i);
-  }
-  c.putImageData(colour,0,0);s.putImageData(rough,0,0);b.putImageData(pores,0,0);
-  const map=new T.CanvasTexture(canvas),roughnessMap=new T.CanvasTexture(surface),bumpMap=new T.CanvasTexture(relief);map.colorSpace=T.SRGBColorSpace;
-  for(const texture of [map,roughnessMap,bumpMap]){texture.wrapS=T.RepeatWrapping;texture.wrapT=T.ClampToEdgeWrapping;texture.anisotropy=8;}
-  const mat=base.clone();mat.color.setHex(0xffffff);mat.map=map;mat.roughnessMap=roughnessMap;mat.bumpMap=bumpMap;mat.bumpScale=.065;mat.roughness=.82;mat.name='Anatomical skin: '+region;anatomicalMaterials.set(region,mat);return mat;
+  const {map,roughnessMap,bumpMap}=skinSurfaceSet(region);
+  const mat=new T.MeshPhysicalMaterial({color:0xffffff,map,roughnessMap,bumpMap,bumpScale:.095,roughness:.80,metalness:0,sheen:.18,sheenColor:0x935343,sheenRoughness:.85,specularIntensity:.35});mat.name='Anatomical skin: '+region;mat.userData.shared=true;anatomicalMaterials.set(region,mat);return mat;
 }
 
 let fleshTexture,fleshBump;
@@ -517,14 +505,25 @@ function organicTorso(frame, m) {
       p.z+=front*.30*bell(p.y,44.7-Math.abs(p.x)*.19,.36)*bell(Math.abs(p.x),2.6,1.9);
       p.z-=front*.26*bell(p.y,45.2,.38)*bell(p.x,0,.55);
       p.z+=front*.27*bell(Math.abs(p.x),.78+(48.2-p.y)*.38,.23)*bell(p.y,46.6,1.7);
+      // Interlocking serratus, external obliques and a weighted lower abdomen
+      // give the torso planes at ordinary play distance, not only a texture.
+      const ax=Math.abs(p.x),flank=bell(ax,2.75,1.05)*bell(p.y,36.9,3.6);
+      p.z+=front*flank*(.20*Math.cos((p.y+ax*.58)*3.7)-.12);
+      p.z-=front*.25*bell(ax,1.43+(37-p.y)*.13,.18)*bell(p.y,33.8,3.4);
+      p.z+=front*.37*bell(p.y,30.25,1.35)*bell(ax,1.05,1.30);
+      p.z-=front*.23*bell(p.x,0,.30)*bell(p.y,31.1,.30);
+      p.z-=front*.17*bell(p.y,40.4+.61*p.x,.07)*bell(p.x,-1.75,1.1);
+      p.z-=front*.11*bell(p.y,40.17+.61*p.x,.06)*bell(p.x,-1.75,1.1);
+      p.z+=front*.13*bell(p.y,46.3,.25)*bell(ax,.42,.28);
+      p.z-=back*.19*Math.cos(p.y*3.4)*bell(p.y,46.25,1.4)*bell(ax,0,1.8);
     },'torso');
   const source=torsoSkin.geometry.attributes.position,breath=[],recovery=[];
   for(let i=0;i<source.count;i++){
-    const x=source.getX(i),y=source.getY(i),z=source.getZ(i),chest=bell(y,40.7,4.3),upper=bell(y,43.3,4.0),a=.038*upper;
-    breath.push(x*(1+.023*chest),y+.075*chest,z+(z>0?.31:-.19)*chest);
-    recovery.push(x*Math.cos(a)-z*Math.sin(a),y-.13*upper*Math.min(1,Math.abs(x)/5),x*Math.sin(a)+z*Math.cos(a));
+    const x=source.getX(i),y=source.getY(i),z=source.getZ(i),chest=bell(y,40.7,4.3),upper=bell(y,40.8,5.0),attachment=1-bell(Math.abs(x),5.7,1.5),a=.083*upper*attachment;
+    breath.push(x*(1+.030*chest*attachment),y+.09*chest,z+(z>0?.43:-.16)*chest*attachment);
+    recovery.push(x*Math.cos(a)-z*Math.sin(a),y-.25*upper*Math.min(1,Math.abs(x)/5)*attachment,x*Math.sin(a)+z*Math.cos(a));
   }
-  torsoSkin.geometry.morphAttributes.position=[new T.Float32BufferAttribute(breath,3),new T.Float32BufferAttribute(recovery,3)];torsoSkin.updateMorphTargets();torsoSkin.userData.noBatch=true;torsoSkin.name='Breathing flesh torso';
+  torsoSkin.geometry.morphAttributes.position=[new T.Float32BufferAttribute(breath,3),new T.Float32BufferAttribute(recovery,3)];sculptedMorphNormals(torsoSkin.geometry);torsoSkin.updateMorphTargets();torsoSkin.userData.noBatch=true;torsoSkin.name='Breathing flesh torso';
   frame.userData.fleshAnatomy={torso:torsoSkin};
   for (const side of [-1, 1]) {
     // Blunt shoulder osteoderms and swept bone horns create a living silhouette.
@@ -542,7 +541,7 @@ function organicHead(frame, m) {
   skull.userData.noBatch=true;frame.userData.fleshAnatomy.head=skull;
   // One sculpted cranial envelope gives the forehead, zygomatic arch and snout
   // a shared surface. The jaw is a broad hinged volume below the real mouth gap.
-  organicLoft(skull,[[0,-.77,.16,1.20,1.28],[0,-.30,.08,1.83,1.79],
+  organicLoft(skull,[[0,-.98,.16,1.48,1.54],[0,-.70,.16,1.92,1.67],[0,-.30,.08,2.05,1.79],
     [0,.37,-.04,2.14,1.90],[0,1.08,-.22,2.18,2.04],[0,1.85,-.43,2.02,1.85],
     [0,2.60,-.56,1.68,1.48],[0,3.12,-.64,.94,.88],[0,3.40,-.67,.03,.06]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a)),x=Math.abs(p.x);
@@ -556,25 +555,31 @@ function organicHead(frame, m) {
       p.z-=front*.19*formBell(p.y,1.9,.52)*formBell(x,0,.22);
       p.z+=front*.25*formBell(x,1.75,.34)*formBell(p.y,-.33,.52);
     },'head');
-  organicLoft(skull,[[0,-2.43,.70,.96,.48],[0,-2.23,.80,1.45,.91],[0,-1.93,.73,1.81,1.24],
-    [0,-1.47,.40,1.99,1.39],[0,-.94,.25,1.77,1.34]],m.skin,(p,a)=>{
+  const jaw=new T.Group();jaw.name='Breathing hinged mandible';jaw.position.set(0,-.82,.30);jaw.userData.noBatch=true;skull.add(jaw);frame.userData.fleshAnatomy.jaw=jaw;
+  const mandible=organicLoft(skull,[[0,-2.43,.70,.96,.48],[0,-2.23,.80,1.45,.91],[0,-1.93,.73,1.81,1.24],
+    [0,-1.47,.40,1.99,1.39],[0,-.72,.35,1.84,1.50]],m.skin,(p,a)=>{
       const front=Math.max(0,Math.cos(a));p.z+=front*.51*formBell(p.y,-1.93,.52);
-      p.x+=Math.sign(p.x)*.13*formBell(p.y,-1.5,.24);
+      p.x+=Math.sin(a)*.13*formBell(p.y,-1.5,.24);
       p.z-=front*.13*formBell(p.x,0,.21)*formBell(p.y,-2.0,.29);
+      p.z+=front*.19*formBell(Math.abs(p.x),1.52,.31)*formBell(p.y,-1.24,.45);
     },'jaw');
-  sphere(skull,1,m.mouth,0,-.89,1.75,.93,.085,.29);
+  mandible.position.sub(jaw.position);jaw.add(mandible);
+  const mouth=sphere(skull,1,m.mouth,0,-.89,1.75,.93,.085,.29);mouth.userData.noBatch=true;frame.userData.fleshAnatomy.mouth=mouth;
+  const eyes=[];frame.userData.fleshAnatomy.eyes=eyes;
   for (const side of [-1, 1]) {
     // A deep orbit supports a wet amber globe, with actual eyelid contours.
     sphere(skull,1,m.mouth,side*1.26,.48,1.46,.49,.31,.23);
-    sphere(skull,1,m.eye,side*1.26,.49,1.60,.28,.105,.11);
-    sphere(skull,1,m.pupil,side*1.26,.49,1.71,.055,.095,.024);
-    organicSweep(skull,[[side*.88,.44,1.68],[side*1.18,.61,1.75],[side*1.57,.74,1.44]], [.14,.16,.055],m.ridge,18);
+    const globe=sphere(skull,1,m.eye,side*1.26,.49,1.60,.28,.105,.11),pupil=sphere(skull,1,m.pupil,side*1.26,.49,1.71,.055,.095,.024);
+    const lid=organicSweep(skull,[[side*.88,.44,1.68],[side*1.18,.61,1.75],[side*1.57,.74,1.44]], [.14,.16,.055],m.ridge,18);
+    for(const part of[globe,pupil,lid])part.userData.noBatch=true;eyes.push({globe,pupil,lid,side});
     organicSweep(skull,[[side*.89,.41,1.62],[side*1.22,.37,1.62],[side*1.56,.47,1.44]], [.075,.095,.035],m.skin,18);
-    organicMuscle(skull,[side*1.84,.02,.44],[side*1.54,-1.44,.75],.42,.49,m.skin);
     sphere(skull,1,m.mouth,side*.46,-.28,2.13,.14,.080,.027);
     // Lip folds lead into the hinge, tying the exposed teeth back to the skull.
-    organicSweep(skull,[[side*.10,-.77,2.02],[side*.65,-.84,1.94],[side*1.15,-1.03,1.55]], [.09,.11,.025],m.ridge,20);
-    organicSweep(skull,[[side*.08,-1.02,1.84],[side*.65,-1.08,1.84],[side*1.24,-1.09,1.43]], [.10,.13,.035],m.skin,20);
+    organicSweep(skull,[[side*.03,-.79,2.03],[side*.56,-.83,2.00],[side*1.10,-.94,1.77]], [.035,.052,.010],m.ridge,24);
+    const lip=organicSweep(skull,[[side*.02,-1.00,1.99],[side*.57,-1.04,1.94],[side*1.13,-.99,1.72]], [.048,.063,.016],m.warm,24);lip.position.sub(jaw.position);jaw.add(lip);
+    // Fine orbital folds and a warm fleshy nostril rim have restrained thickness.
+    for(let fold=0;fold<3;fold++)organicSweep(skull,[[side*1.43,.03-fold*.095,1.65-fold*.035],[side*1.70,.03-fold*.13,1.44-fold*.06],[side*1.84,-.08-fold*.13,1.08]], [.021,.036,.008],m.ridge,16);
+    organicSweep(skull,[[side*.30,-.30,2.12],[side*.44,-.18,2.18],[side*.60,-.30,2.05]], [.042,.073,.014],m.warm,18);
     organicSweep(skull, [[side * 1.58, 2.06, -.65], [side * 2.4, 2.6, -1.0],
       [side * 3.0, 3.72, -1.75], [side * 2.75, 5.05, -2.65]], [.73, .61, .31, .012], m.bone, 30);
     organicSweep(skull, [[side * 1.95, -.15, -.2], [side * 2.53, .2, -.85],
@@ -598,10 +603,11 @@ function organicHand(arm, side, m) {
     p.z-=Math.max(0,-Math.cos(a))*.10*formBell(p.y,-.3,.65)*Math.cos(p.x*11);
   });
   sphere(palm, 1, m.warm, -side * .56, -.58, .36, .63, .81, .34);
-  const digits = new T.Group(), fist = new T.Group();
+  const digits = new T.Group(), fist = new T.Group(),fingers=[];
   digits.name = 'Open titan fingers'; fist.name = 'Closed striking fist'; palm.add(digits, fist);
   for (let finger = 0; finger < 4; finger++) {
     const fx = (finger - 1.5) * .53, length = finger === 0 || finger === 3 ? .88 : 1.07;
+    const digitStart=digits.children.length;
     const y = -1.02 + Math.abs(finger - 1.5) * .08;
     const points = [[fx, y, .10], [fx + side * .05, y - length, .31],
       [fx + side * .04, y - length * 1.65, .66], [fx - side * .02, y - length * 2.04, 1.00]];
@@ -610,6 +616,7 @@ function organicHand(arm, side, m) {
     const tip = points[3];
     organicSweep(digits, [tip, [tip[0], tip[1] - .35, tip[2] + .26],
       [tip[0], tip[1] - .42, tip[2] + .72]], [.20, .13, .008], m.claw, 12);
+    fingers.push(articulatedSection(digits,digits.children.slice(digitStart),points[0],`Living finger ${finger+1}`));
     organicMuscle(palm, [fx * .6, .22, -.27], [fx, -.98, -.24], .075, .08, m.ridge);
     organicMuscle(fist, [fx, -.69, .08], [fx, -1.11, .56], .31, .31, m.skin);
     organicMuscle(fist, [fx, -1.11, .56], [fx, -.53, .91], .28, .27, m.skin);
@@ -623,7 +630,7 @@ function organicHand(arm, side, m) {
   organicMuscle(fist, [-side * .96, -.2, .32], [-side * .57, -.78, .95], .34, .31, m.skin);
   const marker = new T.Object3D(); marker.name = 'Physical striking knuckle'; marker.position.set(0, -1.33, .29); palm.add(marker);
   batchStatic(digits); digits.userData.noBatch = true; batchStatic(fist); fist.userData.noBatch = true; fist.visible = false;
-  batchStatic(palm); palm.userData.noBatch = true; return { palm, digits, fist, marker };
+  batchStatic(palm); palm.userData.noBatch = true; return { palm, digits, fist, marker,fingers };
 }
 
 function organicArm(rig, limbs, side, m, frame) {
@@ -793,6 +800,18 @@ export function animateFleshAnatomy(city,time,moving){
   const afterStrike=strikeAge>=.7&&strikeAge<2.6?Math.exp(-(strikeAge-.7)*2.7)*Math.sin((strikeAge-.7)*4.2):0;
   anatomy.torso.morphTargetInfluences[0]=.22+breath*(.52+effort*.26)+afterStrike*.16;
   anatomy.torso.morphTargetInfluences[1]=moving?Math.sin(phase-.40)*.90:Math.sin(time*.56)*.10;
-  anatomy.head.rotation.set(-.014-(moving?.020*Math.sin(phase*2-.8):breath*.012)+afterStrike*.023,moving?-.030*Math.sin(phase-.30):Math.sin(time*.31)*.016,-city.rig.rotation.z*.58);
-  anatomy.head.position.y=49.5+.065*breath-(moving?.08*Math.abs(Math.sin(phase-.40)):0);
+  const strike=strikeAge>=0&&strikeAge<1.3?Math.sin(Math.min(1,strikeAge/.7)*Math.PI)*Math.max(0,1-(strikeAge-.7)/.6):0;
+  anatomy.head.rotation.set(-.024-(moving?.047*Math.sin(phase*2-.8):breath*.018)+afterStrike*.055-strike*.095,moving?-.047*Math.sin(phase-.30):Math.sin(time*.31)*.035,-city.rig.rotation.z*.74);
+  anatomy.head.position.y=49.5+.08*breath-(moving?.15*Math.abs(Math.sin(phase-.40)):0);
+  anatomy.jaw.rotation.x=.018+breath*.023+Math.max(0,strike)*.13;
+  anatomy.mouth.scale.y=.085+breath*.015+Math.max(0,strike)*.12;
+  const blinkPhase=((time+1.63)%6.7),blink=blinkPhase<.19?Math.sin(blinkPhase/.19*Math.PI)**2:0;
+  for(const eye of anatomy.eyes){eye.globe.scale.y=.105*(1-blink*.94);eye.pupil.scale.y=.095*(1-blink*.94);eye.pupil.position.x=eye.side*1.26+Math.sin(time*.43)*.025;eye.lid.position.y=-blink*.105;}
+  for(const limb of city.limbs){
+    if(!limb.skin)continue;
+    const bend=1-Math.min(1,Math.abs(limb.lower.quaternion.w)),load=limb.leg?(limb.contact?.68:.12):.18+Math.max(0,strike)*.60;
+    limb.skin.morphTargetInfluences[0]=Math.min(1,load+bend*1.3);
+    limb.skin.morphTargetInfluences[1]=moving?Math.max(0,Math.sin(phase+limb.phase))*.45:.08*breath;
+    if(limb.hand?.fingers)for(let i=0;i<limb.hand.fingers.length;i++)limb.hand.fingers[i].rotation.x=-.035-.045*(.5+.5*Math.sin(time*.91+i*.67+limb.side));
+  }
 }

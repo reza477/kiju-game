@@ -2,6 +2,7 @@ import * as T from '../vendor/three.module.js';
 import {getLightingPreset} from './lighting.js';
 import {terrainHeight,riverX} from './terrain.js';
 import {windAt,WIND_GLSL} from './weather.js';
+import {RadianceBloom} from './radiance-bloom.js';
 
 // Keep the stable contact filter: randomized PCF without temporal accumulation
 // produced visible screen-door halos in the close street camera.
@@ -20,12 +21,13 @@ export class Presentation {
     this.target=new T.WebGLRenderTarget(1,1,{type:this.hdrSupported?T.HalfFloatType:T.UnsignedByteType,depthBuffer:true,samples:Math.min(4,renderer.capabilities.maxSamples)});
     this.target.texture.colorSpace=T.LinearSRGBColorSpace;
     this.target.depthTexture=new T.DepthTexture(1,1,T.UnsignedIntType);
+    this.bloom=new RadianceBloom(this.hdrSupported?T.HalfFloatType:T.UnsignedByteType);
     this.material=new T.ShaderMaterial({
       name:'Linear HDR atmosphere composite',
-      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.7},bloomStrength:{value:.105},exposure:{value:1},bloomSamples:{value:12}},
+      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},tBloom0:{value:this.bloom.targets[0].texture},tBloom1:{value:this.bloom.targets[1].texture},tBloom2:{value:this.bloom.targets[2].texture},tBloom3:{value:this.bloom.targets[3].texture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.8},bloomStrength:{value:.18},exposure:{value:1},bloomSamples:{value:12}},
       vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
       fragmentShader:`
-        uniform sampler2D tColor,tDepth;
+        uniform sampler2D tColor,tDepth,tBloom0,tBloom1,tBloom2,tBloom3;
         uniform vec2 resolution;
         uniform mat4 inverseProjection;
         uniform float projectionScale;
@@ -57,16 +59,11 @@ export class Presentation {
             // preserving flat terrain while grounding feet, buttresses and eaves.
             colour*=1.-aoStrength*(1.-smoothstep(180.,370.,depth))*shade/6.;
           }
-          // Glow is extracted from scene-linear radiance, before the output
-          // transform. The soft knee preserves the shape of bright windows.
-          vec3 bloom=vec3(0.);float total=0.;
-          for(int i=0;i<12;i++){
-            if(float(i)>=bloomSamples)break;
-            float a=float(i)*2.399963,r=3.+float(i%3)*4.,weight=1./(1.+r*.11);
-            bloom+=bright(texture2D(tColor,vUv+vec2(cos(a),sin(a))*px*r).rgb)*weight;total+=weight;
-          }
-          colour+=bloom*(bloomStrength/max(total,1.));
-          float vignette=1.-.08*pow(length((vUv-.5)*vec2(1.,.85)),1.8);
+          // Four spatial scales keep emissive cores crisp and give distant
+          // lamps, hot metal and the sun a soft photographic shoulder.
+          vec3 bloom=texture2D(tBloom0,vUv).rgb*.34+texture2D(tBloom1,vUv).rgb*.29+texture2D(tBloom2,vUv).rgb*.23+texture2D(tBloom3,vUv).rgb*.14;
+          colour+=bloom*bloomStrength;
+          float vignette=1.-.055*pow(length((vUv-.5)*vec2(1.,.85)),1.8);
           gl_FragColor=vec4(max(colour*vignette,vec3(0.)),1.);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -74,10 +71,10 @@ export class Presentation {
     this.scene=new T.Scene();this.quad=new T.Mesh(new T.PlaneGeometry(2,2),this.material);this.scene.add(this.quad);this.camera2d=new T.Camera();this.enabled=this.hdrSupported;
     this.setLighting('day');
   }
-  resize(w,h){this.target.setSize(Math.max(1,w),Math.max(1,h));this.material.uniforms.resolution.value.set(Math.max(1,w),Math.max(1,h));}
+  resize(w,h){this.target.setSize(Math.max(1,w),Math.max(1,h));this.bloom.resize(Math.max(1,w),Math.max(1,h));this.material.uniforms.resolution.value.set(Math.max(1,w),Math.max(1,h));}
   setQuality(quality){
     this.enabled=quality!=='performance'&&this.hdrSupported;
-    this.material.uniforms.aoStrength.value=quality==='high'?.7:.42;
+    this.material.uniforms.aoStrength.value=quality==='high'?.8:.48;
     this.material.uniforms.bloomSamples.value=quality==='high'?12:6;
     const samples=Math.min(quality==='high'?4:2,this.renderer.capabilities.maxSamples);
     if(this.target.samples!==samples){this.target.samples=samples;this.target.dispose();}
@@ -92,9 +89,9 @@ export class Presentation {
     // render target (WebGLPrograms/getParameters). The final screen pass uses
     // the same built-in ACES transform as the direct performance path, once.
     if(!this.enabled){r.setRenderTarget(null);r.render(scene,this.camera);return;}
-    r.setRenderTarget(this.target);r.render(scene,this.camera);r.setRenderTarget(null);r.render(this.scene,this.camera2d);
+    r.setRenderTarget(this.target);r.render(scene,this.camera);this.bloom.render(r,this.target.texture);r.setRenderTarget(null);r.render(this.scene,this.camera2d);
   }
-  dispose(){this.target.dispose();this.material.dispose();this.quad.geometry.dispose();}
+  dispose(){this.target.dispose();this.bloom.dispose();this.material.dispose();this.quad.geometry.dispose();}
 }
 
 const NOISE_GLSL=`
@@ -123,11 +120,20 @@ export function createSky(){
         sky+=sunColor*sunDisc*smoothstep(.99990,.999965,mu);
         float upper=smoothstep(.035,.16,direction.y);
         vec2 plane=direction.xz/max(.11,direction.y+.11)*2.4-wind*time*.00085;
-        float mass=cloudNoise(plane);
-        float coverage=smoothstep(.52,.78,mass)*upper*cloudOpacity;
-        float edge=clamp((cloudNoise(plane+sunDirection.xz*.11)-mass)*6.+.5,0.,1.);
-        vec3 cloud=mix(cloudShade,cloudColor,.43+edge*.57);
+        float mass=cloudNoise(plane)+cloudNoise(plane*.43+6.1)*.15;
+        float coverage=smoothstep(.48,.74,mass)*upper*cloudOpacity;
+        vec2 lightStep=sunDirection.xz/max(.22,sunDirection.y)*.10;
+        float ahead=cloudNoise(plane+lightStep)+cloudNoise((plane+lightStep)*.43+6.1)*.15;
+        float thickness=max(0.,mass-ahead)*3.7+max(0.,mass-.59)*.9;
+        float edge=clamp((ahead-mass)*6.+.5,0.,1.);
+        vec3 cloud=mix(cloudShade*.76,cloudColor,exp(-thickness*2.)*(.3+edge*.65));
+        cloud+=sunColor*pow(max(mu,0.),12.)*edge*(1.-coverage)*.22;
         sky=mix(sky,cloud,coverage);
+        float cirrus=pow(cloudNoise(plane*vec2(.7,4.5)+wind*time*.0002),5.)*upper*.13;
+        sky=mix(sky,cloudColor,cirrus*(1.-coverage));
+        vec2 starCell=floor(direction.xz/max(.13,direction.y)*420.);
+        float star=smoothstep(.997,.9995,hash21(starCell))*pow(max(0.,1.-length(fract(direction.xz/max(.13,direction.y)*420.)-.5)*2.),8.);
+        sky+=vec3(.60,.74,1.)*star*(1.-smoothstep(1.5,3.,sunDisc))*upper*(1.-coverage);
         gl_FragColor=vec4(max(sky,vec3(0.)),1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

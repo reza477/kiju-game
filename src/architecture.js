@@ -130,13 +130,23 @@ function chimney(group, x, y, z, height, p, width = .22) {
 }
 
 function dome(group, radius, x, y, z, p, heightScale = 1) {
-  const points = [new T.Vector2(0, 0), new T.Vector2(radius, 0), new T.Vector2(radius * 1.02, radius * .18), new T.Vector2(radius * .92, radius * .46), new T.Vector2(radius * .64, radius * .79), new T.Vector2(radius * .22, radius * 1.02), new T.Vector2(0, radius * 1.25)];
-  const geometry = new T.LatheGeometry(points, 20);
+  const meridian=new T.CatmullRomCurve3([[1,0],[1.02,.18],[.92,.46],[.64,.79],[.22,1.02],[0,1.25]].map(([r,h])=>new T.Vector3(r,h,0)));
+  const profile=meridian.getPoints(32).map(v=>new T.Vector2(Math.max(0,Math.min(1.02,v.x))*radius,v.y*radius));
+  const points=[new T.Vector2(0,0),...profile];
+  const geometry = new T.LatheGeometry(points, 40);
   geometry.scale(1, heightScale, 1);
   addMesh(group, geometry, M('copper', p.roof), x, y, z);
   cylinder(group, radius * 1.02, radius * 1.02, .09, M('gold', p.trim), x, y, z, 20);
   cylinder(group, .021, .04, .4, M('gold', p.trim), x, y + radius * 1.25 * heightScale + .12, z, 8);
   sphere(group, .065, M('gold', p.trim), x, y + radius * 1.25 * heightScale + .29, z);
+  // Raised copper gores and a double drum give the dome a fabricated surface
+  // and a strong silhouette at City distance; the original footprint is fixed.
+  cylinder(group,radius*.89,radius*.96,.16,M('plaster',p.light),x,y-.10,z,24);
+  cylinder(group,radius*1.01,radius*1.01,.038,M('gold',p.trim),x,y+.105*heightScale,z,32);
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4,pts=profile.slice(1,-1).map(v=>new T.Vector3(x+Math.cos(a)*(v.x+.009),y+v.y*heightScale,z+Math.sin(a)*(v.x+.009)));
+    addMesh(group,new T.TubeGeometry(new T.CatmullRomCurve3(pts),20,.009,4,false),M('gold',p.trim));
+  }
 }
 
 function turret(group, x, z, height, p, faction, radius = .28) {
@@ -214,6 +224,11 @@ function capital(group, level, faction, p) {
     cornice(group, .98, 1.02, th, p, 0, -.15);
     box(group, 1.18, .2, 1.2, M('stone', p.light), 0, th + .23, -.15);
     roof(group, 1.24, .98, 1.27, M('roof', p.roof), 0, th + .34, -.15);
+    for(const sx of[-1,1])for(const sz of[-1,1]){
+      box(group,.105,2.93,.11,M('stone',p.trim),sx*.46,th-1.29,-.15+sz*.47);
+      cylinder(group,.095,.15,.52,M('stone',p.light),sx*.50,th+.60,-.15+sz*.52,8);
+      cylinder(group,0,.14,.44,M('roof',p.roof),sx*.50,th+1.07,-.15+sz*.52,8);
+    }
     for (const angle of [0, Math.PI / 2, Math.PI]) {
       const clock = new T.Group();
       clock.position.set(0, th - .52, -.15);
@@ -230,6 +245,11 @@ function capital(group, level, faction, p) {
   } else {
     box(group, 1.55, .45, 1.55, wallMaterial(faction, p.light), 0, h + .5, -.15);
     dome(group, .95, 0, h + .74, -.15, p);
+    for(const side of[-1,1]){
+      const porch=new T.Group();porch.rotation.y=side*Math.PI/2;porch.position.set(side*1.20,0,-.15);group.add(porch);
+      for(const z of[-.72,0,.72]){cylinder(porch,.045,.075,.88,M('stone',p.light),z,h+.55,.06,10);archedPanel(porch,.49,.51,z,h+.38,.075,M('glass',0x507878),true);}
+      box(porch,2.12,.09,.28,M('gold',p.trim),0,h+1.08,.07);
+    }
     for (const x of [-1.06, 1.06]) turret(group, x, -.88, h + 1.9, p, faction, .18);
     for (const x of [-.86, -.43, .43, .86]) {
       cylinder(group, .055, .075, 1.13, M('stone', p.light), x, .86, 1.13, 10);
@@ -284,6 +304,13 @@ function housing(group, level, faction, p) {
         box(local, .3, .38, .19, wallMaterial(faction, p.light), 0, h + .55, d / 2 + .025);
         window(local, 0, h + .39, d / 2 + .14, .16, .22, p);
         roof(local, .39, .14, .31, M('roof', p.roof), 0, h + .75, d / 2 + .025);
+        // A faceted oriel gives the terraced street real depth, tied back to
+        // its brick wall by a stone corbel rather than flat window decals.
+        const bay=new T.Group();bay.position.set(0,1.31,d/2+.07);local.add(bay);
+        cylinder(bay,.27,.19,.17,M('stone',p.trim),0,-.01,.08,5);
+        box(bay,.47,.49,.23,M('wood',p.dark),0,.28,.07);
+        window(bay,0,.08,.202,.34,.38,p);
+        box(bay,.57,.075,.34,M('stone',p.trim),0,.58,.08);
       }
     }
     entrance(local, 0, d / 2 + .075, .23, p, faction, .23, .62);
@@ -638,8 +665,27 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
     box(g, 1.65, .18, 1.46, M('stone', p.trim), 0, .02, 0);
     box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
     box(g, 1.58, .12, 1.3, M('stone', p.light), 0, h + .13, -.08);
-    if (faction === 'airship') dome(g, .43, 0, h + .18, -.08, p, .8);
+    if (faction === 'airship') {
+      dome(g, .43, 0, h + .18, -.08, p, .8);
+      // A projecting screened upper chamber and deep porch shade distinguish
+      // these suspended houses from the crawler's masonry addresses.
+      box(g,1.45,.65,.28,M('wood',0x476862),0,h-.31,.60);
+      for(const xx of[-.46,0,.46]){
+        archedPanel(g,.34,.48,xx,h-.55,.757,M('glass',0x83a19e),true);
+        for(const dx of[-.07,.07])box(g,.017,.34,.035,M('gold',p.trim),xx+dx,h-.34,.805);
+      }
+      box(g,1.65,.10,.51,M('stone',p.light),0,h-.70,.58);
+      for(const side of[-1,1])beam(g,[side*.57,h-1.12,.51],[side*.57,h-.75,.81],.041,M('gold',p.trim));
+    }
     else roof(g, 1.63, faction === 'kaiju' ? .8 : .43, 1.35, M('roof', p.roof), 0, h + .2, -.08, faction === 'crawler' ? 'mansard' : 'gable');
+    if(faction==='crawler'){
+      for(const side of[-1,1])for(let row=0;row<4;row++)box(g,.19,.15,.16,M('stone',p.trim),side*.665,.24+row*(h-.20)/4,.46);
+      if(i%4===0){
+        box(g,.77,.68,.63,wallMaterial(faction,p.wall),0,h+.42,.28);
+        roof(g,.96,.63,.77,M('roof',p.roof),0,h+.75,.28);
+        window(g,0,h+.23,.614,.33,.43,p,true);
+      }
+    }
     for (const xx of [-.46, 0, .46]) {
       box(g, .22, .35, .035, glazingMaterial(xx, h - .29, .509, i), xx, h - .29, .509);
       box(g, .26, .05, .07, M('stone', p.trim), xx, h - .49, .52);
