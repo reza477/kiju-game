@@ -78,7 +78,10 @@ function baseHeight(x, z) {
 }
 const clearingHeights = RESOURCE_CENTRES.map(([x, z]) => baseHeight(x, z));
 
-export function terrainHeight(x, z) {
+// Stable selection surface: existing deterministic scenery must consume the
+// same random sequence and retain every saved anchor after landform revisions.
+// This is the original height calculation, shared rather than duplicated.
+export function scenerySelectionHeight(x, z) {
   let height = baseHeight(x, z);
   for (let i = 0; i < RESOURCE_CENTRES.length; i++) {
     const [cx, cz] = RESOURCE_CENTRES[i], distance = Math.hypot(x - cx, z - cz);
@@ -89,13 +92,35 @@ export function terrainHeight(x, z) {
   }
   return height;
 }
-export function terrainNormal(x, z) {
+export const WESTERN_TERRACE=Object.freeze({name:'The Westbank Shelf',zMin:30,zMax:124,shoreMin:8,shoreMax:54,resourceClearance:40,roadClearance:12});
+
+export function westernTerraceDelta(x,z){
+  if(z<=30||z>=124)return 0;
+  const shore=riverX(z)-riverWidth(z)-x;
+  if(shore<=8||shore>=54)return 0;
+  let protection=smoothstep(12,20,Math.abs(z-roadZ(x)));
+  for(const[cx,cz]of RESOURCE_CENTRES)protection*=smoothstep(40,48,Math.hypot(x-cx,z-cz));
+  if(protection===0)return 0;
+  const ends=smoothstep(30,52,z)*(1-smoothstep(102,124,z));
+  // A riverward scarp rises to a broad bench, then eases into the historical
+  // shoulder. One oblique eroded runnel cuts the lip; no repeating ridge waves.
+  const shelf=2.65*smoothstep(8,24,shore)*(1-smoothstep(29,54,shore));
+  const notchAxis=74+(shore-23)*.36+Math.sin(shore*.13)*1.6;
+  const notch=1.20*Math.exp(-(((z-notchAxis)/9)**2))*smoothstep(12,22,shore)*(1-smoothstep(34,54,shore));
+  return(shelf-notch)*ends*protection;
+}
+
+export function terrainHeight(x,z){return scenerySelectionHeight(x,z)+westernTerraceDelta(x,z);}
+
+function normalAt(height,x,z){
   const epsilon = .6;
-  const dx = (terrainHeight(x + epsilon, z) - terrainHeight(x - epsilon, z)) / (epsilon * 2);
-  const dz = (terrainHeight(x, z + epsilon) - terrainHeight(x, z - epsilon)) / (epsilon * 2);
+  const dx = (height(x + epsilon, z) - height(x - epsilon, z)) / (epsilon * 2);
+  const dz = (height(x, z + epsilon) - height(x, z - epsilon)) / (epsilon * 2);
   const length = Math.hypot(dx, 1, dz);
   return { x: -dx / length, y: 1 / length, z: -dz / length };
 }
+export function terrainNormal(x,z){return normalAt(terrainHeight,x,z);}
+export function scenerySelectionNormal(x,z){return normalAt(scenerySelectionHeight,x,z);}
 
 // Keep the precise 2 m walking surface, and allocate more vertices to the outer
 // cliff faces where their physical fractures affect the visible silhouette.
@@ -106,6 +131,15 @@ export function terrainGridCoordinate(index) {
   return Math.fround(Math.sign(index - 200) * coordinate);
 }
 const groundGrid = Array.from({ length: TERRAIN_SEGMENTS+1 }, (_, i) => terrainGridCoordinate(i));
+const groundVertexHeights=new Float32Array((TERRAIN_SEGMENTS+1)**2),groundVertexReady=new Uint8Array(groundVertexHeights.length);
+function groundVertexHeight(ix,iz){
+  const index=iz*(TERRAIN_SEGMENTS+1)+ix;
+  if(!groundVertexReady[index]){
+    groundVertexHeights[index]=Math.fround(terrainHeight(groundGrid[ix],groundGrid[iz]));
+    groundVertexReady[index]=1;
+  }
+  return groundVertexHeights[index];
+}
 function groundInterval(value) {
   let low = 0, high = TERRAIN_SEGMENTS;
   while (high - low > 1) { const mid = (low + high) >> 1; if (value < groundGrid[mid]) high = mid; else low = mid; }
@@ -116,7 +150,7 @@ export function renderedTerrainHeight(x, z) {
   const ix = groundInterval(x), iz = groundInterval(z);
   const ax = groundGrid[ix], bx = groundGrid[ix + 1], az = groundGrid[iz], bz = groundGrid[iz + 1];
   const u = (x - ax) / (bx - ax), v = (z - az) / (bz - az);
-  const a = Math.fround(terrainHeight(ax, az)), b = Math.fround(terrainHeight(bx, az));
-  const c = Math.fround(terrainHeight(ax, bz)), d = Math.fround(terrainHeight(bx, bz));
+  const a = groundVertexHeight(ix,iz), b = groundVertexHeight(ix+1,iz);
+  const c = groundVertexHeight(ix,iz+1), d = groundVertexHeight(ix+1,iz+1);
   return u + v <= 1 ? a * (1 - u - v) + b * u + c * v : d * (u + v - 1) + b * (1 - v) + c * (1 - u);
 }

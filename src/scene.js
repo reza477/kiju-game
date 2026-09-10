@@ -8,7 +8,7 @@ import {Presentation,Atmosphere,createSky,setSkyLighting} from './presentation.j
 import {getLightingPreset} from './lighting.js';
 import {CityLighting} from './city-lighting.js';
 import {KAIJU_CENTER,kaijuRingRadius,kaijuFloorCount,kaijuWalkFloors,kaijuTowerTop} from './city-layout.js';
-import {terrainHeight,terrainNormal} from './terrain.js';
+import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
 import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armaments.js';
 import {facingOf,batteryArc} from './weapon-layout.js';
 import {cannonMountProfile} from './castle-collision.js';
@@ -53,9 +53,11 @@ function updateDistricts(city,buildings,rings=2,order){
   batchStatic(city.districts);batchStatic(city.plots);
 }
 
-function placeCity(city,x,z,angle){
+export function placeCity(city,x,z,angle){
   city.heading=angle;city.root.position.set(x,terrainHeight(x,z),z);
   if(city.faction==='crawler'){
+    const prior=city.groundPose;
+    if(prior?.x===x&&prior.z===z&&prior.angle===angle){city.root.position.y=prior.height;city.root.quaternion.copy(prior.quaternion);city.root.updateMatrixWorld(true);return;}
     const sin=Math.sin(angle),cos=Math.cos(angle);let height=0,dx=0,dz=0;
     // Fit the chassis to its tread footprint instead of the terrain at one point.
     const fp=city.footprintScale??{x:1,z:1};
@@ -64,6 +66,12 @@ function placeCity(city,x,z,angle){
     city.root.position.y=height/6-.5*up.y;
     const right=new T.Vector3().crossVectors(up,forward).normalize();forward.crossVectors(right,up).normalize();
     city.root.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(right,up,forward));
+    // A rigid tread bridges depressions. Its lowest contact must support the
+    // chassis instead of averaging high ground through the metal track.
+    let supportHeight=-Infinity;const point=new T.Vector3();
+    for(const local of city.groundSupports){point.copy(local).applyQuaternion(city.root.quaternion);supportHeight=Math.max(supportHeight,renderedTerrainHeight(x+point.x,z+point.z)-point.y);}
+    city.root.position.y=supportHeight+.020;
+    city.groundPose={x,z,angle,height:city.root.position.y,quaternion:city.root.quaternion.clone()};
   }else city.root.rotation.set(0,angle,0);
   city.root.updateMatrixWorld(true);
 }

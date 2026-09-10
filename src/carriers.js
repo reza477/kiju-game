@@ -17,6 +17,7 @@ export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({
 
 function ring(group,r,tube,material,x,y,z,rotation=0){const o=new T.Mesh(new T.TorusGeometry(r,tube,8,32),material);o.position.set(x,y,z);o.rotation.y=rotation;o.castShadow=true;group.add(o);return o;}
 function crawler(frame,rig,spinners,variant){
+  const groundSupports=[];
   const armour=m('metal',0x42565f),steel=m('metal',0x778587),dark=m('metal',0x283e47),brass=m('gold',0xad8c52);
   createCrawlerBody(frame);
   for(let side of [-1,1]){
@@ -33,6 +34,12 @@ function crawler(frame,rig,spinners,variant){
       const angle=i/58*Math.PI*2;
       const z=Math.sin(angle)*10.4,y=2.6+Math.cos(angle)*2;
       const tread=box(frame,3.6,.2,1.05,steel,side*9,y,z);tread.rotation.x=Math.atan2(Math.sin(angle)*2,Math.cos(angle)*10.4);
+      if(y<2){
+        tread.updateMatrix();
+        // Conservative tread corners, including the centre of its wide face.
+        // The metal bevel lies inside these points; no separate collision hull.
+        for(const x of [-1.8,0,1.8])for(const dy of [-.1,.1])for(const dz of [-.525,.525])groundSupports.push(new T.Vector3(x,dy,dz).applyMatrix4(tread.matrix));
+      }
       box(frame,.32,.14,.72,brass,side*10.72,y+.12,z);
     }
     for(const z of [-7.7,-4]){
@@ -53,7 +60,7 @@ function crawler(frame,rig,spinners,variant){
     const lamp=sphere(frame,.3,m('window',0xffda91),side*7,5.9,11.65,1,1,.4);
     ring(frame,.37,.065,brass,side*7,5.9,11.7);
   }
-  return variant==='drill'?createCrawlerDrill(frame,rig,spinners):{};
+  return {...(variant==='drill'?createCrawlerDrill(frame,rig,spinners):{}),groundSupports};
 }
 
 function airship(frame,rig,spinners,variant){
@@ -129,6 +136,7 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   for(let i=0;i<20;i++){const p=slotPositions[i];const hit=new T.Mesh(new T.BoxGeometry(2.8,1,3.4),hitMaterial);hit.position.set(p.x,p.y+.5,p.z);hit.userData.slot=i;hit.userData.noBatch=true;hitGroup.add(hit);slots.push(hit);}
   const layout=faction==='kaiju'?'tower':'deck';
   const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,variant,footprintScale,drill:variantParts.drill??null,drillTip:variantParts.tip??null,drillHinge:variantParts.hinge??null,drillShaft:variantParts.shaft??null,drillPistons:variantParts.pistons??[],envelopes:variantParts.envelopes??[],enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
+  city.groundSupports=variantParts.groundSupports?.map(p=>p.multiply(new T.Vector3(footprintScale.x,1,footprintScale.z)));
   city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }

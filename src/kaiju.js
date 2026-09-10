@@ -353,25 +353,68 @@ function organicMuscle(group, a, b, width, depth, mat) {
   mesh.quaternion.setFromUnitVectors(UP, direction.normalize()); return mesh;
 }
 
-// Each loft is a continuous skin envelope with an anatomical, changing section.
-// Bone pivots remain separate; broad overlapping cuffs cover their articulation.
+// These rounded section landmarks describe whole muscle compartments. The
+// forward quadriceps plane, rear triceps mass and narrow tibial ridge differ
+// from one another; they are not a common tube with more bumps attached.
+const LIVING_SECTIONS={
+  upperarm:{band:[-.8,-3,-5.5,-8],points:[[-.38,1],[.57,.96],[.94,.62],[1,-.32],[.45,-.94],[-.42,-1],[-.94,-.63],[-.94,.40]]},
+  forearm:{band:[-13.6,-15.5,-18.4,-20.8],points:[[.20,1],[.78,.88],[1,.32],[.80,-.89],[-.48,-1],[-.88,-.61],[-.94,.17],[-.60,.86]]},
+  thigh:{band:[-.8,-3,-5.8,-8.4],points:[[-.40,1],[.58,.97],[1,.47],[.92,-.56],[.20,-1],[-.70,-.94],[-.98,-.20],[-.88,.62]]},
+  shin:{band:[-14,-16,-18.5,-21],points:[[-.15,1],[.48,.88],[.96,.35],[.88,-.70],[.18,-1],[-.74,-.90],[-1,-.10],[-.72,.59]]}
+};
+function sectionRadius(points,a){
+  const x=Math.sin(a),z=Math.cos(a);let radius=Infinity;
+  for(let i=0;i<points.length;i++){
+    const p=points[i],q=points[(i+1)%points.length],ex=q[0]-p[0],ez=q[1]-p[1],den=x*ez-z*ex;
+    if(Math.abs(den)<1e-8)continue;
+    const t=(p[0]*ez-p[1]*ex)/den,u=(p[0]*z-p[1]*x)/den;
+    if(t>0&&u>=-1e-8&&u<=1+1e-8)radius=Math.min(radius,t);
+  }
+  return radius;
+}
+function authoredLimbSections(positions,rows,edges,region,side){
+  const section=LIVING_SECTIONS[region];if(!section)return;
+  const [top,shoulder,bottom,end]=section.band,cols=edges+1;
+  for(let row=0;row<rows.length;row++){
+    const {c,r,exponent}=rows[row],weight=.76*T.MathUtils.smoothstep(-c.y,-top,-shoulder)*(1-T.MathUtils.smoothstep(-c.y,-bottom,-end));
+    if(weight===0)continue;
+    const start=row*cols*3;let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    for(let j=0;j<cols;j++){const i=start+j*3;minX=Math.min(minX,positions[i]);maxX=Math.max(maxX,positions[i]);minZ=Math.min(minZ,positions[i+2]);maxZ=Math.max(maxZ,positions[i+2]);}
+    for(let j=0;j<cols;j++){
+      const i=start+j*3,a=j===edges?0:j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a),mirrored=Math.atan2(sin*side,cos);
+      // A short angular filter rounds the corners while leaving broad faces.
+      const radius=(sectionRadius(section.points,mirrored-.075)+2*sectionRadius(section.points,mirrored)+sectionRadius(section.points,mirrored+.075))*.25;
+      const oldX=c.x+Math.sign(sin)*Math.abs(sin)**exponent*r.x,oldZ=c.z+Math.sign(cos)*Math.abs(cos)**exponent*r.y;
+      // Retain a restrained amount of the existing tissue relief. Its small
+      // ridges no longer overwhelm the underlying anatomical cross-section.
+      const targetX=T.MathUtils.clamp(c.x+sin*radius*r.x+(positions[i]-oldX)*.65,minX,maxX);
+      const targetZ=T.MathUtils.clamp(c.z+cos*radius*r.y+(positions[i+2]-oldZ)*.65,minZ,maxZ);
+      positions[i]=T.MathUtils.lerp(positions[i],targetX,weight);positions[i+2]=T.MathUtils.lerp(positions[i+2],targetZ,weight);
+    }
+  }
+}
+
+// Each loft remains one continuous skin envelope. Authored anatomical sections
+// fade to zero before its original body, elbow/knee and wrist/ankle loops.
 function organicLoft(group, sections, mat, relief, region='') {
   const centre=new T.CatmullRomCurve3(sections.map(p=>new T.Vector3(p[0],p[1],p[2])));
   const radii=new T.CatmullRomCurve3(sections.map(p=>new T.Vector3(p[3],p[4],0)));
-  const rings=Math.max(48,sections.length*7),edges=48,positions=[],uv=[],indices=[],upward=sections.at(-1)[1]>sections[0][1];
+  const rings=Math.max(48,sections.length*7),edges=48,positions=[],uv=[],indices=[],rows=[],upward=sections.at(-1)[1]>sections[0][1];
   for(let i=0;i<=rings;i++){
     const t=i/rings,c=centre.getPoint(t),r=radii.getPoint(t);
+    const plane=region==='torso'?.31*formBell(t,.62,.27):region==='forearm'?.38*formBell(t,.61,.32):region==='shin'?.40*formBell(t,.51,.33):region==='thigh'?.27*formBell(t,.43,.34):region==='upperarm'?.28*formBell(t,.43,.34):.14*formBell(t,.43,.34),exponent=1-plane;
+    rows.push({t,c,r,exponent});
     for(let j=0;j<=edges;j++){
       const a=j===edges?0:j/edges*Math.PI*2,sin=Math.sin(a),cos=Math.cos(a);
       // Rib cages, forearms and shins have broad planes around bone rather than
       // the circular cross-section of a hose. Rounded edges remain continuous.
-      const plane=region==='torso'?.31*formBell(t,.62,.27):region==='forearm'?.38*formBell(t,.61,.32):region==='shin'?.40*formBell(t,.51,.33):region==='thigh'?.27*formBell(t,.43,.34):region==='upperarm'?.28*formBell(t,.43,.34):.14*formBell(t,.43,.34);
-      const exponent=1-plane,sx=Math.sign(sin)*Math.abs(sin)**exponent,sz=Math.sign(cos)*Math.abs(cos)**exponent;
+      const sx=Math.sign(sin)*Math.abs(sin)**exponent,sz=Math.sign(cos)*Math.abs(cos)**exponent;
       const p=new T.Vector3(c.x+sx*Math.max(.025,r.x),c.y,c.z+sz*Math.max(.025,r.y));
       relief?.(p,a,t);positions.push(p.x,p.y,p.z);uv.push(j/edges,region?1-t:p.y*.105);
       if(i<rings&&j<edges){const v=i*(edges+1)+j,b=v+1,c=v+edges+1,d=c+1;indices.push(...(upward?[v,b,c,b,d,c]:[v,c,b,b,c,d]));}
     }
   }
+  authoredLimbSections(positions,rows,edges,region,group.position.x<0?-1:1);
   for(const end of [0,rings]){
     const c=centre.getPoint(end/rings),v=positions.length/3;positions.push(c.x,c.y,c.z);uv.push(.5,c.y*.105);
     for(let j=0;j<edges;j++){const a=end*(edges+1)+j,b=a+1;indices.push(...((end===0)===upward?[v,b,a]:[v,a,b]));}

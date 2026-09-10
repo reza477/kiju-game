@@ -115,3 +115,31 @@ test('upper galleries narrow the real shell and supported route without moving e
   if(f.type==='cannon')assert.ok(f.profile.pathX>=3.4&&f.profile.pathBack>=3.4,'Every battery gallery clears the complete turret sweep, including rear and side aim');
  }
 });
+
+test('the dominant roof crown keeps its old height and carries its wider eaves on the real final slab',()=>{
+ for(const count of[1,3,7,14,20])for(const level of[1,3])for(const variant of['flesh','cyborg']){
+  const base=layout(count,level),buildings=Array(20).fill(null);
+  for(const f of base.floors)buildings[f.slot]={type:f.type,level,remaining:0};
+  const l=createVerticalLayout(buildings,base.order,variant),s=verticalCastleSolids(l),scale=l.heightScale,roofY=34+l.height;
+  const roof=s.find(s=>s.id==='vertical:cathedral-crown'),slab=s.find(s=>s.id==='vertical:roof-slab'),cornice=s.find(s=>s.id==='vertical:crown-transfer-cornice');
+  assert.ok(roof.max[0]-roof.min[0]>7.9&&roof.max[2]-roof.min[2]>9.4,'The crown must read as one broad main roof');
+  assert.ok((roof.max[1]-roof.min[1])/scale>6.2,'The main roof needs a steep silhouette within the existing height');
+  assert.ok(Math.abs(Math.max(...s.map(s=>s.max[1]))-(roofY+8.97*scale))<1e-8);
+  const feet=s.filter(s=>s.id.startsWith('vertical:crown-support-foot:')),supports=s.filter(s=>s.id.startsWith('vertical:crown-eave-support:'));
+  assert.equal(feet.length,4);assert.equal(supports.length,4);
+  for(const foot of feet)for(const x of[foot.min[0],foot.max[0]])for(const z of[foot.min[2],foot.max[2]]){
+   assert.ok(rayHits([slab],[x,roofY+.10*scale,z],[x,roofY-.25*scale,z]).length,'Each complete support foot must sit on the real narrowed roof slab');
+  }
+  for(const support of supports){
+   const foot=feet.find(f=>f.id===support.id.replace('crown-eave-support','crown-support-foot'));
+   const bottom=verticalCastleDescriptors(l).find(d=>d.id===support.id).vertices.filter(v=>Math.abs(v[1]-support.min[1])<1e-8);
+   assert.equal(bottom.length,4);
+   for(const point of bottom)for(let axis=0;axis<3;axis++)assert.ok(point[axis]>=foot.min[axis]-1e-8&&point[axis]<=foot.max[axis]+1e-8,'Every corbel base must connect to its supported stone foot');
+   assert.ok(support.max[1]>=cornice.min[1]&&support.max[1]<=cornice.max[1],'The stone support must meet the transfer cornice');
+   assert.ok(support.min[0]>=cornice.min[0]&&support.max[0]<=cornice.max[0]&&support.min[2]>=cornice.min[2]&&support.max[2]<=cornice.max[2]);
+  }
+  // Every changed crown solid stays above the unchanged ceiling slab. This
+  // preserves the entire natural-sized resident envelope on the final floor.
+  for(const solid of s.filter(s=>/^vertical:(?:crown-|cathedral-crown|dominant-finial|turret-(?:light|pane):)/.test(s.id)))assert.ok(solid.min[1]>=slab.min[1],`New roof mass enters the final occupied storey: ${solid.id}`);
+ }
+});

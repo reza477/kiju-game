@@ -1,5 +1,13 @@
 import * as T from '../vendor/three.module.js';
 
+// Half-float scene targets cannot contain finite radiance beyond this range.
+// Preserve every representable finite channel; invalid inputs carry no light.
+// Contain a bad upstream sample before the pyramid spreads it across the image.
+export const FINITE_RADIANCE_GLSL=`
+  float finiteRadianceChannel(float c){return c>=-65504.&&c<=65504.?c:0.;}
+  vec3 finiteRadiance(vec3 c){return vec3(finiteRadianceChannel(c.r),finiteRadianceChannel(c.g),finiteRadianceChannel(c.b));}
+`;
+
 // A small scene-linear radiance pyramid spreads only highlights. Its largest
 // buffers are half-resolution; changing quality never changes scene exposure.
 export class RadianceBloom {
@@ -10,7 +18,8 @@ export class RadianceBloom {
       uniforms:{source:{value:null},texel:{value:new T.Vector2()},extract:{value:1}},
       vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
       fragmentShader:`uniform sampler2D source;uniform vec2 texel;uniform float extract;varying vec2 vUv;
-        vec3 sampleLight(vec2 uv){vec3 c=texture2D(source,clamp(uv,texel*.5,1.-texel*.5)).rgb;
+        ${FINITE_RADIANCE_GLSL}
+        vec3 sampleLight(vec2 uv){vec3 c=finiteRadiance(texture2D(source,clamp(uv,texel*.5,1.-texel*.5)).rgb);
           float l=dot(c,vec3(.2126,.7152,.0722)),soft=clamp(l-.72,0.,1.2);soft=soft*soft/4.8;
           return mix(c,c*max(l-1.32,soft)/max(l,.0001),extract);}
         void main(){vec3 c=sampleLight(vUv)*4.;

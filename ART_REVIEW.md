@@ -8,8 +8,9 @@ This new cycle covers rendering, lighting, landscape, characters and citizens, c
 |---|---|---|---|
 | 1 | `74e97a5` | [Independent review](art-reviews/graphics-09-01.md) | **FAIL — 7.8/10** (weighted 7.775), one confirmed lantern cutaway defect, zero browser errors in 88 fresh views |
 | 2 | `45b0b9f` | [Independent review](art-reviews/graphics-09-02.md) | **FAIL — 7.9/10** (weighted 7.885), lantern corrected, zero confirmed new defects or browser errors in 70 fresh views |
+| 3 | `3aa57be` | [Independent review](art-reviews/graphics-09-03.md) | **FAIL — 7.9/10** (weighted 7.940), zero confirmed concrete defects or browser errors in 70 fresh views |
 
-Round 3 addresses the remaining castle silhouette, terrain transitions, flesh anatomy and carried weight, and close-resident poses. The independent score for that attempt is pending.
+The fourth and final builder attempt addresses the actual river-bank profile, cathedral roof silhouette and broad flesh anatomy. It also adds explicit twenty-storey walking coverage. The final independent review is pending; no fifth round belongs to this cycle.
 
 ## Cyborg castle height adjustment — prototype 0.8.1
 

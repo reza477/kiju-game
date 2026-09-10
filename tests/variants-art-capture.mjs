@@ -12,7 +12,7 @@ const step=(p,t)=>p.evaluate(t=>window.__reviewStep(t),t);
 async function capture(page,name){
  const data=await page.evaluate(async()=>{const T=await import('/vendor/three.module.js'),{state:s,scene:g}=window.__colossus,c=g.city;
   const bounds=new T.Box3();c.root.traverse(o=>{if(o.isMesh&&o.material?.visible!==false&&!o.userData.slot&&!o.userData.enemy){o.geometry.computeBoundingBox();bounds.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}});
-  return {variant:s.variant,faction:s.faction,rings:s.rings,view:g.view,lighting:g.light,time:s.time,camera:g.camera.position.toArray(),aim:g.cameraAim.toArray(),zoom:g.zoom,visibleFloor:c.inspectedFloor,people:c.people?.populationCount,occupiedFloors:c.people?.group.userData.occupiedFloors,envelopes:c.envelopes?.length,drillRotation:c.drill?.rotation.z,contextLost:g.renderer.getContext().isContextLost(),bounds:{min:bounds.min.toArray(),max:bounds.max.toArray()},render:{...g.renderer.info.render}};
+  return {variant:s.variant,faction:s.faction,rings:s.rings,view:g.view,lighting:g.light,time:s.time,moving:s.moving,occupiedStoreys:c.verticalLayout?.floors.length,castleHeight:c.verticalLayout?.height,gaitDistance:c.gaitDistance,rigPosition:c.rig.position.toArray(),rigRotation:c.rig.rotation.toArray(),camera:g.camera.position.toArray(),aim:g.cameraAim.toArray(),zoom:g.zoom,visibleFloor:c.inspectedFloor,people:c.people?.populationCount,occupiedFloors:c.people?.group.userData.occupiedFloors,envelopes:c.envelopes?.length,drillRotation:c.drill?.rotation.z,contextLost:g.renderer.getContext().isContextLost(),bounds:{min:bounds.min.toArray(),max:bounds.max.toArray()},render:{...g.renderer.info.render}};
  });assert.ok(data.camera.every(Number.isFinite));assert.equal(data.contextLost,false);assert.ok(data.bounds.min.every(Number.isFinite)&&data.bounds.max.every(Number.isFinite));report.observations.push({name,...data});
  await page.screenshot({path:path.join(out,name+'.png'),style:'#paused-banner,#toast{visibility:hidden!important}'});report.screenshots.push(name+'.png');return data;
 }
@@ -38,6 +38,16 @@ try{
    assert.equal(await page.evaluate(()=>window.__colossus.state.rings),2);
    await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;for(let i=0;i<20;i++)if(!s.buildings[i])s.buildings[i]={type:i%4===0?'cannon':i%3===0?'housing':i%3===1?'foundry':'farm',level:1,remaining:0};g.setView('city');});await step(page,1.5);await capture(page,variant+'-expanded-city');
    await page.evaluate(()=>{const g=window.__colossus.scene;g.yaw+=Math.PI;g.pitch=.19;g.zoom=Math.max(94,(g.city.verticalLayout.height+12)*g.city.scale*2.85);});await step(page,1.5);await capture(page,variant+'-expanded-reverse');
+   // The occupied fixture also walks under the unchanged simulation. Two
+   // normal carrier-camera angles expose the full loaded silhouette and gait.
+   await page.locator('[data-view="carrier"]').click();await step(page,1.5);
+   await page.evaluate(()=>{const s=window.__colossus.state;s.paused=false;s.target={x:s.x+14,z:s.z+22};});
+   await step(page,.8);const loadedA=await capture(page,variant+'-loaded-moving-a');
+   await step(page,.6);const loadedB=await capture(page,variant+'-loaded-moving-b');
+   assert.equal(loadedA.occupiedStoreys,20);assert.equal(loadedB.occupiedStoreys,20);assert.ok(loadedB.moving&&loadedB.gaitDistance>loadedA.gaitDistance,'The complete occupied castle must move through the real stride.');
+   await page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;g.yaw=s.angle+1.7;});
+   await step(page,.3);await capture(page,variant+'-loaded-side-a');await step(page,.6);await capture(page,variant+'-loaded-side-b');
+   await page.evaluate(()=>{const s=window.__colossus.state;s.paused=true;s.target=null;});
    const count=await page.locator('#tower-floor option').count();assert.equal(count,20,'The fully populated Gothic fixture has twenty occupied storeys.');
    const middleTier=Math.floor(count/2),topTier=count-1;
    await page.locator('#tower-floor').selectOption(String(middleTier));await step(page,1.5);const middle=await capture(page,variant+`-level${middleTier+1}-middle-streets`);assert.equal(middle.visibleFloor,middleTier);

@@ -270,8 +270,8 @@ export function verticalCastleDescriptors(layout,deckY=34){
  // Unequal, uninterrupted masonry spines carry the composition vertically.
  // They are clipped only for inspection and end at actual occupied boundaries.
  const finished=floors.filter(f=>!(f.underConstruction&&!f.upgrading));
- // This compound crown moves with the newest occupied storey. A narrow belfry,
- // offset octagonal tower and lower roofed chapel replace the single broad cap.
+ // The roof crown moves with the newest occupied storey. Its load is carried
+ // through a low chamber and splayed stone supports to the real roof slab.
  const actualCrownStart=out.length;
  const constructing=floors[topTier].underConstruction&&!floors[topTier].upgrading;
  if(constructing){
@@ -289,40 +289,37 @@ export function verticalCastleDescriptors(layout,deckY=34){
   block('unfinished-hoist-load',topTier,'wood',.27,roofY+1.67,CENTRE_Z+2.55,.64,.30,.56);
  }else{
   block('roof-slab',topTier,'edge',0,roofY-.08,CENTRE_Z,8.45,.25,10.05);
-  const x=.35,z=CENTRE_Z+.1,crownWidth=mature?5.1:3.1,crownDepth=mature?5.9:3.9;
-  block('crown-chamber',topTier,'wall',x,roofY+1.15,z,crownWidth,2.3,crownDepth);
+  // A single steep, full-breadth roof is the primary terminal mass. Its ridge
+  // and finial keep the existing nine-unit envelope; no occupied floor moves.
+  const x=0,z=CENTRE_Z,crownWidth=5.65,crownDepth=6.0;
+  block('crown-chamber',topTier,'wall',x,roofY+.77,z,crownWidth,1.54,crownDepth);
   for(const side of[-1,1]){
-   for(const sx of[-1,1])block(`belfry-pier:${side}:${sx}`,topTier,'edge',x+sx*(crownWidth/2-.19),roofY+3.1,z+side*(crownDepth/2-.25),.34,1.94,.44);
-   arch(`belfry-open-arch:${side}`,topTier,'trim',x,roofY+2.25,z+side*(crownDepth/2-.23),crownWidth-.75,1.65,.14,.40);
-   arch(`crown-window:${side}`,topTier,'trim',x,roofY+.27,z+side*(crownDepth/2+.04),1.12,1.72,.11,.13);
-   pane(`crown-pane:${side}`,topTier,x,roofY+.28,z+side*(crownDepth/2+.05),1.08,1.67,0,side===-1);
+   arch(`crown-window:${side}`,topTier,'trim',x,roofY+.20,z+side*(crownDepth/2+.04),1.12,1.15,.11,.13);
+   pane(`crown-pane:${side}`,topTier,x,roofY+.21,z+side*(crownDepth/2+.05),1.08,1.10,0,side===-1);
   }
-  column('belfry-bell',topTier,'copper',x,z,.49,.24,roofY+2.4,roofY+3.33,12);
-  block('belfry-cornice',topTier,'trim',x,roofY+4.14,z,crownWidth+.25,.18,crownDepth+.2);
-  roof('cathedral-crown',topTier,x,roofY+4.24,z,crownWidth+.55,crownDepth+.50,3.95);
+  block('crown-transfer-cornice',topTier,'edge',x,roofY+1.62,z,8.10,.18,9.60);
+  roof('cathedral-crown',topTier,x,roofY+1.80,z,8.15,9.65,6.39);
   column('dominant-finial',topTier,'metal',x,z,.065,.02,roofY+8.15,roofY+8.97,6);
-  for(const[i,tx,tz,shoulder,high]of[[0,-2.37,CENTRE_Z-2.73,3.65,7.0],[1,2.52,CENTRE_Z+3.1,2.05,5.4]]){
-   column(`crown-turret:${i}`,topTier,'wall',tx,tz,.67,.61,roofY+.03,roofY+shoulder,8);
+  for(const[i,tx,tz,shoulder,high]of[[0,-3.05,CENTRE_Z-3.66,3.85,7.0],[1,3.15,CENTRE_Z+3.48,2.85,5.4]]){
+   // The stair turrets begin on the supported transfer cornice. Their lower
+   // chambers join the roof, leaving unequal stone caps and subordinate spires.
+   column(`crown-turret:${i}`,topTier,'wall',tx,tz,.67,.61,roofY+1.65,roofY+shoulder,8);
    column(`crown-turret-chamber:${i}`,topTier,'wall',tx,tz,.82,.82,roofY+shoulder-.74,roofY+shoulder+.22,8);
    column(`crown-turret-collar:${i}`,topTier,'trim',tx,tz,.86,.86,roofY+shoulder+.13,roofY+shoulder+.30,8);
    column(`crown-turret-spire:${i}`,topTier,'roof',tx,tz,.91,0,roofY+shoulder+.31,roofY+high,8);
    column(`crown-turret-finial:${i}`,topTier,'metal',tx,tz,.045,.015,roofY+high-.04,roofY+high+.65,6);
-   for(const side of[-1,1]){arch(`turret-light:${i}:${side}`,topTier,'trim',tx,roofY+.50,tz+side*.64,.38,Math.min(1.82,shoulder-.38),.07,.08);pane(`turret-pane:${i}:${side}`,topTier,tx,roofY+.51,tz+side*.67,.35,Math.min(1.78,shoulder-.42),0,side===-1&&i===0);}
+   for(const side of[-1,1]){arch(`turret-light:${i}:${side}`,topTier,'trim',tx,roofY+shoulder-.51,tz+side*.83,.33,.48,.055,.07);pane(`turret-pane:${i}:${side}`,topTier,tx,roofY+shoulder-.50,tz+side*.86,.30,.43,0,side===-1&&i===0);}
   }
-  // A roofed bridge binds the projected gate needle to the taller bell chamber.
-  block('crown-gallery',topTier,'wall',-1.20,roofY+1.43,CENTRE_Z-1.45,2.52,1.25,1.78);
-  roof('crown-gallery-roof',topTier,-1.20,roofY+2.08,CENTRE_Z-1.45,2.77,2.06,1.72);
-  arch('gallery-support',topTier,'trim',-1.20,roofY+.02,CENTRE_Z-2.24,2.15,1.1,.14,.27);
-  // Swept flying buttresses carry the elevated belfry back to the outer wall.
-  // The exposed arches and unequal stair-tower caps bind the crown into the
-  // occupied keep instead of leaving unrelated pointed roofs on a flat slab.
-  for(const side of[-1,1])for(const[bay,dz]of[-1.07,1.73].entries()){
-   const startX=side*3.55,endX=side<0?-1.03:2.20,startY=roofY+.13,endY=roofY+3.51-(bay? .42:0),points=[];
-   for(let i=0;i<=10;i++){const t=i/10;points.push([startX+(endX-startX)*t,startY+(endY-startY)*Math.pow(t,.52)]);}
-   for(let i=10;i>=0;i--){const t=i/10;points.push([startX+(endX-startX)*t,startY+(endY-startY)*Math.pow(t,.52)+.31]);}
-   add(`crown-flying-buttress:${side}:${bay}`,topTier,'edge',prism(points,.31,[0,0,CENTRE_Z+dz]));
-   column(`crown-buttress-foot:${side}:${bay}`,topTier,'wall',startX,CENTRE_Z+dz,.27,.23,roofY-.02,roofY+.73,8);
-   column(`crown-crocket:${side}:${bay}`,topTier,'roof',startX,CENTRE_Z+dz,.29,0,roofY+.74,roofY+(side<0?1.74:2.16),8);
+  // Four splayed solid corbels bind the wider eaves to the actual top slab.
+  // Their feet fit even the narrowest upper profile; all projection is above
+  // the occupied ceiling, leaving the validated promenade and gun arc intact.
+  for(const sx of[-1,1])for(const sz of[-1,1]){
+   const vertices=[];
+   for(const[yy,x0,x1,z0,z1]of[[roofY+.03,2.24,2.80,2.22,2.79],[roofY+.66,2.35,3.15,2.26,3.28],[roofY+1.55,2.55,3.98,2.63,4.70]])for(const[xx,zz]of[[x0,z0],[x1,z0],[x1,z1],[x0,z1]])vertices.push([sx*xx,yy,CENTRE_Z+sz*zz]);
+   const faces=[[0,1,2],[0,2,3],[8,10,9],[8,11,10]];
+   for(let ring=0;ring<2;ring++)for(let corner=0;corner<4;corner++){const a=ring*4+corner,b=ring*4+(corner+1)%4;faces.push([a,b+4,b],[a,a+4,b+4]);}
+   add(`crown-eave-support:${sx}:${sz}`,topTier,'edge',{vertices,faces:sx*sz<0?faces.map(f=>[...f].reverse()):faces});
+   block(`crown-support-foot:${sx}:${sz}`,topTier,'wall',sx*2.52,roofY+.015,CENTRE_Z+sz*2.505,.56,.11,.57);
   }
  }
  // Major architectural chapters change actual wall depth, not just a trim

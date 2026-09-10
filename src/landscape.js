@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial, box, cylinder, cone } from './materials.js';
-import { terrainHeight as heightAt, terrainNormal, terrainGridCoordinate, TERRAIN_SEGMENTS, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, bankWidth, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
+import { terrainHeight as heightAt, terrainNormal, scenerySelectionHeight, scenerySelectionNormal, westernTerraceDelta, WESTERN_TERRACE, terrainGridCoordinate, TERRAIN_SEGMENTS, renderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, bankWidth, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
 import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
@@ -14,6 +14,9 @@ const TEMP = new T.Object3D();
 // Coarser far-field triangles can differ from the analytic ridge by metres.
 // Root scenery on that visible surface; the playable physics field stays intact.
 const sceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?renderedTerrainHeight(x,z):heightAt(x,z);
+// The edited shelf lies entirely inside178m. Far scenery therefore retains the
+// exact historical rendered-grid sampler, including its former selection gates.
+const selectionSceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?renderedTerrainHeight(x,z):scenerySelectionHeight(x,z);
 const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c];
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
@@ -243,15 +246,16 @@ function groundAlbedo() {
     const cover=valleyGroundCover(x,z,slope,curvature);
     const broad = noise(x * .012 + 14, z * .012 - 8), veins = noise(x * .026 - 2, z * .026 + 9);
     const ruin = ruinFootprint(x, z), ash = region.ash * .65 + ruin * .35;
+    const terrace=westernTerraceDelta(x,z),terraceFace=smooth(.35,1.8,terrace)*smooth(.20,.43,slope);
     const mineral = smooth(.17, .49, slope) * smooth(8, 27, y);
     const outcrop = Math.exp(-(((x - 148) / 18) ** 2 + ((z + 10) / 23) ** 2));
     const crest=smooth(24,58,y)*smooth(165,255,Math.max(Math.abs(x),Math.abs(z)))*smooth(.27,.65,veins);
     const talus=region.slate*smooth(9,25,y)*smooth(.43,.62,noise(x*.054+11,z*.039-2));
     const washedStone=cover.channel*smooth(.04,.20,slope)*(1-cover.fan*.6);
-    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70+washedStone*.58);
+    const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70+washedStone*.58+terraceFace*.46);
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
-    const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
+    const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74,terraceFace*.78, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
     c.copy(palette.grass).lerp(palette.dry,cover.dry*.56+smooth(.46,.78,broad)*.13).lerp(palette.meadow,region.meadow*.28);
     c.lerp(palette.soil,cover.bare*.64).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
@@ -942,14 +946,14 @@ function composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount) {
     return Math.max(e.woods,e.wet,e.broken)>.10;
   }).sort((a,b)=>Math.hypot(a.x+30,a.z-40)-Math.hypot(b.x+30,b.z-40));
   let bushes=0,fernCount=0,ledges=0,relocated=0;
-  const safe=(x,z)=>!protectedResource(x,z,2)&&ecologyAt(x,z).open>.28&&terrainNormal(x,z).y>.88&&sceneryHeight(x,z)>-.45;
+  const safe=(x,z)=>!protectedResource(x,z,2)&&ecologyAt(x,z).open>.28&&scenerySelectionNormal(x,z).y>.88&&selectionSceneryHeight(x,z)>-.45;
   for(let i=looseGrassCount;i<grass.items.length;i++){
     const item=grass.items[i];if(item.windMotion?.[0]!==.44)continue;
     const e=ecologyAt(item.x,item.z),rand=random(i*881+7251),side=Math.sign(item.x-riverX(item.z));
     const z=item.z+(rand()-.5)*6.5,beach=bankWidth(item.x,z),waterline=-3+(beach+3)*.61;
     const x=riverX(z)+side*(riverWidth(z)+waterline+1.2+rand()*4.0);
     if(protectedResource(x,z,2))continue;
-    const y=sceneryHeight(x,z);if(y<-.53)continue;
+    const y=sceneryHeight(x,z);if(selectionSceneryHeight(x,z)<-.53)continue;
     const patch=smooth(.33,.63,noise(x*.058+13,z*.083));
     const scale=.42+patch*(.76+e.wet*.92);
     Object.assign(item,{x,y,z,sx:.8*scale,sy:1.65*scale,sz:.8*scale,windRoot:[x,y,z,1.65*scale],colour:e.wet>.15?0x75904c:0x949763});
@@ -1010,26 +1014,28 @@ function composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount) {
 function composeGroundTransitions(grass,records,looseGrassCount){
   const attached=new Uint8Array(grass.items.length);for(const r of records)for(const ref of r.parts)if(ref.batch===grass)attached.fill(1,ref.first,ref.first+ref.count);
   const tint=new T.Color(),dry=new T.Color(0x989262),green=new T.Color(0x77824f),wet=new T.Color(0x596e43);
-  const sample=(x,z)=>{
-    const n=terrainNormal(x,z),y=sceneryHeight(x,z),reach=5;
-    const curvature=(sceneryHeight(x-reach,z)+sceneryHeight(x+reach,z)+sceneryHeight(x,z-reach)+sceneryHeight(x,z+reach)-4*y)/(reach*reach);
-    return valleyGroundCover(x,z,Math.hypot(n.x,n.z)/n.y,curvature);
+  const sample=(x,z,selection=false)=>{
+    const height=selection?selectionSceneryHeight:sceneryHeight,n=(selection?scenerySelectionNormal:terrainNormal)(x,z),y=height(x,z),reach=5;
+    const curvature=(height(x-reach,z)+height(x+reach,z)+height(x,z-reach)+height(x,z+reach)-4*y)/(reach*reach);
+    return valleyGroundCover(x,z,Math.hypot(n.x,n.z)/n.y,curvature,selection);
   };
   let relocated=0,shaped=0;
   for(let i=0;i<grass.items.length;i++){
     const item=grass.items[i];if(Math.max(Math.abs(item.x),Math.abs(item.z))>185||shoreDistance(item.x,item.z)<bankWidth(item.x,item.z)+2)continue;
     let cover=sample(item.x,item.z);
     if(i<looseGrassCount&&!attached[i]&&!protectedResource(item.x,item.z)){
-      let best=cover.cover+cover.wet*.45-cover.bank*.10-cover.channel*.60-cover.bare*.65,bx=item.x,bz=item.z;
+      const selected=sample(item.x,item.z,true);
+      let best=selected.cover+selected.wet*.45-selected.bank*.10-selected.channel*.60-selected.bare*.65,bx=item.x,bz=item.z;
       // Move existing free tufts only a few metres toward natural drainage and
       // scrub margins. Destructible tree/rock undergrowth keeps its saved anchor.
       for(const[dx,dz]of[[3.4,0],[-3.4,0],[0,3.4],[0,-3.4],[2.4,2.4],[-2.4,-2.4]]){
         const x=item.x+dx,z=item.z+dz;
         if(protectedResource(x,z)||shoreDistance(x,z)<bankWidth(x,z)+3||Math.abs(z-roadZ(x))<5)continue;
-        const c=sample(x,z),score=c.cover+c.wet*.45-c.bank*.10-c.channel*.60-c.bare*.65;
-        if(score>best+.035){best=score;bx=x;bz=z;cover=c;}
+        const c=sample(x,z,true),score=c.cover+c.wet*.45-c.bank*.10-c.channel*.60-c.bare*.65;
+        if(score>best+.035){best=score;bx=x;bz=z;}
       }
       if(bx!==item.x||bz!==item.z){item.x=bx;item.z=bz;item.y=sceneryHeight(bx,bz)+.025;relocated++;}
+      cover=sample(item.x,item.z);
     }
     const gain=(.58+cover.cover*.57+cover.wet*.19)*(1-cover.channel*.55);item.sx*=gain;item.sy*=gain;item.sz*=gain;
     item.windRoot=[item.x,item.y,item.z,Math.max(.3,item.sy)];
@@ -1118,7 +1124,7 @@ export function createLandscape() {
     for(let j=0;j<count;j++) {
       const a=r()*TAU, radius=(.9+r()*2.7)*record.size, x=record.x+Math.cos(a)*radius,z=record.z+Math.sin(a)*radius;
       if(protectedResource(x,z,1)||shoreDistance(x,z)<3||Math.abs(z-roadZ(x))<5)continue;
-      const normal=terrainNormal(x,z); if(normal.y<.88)continue;
+      const normal=scenerySelectionNormal(x,z); if(normal.y<.88)continue;
       const s=.65+r()*.76,y=sceneryHeight(x,z)+.035;
       ferns.add(x,y,z,s,s,s,record.kind==='tree'?0x577244:0x7d884b,a);
       for(let k=0;k<3;k++) {
@@ -1133,7 +1139,7 @@ export function createLandscape() {
   // detached repeated ridge-bed instances are removed; save anchors stay put.
   composeRegions(trees,shrubs,grass);composeRegions(distantTrees,{items:[]},{items:[]});createSlateLandmark(group,records);
   const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
-  const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,ecologyAt,isClearing});
+  const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,selectionHeightAt:selectionSceneryHeight,ecologyAt,isClearing});
   const groundTransitions=composeGroundTransitions(grass,records,looseGrassCount);
   const canopyMeshes = trees.finish(),distantCanopyMeshes=distantTrees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
@@ -1144,6 +1150,7 @@ export function createLandscape() {
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
   stats.drainage=valleyDrainageDiagnostics();
+  stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
   group.traverse(mesh => { if (mesh.userData.windAnimated) stats.animatedVegetationInstances += mesh.count; });
   let actors = [];
@@ -1199,7 +1206,7 @@ function addWoodland(group, node, rand) {
   cylinder(group, .66, .66, .025, getMaterial('wood', 0xc1a981), stump.position.x, .713, stump.position.z, 10);
   trees.finish(); details.finish();
 }
-function addBrokenRuinWall(group,{x,z,width,height,depth=.72,yaw=0,seed=0,brick=false,windows=true}){
+export function brokenRuinWallGeometry({width,height,depth=.72,seed=0,windows=true}){
   const shape=new T.Shape(),left=-width*.5,right=width*.5;
   shape.moveTo(left,0);shape.lineTo(right,0);shape.lineTo(right,height*(seed%2?.53:.92));
   // A connected wall survives around a directional breach. Thick returns and
@@ -1215,6 +1222,20 @@ function addBrokenRuinWall(group,{x,z,width,height,depth=.72,yaw=0,seed=0,brick=
   }
   const geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:true,bevelSize:.08,bevelThickness:.06,bevelSegments:1,curveSegments:5,steps:1});
   geometry.translate(0,0,-depth*.5);
+  // Collinear cap vertices can leave zero-area triangles in the extrusion.
+  // Their zero normals become NaN during vertex normalization, and a grazing
+  // MSAA sample can contaminate the HDR image. Keep every solid face and its
+  // original attributes exactly; only omit triangles with no surface area.
+  const position=geometry.attributes.position,indices=[],a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
+  for(let i=0;i<position.count;i+=3){
+    a.fromBufferAttribute(position,i);b.fromBufferAttribute(position,i+1);c.fromBufferAttribute(position,i+2);
+    if(b.sub(a).cross(c.sub(a)).lengthSq()>0)indices.push(i,i+1,i+2);
+  }
+  if(indices.length<position.count)geometry.setIndex(indices);
+  return geometry;
+}
+function addBrokenRuinWall(group,{x,z,width,height,depth=.72,yaw=0,seed=0,brick=false,windows=true}){
+  const geometry=brokenRuinWallGeometry({width,height,depth,seed,windows});
   // Extrusion UVs retain metre scale; scanned masonry does not stretch to fit a wall.
   const mesh=new T.Mesh(geometry,getMaterial(brick?'brick':'stone',brick?0x91715b:0x90988a));
   mesh.name='Fractured load-bearing ruin wall';mesh.position.set(x,.30,z);mesh.rotation.y=yaw;mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);

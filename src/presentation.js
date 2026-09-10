@@ -2,7 +2,7 @@ import * as T from '../vendor/three.module.js';
 import {getLightingPreset} from './lighting.js';
 import {terrainHeight,riverX} from './terrain.js';
 import {windAt,WIND_GLSL} from './weather.js';
-import {RadianceBloom} from './radiance-bloom.js';
+import {RadianceBloom,FINITE_RADIANCE_GLSL} from './radiance-bloom.js';
 
 // Keep the stable contact filter: randomized PCF without temporal accumulation
 // produced visible screen-door halos in the close street camera.
@@ -33,11 +33,12 @@ export class Presentation {
         uniform float projectionScale;
         uniform float near,far,aoStrength,bloomStrength,bloomSamples;
         varying vec2 vUv;
+        ${FINITE_RADIANCE_GLSL}
         float linearDepth(float d){return near*far/(far-(far-near)*d);}
         vec3 viewPosition(vec2 uv){float d=texture2D(tDepth,uv).r;vec4 p=inverseProjection*vec4(uv*2.-1.,d*2.-1.,1.);return p.xyz/p.w;}
         vec3 bright(vec3 colour){float luma=dot(colour,vec3(.2126,.7152,.0722));float knee=clamp((luma-.95)/.8,0.,1.);return colour*(max(luma-1.35,0.)+knee*knee*.12)/max(luma,.001);}
         void main(){
-          vec3 colour=texture2D(tColor,vUv).rgb;
+          vec3 colour=finiteRadiance(texture2D(tColor,vUv).rgb);
           float raw=texture2D(tDepth,vUv).r,depth=linearDepth(raw),shade=0.;
           vec2 px=1./resolution;
           float worldRadius=clamp(1.1+depth*.006,1.1,2.8);
@@ -61,7 +62,7 @@ export class Presentation {
           }
           // Four spatial scales keep emissive cores crisp and give distant
           // lamps, hot metal and the sun a soft photographic shoulder.
-          vec3 bloom=texture2D(tBloom0,vUv).rgb*.34+texture2D(tBloom1,vUv).rgb*.29+texture2D(tBloom2,vUv).rgb*.23+texture2D(tBloom3,vUv).rgb*.14;
+          vec3 bloom=finiteRadiance(texture2D(tBloom0,vUv).rgb)*.34+finiteRadiance(texture2D(tBloom1,vUv).rgb)*.29+finiteRadiance(texture2D(tBloom2,vUv).rgb)*.23+finiteRadiance(texture2D(tBloom3,vUv).rgb)*.14;
           colour+=bloom*bloomStrength;
           float vignette=1.-.055*pow(length((vUv-.5)*vec2(1.,.85)),1.8);
           gl_FragColor=vec4(max(colour*vignette,vec3(0.)),1.);
