@@ -5,6 +5,7 @@ import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
 import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
 import { valleyWoodland, valleyGroundCover, valleyDrainageDiagnostics, composeAuthoredValley } from './authored-valley.js';
+import { createBridgeAbutments } from './bridge-study.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -672,14 +673,7 @@ function createRoad(group) {
     posts.link([x - 1.6, y + 7.9, z], [x + 1.6, y + 7.9, z], .07, 0x5d6257);
   }
   road.finish('Abandoned old-world highway'); paint.finish('Weathered road markings'); posts.finish('Old telegraph poles');
-  // The highway bridge collapsed; its stone abutments remain on the riverbanks.
-  const bridgeZ = roadZ(riverX(140)), centre = riverX(bridgeZ);
-  for (const side of [-1, 1]) {
-    const x = centre + side * (riverWidth(bridgeZ) + 4);
-    box(group, 5, 1.5, 10, getMaterial('stone', 0x9b9c88), x, -.2, bridgeZ);
-    box(group, 6, .4, 10.4, getMaterial('stone', 0xb8b399), x, .7, bridgeZ);
-    for (const dz of [-4.5, 4.5]) box(group, 6, 1.2, .45, getMaterial('stone', 0x858e7e), x, 1.2, bridgeZ + dz);
-  }
+  createBridgeAbutments(group);
 }
 
 function trackTexture(tank) {

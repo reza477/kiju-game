@@ -12,6 +12,7 @@ import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
 import {normalizeVariant,variantFootprint} from './variants.js';
 import {createCrawlerDrill,createVerticalEnvelopes} from './carrier-variants.js';
 import {createCrawlerBody,dressCrawlerUndercroft,createAirshipHull,dressEnvelopeCradle,createPropellerBlades} from './carrier-craft.js';
+import {createStandardCrawlerChassis,createStandardCrawlerWheel} from './crawler-study.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -21,13 +22,17 @@ function crawler(frame,rig,spinners,variant){
   const armour=m('metal',0x42565f),steel=m('metal',0x778587),dark=m('metal',0x283e47),brass=m('gold',0xad8c52);
   createCrawlerBody(frame);
   for(let side of [-1,1]){
-    box(frame,3.3,3.8,22.8,dark,side*8.95,2.75,0);
+    if(variant==='standard')createStandardCrawlerChassis(frame,side);
+    else box(frame,3.3,3.8,22.8,dark,side*8.95,2.75,0);
     for(let z=-9;z<=9;z+=3){
       const wheel=new T.Group();wheel.position.set(side*9,2.55,z);rig.add(wheel);
-      cyl(wheel,1.68,1.68,3.45,dark,0,0,0,36).rotation.z=Math.PI/2;
-      cyl(wheel,1.33,1.33,.16,steel,side*1.77,0,0,32).rotation.z=Math.PI/2;
-      cyl(wheel,.55,.55,.26,brass,side*1.88,0,0,24).rotation.z=Math.PI/2;
-      for(let a=0;a<8;a++){const angle=a*Math.PI/4;const spoke=box(wheel,.12,1.2,.16,armour,side*1.88,Math.cos(angle)*.83,Math.sin(angle)*.83);spoke.rotation.x=-angle;}
+      if(variant==='standard')createStandardCrawlerWheel(wheel,side,z);
+      else{
+        cyl(wheel,1.68,1.68,3.45,dark,0,0,0,36).rotation.z=Math.PI/2;
+        cyl(wheel,1.33,1.33,.16,steel,side*1.77,0,0,32).rotation.z=Math.PI/2;
+        cyl(wheel,.55,.55,.26,brass,side*1.88,0,0,24).rotation.z=Math.PI/2;
+        for(let a=0;a<8;a++){const angle=a*Math.PI/4;const spoke=box(wheel,.12,1.2,.16,armour,side*1.88,Math.cos(angle)*.83,Math.sin(angle)*.83);spoke.rotation.x=-angle;}
+      }
       batchStatic(wheel);spinners.push({obj:wheel,axis:'x',speed:1.8});
     }
     for(let i=0;i<58;i++){
