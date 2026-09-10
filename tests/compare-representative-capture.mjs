@@ -18,6 +18,8 @@ const median=a=>[...a].sort((a,b)=>a-b)[Math.floor(a.length/2)];
 const summary={conditions:before.environment,matchingGameplayViews:before.shots.map(s=>s.name),motionFramesPerBuild:720,metrics:{}};
 for(const metric of['frameIntervalMs','mainCpuMs','gpuMs']){
   const entry=summary.metrics[metric]={};
+  entry.available=[...before.runs,...after.runs].every(r=>r[metric]?.samples>0&&Number.isFinite(r[metric].median)&&Number.isFinite(r[metric].p95)&&(metric!=='gpuMs'||r.disjoint===0));
+  if(!entry.available){entry.reason='Timing is unavailable, incomplete or GPU-disjoint; no numeric comparison is valid.';continue;}
   for(const phase of['before','after']){
     const source=phase==='before'?before:after,values=source.runs.map(r=>r[metric].median);
     entry[phase]={median:median(values),runMedians:values,medianP95:median(source.runs.map(r=>r[metric].p95))};

@@ -5,6 +5,10 @@ const require=createRequire(import.meta.url),{chromium}=require(path.join(homedi
 const phase=process.env.PHASE||'before',ref='75a5056d86e0d0fc8cb820694bbcc29e87be6e92',out=path.resolve(process.env.OUTPUT_DIR||`artifacts/representative-crawler/${phase}`);await fs.mkdir(out,{recursive:true});
 const report={phase,checkpoint:ref,fixture:'1440x960 Chrome, deviceScaleFactor1, High detail, day, standard crawler, normal City view (yaw.72,pitch.6,zoom76). Fixed1/60s game timestamps dispatched through the actual main.frame on native RAF; real keyboard input. Three240-frame motion samples after120 warmup frames each. No recording during timing. Headless observations, not a device/foreground FPS guarantee.',errors:[],remote:[],shots:[],runs:[]};
 const baseline=process.env.BASELINE==='1',sources=new Map();
+const sourceChanges=execFileSync('git',['diff','--name-only',ref,'--','src'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+const newSources=execFileSync('git',['ls-files','--others','--exclude-standard','src'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+report.source={baselineRouted:baseline,workingCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),sourceChangesFromCheckpoint:[...sourceChanges,...newSources]};
+if(phase==='before'&&!baseline)assert.equal(report.source.sourceChangesFromCheckpoint.length,0,'Product source differs from the checkpoint. Set BASELINE=1 to route the original source.');
 if(baseline)for(const name of execFileSync('git',['ls-tree','-r','--name-only',ref,'src'],{encoding:'utf8'}).trim().split('\n'))sources.set('/'+name,execFileSync('git',['show',`${ref}:${name}`],{encoding:'utf8'}));
 const browser=await chromium.launch({headless:true,channel:'chrome',args:['--mute-audio']});
 try{
