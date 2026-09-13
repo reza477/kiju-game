@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const HOST = '127.0.0.1';
@@ -11,7 +12,6 @@ if (!/^\d+$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65535) {
   throw new Error('PORT must be an integer from 1 to 65535.');
 }
 const PORT = Number(rawPort);
-const HEALTH = JSON.stringify({ app: 'colossus-wake-local', version: 1 });
 const TYPES = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
@@ -58,6 +58,10 @@ function reply(req, res, status, body, extra = {}) {
 }
 
 const realRoot = await realpath(ROOT);
+// Launchers must recognize this checkout, not another app or an old game copy
+// which happens to occupy the same loopback port. Do not expose the folder path.
+const rootId = createHash('sha256').update(realRoot.replaceAll('\\', '/').toLowerCase()).digest('hex');
+const HEALTH = JSON.stringify({ app: 'colossus-wake-local', version: 1, rootId });
 const server = http.createServer(async (req, res) => {
   try {
     if (!['GET', 'HEAD'].includes(req.method)) {
