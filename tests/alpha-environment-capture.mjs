@@ -2,6 +2,8 @@
 import {createRequire} from 'node:module';import {homedir} from 'node:os';import path from 'node:path';import fs from 'node:fs/promises';import {execFileSync} from 'node:child_process';import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url),{chromium}=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
 const phase=process.env.PHASE||'after',quality=process.env.QUALITY||'high',base=process.env.GAME_TEST_URL||'http://127.0.0.1:4188',ref='aef1f02',baseline=phase==='before'||process.env.BASELINE==='1';
+const spatialCell=process.env.SPATIAL_CELL===undefined?null:Number(process.env.SPATIAL_CELL);
+if(spatialCell!==null){assert.ok(Number.isFinite(spatialCell)&&spatialCell>0,'SPATIAL_CELL must be a finite positive number.');assert.equal(baseline,false,'SPATIAL_CELL applies only to the current runtime.');}
 const out=path.resolve(process.env.OUTPUT_DIR||`artifacts/alpha1/${phase}-${quality}`);await fs.mkdir(out,{recursive:true});
 const views=process.env.VIEWS?JSON.parse(process.env.VIEWS):[
  {name:'river-city',x:-14,z:82,yaw:.92,pitch:.55,zoom:80},
@@ -11,6 +13,7 @@ const views=process.env.VIEWS?JSON.parse(process.env.VIEWS):[
 ];
 const report={phase,quality,baseline,ref,revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),errors:[],remote:[],shots:[],runs:[],conditions:'1440x960, DPR1 browser, game quality controls renderer DPR; normal City camera and HUD. Real native RAF with fixed 1/60 simulation timestamps; 2x180 moving frames after 90 warmup frames. No screenshots during timing. Desktop Chrome observations, not Apple-device FPS.'};
 const sources=new Map();if(baseline)for(const name of execFileSync('git',['ls-tree','-r','--name-only',ref,'src','index.html'],{encoding:'utf8'}).trim().split('\n'))sources.set('/'+name,execFileSync('git',['show',`${ref}:${name}`],{encoding:'utf8'}));
+if(spatialCell!==null){const file='/src/spatial-instances.js',source=await fs.readFile(path.resolve('.'+file),'utf8'),pattern=/cellSize\s*=\s*\d+(?:\.\d+)?/g;assert.equal([...source.matchAll(pattern)].length,1,'Expected exactly one spatial-cell default to override.');sources.set(file,source.replace(pattern,'cellSize='+spatialCell));report.spatialCellOverride=spatialCell;report.conditions+=' In-memory current spatial-instances.js cell-size override: '+spatialCell+'m; runtime files unchanged.';}
 const browser=await chromium.launch({headless:true,channel:'chrome',args:['--mute-audio']});let page;
 try{
  const context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1});page=await context.newPage();page.setDefaultTimeout(120000);

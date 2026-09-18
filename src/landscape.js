@@ -8,6 +8,7 @@ import { valleyWoodland, valleyGroundCover, valleyDrainageDiagnostics, composeAu
 import { createBridgeAbutments } from './bridge-study.js';
 import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
+import { createMeadowSurface } from './meadow-surface.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -483,6 +484,7 @@ function createGround() {
   const neutralNormal=groundTexture(new Uint8Array([128,128,255,255]),1),neutralRoughness=groundTexture(new Uint8Array([248,248,248,255]),1);
   const surfaceUniforms={
     uGroundWeights:{value:surface.weights},
+    uMeadowDetail:{value:createMeadowSurface()},
     uSurfaceGrass:{value:grass},uSurfaceSlate:{value:slate},uSurfaceSoil:{value:soil},uSurfaceFlags:{value:new T.Vector3()},uSurfaceScale:{value:new T.Vector3(8,8,8)},
     uNormalGrass:{value:neutralNormal},uNormalSlate:{value:neutralNormal},uNormalSoil:{value:neutralNormal},
     uRoughGrass:{value:neutralRoughness},uRoughSlate:{value:neutralRoughness},uRoughSoil:{value:neutralRoughness}
@@ -496,6 +498,7 @@ function createGround() {
       varying vec2 vGroundXZ;
       varying vec3 vGroundPosition,vGroundNormal;
       uniform sampler2D uGroundWeights;
+      uniform sampler2D uMeadowDetail;
       uniform sampler2D uSurfaceGrass,uSurfaceSlate,uSurfaceSoil;
       uniform sampler2D uNormalGrass,uNormalSlate,uNormalSoil;
       uniform sampler2D uRoughGrass,uRoughSlate,uRoughSoil;
@@ -503,6 +506,7 @@ function createGround() {
     `).replace('#include <map_fragment>', `#include <map_fragment>
       vec2 groundUV = vec2(vGroundXZ.x + 600.0, 600.0 - vGroundXZ.y) / 1200.0;
       vec4 terrainField = texture2D(uGroundWeights, groundUV);
+      vec4 meadowField=texture2D(uMeadowDetail,vGroundXZ/9.0);
       vec3 weights = vec3(terrainField.rg,max(0.0,1.0-terrainField.r-terrainField.g));
       weights/=max(.001,dot(weights,vec3(1.0)));
       vec3 surfaceWeights=weights*uSurfaceFlags;
@@ -525,6 +529,9 @@ function createGround() {
       float bedColour=texture2D(uSurfaceSoil,vec2(floor(bedding)*.079+.3,.27)).r;
       vec3 strataTint=mix(vec3(.74,.80,.86),vec3(.98,.93,.82),smoothstep(.16,.42,bedColour));
       rockAlbedo*=mix(vec3(.92,.95,.98),strataTint*(1.0-joint*.26),escarpment);
+      // Cool exposed faces separate from warmer weathered shoulders and talus.
+      // This follows the actual slope rather than a uniform mountain tint.
+      rockAlbedo*=mix(vec3(.85,.80,.68),vec3(.88,.98,1.06),escarpment);
       vec3 grassFirst=texture2D(uSurfaceGrass,uvGrass).rgb;
       vec3 soilFirst=texture2D(uSurfaceSoil,uvSoil).rgb;
       vec3 realAlbedo=grassFirst*surfaceWeights.x+rockAlbedo*surfaceWeights.y+soilFirst*surfaceWeights.z;
@@ -538,7 +545,11 @@ function createGround() {
       vec3 grassChroma=clamp(grassGrain/max(.018,grassLuma),vec3(.58),vec3(1.48));
       // The scan supplies physical grain; it must not replace green meadow and
       // forest-litter colours with a uniform photograph of dry yellow pasture.
-      realAlbedo+=surfaceWeights.x*(diffuseColor.rgb*grassReflectance*mix(vec3(1.0),grassChroma,.68)-grassFirst);
+      vec3 turfAlbedo=diffuseColor.rgb*vec3(.80,1.01,.77)*grassReflectance*mix(vec3(1.0),grassChroma,.56);
+      turfAlbedo*=1.0+(meadowField.g-.5)*.84;
+      vec3 litterSoil=soilFirst*.62+diffuseColor.rgb*.24;
+      float turfCover=smoothstep(.10,.84,meadowField.r+weights.x*.38);
+      realAlbedo+=surfaceWeights.x*(mix(litterSoil,turfAlbedo,turfCover)-grassFirst);
       diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.83+diffuseColor.rgb*.17,realBlend*mix(.81,.88,weights.x));
     `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
@@ -549,6 +560,8 @@ function createGround() {
       vec2 rockNx=texture2D(uNormalSlate,uvRockX).xy-.5,rockNy=texture2D(uNormalSlate,uvSlate).xy-.5,rockNz=texture2D(uNormalSlate,uvRockZ).xy-.5;
       vec3 rockNormal=vec3(0.0,rockNx.y,rockNx.x)*rockFaces.x+vec3(rockNy.x,0.0,rockNy.y)*rockFaces.y+vec3(rockNz.x,rockNz.y,0.0)*rockFaces.z;
       normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*1.08+rockNormal*surfaceWeights.y*mix(.85,1.35,escarpment)));
+      vec2 meadowNormal=meadowField.ba*2.0-1.0;
+      normal=normalize(normal+mat3(viewMatrix)*vec3(meadowNormal.x,0.0,meadowNormal.y)*weights.x*.70);
       // Rooted tussock/deposition relief remains legible between individual
       // grass blades and whole hills. It changes shading, never carrier footing.
       float mesoX=terrainField.b*2.0-1.0;
@@ -556,9 +569,9 @@ function createGround() {
       normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.50-escarpment*.29));
     `);
   };
-  material.customProgramCacheKey = () => 'alpha-mineral-ground-v7';
+  material.customProgramCacheKey = () => 'alpha-meadow-mineral-ground-v8';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
-  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness];
+  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness,createMeadowSurface()];
   ground.userData.setGroundTextures = textures => {
     for(const[kind,key,axis]of[['grass','Grass','x'],['slate','Slate','y'],['soil','Soil','z']]) {
       const entry=textures?.[kind]; if(!entry?.map)continue;
@@ -752,11 +765,13 @@ export function createWorldInteractions(group, records) {
   const logs = dynamic(brokenLog, getMaterial('bark', 0xb5a58b), debrisCapacity * 3, 'Fallen trunks and branches');
   const fallenFoliage=createVegetationMaterial('broadleaf');fallenFoliage.color.setHex(0x70834a);
   const brush = dynamic(branchSprayGeometry(false,true), fallenFoliage, debrisCapacity * 3, 'Crushed fallen boughs');
+  const fallenNeedles=createVegetationMaterial('pine');fallenNeedles.color.setHex(0x526f4a);
+  const pineBrush=dynamic(branchSprayGeometry(true,true),fallenNeedles,debrisCapacity*3,'Crushed fallen pine boughs');
   const rubble = dynamic(irregularOrb(0), getMaterial('rock', 0x96977e), debrisCapacity * 3, 'Fresh crushed rock fragments');
   const stampGeometry = new T.PlaneGeometry(1, 1, 2, 4); stampGeometry.rotateX(-Math.PI / 2);
   const stamps = [false, true].map(tank => dynamic(stampGeometry, new T.MeshBasicMaterial({ color: tank ? 0x35402c : 0x3e4230, alphaMap: trackTexture(tank), transparent: true, opacity: tank ? .43 : .38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), trackCapacity, tank ? 'Persistent crawler tread impressions' : 'Titan footprints', false));
   stamps.forEach(mesh => { mesh.renderOrder = 1; });
-  const debrisMeshes = [stumps, cuts, logs, brush, rubble];
+  const debrisMeshes = [stumps, cuts, logs, brush, pineBrush, rubble];
   function place(mesh, index, x, y, z, sx, sy, sz, quaternion = identity) {
     TEMP.position.set(x, y, z); TEMP.scale.set(sx, sy, sz); TEMP.quaternion.copy(quaternion); TEMP.updateMatrix(); mesh.setMatrixAt(index, TEMP.matrix); changed.add(mesh);
     const pool=poolStates.get(mesh);if(!pool.active[index]){pool.active[index]=1;pool.count++;}pool.highest=Math.max(pool.highest,index);poolsDirty=true;
@@ -784,12 +799,13 @@ export function createWorldInteractions(group, records) {
   }
   function clearDebris(slot) {
     for (const mesh of [stumps, cuts])hideInstance(mesh,slot);
-    for (const mesh of [logs, brush, rubble]) for (let i = 0; i < 3; i++)hideInstance(mesh,slot*3+i);
+    for (const mesh of [logs, brush, pineBrush, rubble]) for (let i = 0; i < 3; i++)hideInstance(mesh,slot*3+i);
   }
   function showDebris(record, slot, angle) {
     const size = record.size, normal = terrainNormal(record.x, record.z), slope = new T.Quaternion().setFromUnitVectors(UP, new T.Vector3(normal.x, normal.y, normal.z));
     const x = record.x, z = record.z, y = sceneryHeight(x, z);
     if (record.kind === 'tree') {
+      const crown=record.parts.some(ref=>ref.batch.mesh?.name.endsWith('Pine boughs'))?pineBrush:brush;
       place(stumps, slot, x, y + size * .34, z, size * .35, size * .68, size * .35, slope);
       place(cuts, slot, x, y + size * .69, z, size * .279, 1, size * .279, slope);
       const length = size * 5.8, dx = Math.sin(angle), dz = Math.cos(angle);
@@ -801,7 +817,7 @@ export function createWorldInteractions(group, records) {
         const direction = new T.Vector3(ex - sx, ey - sy, ez - sz), rotation = new T.Quaternion().setFromUnitVectors(UP, direction.clone().normalize());
         place(logs, slot * 3 + branch, (sx + ex) / 2, (sy + ey) / 2, (sz + ez) / 2, size * (branch ? .12 : .27), direction.length(), size * (branch ? .12 : .27), rotation);
         const boughTurn=slope.clone().multiply(new T.Quaternion().setFromAxisAngle(UP,a+branch*.73));
-        place(brush, slot * 3 + branch, ex, sceneryHeight(ex, ez) + size * .37, ez, size * (branch?1.02:1.35), size * .47, size * .90, boughTurn);
+        place(crown, slot * 3 + branch, ex, sceneryHeight(ex, ez) + size * .37, ez, size * (branch?1.02:1.35), size * .47, size * .90, boughTurn);
       }
     } else {
       for (let part = 0; part < 3; part++) {
@@ -1077,9 +1093,9 @@ function createMeadowDetail(group){
     const y=renderedTerrainHeight(px,pz),dx=(renderedTerrainHeight(px+1,pz)-renderedTerrainHeight(px-1,pz))*.5,dz=(renderedTerrainHeight(px,pz+1)-renderedTerrainHeight(px,pz-1))*.5;
     const slope=Math.hypot(dx,dz),patch=noise(px*.071+15,pz*.082-7);
     if(slope>.43||patch<.34||rand()>.80)continue;
-    const wet=1-smooth(15,42,shoreDistance(px,pz)),density=smooth(.34,.68,patch),h=.30+rand()*.34+density*.18;
+    const wet=1-smooth(15,42,shoreDistance(px,pz)),density=smooth(.34,.68,patch),h=.42+rand()*.28+density*.15;
     tint.copy(green).lerp(dry,smooth(.52,.80,noise(px*.018,pz*.021))*.7).lerp(shade,wet*.52);
-    const i=detail.add(px,y+.018,pz,1.6+density*.55,h,1.6+density*.55,tint.getHex(),rand()*TAU);
+    const i=detail.add(px,y+.018,pz,.9+density*.65,h,.9+density*.65,tint.getHex(),rand()*TAU);
     detail.items[i].windRoot=[px,y,pz,h];detail.items[i].windFlex=[h*.17,.010];detail.items[i].windMotion=[.76,2.2];
   }
   return detail.finish('Low meadow grass');
