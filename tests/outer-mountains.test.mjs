@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import {
   RESOURCE_CENTRES, TERRAIN_SEGMENTS, terrainGridCoordinate,
   scenerySelectionHeight, terrainHeight, terrainNormal, outerMountainDelta,
-  renderedTerrainHeight
+  renderedTerrainHeight, historicalRenderedTerrainHeight
 } from '../src/terrain.js';
 
 const hash = values => createHash('sha256').update(new Float64Array(values)).digest('hex');
@@ -24,6 +24,21 @@ test('outer mountains preserve historical scenery selection and all inner terrai
     const x = cx + Math.cos(angle) * radius, z = cz + Math.sin(angle) * radius;
     assert.equal(outerMountainDelta(x, z), 0);
     assert.equal(terrainHeight(x, z), scenerySelectionHeight(x, z));
+  }
+});
+
+test('far scenery retains the exact historical rendered selection surface', () => {
+  const values = [];
+  for (let iz = 0; iz < 99; iz++) for (let ix = 0; ix < 103; ix++) {
+    const x = -612 + ix * 12.13, z = -613 + iz * 12.47;
+    const height = historicalRenderedTerrainHeight(x, z);
+    values.push(height);
+    assert.equal(historicalRenderedTerrainHeight(x, z), height, 'Warm cache must preserve the exact selection height');
+  }
+  assert.equal(hash(values), '8250087067bf7dffc95937ed327f483a296d129930fab24ba4584450090ef350');
+  for (let z = 0; z <= TERRAIN_SEGMENTS; z += 23) for (let x = 0; x <= TERRAIN_SEGMENTS; x += 19) {
+    const px = terrainGridCoordinate(x), pz = terrainGridCoordinate(z);
+    if (Math.max(Math.abs(px), Math.abs(pz)) <= 190) assert.equal(historicalRenderedTerrainHeight(px, pz), renderedTerrainHeight(px, pz));
   }
 });
 

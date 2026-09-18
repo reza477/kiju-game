@@ -134,21 +134,42 @@ function erodedRidge(distance, along, seed, amplitude, system) {
   const profile = d >= 0
     ? .77 * Math.exp(-Math.pow(radius / faceWidth, 1.16)) + .23 * Math.exp(-Math.pow(radius / (faceWidth * 2.35), 1.65))
     : Math.exp(-Math.pow(radius / backWidth, 1.14));
-  let incision = 0;
-  const runoff = Math.max(0, d), widening = 7 + runoff * .055;
+  let incision = 0, tributaries = 0, buttress = 0;
+  const runoff = Math.max(0, d), widening = 7 + runoff * .08;
   for (let i = 0; i < mountainGullies[system].length; i++) {
     const bend = Math.sin(i * 2.71 + seed), axis = mountainGullies[system][i] + d * bend * .21 + Math.sin(d * .024 + i) * 4;
     const across = (along - axis) / (widening + (i % 3) * 2.2);
     if (Math.abs(across) < 3.8) {
-      const strength = .23 + (Math.sin(i * 8.31 + seed) * .5 + .5) * .20;
+      const strength = .19 + (Math.sin(i * 8.31 + seed) * .5 + .5) * .15;
       incision += Math.exp(-across * across) * strength;
+    }
+    // Forked channels cut the upper wall and converge into the same wider
+    // ravine. Their offset and junction height vary between drainage systems.
+    const join = 1 - smoothstep(5, 62 + (i % 3) * 12, d);
+    for (const side of [-1, 1]) {
+      const forkAxis = axis + side * (19 + (i % 3) * 6) * join;
+      const fork = Math.abs(along - forkAxis) / (3.8 + runoff * .028);
+      if (fork < 3.5) tributaries += Math.exp(-fork * fork) * .105 * join;
+    }
+    if (i + 1 < mountainGullies[system].length) {
+      const centre = (mountainGullies[system][i] + mountainGullies[system][i + 1]) * .5;
+      const spurAxis = centre + Math.sin(i * 1.93 + seed) * (d * .20 + 5);
+      const wedge = Math.max(0, 1 - Math.abs(along - spurAxis) / (10 + (i % 3) * 3 + runoff * .14));
+      const shoulderAt = 17 + (i % 3) * 13;
+      const lengthwise = Math.exp(-(((d - shoulderAt) / (41 + (i % 3) * 9)) ** 2));
+      buttress = Math.max(buttress, wedge * lengthwise * (9 + (i % 3) * 3));
     }
   }
   // The same drainage centre continues from each summit saddle down its face;
   // broadening channels leave connected rock spurs, rather than noise bumps.
-  const cut = Math.min(.66, incision) * (.46 + .54 * smoothstep(-12, 29, d));
-  const rock = (terrainNoise(along * .073 + d * .012 + seed, d * .024 + seed) - .5) * 2.8;
-  return Math.max(0, height * profile * (1 - cut) + rock * smoothstep(.15, .70, profile));
+  const cut = Math.min(.64, incision + tributaries) * (.64 + .36 * smoothstep(-12, 29, d));
+  // Oblique beds expose interlocking facets on the actual surface. Two scales
+  // break the large faces without stamping repeated horizontal stair ledges.
+  const fracture = 1 - Math.abs(terrainNoise(along * .029 + d * .012 + seed, d * .037 + seed + 4) * 2 - 1);
+  const secondary = 1 - Math.abs(terrainNoise(along * .071 - d * .018 + seed + 11, d * .064 + seed) * 2 - 1);
+  const exposed = smoothstep(-17, 7, d) * (1 - smoothstep(65, 112, d));
+  const rock = ((fracture * fracture - .46) * 11 + (secondary - .5) * 3.5) * exposed;
+  return Math.max(0, height * profile * (1 - cut) + buttress + rock);
 }
 
 /** Visual landform delta only; historical scenery sampling remains immutable. */
@@ -193,26 +214,33 @@ export function terrainGridCoordinate(index) {
   return Math.fround(Math.sign(index - 200) * coordinate);
 }
 const groundGrid = Array.from({ length: TERRAIN_SEGMENTS+1 }, (_, i) => terrainGridCoordinate(i));
-const groundVertexHeights=new Float32Array((TERRAIN_SEGMENTS+1)**2),groundVertexReady=new Uint8Array(groundVertexHeights.length);
-function groundVertexHeight(ix,iz){
-  const index=iz*(TERRAIN_SEGMENTS+1)+ix;
-  if(!groundVertexReady[index]){
-    groundVertexHeights[index]=Math.fround(terrainHeight(groundGrid[ix],groundGrid[iz]));
-    groundVertexReady[index]=1;
-  }
-  return groundVertexHeights[index];
-}
 function groundInterval(value) {
   let low = 0, high = TERRAIN_SEGMENTS;
   while (high - low > 1) { const mid = (low + high) >> 1; if (value < groundGrid[mid]) high = mid; else low = mid; }
   return Math.min(TERRAIN_SEGMENTS-1, low);
 }
-export function renderedTerrainHeight(x, z) {
-  if (Math.abs(x) > 600 || Math.abs(z) > 600) return terrainHeight(x, z);
-  const ix = groundInterval(x), iz = groundInterval(z);
-  const ax = groundGrid[ix], bx = groundGrid[ix + 1], az = groundGrid[iz], bz = groundGrid[iz + 1];
-  const u = (x - ax) / (bx - ax), v = (z - az) / (bz - az);
-  const a = groundVertexHeight(ix,iz), b = groundVertexHeight(ix+1,iz);
-  const c = groundVertexHeight(ix,iz+1), d = groundVertexHeight(ix+1,iz+1);
-  return u + v <= 1 ? a * (1 - u - v) + b * u + c * v : d * (u + v - 1) + b * (1 - v) + c * (1 - u);
+function renderedSampler(height) {
+  const vertexHeights = new Float32Array((TERRAIN_SEGMENTS + 1) ** 2), ready = new Uint8Array(vertexHeights.length);
+  function vertexHeight(ix, iz) {
+    const index = iz * (TERRAIN_SEGMENTS + 1) + ix;
+    if (!ready[index]) {
+      vertexHeights[index] = Math.fround(height(groundGrid[ix], groundGrid[iz]));
+      ready[index] = 1;
+    }
+    return vertexHeights[index];
+  }
+  return function (x, z) {
+    if (Math.abs(x) > 600 || Math.abs(z) > 600) return height(x, z);
+    const ix = groundInterval(x), iz = groundInterval(z);
+    const ax = groundGrid[ix], bx = groundGrid[ix + 1], az = groundGrid[iz], bz = groundGrid[iz + 1];
+    const u = (x - ax) / (bx - ax), v = (z - az) / (bz - az);
+    const a = vertexHeight(ix, iz), b = vertexHeight(ix + 1, iz);
+    const c = vertexHeight(ix, iz + 1), d = vertexHeight(ix + 1, iz + 1);
+    return u + v <= 1 ? a * (1 - u - v) + b * u + c * v : d * (u + v - 1) + b * (1 - v) + c * (1 - u);
+  };
 }
+export const renderedTerrainHeight = renderedSampler(terrainHeight);
+// Far scenery historically selected its candidates against the rendered grid,
+// including Float32 vertex rounding and the Westbank Shelf. Keep that precise
+// surface independent of visible mountain revisions to preserve random draws.
+export const historicalRenderedTerrainHeight = renderedSampler((x, z) => scenerySelectionHeight(x, z) + westernTerraceDelta(x, z));

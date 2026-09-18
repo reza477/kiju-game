@@ -64,11 +64,12 @@ export function branchSprayGeometry(needles = false, distant = false) {
     const right = new T.Vector3(Math.cos(angle), 0, Math.sin(angle));
     // Crossing inclined surfaces retain leaf silhouettes above, below and at
     // ground level. The final inclined card closes each crown's top view.
-    const tilt = i === count - 1 ? (needles ? 1.13 : 1.28) : (i % 2 ? -.59 : .46) + rand() * .23;
+    const tilt = i === count - 1 ? (needles ? .91 : 1.28) : (i % 2 ? -.59 : .46) + rand() * .23;
     const up = new T.Vector3(0, 1, 0).applyAxisAngle(right, tilt);
     const centre = new T.Vector3((rand() - .5) * .29, (rand() - .5) * .22, (rand() - .5) * .29);
+    if (needles) centre.y += Math.sin(i * 1.67) * .19 - .08;
     const width = (needles ? 2.38 : 2.24) * (.89 + rand() * .15);
-    const height = (needles ? 1.47 : 1.79) * (.89 + rand() * .17);
+    const height = (needles ? 1.78 : 1.79) * (.89 + rand() * .17);
     b.card(centre, right, up, width, height, .15 + rand() * .10, .90 + rand() * .10);
   }
   return b.finish();
