@@ -97,6 +97,33 @@ test('actual interaction save reload mutates canonical scenery and its matching 
   }finally{if(previous===undefined)delete globalThis.document;else globalThis.document=previous;}
 });
 
+test('saved pine crowns use the pine debris pool and every species restores its full original matrices',()=>{
+  const previous=globalThis.document;globalThis.document=documentStub;
+  try{
+    const group=new T.Group(),records=[],sources=[],originals=[],temp=new T.Object3D();
+    for(const [species,name]of ['Pine boughs','Distant Pine boughs','Broadleaf canopies'].entries()){
+      const source=new T.InstancedMesh(new T.BoxGeometry(1,1,1),new T.MeshBasicMaterial(),2),items=[];source.name=name;
+      for(let i=0;i<2;i++){
+        const x=230+species*70+i*4,z=-380+species*25,y=terrainHeight(x,z)+i*2;
+        temp.position.set(x,y,z);temp.rotation.set(.13*i,species*.71+i*.23,-.11*i);temp.scale.set(.8+i*.3,1.3+i*.4,.6+i*.2);temp.updateMatrix();
+        source.setMatrixAt(i,temp.matrix);items.push({x,y,z,sx:temp.scale.x,sy:temp.scale.y,sz:temp.scale.z,rotation:temp.quaternion.clone()});
+      }
+      group.add(partitionStaticInstances(source,items));sources.push(source);originals.push(source.instanceMatrix.array.slice());
+      records.push({id:'species:'+species,kind:'tree',x:items[0].x,z:items[0].z,size:1.2,parts:[{batch:{mesh:source,items},first:0,count:2}]});
+    }
+    const api=createWorldInteractions(group,records),pine=group.getObjectByName('Crushed fallen pine boughs'),broadleaf=group.getObjectByName('Crushed fallen boughs');
+    assert.notEqual(pine.material.map,broadleaf.material.map,'Species must retain their distinct foliage silhouettes.');
+    for(let species=0;species<records.length;species++){
+      api.resetInteractions({mode:'expedition',damage:JSON.parse(JSON.stringify([records[species].id]))});assert.equal(api.stats.destroyedCount,1);
+      const expected=species<2?pine:broadleaf,other=species<2?broadleaf:pine;
+      assert.equal(expected.count,3);assert.equal(expected.visible,true);assert.equal(other.count,0);assert.equal(other.visible,false);
+      for(let i=0;i<2;i++){const source=sources[species],slot=source.spatialSlots[i];assert.equal(source.instanceMatrix.array[i*16+13],-5000);assert.equal(slot.mesh.instanceMatrix.array[slot.index*16+13],-5000);}
+      api.resetInteractions();assert.equal(api.stats.poolDraw.submittedInstances,0);assert.equal(pine.count,0);assert.equal(broadleaf.count,0);
+      sources.forEach((source,index)=>{assert.deepEqual(source.instanceMatrix.array,originals[index]);source.spatialSlots.forEach((slot,i)=>assert.deepEqual(slot.mesh.instanceMatrix.array.slice(slot.index*16,slot.index*16+16),originals[index].slice(i*16,i*16+16)));});
+    }
+  }finally{if(previous===undefined)delete globalThis.document;else globalThis.document=previous;}
+});
+
 test('wildlife frozen frames preserve all matrices and avoid buffer uploads, while time and actor changes still refresh',()=>{
   const previous=globalThis.document;globalThis.document=documentStub;
   try{

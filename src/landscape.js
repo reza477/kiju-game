@@ -243,7 +243,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size), relief = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x627344, dry: 0x8a8156, meadow: 0x869451, soil: 0x79654b, litter:0x464335, moss:0x50633d, ash: 0x777269, slate: 0x687078, wet: 0x394d35, gravel: 0xaaa18a, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x5c7043, dry: 0x827459, meadow: 0x6d824e, soil: 0x6d5b46, litter:0x464335, moss:0x50633d, ash: 0x777269, slate: 0x687078, wet: 0x394d35, gravel: 0xaaa18a, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = renderedTerrainHeight(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -288,7 +288,12 @@ function groundAlbedo() {
     // colour noise. The close detail comes from material-specific tiled textures.
     c.multiplyScalar(.84+cover.patch*.18+cover.fine*.08+veins*.045);
     const hex = c.getHex(), offset = i * 4;
-    colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255; colourData[offset + 3] = 255;
+    colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255;
+    // Base-colour alpha carries static geological cavity shading. Concave
+    // gullies trap indirect light; exposed faces and broad open ground stay clear.
+    // This is decoded explicitly below, never used as ground transparency.
+    const cavity=smooth(.007,.095,curvature)*stone*smooth(12,38,y);
+    colourData[offset + 3] = Math.round((1-cavity*.48)*255);
     const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9,eco.wet*.94,cover.hollow*.47));
     weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255); relief[i]=cover.relief;
   }
@@ -504,6 +509,8 @@ function createGround() {
       uniform sampler2D uRoughGrass,uRoughSlate,uRoughSoil;
       uniform vec3 uSurfaceFlags,uSurfaceScale;
     `).replace('#include <map_fragment>', `#include <map_fragment>
+      float groundCavity=clamp(diffuseColor.a,.52,1.0);
+      diffuseColor.a=opacity;
       vec2 groundUV = vec2(vGroundXZ.x + 600.0, 600.0 - vGroundXZ.y) / 1200.0;
       vec4 terrainField = texture2D(uGroundWeights, groundUV);
       vec4 meadowField=texture2D(uMeadowDetail,vGroundXZ/9.0);
@@ -545,12 +552,13 @@ function createGround() {
       vec3 grassChroma=clamp(grassGrain/max(.018,grassLuma),vec3(.58),vec3(1.48));
       // The scan supplies physical grain; it must not replace green meadow and
       // forest-litter colours with a uniform photograph of dry yellow pasture.
-      vec3 turfAlbedo=diffuseColor.rgb*vec3(.80,1.01,.77)*grassReflectance*mix(vec3(1.0),grassChroma,.56);
+      vec3 turfAlbedo=diffuseColor.rgb*vec3(.91,1.0,.86)*grassReflectance*mix(vec3(1.0),grassChroma,.56);
       turfAlbedo*=1.0+(meadowField.g-.5)*.84;
-      vec3 litterSoil=soilFirst*.62+diffuseColor.rgb*.24;
-      float turfCover=smoothstep(.10,.84,meadowField.r+weights.x*.38);
+      vec3 litterSoil=soilFirst*.54+diffuseColor.rgb*.38;
+      float turfCover=mix(.28,.96,smoothstep(.10,.84,meadowField.r+weights.x*.38));
       realAlbedo+=surfaceWeights.x*(mix(litterSoil,turfAlbedo,turfCover)-grassFirst);
       diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.83+diffuseColor.rgb*.17,realBlend*mix(.81,.88,weights.x));
+      diffuseColor.rgb*=mix(1.0,groundCavity,.35);
     `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
       float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+rockRoughness*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
@@ -567,9 +575,12 @@ function createGround() {
       float mesoX=terrainField.b*2.0-1.0;
       float mesoZ=terrainField.a*2.0-1.0;
       normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.50-escarpment*.29));
+    `).replace('#include <aomap_fragment>',`#include <aomap_fragment>
+      reflectedLight.indirectDiffuse*=groundCavity;
+      reflectedLight.indirectSpecular*=mix(1.0,groundCavity,roughnessFactor);
     `);
   };
-  material.customProgramCacheKey = () => 'alpha-meadow-mineral-ground-v8';
+  material.customProgramCacheKey = () => 'alpha-meadow-geology-ground-v9';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness,createMeadowSurface()];
   ground.userData.setGroundTextures = textures => {
@@ -1086,7 +1097,7 @@ function composeGroundTransitions(grass,records,looseGrassCount){
 // It uses the same 12-triangle cutout and bounded root wind, with no shadows.
 function createMeadowDetail(group){
   const detail=new Instances(group,grassTuftGeometry(),createVegetationMaterial('grass'),false,'grass'),rand=random(812671),tint=new T.Color();
-  const green=new T.Color(0x72854b),dry=new T.Color(0x96925a),shade=new T.Color(0x52663d);
+  const green=new T.Color(0x647843),dry=new T.Color(0x8b8257),shade=new T.Color(0x52663d);
   for(let z=-170;z<=170;z+=2.35)for(let x=-170;x<=170;x+=2.35){
     const px=x+(rand()-.5)*2.1,pz=z+(rand()-.5)*2.1;
     if(protectedResource(px,pz,1)||shoreDistance(px,pz)<bankWidth(px,pz)+2||Math.abs(pz-roadZ(px))<5||Math.hypot(px+30,pz-40)<13)continue;
