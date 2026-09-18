@@ -30,22 +30,8 @@ export function protectedResource(x, z, margin = 0) {
   return RESOURCE_CENTRES.some(([cx, cz]) => Math.hypot(x - cx, z - cz) <= radius);
 }
 
-function baseHeight(x, z) {
+function historicalMountains(x, z) {
   const edge = Math.max(Math.abs(x), Math.abs(z));
-  const rolling = 3.2 + terrainNoise(x * .013 + 8, z * .013 + 2) * 5.6 + terrainNoise(x * .027 + 19, z * .027 + 5) * 1.6;
-  // Broad, asymmetric ridgelines create an actual hill silhouette at city scale.
-  // Their wavelengths are wider than a carrier's footprint, avoiding sharp steps.
-  const westU = (x + 150) * .88 + (z + 20) * .47, westV = -(x + 150) * .47 + (z + 20) * .88;
-  const eastU = (x - 163) * .96 - (z - 75) * .28, eastV = (x - 163) * .28 + (z - 75) * .96;
-  const ridges = 22 * Math.exp(-(westU ** 2 / 3000 + westV ** 2 / 9700)) +
-    24 * Math.exp(-(eastU ** 2 / 3300 + eastV ** 2 / 7600)) +
-    17 * Math.exp(-((x - 124) ** 2 / 3800 + (z + 129) ** 2 / 4400)) +
-    13 * Math.exp(-((x + 63) ** 2 / 4400 + (z + 141) ** 2 / 3000)) +
-    12 * Math.exp(-((x + 41) ** 2 / 2600 + (z - 120) ** 2 / 3800));
-  const westGully = z + 71 + Math.sin(x * .018) * 12;
-  const eastGully = x - 91 - Math.sin(z * .017) * 11;
-  const gullies = 5.5 * Math.exp(-(westGully ** 2 / 850 + (x + 103) ** 2 / 10500)) +
-    4.7 * Math.exp(-(eastGully ** 2 / 950 + (z - 25) ** 2 / 13000));
   // Four continuous fault systems replace the former inflated noise mounds.
   // An escarpment has a sharp inward face, talus apron and a long outer dip slope.
   // Lateral erosion cuts the same bed across many metres instead of scattering
@@ -68,8 +54,26 @@ function baseHeight(x, z) {
   const northAxis=-254+Math.sin(x*.012+.8)*27+Math.sin(x*.034)*7;
   const southAxis=276+Math.sin(x*.014)*24;
   const mountainMask=smoothstep(178,218,edge);
-  const mountains=mountainMask*Math.max(fault(x-westAxis,z,3,72),fault(eastAxis-x,z,13,91),fault(z-northAxis,x,27,99),fault(southAxis-z,x,41,64))+
+  return mountainMask*Math.max(fault(x-westAxis,z,3,72),fault(eastAxis-x,z,13,91),fault(z-northAxis,x,27,99),fault(southAxis-z,x,41,64))+
     smoothstep(330,560,edge)*(13+terrainNoise(x*.017+7,z*.017)*21);
+}
+
+function baseHeight(x, z) {
+  const rolling = 3.2 + terrainNoise(x * .013 + 8, z * .013 + 2) * 5.6 + terrainNoise(x * .027 + 19, z * .027 + 5) * 1.6;
+  // Broad, asymmetric ridgelines create an actual hill silhouette at city scale.
+  // Their wavelengths are wider than a carrier's footprint, avoiding sharp steps.
+  const westU = (x + 150) * .88 + (z + 20) * .47, westV = -(x + 150) * .47 + (z + 20) * .88;
+  const eastU = (x - 163) * .96 - (z - 75) * .28, eastV = (x - 163) * .28 + (z - 75) * .96;
+  const ridges = 22 * Math.exp(-(westU ** 2 / 3000 + westV ** 2 / 9700)) +
+    24 * Math.exp(-(eastU ** 2 / 3300 + eastV ** 2 / 7600)) +
+    17 * Math.exp(-((x - 124) ** 2 / 3800 + (z + 129) ** 2 / 4400)) +
+    13 * Math.exp(-((x + 63) ** 2 / 4400 + (z + 141) ** 2 / 3000)) +
+    12 * Math.exp(-((x + 41) ** 2 / 2600 + (z - 120) ** 2 / 3800));
+  const westGully = z + 71 + Math.sin(x * .018) * 12;
+  const eastGully = x - 91 - Math.sin(z * .017) * 11;
+  const gullies = 5.5 * Math.exp(-(westGully ** 2 / 850 + (x + 103) ** 2 / 10500)) +
+    4.7 * Math.exp(-(eastGully ** 2 / 950 + (z - 25) ** 2 / 13000));
+  const mountains=historicalMountains(x,z);
   const shoulder=(terrainNoise(x*.041+3,z*.041+5)-.5)*2.2*smoothstep(12,28,ridges)*smoothstep(24,65,shoreDistance(x,z));
   const shore = shoreDistance(x, z);
   const beach=bankWidth(x,z);
@@ -110,7 +114,65 @@ export function westernTerraceDelta(x,z){
   return(shelf-notch)*ends*protection;
 }
 
-export function terrainHeight(x,z){return scenerySelectionHeight(x,z)+westernTerraceDelta(x,z);}
+const mountainGullies = [
+  [-318, -229, -147, -56, 31, 143, 236, 349],
+  [-342, -251, -162, -89, 17, 108, 217, 317],
+  [-327, -241, -130, -34, 69, 158, 267, 364],
+  [-358, -269, -183, -74, 24, 127, 239, 332]
+];
+
+function erodedRidge(distance, along, seed, amplitude, system) {
+  const longWave = terrainNoise(along * .009 + seed, seed);
+  const shoulder = terrainNoise(along * .025 + seed, seed + 8);
+  const crag = 1 - Math.abs(terrainNoise(along * .047 + seed, seed + 17) * 2 - 1);
+  const height = amplitude * (.57 + longWave * .31 + crag * .19);
+  const d = distance + (shoulder - .5) * 13;
+  const faceWidth = 30 + shoulder * 18, backWidth = 74 + longWave * 27;
+  // A narrow rock crest flows into a broad talus foot. The continuous profile
+  // has no extruded horizontal benches or repeating cliff/ledge steps.
+  const radius = Math.sqrt(d * d + 2.25) - 1.5;
+  const profile = d >= 0
+    ? .77 * Math.exp(-Math.pow(radius / faceWidth, 1.16)) + .23 * Math.exp(-Math.pow(radius / (faceWidth * 2.35), 1.65))
+    : Math.exp(-Math.pow(radius / backWidth, 1.14));
+  let incision = 0;
+  const runoff = Math.max(0, d), widening = 7 + runoff * .055;
+  for (let i = 0; i < mountainGullies[system].length; i++) {
+    const bend = Math.sin(i * 2.71 + seed), axis = mountainGullies[system][i] + d * bend * .21 + Math.sin(d * .024 + i) * 4;
+    const across = (along - axis) / (widening + (i % 3) * 2.2);
+    if (Math.abs(across) < 3.8) {
+      const strength = .23 + (Math.sin(i * 8.31 + seed) * .5 + .5) * .20;
+      incision += Math.exp(-across * across) * strength;
+    }
+  }
+  // The same drainage centre continues from each summit saddle down its face;
+  // broadening channels leave connected rock spurs, rather than noise bumps.
+  const cut = Math.min(.66, incision) * (.46 + .54 * smoothstep(-12, 29, d));
+  const rock = (terrainNoise(along * .073 + d * .012 + seed, d * .024 + seed) - .5) * 2.8;
+  return Math.max(0, height * profile * (1 - cut) + rock * smoothstep(.15, .70, profile));
+}
+
+/** Visual landform delta only; historical scenery sampling remains immutable. */
+export function outerMountainDelta(x, z) {
+  const edge = Math.max(Math.abs(x), Math.abs(z));
+  if (edge <= 190) return 0;
+  const westAxis = -249 + Math.sin(z * .012) * 22 + Math.sin(z * .031) * 8;
+  const eastAxis = 255 + Math.sin(z * .010 + 1.4) * 25 + Math.sin(z * .028) * 8;
+  const northAxis = -264 + Math.sin(x * .012 + .8) * 27 + Math.sin(x * .034) * 7;
+  const southAxis = 281 + Math.sin(x * .014) * 24;
+  const relief = [
+    erodedRidge(x - westAxis, z, 3, 87, 0),
+    erodedRidge(eastAxis - x, z, 13, 108, 1),
+    erodedRidge(z - northAxis, x, 27, 116, 2),
+    erodedRidge(southAxis - z, x, 41, 77, 3)
+  ];
+  // A small smooth maximum connects adjacent ranges at their meeting spurs.
+  const merge = (a, b) => Math.max(a, b) + Math.max(0, 7 - Math.abs(a - b)) ** 2 / 28;
+  const mountains = relief.reduce(merge) + smoothstep(330, 560, edge) * (13 + terrainNoise(x * .017 + 7, z * .017) * 21);
+  const shore = shoreDistance(x, z), riverMask = smoothstep(bankWidth(x, z) + 1, 58, shore);
+  return (mountains - historicalMountains(x, z)) * smoothstep(190, 239, edge) * riverMask;
+}
+
+export function terrainHeight(x,z){return scenerySelectionHeight(x,z)+westernTerraceDelta(x,z)+outerMountainDelta(x,z);}
 
 function normalAt(height,x,z){
   const epsilon = .6;

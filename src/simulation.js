@@ -28,7 +28,9 @@ export const WORLD_NODES = [
 const clone = x => JSON.parse(JSON.stringify(x));
 export const distance = (a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-export const levelOf = (s,type)=>s.buildings.filter(b=>b?.type===type && b.remaining<=0).reduce((n,b)=>n+b.level,0);
+// Upgrades retain the completed level until the new level finishes. Only a
+// district's first construction is inactive while work remains.
+export const levelOf = (s,type)=>s.buildings.filter(b=>b?.type===type && (b.remaining<=0||b.upgrading===true)).reduce((n,b)=>n+b.level,0);
 export const maxHull = s=>FACTIONS[s.faction].hp+levelOf(s,'armor')*120+(levelOf(s,'keep')-1)*80;
 export const capacity = s=>18+levelOf(s,'housing')*12;
 export const income = s=>({food:levelOf(s,'farm')*0.8 - s.population*0.018});

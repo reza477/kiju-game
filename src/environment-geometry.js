@@ -1,7 +1,7 @@
 import * as T from '../vendor/three.module.js';
 
-// Original botanical meshes: solid folded leaves, branching sprays and fern
-// pinnae. No billboard sorting, alpha shimmer or remote texture dependency.
+// Original botanical meshes. Canopies and grasses use bowed cutout cards;
+// fern pinnae keep their small folded-leaf meshes. All assets are local.
 const TAU = Math.PI * 2;
 function random(seed) { let n = seed >>> 0; return () => ((n = (n * 1664525 + 1013904223) >>> 0) / 4294967296); }
 function builder() {
@@ -20,32 +20,66 @@ function builder() {
   };
 }
 
-export function branchSprayGeometry(needles = false, distant = false) {
-  const b = builder(), rand = random(needles ? 78521 : 81521), branches = distant?7:needles ? 9 : 10;
-  for (let branch=0; branch<branches; branch++) {
-    const a = branch * 2.39996 + rand() * .45;
-    const length = .64 + rand() * .46, rise = (rand()-.42) * (needles?1.28:1.42);
-    const axis = new T.Vector3(Math.cos(a), rise, Math.sin(a));
-    const root = new T.Vector3((rand()-.5)*.3, (rand()-.5)*.74, (rand()-.5)*.3);
-    for (let j=0; j<(distant?4:6); j++) {
-      const t = .10+j*(distant?.23:.16), centre = root.clone().addScaledVector(axis, t*length);
-      const side = j%2 ? 1 : -1, angle = a+side*(needles ? .69 : .94);
-      const leafLength = (needles ? .86 : .43) * (distant?1.30:1) * (.82+rand()*.35) * (1-t*.23);
-      const tip = centre.clone().add(new T.Vector3(Math.cos(angle)*leafLength, (.05+rand()*.3)*leafLength, Math.sin(angle)*leafLength));
-      b.leaf(centre, tip, leafLength*(needles?.25:.38), (rand()-.5)*1.3, .70+rand()*.30);
+function cardBuilder() {
+  const positions = [], normals = [], uvs = [], colours = [], indices = [];
+  return {
+    card(centre, right, up, width, height, bow, tint, rooted = false) {
+      const face = new T.Vector3().crossVectors(right, up).normalize();
+      const first = positions.length / 3, columns = rooted ? 1 : 2;
+      for (let row = 0; row <= 2; row++) for (let column = 0; column <= columns; column++) {
+        const u = column / columns, v = row / 2, x = (u - .5) * width;
+        const y = (v - (rooted ? 0 : .5)) * height;
+        const curve = rooted ? v * v * bow : (1 - 4 * (u - .5) ** 2) * bow + Math.sin(v * Math.PI) * bow * .45;
+        const position = centre.clone().addScaledVector(right, x).addScaledVector(up, y).addScaledVector(face, curve);
+        // Soft normals follow the bowed leaf volume, avoiding shiny flat planes.
+        const normal = face.clone().addScaledVector(right, (u - .5) * .82).addScaledVector(up, rooted ? .42 : (v - .5) * .68).normalize();
+        positions.push(position.x, position.y, position.z);
+        normals.push(normal.x, normal.y, normal.z);
+        uvs.push(u, v);
+        const light = tint * (rooted ? .73 + .27 * v : .91 + .09 * v);
+        colours.push(light, light, light);
+        if (row < 2 && column < columns) {
+          const a = first + row * (columns + 1) + column, b = a + columns + 1;
+          indices.push(a, a + 1, b, b, a + 1, b + 1);
+        }
+      }
+    },
+    finish() {
+      const geometry = new T.BufferGeometry();
+      geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('normal', new T.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2));
+      geometry.setAttribute('color', new T.Float32BufferAttribute(colours, 3));
+      geometry.setIndex(indices);
+      geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+      return geometry;
     }
+  };
+}
+
+export function branchSprayGeometry(needles = false, distant = false) {
+  const b = cardBuilder(), rand = random(needles ? 78521 : 81521), count = distant ? 3 : needles ? 5 : 6;
+  for (let i = 0; i < count; i++) {
+    const angle = i * 2.39996 + rand() * .28;
+    const right = new T.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    // Crossing inclined surfaces retain leaf silhouettes above, below and at
+    // ground level. The final inclined card closes each crown's top view.
+    const tilt = i === count - 1 ? (needles ? 1.13 : 1.28) : (i % 2 ? -.59 : .46) + rand() * .23;
+    const up = new T.Vector3(0, 1, 0).applyAxisAngle(right, tilt);
+    const centre = new T.Vector3((rand() - .5) * .29, (rand() - .5) * .22, (rand() - .5) * .29);
+    const width = (needles ? 2.38 : 2.24) * (.89 + rand() * .15);
+    const height = (needles ? 1.47 : 1.79) * (.89 + rand() * .17);
+    b.card(centre, right, up, width, height, .15 + rand() * .10, .90 + rand() * .10);
   }
   return b.finish();
 }
 
 export function grassTuftGeometry() {
-  const b=builder(), rand=random(81951);
-  for(let i=0;i<6;i++) {
-    const a=i*2.39996, h=.42+rand()*.49, base=new T.Vector3(Math.cos(a)*.19,0,Math.sin(a)*.19);
-    const middle=base.clone().add(new T.Vector3(Math.cos(a)*.10,h*.59,Math.sin(a)*.10));
-    const tip=base.clone().add(new T.Vector3(Math.cos(a)*.35,h,Math.sin(a)*.35));
-    b.leaf(base,middle,.022+rand()*.023,a,.80+rand()*.2);
-    b.leaf(middle,tip,.016,a,.91);
+  const b = cardBuilder(), rand = random(81951);
+  for (let i = 0; i < 3; i++) {
+    const angle = i * 2.39996, right = new T.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const centre = new T.Vector3(Math.sin(angle) * .035, 0, Math.cos(angle) * .035);
+    b.card(centre, right, new T.Vector3(0, 1, 0), 1.04 + rand() * .13, .79 + rand() * .18, .13 + rand() * .09, .93 + rand() * .07, true);
   }
   return b.finish();
 }

@@ -49,6 +49,8 @@ export function createWorldLife() {
     x: [-45, 70, -116][i % 3], z: [10, -75, 110][i % 3], phase: rand() * TAU,
     radius: 18 + rand() * 28, height: 25 + rand() * 33, speed: .075 + rand() * .055, size: .65 + rand() * .4
   }));
+  const birdGround=new Map();
+  for(const bird of birds){const key=bird.x+','+bird.z;if(!birdGround.has(key))birdGround.set(key,terrainHeight(bird.x,bird.z));bird.homeGround=birdGround.get(key);}
   const butterflies = Array.from({length: butterflyCount}, (_, i) => ({
     x: [-42, 58, -120, 73][i % 4] + (rand() - .5) * 21,
     z: [1, 65, -104, 106][i % 4] + (rand() - .5) * 21, phase: rand() * TAU
@@ -64,16 +66,29 @@ export function createWorldLife() {
   });
   const meshes = [birdBody, birdWings, birdHeads,birdBeaks,butterflyWings, deerBody, deerHead, deerNeck, deerLegs, deerEars, deerTails,deerMuzzles,deerEyes];
   const windSample = {};
+  let previousTime=NaN;
+  const previousActors=[];
   const stats = { lifeCount: birdCount + butterflyCount + herdCount, birdCount, butterflyCount, herdCount, glidingBirds: 0 };
   return {
     group, stats,
     update(time, delta = 0, actors = []) {
       const dt = Math.min(.1, Math.max(0, delta));
+      // Paused frames keep the existing pose and GPU buffers. An actor change
+      // still refreshes reactions, even at a frozen animation time.
+      const sameActors=actors.length===previousActors.length&&actors.every((actor,i)=>{
+        const prior=previousActors[i];return actor.faction===prior.faction&&actor.moving===prior.moving&&actor.x===prior.x&&actor.z===prior.z&&actor.scale===prior.scale;
+      });
+      if(dt===0&&time===previousTime&&sameActors)return;
+      if(!sameActors){
+        previousActors.length=actors.length;
+        actors.forEach((actor,i)=>{const prior=previousActors[i]??(previousActors[i]={});prior.faction=actor.faction;prior.moving=actor.moving;prior.x=actor.x;prior.z=actor.z;prior.scale=actor.scale;});
+      }
+      previousTime=time;
       stats.glidingBirds = 0;
       birds.forEach((bird, i) => {
         const wind = windAt(time, bird.x, bird.z, windSample), drift = Math.sin(time * .075 + bird.phase) * 4;
         const a = time * bird.speed + bird.phase, x = bird.x + Math.cos(a) * bird.radius + wind.x * drift, z = bird.z + Math.sin(a) * bird.radius * .67 + wind.z * drift;
-        const y = Math.max(terrainHeight(x, z) + 14, terrainHeight(bird.x, bird.z) + bird.height + Math.sin(a * 2) * 2.5 + wind.gust * 1.4);
+        const y = Math.max(terrainHeight(x, z) + 14, bird.homeGround + bird.height + Math.sin(a * 2) * 2.5 + wind.gust * 1.4);
         const yaw = Math.atan2(-Math.sin(a), Math.cos(a) * .67), size = bird.size, bank = -.11 - wind.gust * .11 + Math.sin(a * .8) * .05;
         const gliding = Math.sin(time * .32 + bird.phase) + wind.gust * .35 > -.12;
         if (gliding) stats.glidingBirds++;

@@ -1,12 +1,63 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,tick,build,upgrade,repair,travel,serialize,deserialize,maxHull,capacity,startBattle,fire,ability,leaveBattle,FACTIONS,distance} from '../src/simulation.js';
+import {createGame,tick,build,upgrade,repair,travel,serialize,deserialize,maxHull,capacity,income,startBattle,fire,ability,leaveBattle,FACTIONS,distance} from '../src/simulation.js';
 const advance=(s,t,input)=>{for(let i=0;i<Math.ceil(t*10);i++)tick(s,.1,input);};
 function battle(f='kaiju',enemy='crawler'){const s=createGame(f);s.enemies[0].faction=enemy;s.enemies[0].variant={kaiju:'cyborg',crawler:'standard',airship:'horizontal'}[enemy];s.x=s.enemies[0].x-25;s.z=s.enemies[0].z;assert.ok(startBattle(s,'rival1'));s.battle.autoFire=false;return s;}
 test('all city types start with distinct balanced roles',()=>{for(const f of Object.keys(FACTIONS)){const s=createGame(f);assert.equal(s.hp,maxHull(s));assert.equal(s.buildings.filter(Boolean).length,3);assert.equal(capacity(s),30);}assert.ok(FACTIONS.kaiju.melee>FACTIONS.crawler.melee);assert.ok(FACTIONS.airship.range>FACTIONS.crawler.range);assert.ok(FACTIONS.crawler.hp>FACTIONS.kaiju.hp);});
 test('building spends exactly once and finishes after its duration',()=>{const s=createGame();assert.ok(build(s,'sawmill',0).ok);assert.equal(s.resources.wood,135);assert.equal(s.resources.iron,115);assert.equal(build(s,'sawmill',0).ok,false);advance(s,8);assert.equal(s.buildings[0].remaining,0);assert.equal(s.stats.built,1);});
 test('invalid placements and unaffordable orders never spend resources',()=>{const s=createGame();const before={...s.resources};for(const slot of [-1,20,.5,7])assert.equal(build(s,'housing',slot).ok,false);assert.deepEqual(s.resources,before);s.resources.wood=0;assert.equal(build(s,'housing',0).ok,false);assert.equal(s.buildings[0],null);});
 test('district upgrades are delayed, capped at three, and armour improves hull',()=>{const s=createGame();s.resources={wood:1000,iron:1000,food:1000};assert.ok(build(s,'armor',0).ok);advance(s,9);assert.equal(maxHull(s),660);assert.equal(s.hp,660);assert.ok(upgrade(s,0).ok);assert.equal(s.buildings[0].level,1);advance(s,9);assert.equal(s.buildings[0].level,2);assert.equal(maxHull(s),780);assert.ok(upgrade(s,0).ok);advance(s,9);assert.equal(s.buildings[0].level,3);assert.equal(upgrade(s,0).ok,false);});
+test('new districts grant no hull, housing or garden benefits before first construction completes',()=>{
+ const s=createGame('crawler');s.resources={wood:1000,iron:1000,food:1000};
+ const initialHull=maxHull(s),initialCapacity=capacity(s),initialIncome=income(s).food;
+ assert.ok(build(s,'armor',0).ok);assert.ok(build(s,'housing',1).ok);assert.ok(build(s,'farm',2).ok);
+ assert.equal(maxHull(s),initialHull);assert.equal(s.hp,initialHull);assert.equal(capacity(s),initialCapacity);assert.equal(income(s).food,initialIncome);
+ for(let i=0;i<23;i++)tick(s,.25);
+ assert.equal(maxHull(s),initialHull);assert.equal(capacity(s),initialCapacity);assert.ok(Math.abs(income(s).food+s.population*.018-.8)<1e-10);
+ for(let i=0;i<9;i++)tick(s,.25);
+ assert.equal(maxHull(s),initialHull+120);assert.equal(s.hp,initialHull+120);assert.equal(capacity(s),initialCapacity+12);assert.ok(Math.abs(income(s).food+s.population*.018-1.6)<1e-10);
+});
+test('Citadel and Bulwark upgrades retain existing hull through saves and grant only the completed increment',()=>{
+ for(const faction of Object.keys(FACTIONS)){
+  let s=createGame(faction);s.resources={wood:1000,iron:1000,food:1000};
+  assert.ok(build(s,'armor',0).ok);for(let i=0;i<32;i++)tick(s,.25);
+  const previousHull=maxHull(s);assert.equal(s.hp,previousHull);
+  assert.ok(upgrade(s,7).ok);assert.ok(upgrade(s,0).ok);
+  assert.equal(maxHull(s),previousHull);assert.equal(s.hp,previousHull);
+  for(let i=0;i<16;i++)tick(s,.25);
+  s=deserialize(serialize(s));assert.ok(s);assert.equal(maxHull(s),previousHull);assert.equal(s.hp,previousHull);
+  for(let i=0;i<15;i++)tick(s,.25);
+  assert.equal(maxHull(s),previousHull);assert.equal(s.hp,previousHull);
+  tick(s,.25);assert.equal(maxHull(s),previousHull+200);assert.equal(s.hp,previousHull+200);
+  for(let i=0;i<32;i++)tick(s,.25);assert.equal(s.hp,previousHull+200);
+ }
+});
+test('housing and garden upgrades preserve capacity and food production until their next levels complete',()=>{
+ let s=createGame();s.resources={wood:1000,iron:1000,food:1000};s.population=30;
+ assert.ok(upgrade(s,11).ok);assert.ok(upgrade(s,13).ok);
+ assert.equal(capacity(s),30);assert.ok(Math.abs(income(s).food-.26)<1e-10);
+ for(let i=0;i<16;i++)tick(s,.25);
+ s=deserialize(serialize(s));assert.ok(s);
+ const food=s.resources.food;for(let i=0;i<15;i++)tick(s,.25);
+ assert.equal(capacity(s),30);assert.equal(s.population,30);assert.ok(Math.abs(s.resources.food-food-.26*3.75)<1e-9);
+ tick(s,.25);assert.equal(capacity(s),42);assert.ok(s.population>30);assert.ok(Math.abs(income(s).food+s.population*.018-1.6)<1e-10);
+});
+test('timber and iron crews retain the completed gathering rate throughout an upgrade',()=>{
+ for(const[type,kind,rate]of [['sawmill','wood',2.5],['foundry','iron',2.2]]){
+  let s=createGame('crawler');s.resources={wood:1000,iron:1000,food:1000};
+  const node=s.nodes.find(n=>n.kind===kind);s.x=node.x;s.z=node.z;
+  assert.ok(build(s,type,0).ok);
+  const initial=s.resources[kind];for(let i=0;i<4;i++)tick(s,.25);
+  assert.ok(Math.abs(s.resources[kind]-initial-rate)<1e-9,'Unfinished new industry must not improve gathering.');
+  for(let i=0;i<32;i++)tick(s,.25);
+  assert.ok(upgrade(s,0).ok);s=deserialize(serialize(s));assert.ok(s);
+  const upgrading=s.resources[kind];for(let i=0;i<28;i++)tick(s,.25);
+  assert.equal(s.buildings[0].level,1);assert.ok(Math.abs(s.resources[kind]-upgrading-rate*2*7)<1e-9,'Upgrade must retain the old gathering rate.');
+  for(let i=0;i<4;i++)tick(s,.25);assert.equal(s.buildings[0].level,2);
+  const upgraded=s.resources[kind];for(let i=0;i<4;i++)tick(s,.25);
+  assert.ok(Math.abs(s.resources[kind]-upgraded-rate*3)<1e-9,'Only the completed upgrade adds the next gathering bonus.');
+ }
+});
 test('travel arrives and gathers finite deposits while stopped',()=>{const s=createGame();const n=s.nodes[0];n.amount=20;travel(s,n.x,n.z);advance(s,12);assert.ok(distance(s,n)<.2);assert.equal(s.target,null);advance(s,20);assert.equal(n.amount,0);assert.equal(s.stats.gathered,20);assert.equal(s.resources.wood,180);});
 test('timber guild doubles gathering and movement stops gathering',()=>{const a=createGame(),b=createGame();for(const s of [a,b]){s.x=s.nodes[0].x;s.z=s.nodes[0].z;}b.buildings[0]={type:'sawmill',level:1,remaining:0};advance(a,5);advance(b,5);assert.ok(Math.abs((b.resources.wood-160)-2*(a.resources.wood-160))<.001);const old=b.resources.wood;advance(b,1,{x:1,z:0});assert.equal(b.resources.wood,old);});
 test('food consumption and housing capacity form an economy',()=>{const s=createGame();s.buildings[13]=null;s.resources.food=0;advance(s,12);assert.ok(s.population<24);assert.equal(s.resources.food,0);s.resources.food=100;s.buildings[1]={type:'housing',level:2,remaining:0};assert.equal(capacity(s),54);const p=s.population;advance(s,12);assert.ok(s.population>p);});

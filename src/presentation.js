@@ -24,14 +24,15 @@ export class Presentation {
     this.bloom=new RadianceBloom(this.hdrSupported?T.HalfFloatType:T.UnsignedByteType);
     this.material=new T.ShaderMaterial({
       name:'Linear HDR atmosphere composite',
-      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},tBloom0:{value:this.bloom.targets[0].texture},tBloom1:{value:this.bloom.targets[1].texture},tBloom2:{value:this.bloom.targets[2].texture},tBloom3:{value:this.bloom.targets[3].texture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.8},bloomStrength:{value:.18},exposure:{value:1},bloomSamples:{value:12}},
+      uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},tBloom0:{value:this.bloom.targets[0].texture},tBloom1:{value:this.bloom.targets[1].texture},tBloom2:{value:this.bloom.targets[2].texture},tBloom3:{value:this.bloom.targets[3].texture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.8},bloomStrength:{value:.18},exposure:{value:1},aoSamples:{value:12}},
       vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
       fragmentShader:`
         uniform sampler2D tColor,tDepth,tBloom0,tBloom1,tBloom2,tBloom3;
         uniform vec2 resolution;
         uniform mat4 inverseProjection;
         uniform float projectionScale;
-        uniform float near,far,aoStrength,bloomStrength,bloomSamples;
+        uniform float near,far,aoStrength,bloomStrength;
+        uniform int aoSamples;
         varying vec2 vUv;
         ${FINITE_RADIANCE_GLSL}
         float linearDepth(float d){return near*far/(far-(far-near)*d);}
@@ -50,6 +51,7 @@ export class Presentation {
             vec3 normal=normalize(cross(abs(left.z)<abs(right.z)?left:right,abs(down.z)<abs(up.z)?down:up));
             if(dot(normal,-center)<0.)normal=-normal;
             for(int i=0;i<12;i++){
+              if(i>=aoSamples)break;
               float a=float(i)*2.399963,r=(.24+float(i%4)*.25)*radius;
               vec2 sampleUv=clamp(vUv+vec2(cos(a),sin(a))*px*r,px,1.-px);
               vec3 delta=viewPosition(sampleUv)-center;float distance=length(delta);
@@ -58,7 +60,7 @@ export class Presentation {
             }
             // View-space hemisphere obscurance respects surface orientation,
             // preserving flat terrain while grounding feet, buttresses and eaves.
-            colour*=1.-aoStrength*(1.-smoothstep(180.,370.,depth))*shade/6.;
+            colour*=1.-aoStrength*(1.-smoothstep(180.,370.,depth))*shade/(float(aoSamples)*.5);
           }
           // Four spatial scales keep emissive cores crisp and give distant
           // lamps, hot metal and the sun a soft photographic shoulder.
@@ -76,7 +78,7 @@ export class Presentation {
   setQuality(quality){
     this.enabled=quality!=='performance'&&this.hdrSupported;
     this.material.uniforms.aoStrength.value=quality==='high'?.8:.48;
-    this.material.uniforms.bloomSamples.value=quality==='high'?12:6;
+    this.material.uniforms.aoSamples.value=quality==='high'?12:6;
     const samples=Math.min(quality==='high'?4:2,this.renderer.capabilities.maxSamples);
     if(this.target.samples!==samples){this.target.samples=samples;this.target.dispose();}
   }
