@@ -15,6 +15,7 @@ import {cannonMountProfile} from './castle-collision.js';
 import {CinematicCamera} from './cinematic-camera.js';
 import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
 import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
+import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQuality} from './camera-input.js';
 export {makeCity,slotPosition};
 
 const previewBuildings=()=>{
@@ -110,18 +111,21 @@ function refreshImpactAnchor(fx){
 
 export class GameScene {
   constructor(canvas,onSelect){
+    let preferredQuality;try{preferredQuality=localStorage.getItem(GRAPHICS_QUALITY_KEY);}catch{}
+    const initialQuality=initialGraphicsQuality(preferredQuality,matchMedia('(pointer: coarse)').matches);
     this.canvas=canvas;this.onSelect=onSelect;this.scene=new T.Scene();
     this.camera=new T.PerspectiveCamera(42,1,.25,1500);
     this.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
     this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.03;
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.info.autoReset=false;
+    this.renderer.shadowMap.enabled=initialQuality!=='performance';this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.info.autoReset=false;
     this.environmentTarget=createEnvironment(this.renderer);this.scene.environment=this.environmentTarget.texture;this.scene.environmentIntensity=.55;
     this.environmentReady=false;this.environmentError=null;
     loadDaylightEnvironment(this.renderer).then(target=>{const old=this.environmentTarget;this.environmentTarget=target;this.scene.environment=target.texture;this.scene.environmentRotation.y=.75;this.environmentReady=true;old.dispose();}).catch(error=>{this.environmentError=error.message;console.error('Local daylight environment failed to load',error);});
     this.sky=createSky();this.scene.add(this.sky);
     this.ambient=new T.HemisphereLight(0xd8edff,0x7b8561,1.45);this.scene.add(this.ambient);
     this.sun=new T.DirectionalLight(0xffdfb8,3.4);this.sun.position.set(-65,95,65);this.sun.castShadow=true;
-    this.sun.shadow.mapSize.set(4096,4096);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00012;this.sun.shadow.normalBias=.025;this.sun.shadow.radius=1.4;
+    const initialShadowSize=initialQuality==='high'?4096:2048;
+    this.sun.shadow.mapSize.set(initialShadowSize,initialShadowSize);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00012;this.sun.shadow.normalBias=.025;this.sun.shadow.radius=1.4;
     this.scene.add(this.sun,this.sun.target);
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
     this.landscape=createLandscape();this.landscape.setGroundTextures({grass:surfaceSet('grass'),soil:surfaceSet('soil'),slate:surfaceSet('rock')});this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
@@ -130,9 +134,9 @@ export class GameScene {
     this.impactLights=[new T.PointLight(0xffc58b,0,13,2),new T.PointLight(0xffab73,0,13,2)];
     for(const light of this.impactLights){light.name='Brief surface impact light';light.castShadow=false;this.scene.add(light);}this.impactDirection=new T.Vector3();
     this.pickables=[];this.labels=[];this.enemyCities=[];this.fx=[];this.lastEvent=0;this.preview=false;
-    this.view='city';this.yaw=.72;this.pitch=.55;this.zoom=80;this.focus=new T.Vector3();this.ray=new T.Raycaster();this.pointer=new T.Vector2();this.light='day';this.quality='high';this.routeTarget=null;
+    this.view='city';this.yaw=.72;this.pitch=.55;this.zoom=80;this.focus=new T.Vector3();this.ray=new T.Raycaster();this.pointer=new T.Vector2();this.light='day';this.quality=initialQuality;this.routeTarget=null;
     this.cinematic=new CinematicCamera(matchMedia('(prefers-reduced-motion: reduce)').matches?'steady':'cinematic');this.cameraBasePosition=new T.Vector3();this.cameraAim=new T.Vector3();this.cameraDesired=new T.Vector3();this.cameraPrevious=new T.Vector3();this.cameraVelocity=new T.Vector3();
-    this.createSelection();this.setLighting('day');this.setQuality('high');this.addPointer();
+    this.createSelection();this.setLighting('day');this.setQuality(initialQuality,{persist:false});this.addPointer();
     window.addEventListener('resize',()=>this.resize());
   }
 
@@ -207,13 +211,15 @@ export class GameScene {
     this.camera.lookAt(this.cameraAim);this.sky.position.copy(this.camera.position);
   }
 
-  setQuality(quality){
-    if(quality==='retro')quality='performance';this.quality=quality;
+  setQuality(quality,{persist=true}={}){
+    if(quality==='retro')quality='performance';if(!isGraphicsQuality(quality))return false;this.quality=quality;
     const dpr=quality==='high'?Math.min(2,Math.max(1.25,devicePixelRatio)):quality==='balanced'?Math.min(devicePixelRatio,1.2):.85;
     this.renderer.setPixelRatio(dpr);this.renderer.shadowMap.enabled=quality!=='performance';
     const shadowSize=quality==='high'?4096:2048;
     if(this.sun.shadow.mapSize.x!==shadowSize){this.sun.shadow.mapSize.set(shadowSize,shadowSize);if(this.sun.shadow.map){this.sun.shadow.map.dispose();this.sun.shadow.map=null;}}
     this.presentation.setQuality(quality);this.atmosphere.setQuality(quality);this.landscape.setQuality(quality==='performance'?'retro':quality);this.resize();
+    if(persist)try{localStorage.setItem(GRAPHICS_QUALITY_KEY,quality);}catch{}
+    return true;
   }
 
   setLighting(mode){
@@ -233,11 +239,22 @@ export class GameScene {
   resize(){const w=this.canvas.clientWidth||innerWidth,h=this.canvas.clientHeight||innerHeight;this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();const size=this.renderer.getDrawingBufferSize(new T.Vector2());this.presentation.resize(size.x,size.y);}
 
   addPointer(){
-    let down=null;this.canvas.tabIndex=0;this.canvas.addEventListener('contextmenu',e=>e.preventDefault());
-    this.canvas.addEventListener('pointerdown',e=>{this.canvas.focus({preventScroll:true});down={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false};this.canvas.setPointerCapture(e.pointerId);});
-    this.canvas.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.lastX,dy=e.clientY-down.lastY;if(Math.hypot(e.clientX-down.x,e.clientY-down.y)>6)down.moved=true;if(down.moved){this.cinematic.manual();this.cameraShot=null;this.yaw-=dx*.006;this.pitch=Math.max(.16,Math.min(1.3,this.pitch+dy*.004));}down.lastX=e.clientX;down.lastY=e.clientY;});
-    this.canvas.addEventListener('pointerup',e=>{if(down&&!down.moved)this.pick(e.clientX,e.clientY);down=null;});this.canvas.addEventListener('pointercancel',()=>down=null);
-    this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.cinematic.manual();this.cameraShot=null;if(this.state.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)+e.deltaY*.0006,.9,2.4);else this.zoom=Math.max(10,Math.min(330,this.zoom+e.deltaY*.06));},{passive:false});
+    const gesture=new CameraGesture(),canvas=this.canvas;canvas.tabIndex=0;
+    const manual=()=>{this.cinematic.manual();this.cameraShot=null;};
+    const release=id=>{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);};
+    canvas.addEventListener('contextmenu',e=>e.preventDefault());
+    canvas.addEventListener('pointerdown',e=>{canvas.focus({preventScroll:true});gesture.down(e.pointerId,e.clientX,e.clientY);try{canvas.setPointerCapture(e.pointerId);}catch{gesture.cancel(e.pointerId);}});
+    canvas.addEventListener('pointermove',e=>{
+      const action=gesture.move(e.pointerId,e.clientX,e.clientY);if(!action)return;manual();
+      if(action.kind==='orbit'){this.yaw-=action.dx*.006;this.pitch=Math.max(.16,Math.min(1.3,this.pitch+action.dy*.004));}
+      else if(this.state?.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)*action.scale,.9,2.4);
+      else this.zoom=Math.max(10,Math.min(330,this.zoom*action.scale));
+    });
+    canvas.addEventListener('pointerup',e=>{const hit=gesture.up(e.pointerId,e.clientX,e.clientY);release(e.pointerId);if(hit)this.pick(hit.x,hit.y);});
+    canvas.addEventListener('pointercancel',e=>{gesture.cancel(e.pointerId);release(e.pointerId);});
+    canvas.addEventListener('lostpointercapture',e=>gesture.cancel(e.pointerId));
+    window.addEventListener('blur',()=>{for(const id of gesture.reset())release(id);});
+    canvas.addEventListener('wheel',e=>{e.preventDefault();manual();if(this.state?.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)+e.deltaY*.0006,.9,2.4);else this.zoom=Math.max(10,Math.min(330,this.zoom+e.deltaY*.06));},{passive:false});
   }
 
   pick(x,y){

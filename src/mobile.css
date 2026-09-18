@@ -1,0 +1,91 @@
+/* Mobile access and save tools; the shared 3D scene and game rules are unchanged. */
+.mobile-panels { display: none; }
+#playtest-open { display: block; margin-top: 8px; }
+.playtest-section { margin: 22px 0; padding-top: 20px; border-top: 1px solid var(--line); }
+.playtest-section h3 { margin-bottom: 10px; }
+.playtest-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.playtest-actions button, .file-button { padding: 10px 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 3px; background: #243b32; cursor: pointer; font-size: 13px; }
+.file-button { position: relative; display: inline-flex; align-items: center; overflow: hidden; }
+.file-button:focus-within { outline: 2px solid var(--gold); }
+.file-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.playtest-section textarea { display: block; width: 100%; resize: vertical; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 3px; color: var(--cream); background: #0e201d; font: 16px/1.45 'Segoe UI',sans-serif; }
+.playtest-section label { font-size: 13px; }
+.playtest-note, .build-label { font-size: 12px !important; }
+#offline-status, #import-status { color: var(--gold); }
+#import-confirm { padding: 12px; border: 1px solid var(--gold); border-radius: 3px; }
+#import-confirm button { min-height: 44px; margin: 5px; }
+#dialog { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 850px) {
+  .build-tray { min-width: 0; }
+  .buildings { overflow-x: auto; overscroll-behavior-x: contain; }
+  .build-option { min-width: 72px; }
+}
+@media (pointer: coarse) {
+  .time-controls button, .view-switch button, .utility button, .minor, .text-button,
+  .selection button, .battle-tactics button, .dialog-close, #destinations button { min-height: 44px; }
+  #touch-pad button { width: 44px; height: 44px; touch-action: none; }
+  .control-hint { display: none; }
+  .topbar { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); width: auto; transform: none; }
+  .utility { bottom: max(8px, env(safe-area-inset-bottom)); flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; max-width: calc(100% - 20px); }
+  .utility button { flex-shrink: 0; font-size: 11px; }
+  .build-tray { bottom: calc(65px + env(safe-area-inset-bottom)); }
+  .build-option { min-width: 75px; }
+  .build-option .name, .build-option .cost { font-size: 10px; }
+  #touch-pad { bottom: calc(215px + env(safe-area-inset-bottom)); left: max(15px, env(safe-area-inset-left)); }
+  #dialog { width: min(600px, calc(100% - 24px)); padding: 28px 20px; }
+  .dialog-close { min-width: 44px; }
+  .in-battle .battle-actions { bottom: calc(65px + env(safe-area-inset-bottom)); }
+}
+@media (pointer: coarse) and (max-width: 700px), (pointer: coarse) and (max-height: 560px) {
+  .topbar { height: 56px; padding: 0 8px; gap: 5px; }
+  .resources { gap: 12px; }
+  .time-controls { gap: 3px; }
+  .time-controls button { min-width: 34px; }
+  .view-switch { top: calc(72px + env(safe-area-inset-top)); max-width: calc(100% - 20px); }
+  .view-switch button { padding: 6px 12px; font-size: 11px; }
+  .mobile-panels { display: flex; gap: 6px; position: absolute; top: calc(128px + env(safe-area-inset-top)); left: 10px; right: 10px; }
+  .mobile-panels button { min-height: 44px; padding: 8px 12px; font-size: 12px; }
+  .left-stack, .right-stack { display: none; position: absolute; top: calc(180px + env(safe-area-inset-top)); bottom: calc(200px + env(safe-area-inset-bottom)); left: 10px; right: auto; width: min(300px, calc(100% - 20px)); max-height: none; overflow-y: auto; overscroll-behavior: contain; z-index: 4; }
+  body[data-mobile-panel="city"] .left-stack { display: flex; }
+  body[data-mobile-panel="map"] .right-stack { display: flex; }
+  .city-card, .selection, .map-card { padding: 15px; }
+  .city-card h2 { font-size: 24px; }
+  .city-card .eyebrow, .hull-label, .selection .eyebrow, .section-heading { font-size: 10px; }
+  .city-card .minor, .selection p, .selection .primary, .status-line, #destinations button { font-size: 12px; }
+  .city-card .minor span, .map-legend { font-size: 10px; }
+  #destinations-toggle { font-size: 12px; }
+  .build-tray { display: none; left: 10px; right: 10px; width: auto; min-width: 0; transform: none; }
+  body[data-mobile-panel="build"] .build-tray { display: block; }
+  #touch-pad { bottom: calc(65px + env(safe-area-inset-bottom)); }
+  body[data-mobile-panel="build"] #touch-pad { bottom: calc(215px + env(safe-area-inset-bottom)); }
+  .tray-heading > span:nth-child(2) { font-size: 9px; }
+  .utility { left: 10px; right: 10px; }
+  .in-battle .mobile-panels, .in-battle .left-stack, .in-battle .right-stack { display: none; }
+  .in-battle .battle-title { top: calc(76px + env(safe-area-inset-top)); }
+  #paused-banner { top: 48%; font-size: 18px; }
+}
+@media (pointer: coarse) and (max-height: 560px) {
+  .view-switch { left: max(10px, env(safe-area-inset-left)); top: calc(76px + env(safe-area-inset-top)); transform: none; }
+  .view-switch button { padding: 6px 10px; }
+  .mobile-panels { left: auto; right: max(10px, env(safe-area-inset-right)); top: calc(80px + env(safe-area-inset-top)); }
+  .left-stack, .right-stack { top: calc(133px + env(safe-area-inset-top)); bottom: calc(62px + env(safe-area-inset-bottom)); width: 260px; }
+  .right-stack { left: auto; right: max(10px, env(safe-area-inset-right)); }
+  .build-tray { left: 175px; right: max(10px, env(safe-area-inset-right)); max-height: calc(100% - 200px); overflow-y: auto; }
+  body[data-mobile-panel="build"] #touch-pad { bottom: calc(65px + env(safe-area-inset-bottom)); }
+  .build-option .icon { display: none; }
+  .build-option .name { min-height: 26px; }
+  .tray-heading { margin-bottom: 5px; }
+  .utility { left: 175px; }
+  #intro { padding-top: 14px; }
+  .intro-copy { margin-top: 8px; }
+  .intro-top, .intro-lead, .intro-copy .rule, .local-note { display: none; }
+  h1 { font-size: 32px; margin-top: 10px; }
+  .primary.large { margin-top: 16px; }
+  #faction-select { left: auto; right: max(20px, env(safe-area-inset-right)); width: 48%; bottom: max(12px, env(safe-area-inset-bottom)); }
+  #faction-description { margin-bottom: 8px; }
+  .faction { min-height: 44px; padding: 8px 5px; }
+  .faction-symbol, .faction small { display: none; }
+  .faction strong { font-size: 12px; }
+  .orbit-hint { margin-top: 8px; }
+  #playtest-open { max-width: 240px; }
+}

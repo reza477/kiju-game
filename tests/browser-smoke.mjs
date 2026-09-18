@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import {homedir} from 'node:os';
 import path from 'node:path';
 const require=createRequire(import.meta.url);
+const base=process.env.GAME_TEST_URL||'http://127.0.0.1:4178';
 let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const context=await browser.newContext({viewport:{width:1440,height:960}});
 const page=await context.newPage(),errors=[],remote=[],checks=[];
-page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:4178'))remote.push(r.url());});
+page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(!r.url().startsWith(base))remote.push(r.url());});
 try{
- await page.goto('http://127.0.0.1:4178/?test=1');await page.waitForFunction(()=>!!window.__colossus);await page.waitForTimeout(1500);
+ await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus);await page.waitForTimeout(1500);
  await page.screenshot({path:'artifacts/title-kaiju.png'});checks.push('Kaiju title renders');
  await page.locator('[data-faction="crawler"]').click();await page.waitForTimeout(500);await page.screenshot({path:'artifacts/title-crawler.png'});
  await page.locator('[data-faction="airship"]').click();await page.waitForTimeout(500);await page.screenshot({path:'artifacts/title-airship.png'});checks.push('All city types preview');
