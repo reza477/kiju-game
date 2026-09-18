@@ -26,7 +26,7 @@ If the device clears part of an offline copy, the app's recovery screen can down
 
 ## Local build and privacy boundary
 
-Checkpoint: `checkpoint/before-ipad-playtest-20260914`, based on `7fc56f5`. Work is isolated on `codex/ipad-playtest-20260914`.
+The original mobile-preparation checkpoint is `checkpoint/before-ipad-playtest-20260914`, based on `7fc56f5`. Current Alpha 1 work is on `codex/alpha1-environment-20260917`, with its own checkpoint at `aef1f02`. See [Alpha 1 verification](ALPHA1_VERIFICATION.md) for the current package and checks.
 
 Run `npm run build:mobile`. The script creates `artifacts/mobile-release/<build-id>/` and writes the same ID to `src/build-info.js` in the PC working copy. Rebuild after changing runtime files. Only the playable runtime, local assets, browser libraries, icons, manifest and offline worker enter the release. Git history, desktop launcher, credentials, tests and review captures are excluded. The output supports hosting at the root of one stable HTTPS origin.
 
@@ -46,7 +46,7 @@ Run browser checks serially. They use the existing local Playwright runtime and 
 
 ## Verification record
 
-Local checks completed September 17, 2026:
+The earlier mobile-preparation checks completed September 17, 2026 are recorded below. The [Alpha 1 report](ALPHA1_VERIFICATION.md) contains the newer environment, performance and final release verification. Both remain local, with no hosted mobile link or physical Apple-device validation.
 
 - 106 unit tests passed across the existing game and new camera, save-transfer and offline code. The final recovery icon change also passed all 20 offline tests.
 - 13 touch-browser checks passed, including pinch, movement, portrait and landscape construction, travel, export/import, damaged-save rejection, rollback after failed scene initialization, and feedback export. No browser errors or third-party requests.

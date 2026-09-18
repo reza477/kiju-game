@@ -1,4 +1,4 @@
-# Colossus Wake — PC prototype 0.9
+# Colossus Wake — Alpha 1
 
 A single-player 3D city-builder set on a ruined future Earth. Build a mobile city, gather resources, and fight rival cities. Working title; models and sound design are original procedural work, with bundled CC0 surface scans and HDR lighting. See [asset credits](ASSET_CREDITS.md).
 
@@ -6,7 +6,7 @@ The source is backed up in the private GitHub repository [reza477/kiju-game](htt
 
 ## Play on this PC
 
-Double-click **Play.cmd** in this folder. It starts a server bound to `127.0.0.1:4178` and opens your default browser. Chrome or Edge with WebGL hardware acceleration is recommended. No installation, login, or internet connection is needed to play; the renderer is included in `vendor/`.
+Double-click **Colossus Wake - Kaiju Game** on your desktop, or **Colossus Wake.exe** in this folder. **Play.cmd** remains available as a fallback. The launcher verifies this game before opening its local app window at `127.0.0.1:4178`. Chrome or Edge with WebGL hardware acceleration is recommended. No installation, login, or internet connection is needed to play; the renderer is included in `vendor/`.
 
 If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 
@@ -40,6 +40,8 @@ If launching manually: run `node server.mjs`, then open `http://127.0.0.1:4178`.
 Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. Weapons auto-fire in range by default; this can be switched off. Melee spacing follows the target hull, including the drill crawler's longer nose. A punch starts pursuit; Hold position remains available. Titan rush closes a gap of up to 70 metres into physical striking range. Crawlers have more hull and mid-range cannons. Airships fire farther and use Missile storm while keeping away. Touch layouts include movement buttons, tap targets, drag orbit, and a minimap.
 
 ## Graphics update
+
+**Alpha 1** improves the environment with fuller cutout tree crowns, denser grass fans, more distinct soil and rock materials, flowing river detail and eroded outer mountain ridges. Spatial vegetation culling, simpler foliage meshes and cached terrain sampling reduce rendering and startup work. It also fixes save-failure recovery, battle-result dismissal, keyboard focus and district benefits during upgrades. See [Alpha 1 verification](ALPHA1_VERIFICATION.md) for measured performance, QA scope and the independent visual review; the alpha label does not mean the AAA art gate has passed.
 
 Version 0.9 expands the visual work across the renderer, landscape, all six carriers, citizens and combat. It adds a scene-linear bloom pyramid, clearer indirect lighting and material response, denser authored forests and ruined-world landmarks, layered carrier construction, more expressive kaiju and residents, moving garments, and richer impact particles. Use **Detail: high** for the strongest presentation; balanced and performance modes remain available. See [graphics upgrade verification](GRAPHICS_UPGRADE_VERIFICATION.md) for the checks and independent review.
 

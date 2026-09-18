@@ -146,6 +146,33 @@ try{
   }
   const groundShader=shaderFor(current.ground.material);assert.equal((groundShader.fragmentShader.match(/texture2D\(uGroundWeights/g)||[]).length,1,'Packed gradients must use the existing field sample only.');
   report.groundGradients={checks:gradientChecks,maxGradientError,limit:1/255};report.checks.push('Packed relief gradients have correct axes/sign with at most one 8-bit signed step of error; ground uses one field lookup.');
+  const groundMaterial=current.ground.material,colour=groundMaterial.map,colourData=colour.image.data;
+  assert.equal(groundMaterial.opacity,1);assert.equal(groundMaterial.transparent,false);assert.equal(groundMaterial.depthWrite,true);assert.equal(groundMaterial.alphaTest,0);assert.equal(groundMaterial.alphaHash,false);
+  assert.equal(colour.colorSpace,T.SRGBColorSpace,'Packing a linear cavity channel must preserve the albedo RGB encoding.');assert.equal(colour.premultiplyAlpha,false);assert.equal(weights.colorSpace,T.NoColorSpace);
+  assert.equal(colour.image.width,size);assert.equal(colour.image.height,size);assert.equal(colourData.length,data.length);
+  let cavityTexels=0,clearTexels=0,stoneFreeTexels=0,minCavity=1,maxCavity=0;
+  for(let i=0;i<colourData.length;i+=4){
+    const factor=colourData[i+3]/255,rock=data[i+1]/255;
+    assert.ok(factor>=.52-1/255&&factor<=1,'Ground cavity channel left its bounded shading range.');
+    assert.ok(1-factor<=.48*rock+1/255,'Cavity darkness extends beyond its encoded geological material.');
+    if(rock===0){assert.equal(colourData[i+3],255,'Stone-free ground must retain a clear cavity channel.');stoneFreeTexels++;}
+    if(colourData[i+3]<255)cavityTexels++;else clearTexels++;
+    minCavity=Math.min(minCavity,factor);maxCavity=Math.max(maxCavity,factor);
+  }
+  assert.ok(cavityTexels>0&&clearTexels>0&&stoneFreeTexels>0,'Packed cavity fixture must include both geological detail and clear open ground.');
+  let concaveSamples=0;
+  for(let i=0;i<384;i++){
+    const col=(i*317)%size,row=(i*641+23)%size;if(colourData[(row*size+col)*4+3]===255)continue;
+    const y=height(col,row),reach=5,curvature=(height(Math.max(0,col-reach),row)+height(Math.min(size-1,col+reach),row)+height(col,Math.max(0,row-reach))+height(col,Math.min(size-1,row+reach))-4*y)/(reach*spacing)**2;
+    assert.ok(y>12&&curvature>.007,'Geological cavity shading must belong to elevated concave receiving surfaces.');concaveSamples++;
+  }
+  assert.ok(concaveSamples>0);
+  assert.match(groundShader.fragmentShader,/groundCavity=clamp\(diffuseColor\.a,\.52,1\.0\)/);
+  const restoreOpacity=groundShader.fragmentShader.indexOf('diffuseColor.a=opacity;');
+  assert.ok(restoreOpacity>groundShader.fragmentShader.indexOf('#include <map_fragment>')&&restoreOpacity<groundShader.fragmentShader.indexOf('#include <alphatest_fragment>'),'Packed ground alpha must be restored to opacity before alpha testing.');
+  assert.match(groundShader.fragmentShader,/reflectedLight\.indirectDiffuse\*=groundCavity/);
+  report.groundCavity={min:minCavity,max:maxCavity,cavityTexels,clearTexels,stoneFreeTexels,concaveSamples,opacity:groundMaterial.opacity,transparent:groundMaterial.transparent,rgbColorSpace:colour.colorSpace};
+  report.checks.push('Ground cavity alpha stays bounded and stone-masked on elevated concave terrain; RGB stays sRGB and the shader restores fully opaque ground before alpha testing.');
   let windMeshes=0,alphaPasses=0;
   current.group.traverse(mesh=>{
     if(!mesh.isMesh||!mesh.userData.windAnimated)return;windMeshes++;
