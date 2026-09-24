@@ -1,0 +1,43 @@
+name: Bug report
+description: Report a reproducible problem during play or development.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: build
+    attributes:
+      label: Build or commit
+      description: Copy the build ID from the game, or include the Git commit.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Device and game settings
+      description: OS, browser, device or GPU, carrier variant, quality, and camera view.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include what you expected and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Add screenshots, errors, or a sanitized reproduction save. Keep personal data and credentials out.
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Cannot start or continue playing
+        - Save or progress problem
+        - Gameplay or controls problem
+        - Visual or audio problem
+        - Documentation or tooling problem
+    validations:
+      required: true
