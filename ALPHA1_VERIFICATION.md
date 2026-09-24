@@ -1,6 +1,8 @@
 # Alpha 1 verification
 
-Version: `0.10.0-alpha.1`. Local build branch: `codex/alpha1-environment-20260917`. Reversible source checkpoint: `checkpoint/before-alpha1-20260917` at `aef1f02`. Final visual/runtime candidate: `b9fab3e`. Packaged build ID: `cb00d8cec12f2c169cf4`. The final local source is tagged `alpha-1`. This update has not been uploaded or published.
+Version: `0.10.0-alpha.1`. Local build branch: `codex/alpha1-environment-20260917`. Reversible source checkpoint: `checkpoint/before-alpha1-20260917` at `aef1f02`. Final visual/runtime candidate: `b9fab3e`. Packaged build ID: `cb00d8cec12f2c169cf4`. The final local source is tagged `alpha-1`. At the time of this verification, the update had not been uploaded or published.
+
+Repository maintenance note (24 September 2026): source commit `75503a5`, the existing `alpha-1` tag, and the prior checkpoint tags are now backed up to the private GitHub repository. This does not publish or host the game, and does not change the historical test results or independent art score below.
 
 ## Changes
 
