@@ -12,6 +12,8 @@ const A = await readFrozenRelease(process.env.GAME_RELEASE_DIR);
 const B = await readFrozenRelease(process.env.GAME_NEXT_RELEASE_DIR);
 assert.notEqual(A.descriptor.buildId, B.descriptor.buildId, 'The harmless next-release fixture must have a distinct identity.');
 const server = await createDeliveryServer({A, B});
+const ownedServers = new Set([server]);
+const auxiliaryRequests = [];
 const report = {
   startedAt: new Date().toISOString(), releases: {A: A.descriptor.buildId, B: B.descriptor.buildId},
   evidence: 'Isolated desktop Chromium with touch emulation, native RAF and wall time. Not hosted, desktop WebKit, physical iPhone, or a performance benchmark.',
@@ -35,13 +37,13 @@ function observe(target) {
     (faultExpected ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text()});
   });
 }
-async function freshContext() {
+async function freshContext(origin = server.origin) {
   const value = await browser.newContext({viewport: {width: 844, height: 390}, deviceScaleFactor: 1, isMobile: true, hasTouch: true});
   contexts.add(value);
   await value.addInitScript(() => {localStorage.setItem('colossus-quality-v1', 'performance'); localStorage.setItem('colossus-camera-mode', 'steady');});
   value.on('request', request => {
     const url = new URL(request.url());
-    if (url.origin !== server.origin && !['blob:', 'data:'].includes(url.protocol)) report.remoteRequests.push({phase, origin: url.origin, path: url.pathname});
+    if (url.origin !== origin && !['blob:', 'data:'].includes(url.protocol)) report.remoteRequests.push({phase, origin: url.origin, path: url.pathname});
   });
   return value;
 }
@@ -69,13 +71,13 @@ async function installed(target, build) {
     return status.canPlayOffline && status.installedBuildId === expected;
   }, build, 150000);
 }
-async function open(target) {
+async function open(target, host = server) {
   observe(target);
-  await target.goto(`${server.origin}/?test=1`, {waitUntil: 'domcontentloaded', timeout: 120000});
+  await target.goto(`${host.origin}/?test=1`, {waitUntil: 'domcontentloaded', timeout: 120000});
 }
-async function readyA(value) {
-  server.select('A'); server.inject(null);
-  const target = await value.newPage(); await open(target); await loaded(target, A.descriptor.buildId);
+async function readyA(value, host = server) {
+  host.select('A'); host.inject(null);
+  const target = await value.newPage(); await open(target, host); await loaded(target, A.descriptor.buildId);
   await installed(target, A.descriptor.buildId);
   // First installation owns its automatic safe title reload. A competing test
   // reload here would create an artificial registration/update race.
@@ -119,6 +121,10 @@ try {
     await page.locator('#continue').tap(); assert.deepEqual(await savedIdentity(), saved);
     await playtest();
     report.observations.push({phase, offline: await offlineStatus()});
+    // Create the second A client before the host ever changes to B. From this
+    // point the main origin only advances A -> B, including failed attempts.
+    other = await context.newPage(); await open(other); await loaded(other, A.descriptor.buildId); await other.locator('#continue').tap();
+    await page.bringToFront();
   });
 
   const faultAsset = B.descriptor.files.find(file => file.url === '/src/main.js').url;
@@ -148,7 +154,7 @@ try {
   }
 
   await check('B downloads during play while two existing clients retain A', async () => {
-    server.select('A'); other = await context.newPage(); await open(other); await loaded(other, A.descriptor.buildId); await other.locator('#continue').tap();
+    await other.bringToFront(); await loaded(other, A.descriptor.buildId);
     await other.evaluate(() => {const game = window.__colossus, rival = game.state.enemies[0]; game.state.x = rival.x - 32; game.state.z = rival.z; game.state.target = null; game.scene.snapCamera = true; game.advance(0);});
     await other.locator('[data-mobile-panel="map"]').tap();
     const minimap = await other.locator('#minimap').boundingBox(), rival = await other.evaluate(() => window.__colossus.state.enemies[0]);
@@ -196,9 +202,9 @@ try {
     await other.locator('#withdraw').tap();
     assert.equal(await other.evaluate(() => window.__colossus.state.mode), 'expedition', 'Retained A combat still accepts actual controls');
     await other.close(); other = null;
-    // Subsequent independent contexts deliberately serve A again. An open B
-    // client would legitimately discover that artificial rollback on pageshow.
-    // Save and close this client's page first; keep its offline storage/context.
+    // Save and close the updated app before later reopening it offline. Other
+    // cases use distinct origins, so even queued native worker checks cannot
+    // discover their intentional A fixtures as a rollback on this app origin.
     await page.bringToFront(); await menu(); await page.locator('[data-dialog-action="save"]').tap();
     offlineBaseline = await savedIdentity();
     const current = await offlineStatus();
@@ -208,26 +214,29 @@ try {
   });
 
   await check('Cold title automatically discovers and applies B without an Update button', async () => {
-    const titleContext = await freshContext();
-    const title = await readyA(titleContext);
-    server.select('B');
+    const host = await createDeliveryServer({A, B}); ownedServers.add(host);
+    const titleContext = await freshContext(host.origin);
+    const title = await readyA(titleContext, host);
+    host.select('B');
     await title.close();
-    const reopened = await titleContext.newPage(); await open(reopened);
+    const reopened = await titleContext.newPage(); await open(reopened, host);
     await loaded(reopened, B.descriptor.buildId);
     assert.equal(await reopened.locator('#intro').evaluate(element => element.classList.contains('hidden')), false);
     await titleContext.close(); contexts.delete(titleContext);
+    auxiliaryRequests.push({case: phase, requests: host.requests}); await host.close(); ownedServers.delete(host);
   });
 
   await check('Evicted A boot module recovers directly to hosted B without losing the save', async () => {
-    const recoveryContext = await freshContext();
-    const oldPage = await readyA(recoveryContext);
+    const host = await createDeliveryServer({A, B}); ownedServers.add(host);
+    const recoveryContext = await freshContext(host.origin);
+    const oldPage = await readyA(recoveryContext, host);
     await oldPage.locator('#begin').tap(); await menu(oldPage); await oldPage.locator('[data-dialog-action="save"]').tap();
     const before = await savedIdentity(oldPage);
     await oldPage.evaluate(async build => {
       for (const name of await caches.keys()) if (name.startsWith('colossus-wake-release-' + build)) await (await caches.open(name)).delete('/src/main.js');
     }, A.descriptor.buildId);
-    server.select('B'); await oldPage.close();
-    const recoveryPage = await recoveryContext.newPage(); await open(recoveryPage);
+    host.select('B'); await oldPage.close();
+    const recoveryPage = await recoveryContext.newPage(); await open(recoveryPage, host);
     await recoveryPage.locator('#recovery-repair').waitFor({state: 'visible', timeout: 30000});
     assert.equal(await recoveryPage.evaluate(() => !!window.__colossus), false, 'Recovery does not depend on the evicted game boot module');
     await recoveryPage.locator('#recovery-repair').tap(); await loaded(recoveryPage, B.descriptor.buildId);
@@ -235,6 +244,7 @@ try {
     await recoveryPage.locator('#continue').tap();
     assert.deepEqual(await savedIdentity(recoveryPage), before);
     await recoveryContext.close(); contexts.delete(recoveryContext);
+    auxiliaryRequests.push({case: phase, requests: host.requests}); await host.close(); ownedServers.delete(host);
   });
 
   await check('B reopens and continues offline after its server is stopped', async () => {
@@ -265,8 +275,8 @@ try {
   }
 } finally {
   for (const value of contexts) await value.close().catch(() => {});
-  await browser.close(); await server.close();
-  report.finishedAt = new Date().toISOString(); report.requests = server.requests;
+  await browser.close(); for (const host of ownedServers) await host.close();
+  report.finishedAt = new Date().toISOString(); report.requests = server.requests; report.auxiliaryRequests = auxiliaryRequests;
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify({checks: report.checks, errors: report.pageErrors, failure: report.failure, report: path.join(output, 'results.json')}, null, 2));
 }
