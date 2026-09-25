@@ -1,0 +1,26 @@
+name: Design or improvement
+description: Propose a focused improvement with a clear player benefit.
+title: "[Design] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Player need
+      description: Describe the experience that should improve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Include affected factions, controls, saves, or platform support.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How we will know it works
+      description: Describe observable outcomes and any needed visual or device review.
+    validations:
+      required: true
