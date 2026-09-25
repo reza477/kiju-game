@@ -1,0 +1,59 @@
+# Private iPhone delivery
+
+## Current state
+
+**Configured but blocked. No permanent hosted game address exists yet.**
+
+The designated branch is `codex/playtest` in private `reza477/kiju-game`. The existing `ci.yml` is extended into one check/build/stage/promote workflow; `main` remains the default branch. The previous iPhone pass is preserved in `2a77d13`; repository maintenance from `origin/main` is merged in `ba8d457` without rewriting history.
+
+The implementation is not a declaration of release readiness. `delivery/readiness.json` deliberately blocks publication because the previous four-round visual review failed (overall 6.9/10; HUD 8.4/10). This delivery task does not fix art or waive that gate.
+
+Live inspection found GitHub CLI authenticated as `reza477`, private repository/admin permission, Actions enabled and no repository secrets/variables configured. No repository webhooks were returned. GitHub billing APIs need an additional `user` scope; it was not requested. The browser was signed out, so remaining included runner/storage allowance and a no-overage budget could not be verified. Vercel's connector returned no teams, the browser was signed out, and no local CLI token/account/project link existed. No hosting project, access policy, secret, alias or billing setting was changed.
+
+## One consolidated setup checklist
+
+1. Sign into the existing Vercel account in the opened dashboard tab. Confirm which account/team owns this game. Use existing included allowances only. No paid trial/add-on, paid domain, overage or new paid account is authorized.
+2. Create or select a dedicated **colossus-wake-playtest** project, with no Git repository integration. In **Security → Deployment Protection**, enable **Vercel Authentication → All Deployments**; keep public source access off and add no public exceptions. Standard Protection is insufficient. Keep `vercel.json` Git deployment disabled. Do not connect another project's domain. Confirm this setting entails no charge in the actual account.
+3. Record the project's verified permanent root HTTPS domain and project/account IDs as GitHub repository Actions **variables** `PLAYTEST_ORIGIN`, `VERCEL_PROJECT_ID`, `VERCEL_ORG_ID`. The intended form is `https://colossus-wake-playtest.vercel.app`, but name availability and actual alias assignment are unverified; do not treat that example as a playable link.
+4. In Vercel, create a token restricted to the relevant account/team and shortest practical expiry, and a project-scoped **Protection Bypass for Automation** secret. Enter them directly into GitHub **Settings → Secrets and variables → Actions → New repository secret**, named `VERCEL_TOKEN` and `VERCEL_PROTECTION_BYPASS`. Never paste values into chat, files, URLs or screenshots. Existing project/account permissions must be sufficient; stop if broader permissions or charges are requested. Ordinary phone users sign into a Vercel account with project access; bypass credentials are automation-only.
+5. In GitHub billing, confirm remaining included Actions minutes/artifact storage and that paid overages are disabled. Confirm Vercel included usage. Set repository variable `PLAYTEST_INCLUDED_USAGE_CONFIRMED` to `true` only after those checks. Do not broaden the CLI billing scope merely for convenience. The setup commit uses `[skip actions]` so pushing the prepared configuration cannot incur unknown runner charges; it is not evidence of passing cloud checks.
+6. Resolve the failed visual release gate or explicitly authorize using that visually unfinished build for private testing. Only then update `delivery/readiness.json` with the corresponding evidence. A delivery-only task cannot silently replace this judgment.
+7. Resume Codex delivery verification. Bootstrap the permanent address with an empty protected placeholder and verify denied/authorized access on it and every configured alias before game upload. Then perform one normal passing push, a harmless metadata commit for hosted A→B, and a nonpublishing failure exercise. The pipeline also tests a generated empty protected probe before each game upload. Verify the permanent alias and real access before calling it live. If account permissions/plan differ from these instructions, stop and reconcile them rather than weakening privacy.
+
+Vercel announced on **9 September 2026** that All Deployments authentication, including production, is free on all plans. Older $150 add-on instructions are outdated. Account configuration still needs verification. Sources: [announcement](https://vercel.com/changelog/protect-production-deployments-for-free-on-every-plan), [protection scopes](https://vercel.com/docs/deployment-protection), [automation bypass](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation).
+
+## What each ordinary push does
+
+The pinned Node 24.18.0 runner uses `npm ci --ignore-scripts`, locked Three.js 0.185.1, Playwright 1.62.1 and Vercel CLI 60.0.1. It runs every unit test, builds the full checkout once in isolated output, and makes a separate metadata-only B fixture that is never deployed. Browser checks run serially against these frozen directories with isolated saves. The exact primary runtime inventory and SHA-256 are verified before deployment; source build-info is not rewritten by checks.
+
+On `codex/playtest`, readiness must pass. The workflow verifies the private repository, exact account/project, All Deployments protection, absence of a native Git link, verified permanent domain and no pending remote promotion. An empty `--prebuilt --prod --skip-domain` probe tests authentication before playable bytes are uploaded. The complete tested runtime is copied unchanged to Build Output API `.vercel/output/static`; repository files, reports, test fixtures and secrets are excluded.
+
+It stages the game with the same flags, validates authenticated hashes/types and unauthorized rejection, checks browser startup and worker support, then re-reads the branch SHA immediately before promotion. A constant concurrency group with **cancel-in-progress:false** serializes this lane. A durable GitHub deployment intent is persisted before sending the promotion request. Unknown results remain unresolved and block later promotions, even after cancellation/timeouts. The exact staged production-target deployment is promoted; permanent alias mapping and content must match before its GitHub status becomes success.
+
+The workflow never deploys `main`, feature branches or pull requests. Its gate-exercise manual input fails before upload. A successful push alone never means live. If an existing security approval rule is later added, preserve it.
+
+## Phone installation and updates
+
+After the permanent address is verified:
+
+1. Open that one link in Safari, authenticate with the authorized Vercel account, then **Share → Add to Home Screen**. Keep the root origin; manifest identity, start URL and worker scope remain `/`.
+2. Open the icon online and let the initial complete download finish. The title/Playtest status identifies the running build and whether it has been checked online. Slow/offline discovery does not block playing the last complete copy.
+3. During play, later updates download without restarting your expedition. When ready, use **Save and update** outside combat; a failed save prevents reloading. At the title screen a verified update applies automatically when safe. Keep using the same icon; do not clear website data or reinstall.
+4. Export the PC save and import it on the hosted origin once. Saves are per device/origin, with the unchanged `colossus-wake-save-v1` key/format. There is no cloud save synchronization. Keep exported backups in Files.
+5. After complete preparation, close and reopen offline with Wi-Fi/cellular and the PC off. Test lock/background/resume, both orientations, touch controls and two successive builds. Real iPhone/Safari evidence is still required; local Chromium does not prove those behaviors.
+
+Automatic checks occur on opening, foregrounding and regaining connectivity, with debouncing and bounded timeouts; there is no polling while closed. Authentication redirects/HTML, incomplete downloads and integrity failures cannot replace a complete cached build or erase saves. Complete historical caches are retained conservatively so suspended/older clients keep their own bytes. This uses increasing device storage; a quota failure stops an update while preserving the previous copy. No automatic old-release pruning or guarantee against OS storage eviction is claimed.
+
+## Rollback and ambiguous promotions
+
+Retain the previous successful Vercel deployment ID from `published.json` and the GitHub deployment ledger. Do not delete deployments required for rollback. Routine failures before promotion leave the permanent address unchanged.
+
+If promotion timed out, a runner was cancelled, or an intent lacks a terminal status, **do not send a second promotion**. Read raw project `lastAliasRequest`, deployment and alias status with the scoped API credentials. CLI `promote status` alone is insufficient: version 60.0.1 can dismiss requests older than three minutes. A pending/in-progress request blocks regardless of age. Missing/different remote state is ambiguous and also blocks. Resolve a ledger intent to success only after matching `toDeploymentId`, terminal succeeded status, exact alias and build checks. Resolve failure only from a confirmed terminal unsuccessful provider result. Otherwise leave blocked and obtain provider clarification. Never assume a cancelled runner cancelled the remote operation.
+
+For a confirmed bad live release, serialize rollback in the same private lane, verify the retained target belongs to this project and is compatible with the unchanged save schema **and the new protocol-2 client-pinning worker**, back up the test save, and use supported `vercel rollback <known-good-deployment-id>`. Do not roll back to the earlier protocol-1 worker that deleted historical caches during activation. Verify raw promotion/rollback state, private access and permanent build afterwards. Rollback only changes hosting; it neither rewrites Git nor deletes phone saves. If future save schemas change, do not roll back code until compatibility/migration is proven. Existing offline clients apply the rollback as another fully verified release when online; no remote cache erasure is possible.
+
+Sources: [prebuilt staging](https://vercel.com/docs/cli/deploying-from-cli), [promote](https://vercel.com/docs/cli/promote), [rollback](https://vercel.com/docs/cli/rollback), [GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+
+## Future Codex handoff
+
+Complete the task, run its relevant checks, commit the finished changes, integrate/push `codex/playtest`, wait for the matching delivery outcome, then report the same permanent address and verified build. `npm run handoff:playtest` assists with that handoff. Reviews, failing or unfinished tasks do not publish; explicit later no-push/no-deploy instructions take precedence.

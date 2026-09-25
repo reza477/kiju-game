@@ -1,0 +1,5 @@
+{
+  "eligible": false,
+  "reason": "The preceding iPhone presentation pass failed its required visual gate after four rounds: overall 6.9/10, HUD 8.4/10. Do not publish this snapshot as release-ready. Resolve the gate or obtain an explicit owner exception before changing this file.",
+  "evidence": "art-reviews/iphone-pass1-04.md"
+}

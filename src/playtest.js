@@ -1,5 +1,5 @@
-import {BUILD_ID} from './build-info.js';
-import {getOfflineStatus, refreshOfflineStatus, prepareOffline, checkForUpdate, applyUpdate} from './offline.js';
+import {BUILD_ID,COMMIT_ID} from './build-info.js';
+import {getOfflineStatus, refreshOfflineStatus, prepareOffline, checkForUpdate, applyUpdate,subscribeOfflineStatus} from './offline.js';
 import {serialize, SAVE_KEY} from './simulation.js';
 import {readTransfer, writeTransfer, storeTransferredSave, IMPORT_BACKUP_KEY, MAX_SAVE_BYTES} from './save-transfer.js';
 import {createFrameSample, formatFrameSample} from './playtest-sample.js';
@@ -12,7 +12,7 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
   const eligibility = () => ({...getPlayState(), hidden: document.hidden});
   function samplingMetadata() {
     const buffer = getRenderInfo();
-    return {build: BUILD_ID, quality: getQuality(), viewport: {width: innerWidth, height: innerHeight}, renderBuffer: {width: buffer.width, height: buffer.height}, devicePixelRatio,
+    return {build: BUILD_ID, commit: COMMIT_ID, quality: getQuality(), viewport: {width: innerWidth, height: innerHeight}, renderBuffer: {width: buffer.width, height: buffer.height}, devicePixelRatio,
       browserReportedUserAgent: navigator.userAgent, displayMode: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true ? 'standalone' : 'browser'};
   }
   function recordMetadata() {
@@ -82,9 +82,9 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
       <p class="build-label">Build <strong id="playtest-build"></strong> · <span id="playtest-quality"></span></p>
       <nav class="playtest-shortcuts" aria-label="Playtest sections"><button data-playtest-section="playtest-offline">Offline play</button><button data-playtest-section="playtest-saves">Save transfer</button><button data-playtest-section="playtest-feedback">Play sample</button></nav>
       <section id="playtest-offline" class="playtest-section"><h3>iPad & iPhone</h3>
-      <p>Open the game link in Safari. Tap Share → Add to Home Screen → Add. If shown, turn on Open as Web App. Launch the new game icon, then prepare offline play below while connected.</p>
+      <p>Open the game link in Safari. Tap Share → Add to Home Screen → Add. If shown, turn on Open as Web App. Launch the new game icon, then leave it open while the complete game downloads automatically.</p>
       <p>Use two fingers to zoom, one finger to orbit, and the arrow pad to move. Landscape gives the world more room.</p>
-      <p id="offline-status" role="status"></p><div class="playtest-actions"><button id="offline-prepare">Prepare offline play</button><button id="offline-check">Check for update</button><button id="offline-apply" class="hidden">Save before update</button></div>
+      <p id="offline-status" role="status"></p><div class="playtest-actions"><button id="offline-prepare">Prepare offline play</button><button id="offline-check">Check for update</button><button id="offline-apply" class="hidden">Save and update</button></div>
       <p class="playtest-note">Once ready, this device can play without your PC. Device storage can be cleared by the system; keep a save backup. The PC working copy needs a hosted release before it can be installed on another device.</p></section>
       <section id="playtest-saves" class="playtest-section"><h3>Move or back up your save</h3><p>Each device keeps its own progress. Export a save to Files, transfer it to another device, then import it there. Saves do not sync automatically.</p>
       <div class="playtest-actions"><button id="export-save">Export save</button><label class="file-button">Import save<input id="import-save" type="file" accept=".json,application/json" /></label><button id="recover-import">Recover previous save</button></div>
@@ -105,7 +105,7 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
     updateStatus(); void refreshOfflineStatus({onStatus: updateStatus}).then(updateStatus).catch(() => {});
     $('offline-prepare').onclick = () => offlineAction(prepareOffline);
     $('offline-check').onclick = () => offlineAction(checkForUpdate);
-    $('offline-apply').onclick = () => { if (getGame() && !save()) return; void offlineAction(applyUpdate); };
+    $('offline-apply').onclick = () => offlineAction(options => applyUpdate({...options, save, canReload: () => !getPlayState().combat}));
     $('export-save').onclick = exportSave;
     let backup = null; try { backup = localStorage.getItem(IMPORT_BACKUP_KEY); } catch {}
     $('recover-import').disabled = !backup;
@@ -136,7 +136,7 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
     const report = () => {
       if (sampler.active) { recordMetadata(); sampler.setEligibility(performance.now(), eligibility()); }
       const metadata = samplingMetadata();
-      return `Colossus Wake playtest\nBuild: ${metadata.build}\nDetail: ${metadata.quality}\nViewport: ${metadata.viewport.width} × ${metadata.viewport.height} CSS pixels\nRender buffer: ${metadata.renderBuffer.width} × ${metadata.renderBuffer.height} pixels\nDevice pixel ratio: ${metadata.devicePixelRatio}\nBrowser-reported user agent: ${metadata.browserReportedUserAgent}\nDisplay mode: ${metadata.displayMode}\nOffline status: ${getOfflineStatus().message}\n\n${formatFrameSample(sampler.snapshot())}\n\nFeedback:\n${$('feedback-notes').value.trim() || '(Add your notes here.)'}`;
+      return `Colossus Wake playtest\nBuild: ${metadata.build}\nCommit: ${metadata.commit}\nDetail: ${metadata.quality}\nViewport: ${metadata.viewport.width} × ${metadata.viewport.height} CSS pixels\nRender buffer: ${metadata.renderBuffer.width} × ${metadata.renderBuffer.height} pixels\nDevice pixel ratio: ${metadata.devicePixelRatio}\nBrowser-reported user agent: ${metadata.browserReportedUserAgent}\nDisplay mode: ${metadata.displayMode}\nOffline status: ${getOfflineStatus().message}\n\n${formatFrameSample(sampler.snapshot())}\n\nFeedback:\n${$('feedback-notes').value.trim() || '(Add your notes here.)'}`;
     };
     $('copy-feedback').onclick = async () => {
       const text = report();
@@ -145,5 +145,6 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
     };
     $('download-feedback').onclick = () => download(report(), `Colossus-Wake-feedback-${BUILD_ID}.txt`, 'text/plain');
   }
+  subscribeOfflineStatus(updateStatus);
   return {open, frame};
 }

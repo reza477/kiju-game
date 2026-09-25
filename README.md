@@ -12,6 +12,8 @@ Colossus Wake is a working title. This private repository contains the **Alpha 1
 
 [Playing & controls](docs/PLAYING.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 
+[Private iPhone delivery setup](docs/PRIVATE_DELIVERY.md) is implemented locally but blocked on hosting login, included-usage verification and the existing failed visual release gate. No permanent hosted game address is verified yet.
+
 ## Three factions, six carriers
 
 | Faction | Carrier variants | City identity |

@@ -1,5 +1,7 @@
 # Colossus Wake — iPhone playtest and private hosting
 
+**Historical Pass 1 proposal.** The newer delivery task supersedes this Cloudflare proposal with a private GitHub Actions → Vercel lane and automatic safe updates. Use [the current setup, phone guide and rollback notes](docs/PRIVATE_DELIVERY.md). No hosted address is verified yet.
+
 Prepared 24 September 2026 for Implementation Pass 1. This is an unexecuted hosting proposal and physical-device checklist. No game has been uploaded, no host/account has been created, and no access permissions have been changed by this pass. The final release identity and local test results belong in the accompanying implementation report.
 
 ## Proposed host and exact approval
