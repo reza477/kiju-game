@@ -47,8 +47,8 @@ function fakeSurface(){
 }
 
 test('scene input wiring preserves mouse/wheel controls, captures fingers, and clamps both zoom modes',t=>{
-  const previousWindow=globalThis.window;globalThis.window=fakeSurface();
-  t.after(()=>{if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;});
+  const previousWindow=globalThis.window,previousDocument=globalThis.document;globalThis.window=fakeSurface();globalThis.document=fakeSurface();
+  t.after(()=>{if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;});
   const canvas=fakeSurface(),picks=[],scene={canvas,yaw:1,pitch:.5,zoom:80,state:{mode:'expedition'},cinematic:{manual(){}},pick:(x,y)=>picks.push([x,y])};
   GameScene.prototype.addPointer.call(scene);
   canvas.emit('pointerdown',{clientX:20,clientY:30});assert.ok(canvas.hasPointerCapture(1));
@@ -65,6 +65,14 @@ test('scene input wiring preserves mouse/wheel controls, captures fingers, and c
   canvas.emit('pointercancel',{pointerId:2});canvas.emit('pointerup');assert.equal(picks.length,1);
   canvas.emit('pointerdown');globalThis.window.emit('blur');assert.ok(!canvas.hasPointerCapture(1));
   const yaw=scene.yaw;canvas.emit('pointermove',{clientX:200});canvas.emit('pointerup');assert.equal(scene.yaw,yaw);assert.equal(picks.length,1);
+  for(const boundary of ['hidden','pagehide','dialog']){
+    canvas.emit('pointerdown',{clientX:20,clientY:30});
+    if(boundary==='hidden'){globalThis.document.hidden=true;globalThis.document.emit('visibilitychange');}
+    else if(boundary==='pagehide')globalThis.window.emit('pagehide');
+    else scene.clearPointerInput();
+    assert.ok(!canvas.hasPointerCapture(1),boundary+' releases capture');
+    canvas.emit('pointerup',{clientX:20,clientY:30});assert.equal(picks.length,1,boundary+' cannot become a terrain tap');
+  }
 });
 
 test('quality defaults are conservative for touch and restore only recognized explicit preferences',()=>{

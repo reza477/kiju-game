@@ -8,7 +8,7 @@ import {writeTransfer, IMPORT_BACKUP_KEY} from '../src/save-transfer.js';
 const require=createRequire(import.meta.url);
 let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 const base=process.env.GAME_TEST_URL||'http://127.0.0.1:4186';
-const out='artifacts/mobile-playtest';await fs.mkdir(out,{recursive:true});
+const out=process.env.OUTPUT_DIR||process.env.GAME_TEST_OUTPUT||'artifacts/mobile-playtest';await fs.mkdir(out,{recursive:true});
 const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const context=await browser.newContext({viewport:{width:1366,height:1024},hasTouch:true,isMobile:true,deviceScaleFactor:2,acceptDownloads:true});
 const page=await context.newPage(),errors=[],remote=[],checks=[];
@@ -17,7 +17,8 @@ async function screenshot(name){await page.screenshot({path:`${out}/${name}.png`
 try{
  await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus,{},{timeout:90000});
  assert.equal(await page.evaluate(()=>window.__colossus.scene.quality),'performance');assert.equal(await page.locator('#quality').textContent(),'Detail: performance');
- await screenshot('ipad-title');await page.locator('#begin').tap();await page.waitForTimeout(1500);checks.push('Touch startup uses Performance before gameplay');
+ await screenshot('ipad-title');await page.locator('#begin').tap();await page.waitForTimeout(1500);
+ await page.locator('#menu').tap();assert.equal(await page.locator('[data-setting="quality"]').textContent(),'Detail: performance');await page.locator('[data-dialog-action="close"]').tap();checks.push('Touch startup uses Performance before gameplay and exposes the saved preset in Menu');
  const initialVariant=await page.evaluate(()=>window.__colossus.state.variant);
  const session=await context.newCDPSession(page);
  const zoomBefore=await page.evaluate(()=>window.__colossus.scene.zoom);
@@ -53,7 +54,7 @@ try{
  await page.locator('button[data-mobile-panel="map"]').tap();await page.locator('#destinations-toggle').tap();await page.locator('#destinations button').first().tap();assert.ok(await page.evaluate(()=>!!window.__colossus.state.target));checks.push('Phone map and resource travel controls work');
  await page.setViewportSize({width:844,height:390});await page.waitForTimeout(350);await page.locator('button[data-mobile-panel="map"]').tap();await screenshot('iphone-landscape-gameplay');
  await page.locator('button[data-mobile-panel="build"]').tap();await page.locator('[data-building="housing"]').tap();assert.equal(await page.locator('.left-stack').isVisible(),true);await page.locator('[data-slot="3"]').tap();await page.evaluate(()=>window.__colossus.advance(8));assert.equal(await page.evaluate(()=>window.__colossus.state.buildings[3].type),'housing');await page.locator('button[data-mobile-panel="city"]').tap();checks.push('Landscape phone building opens reachable district placement controls');
- const geometry=await page.evaluate(()=>Object.fromEntries(['build-tray','touch-pad','quality','pause','menu'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return[id,{x:r.x,y:r.y,width:r.width,height:r.height}];})));
+ const geometry=await page.evaluate(()=>Object.fromEntries(['build-tray','touch-pad','quality','pause','menu','mobile-menu','population'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return[id,{x:r.x,y:r.y,width:r.width,height:r.height}];})));
  await fs.writeFile(`${out}/layout-geometry.json`,JSON.stringify(geometry,null,2));
  const timing=await page.evaluate(()=>new Promise(resolve=>{const intervals=[];let last=performance.now();const sample=t=>{intervals.push(t-last);last=t;if(intervals.length<120)requestAnimationFrame(sample);else resolve({frames:intervals.length,meanFrameMs:intervals.reduce((a,b)=>a+b)/intervals.length,p95FrameMs:intervals.sort((a,b)=>a-b)[Math.floor(intervals.length*.95)],renderer:window.__colossus.scene.renderer.getContext().getParameter(window.__colossus.scene.renderer.getContext().RENDERER)});};requestAnimationFrame(sample);}));
  checks.push('Running motion sampled in desktop Chromium touch emulation (not iPad performance)');

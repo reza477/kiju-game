@@ -28,7 +28,7 @@ async function runtimeFiles(root, directory) {
   return files;
 }
 
-export async function buildMobileRelease({ root = ROOT, outputRoot = path.join(root, 'artifacts', 'mobile-release') } = {}) {
+export async function buildMobileRelease({ root = ROOT, outputRoot = path.join(root, 'artifacts', 'mobile-release'), writeSourceBuildInfo = true } = {}) {
   const files = new Map();
   for (const directory of ['src', 'vendor', 'assets']) {
     if ((await lstat(path.join(root, directory))).isSymbolicLink()) throw new Error(`Release input cannot be a symbolic link: ${directory}`);
@@ -71,11 +71,22 @@ export async function buildMobileRelease({ root = ROOT, outputRoot = path.join(r
     await mkdir(path.dirname(destination), { recursive: true });
     await writeFile(destination, bytes);
   }
-  // Write the same identity into the PC source only after the release is complete.
-  await writeFile(path.join(root, 'src', 'build-info.js'), buildInfo);
-  return { buildId, output, fileCount: files.size, precacheCount: manifest.length, totalBytes: release.totalBytes };
+  // Ordinary PC/release builds retain their shared identity. Verification and
+  // packaging can instead emit a complete runtime without modifying source.
+  if (writeSourceBuildInfo) await writeFile(path.join(root, 'src', 'build-info.js'), buildInfo);
+  return { buildId, output, fileCount: files.size, precacheCount: manifest.length, totalBytes: release.totalBytes, sourceBuildInfoWritten: writeSourceBuildInfo };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  console.log(JSON.stringify(await buildMobileRelease(), null, 2));
+  const options = {};
+  for (let i = 2; i < process.argv.length; i++) {
+    const argument = process.argv[i];
+    if (argument === '--isolated') options.writeSourceBuildInfo = false;
+    else if (argument === '--output-root' || argument === '--source-root') {
+      const value = process.argv[++i];
+      if (!value || value.startsWith('--')) throw new Error(`${argument} requires a directory.`);
+      options[argument === '--output-root' ? 'outputRoot' : 'root'] = path.resolve(value);
+    } else throw new Error(`Unknown release option: ${argument}`);
+  }
+  console.log(JSON.stringify(await buildMobileRelease(options), null, 2));
 }

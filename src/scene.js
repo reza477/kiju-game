@@ -253,7 +253,8 @@ export class GameScene {
     canvas.addEventListener('pointerup',e=>{const hit=gesture.up(e.pointerId,e.clientX,e.clientY);release(e.pointerId);if(hit)this.pick(hit.x,hit.y);});
     canvas.addEventListener('pointercancel',e=>{gesture.cancel(e.pointerId);release(e.pointerId);});
     canvas.addEventListener('lostpointercapture',e=>gesture.cancel(e.pointerId));
-    window.addEventListener('blur',()=>{for(const id of gesture.reset())release(id);});
+    this.clearPointerInput=()=>{for(const id of gesture.reset())release(id);};
+    window.addEventListener('blur',this.clearPointerInput);window.addEventListener('pagehide',this.clearPointerInput);document.addEventListener('visibilitychange',()=>{if(document.hidden)this.clearPointerInput();});
     canvas.addEventListener('wheel',e=>{e.preventDefault();manual();if(this.state?.mode==='battle')this.battleZoomFactor=T.MathUtils.clamp((this.battleZoomFactor??1)+e.deltaY*.0006,.9,2.4);else this.zoom=Math.max(10,Math.min(330,this.zoom+e.deltaY*.06));},{passive:false});
   }
 

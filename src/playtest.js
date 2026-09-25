@@ -2,10 +2,47 @@ import {BUILD_ID} from './build-info.js';
 import {getOfflineStatus, refreshOfflineStatus, prepareOffline, checkForUpdate, applyUpdate} from './offline.js';
 import {serialize, SAVE_KEY} from './simulation.js';
 import {readTransfer, writeTransfer, storeTransferredSave, IMPORT_BACKUP_KEY, MAX_SAVE_BYTES} from './save-transfer.js';
+import {createFrameSample, formatFrameSample} from './playtest-sample.js';
 
-export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame, save, getQuality, toast}) {
+export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame, save, getQuality, getPlayState, getRenderInfo, toast}) {
   const $ = id => document.getElementById(id);
   let pending = null, busy = false, generation = 0, readId = 0;
+  const sampler = createFrameSample();
+  let statusAt = -Infinity, metadataKey = '';
+  const eligibility = () => ({...getPlayState(), hidden: document.hidden});
+  function samplingMetadata() {
+    const buffer = getRenderInfo();
+    return {build: BUILD_ID, quality: getQuality(), viewport: {width: innerWidth, height: innerHeight}, renderBuffer: {width: buffer.width, height: buffer.height}, devicePixelRatio,
+      browserReportedUserAgent: navigator.userAgent, displayMode: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true ? 'standalone' : 'browser'};
+  }
+  function recordMetadata() {
+    const metadata = samplingMetadata(), key = JSON.stringify(metadata);
+    if (key !== metadataKey) { sampler.noteMetadata(metadata); metadataKey = key; }
+  }
+  function updateSampleStatus() {
+    const status = $('sample-status'); if (!status) return;
+    const sample = sampler.progress();
+    const reason = {hidden: 'page hidden', paused: 'game paused or menu open', notStarted: 'expedition not started'}[sample.pauseReason];
+    status.textContent = sample.status === 'idle' ? 'No sample yet. Start a sample, then return to the game.' : `${sample.status === 'running' ? reason ? `Waiting: ${reason}` : 'Sampling active play' : sample.status === 'complete' ? 'Sample complete' : 'Sample stopped'} · ${(sample.activeMs / 1000).toFixed(1)} / 120 active seconds · ${sample.count} intervals${sample.stopReason ? ` · ${sample.stopReason}` : ''}.`;
+    $('sample-start').disabled = sampler.active || !getPlayState().started;
+    $('sample-stop').disabled = !sampler.active;
+    $('sample-reset').disabled = sample.status === 'idle';
+  }
+  function frame(now) {
+    if (!sampler.active) return;
+    recordMetadata(); sampler.frame(now, eligibility());
+    if (now - statusAt > 500 || !sampler.active) { updateSampleStatus(); statusAt = now; }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!sampler.active) return;
+    sampler.setEligibility(performance.now(), eligibility()); updateSampleStatus();
+  });
+  window.addEventListener('pagehide', () => {
+    if (sampler.active) sampler.setEligibility(performance.now(), {...eligibility(), hidden: true});
+  });
+  window.addEventListener('pageshow', () => {
+    if (sampler.active) sampler.setEligibility(performance.now(), eligibility());
+  });
   $('dialog').addEventListener('close', () => { if (!$('dialog').open) { generation++; pending = null; } });
   function download(text, name, type = 'application/json') {
     const url = URL.createObjectURL(new Blob([text], {type}));
@@ -43,18 +80,28 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
     pending = null;
     showDialog(`<span class="eyebrow">PLAY ON YOUR DEVICES</span><h2>Your expedition, to go.</h2>
       <p class="build-label">Build <strong id="playtest-build"></strong> · <span id="playtest-quality"></span></p>
-      <section class="playtest-section"><h3>iPad & iPhone</h3>
+      <nav class="playtest-shortcuts" aria-label="Playtest sections"><button data-playtest-section="playtest-offline">Offline play</button><button data-playtest-section="playtest-saves">Save transfer</button><button data-playtest-section="playtest-feedback">Play sample</button></nav>
+      <section id="playtest-offline" class="playtest-section"><h3>iPad & iPhone</h3>
       <p>Open the game link in Safari. Tap Share → Add to Home Screen → Add. If shown, turn on Open as Web App. Launch the new game icon, then prepare offline play below while connected.</p>
       <p>Use two fingers to zoom, one finger to orbit, and the arrow pad to move. Landscape gives the world more room.</p>
       <p id="offline-status" role="status"></p><div class="playtest-actions"><button id="offline-prepare">Prepare offline play</button><button id="offline-check">Check for update</button><button id="offline-apply" class="hidden">Save before update</button></div>
       <p class="playtest-note">Once ready, this device can play without your PC. Device storage can be cleared by the system; keep a save backup. The PC working copy needs a hosted release before it can be installed on another device.</p></section>
-      <section class="playtest-section"><h3>Move or back up your save</h3><p>Each device keeps its own progress. Export a save to Files, transfer it to another device, then import it there. Saves do not sync automatically.</p>
+      <section id="playtest-saves" class="playtest-section"><h3>Move or back up your save</h3><p>Each device keeps its own progress. Export a save to Files, transfer it to another device, then import it there. Saves do not sync automatically.</p>
       <div class="playtest-actions"><button id="export-save">Export save</button><label class="file-button">Import save<input id="import-save" type="file" accept=".json,application/json" /></label><button id="recover-import">Recover previous save</button></div>
       <div id="import-confirm" class="hidden"><p id="import-description"></p><button id="confirm-import" class="primary">Replace & load expedition</button><button id="cancel-import">Cancel</button></div><p id="import-status" role="status"></p></section>
-      <section class="playtest-section"><h3>Playtest feedback</h3><p>Describe what happened, then copy this report into our chat. Nothing is sent automatically.</p><label for="feedback-notes">What worked, or what went wrong?</label><textarea id="feedback-notes" rows="3" placeholder="For example: the game slowed down when two cities fought…"></textarea><div class="playtest-actions"><button id="copy-feedback">Copy feedback</button><button id="download-feedback">Save feedback file</button></div><textarea id="feedback-report" rows="5" readonly class="hidden" aria-label="Feedback report to copy"></textarea></section>
+      <section id="playtest-feedback" class="playtest-section"><h3>Playtest feedback</h3><p>Describe what happened, then copy this report into our chat. Nothing is sent automatically.</p>
+      <h4>Optional 120-second play sample</h4><p>Begin an expedition first. Start a sample here, then return to the game. Hidden pages, paused play and menus are excluded. Stop or reset here at any time; results stay only in this tab until you copy or save feedback.</p>
+      <p id="sample-status" role="status"></p><div class="playtest-actions"><button id="sample-start">Start 120-second sample</button><button id="sample-stop">Stop sample</button><button id="sample-reset">Reset sample</button></div>
+      <p class="playtest-note">These are browser frame-scheduling observations, not GPU timings, native presented FPS or proof of sustained performance. Compare the existing detail presets manually, resetting before each sample.</p>
+      <label for="feedback-notes">What worked, or what went wrong?</label><textarea id="feedback-notes" rows="3" placeholder="For example: the game slowed down when two cities fought…"></textarea><div class="playtest-actions"><button id="copy-feedback">Copy feedback</button><button id="download-feedback">Save feedback file</button></div><textarea id="feedback-report" rows="5" readonly class="hidden" aria-label="Feedback report to copy"></textarea></section>
       <button class="primary" data-dialog-action="close">Back to game</button>`);
+    document.querySelectorAll('[data-playtest-section]').forEach(button => { button.onclick = () => $(button.dataset.playtestSection).scrollIntoView({block: 'start'}); });
     $('playtest-build').textContent = BUILD_ID;
     $('playtest-quality').textContent = `${getQuality()} detail`;
+    updateSampleStatus();
+    $('sample-start').onclick = () => { if (!getPlayState().started || sampler.active) return; const metadata = samplingMetadata(); sampler.start(performance.now(), eligibility(), metadata); metadataKey = JSON.stringify(metadata); updateSampleStatus(); toast('Sample armed. Return to the game to record up to 120 seconds of active play.'); };
+    $('sample-stop').onclick = () => { recordMetadata(); sampler.stop(performance.now(), eligibility()); updateSampleStatus(); };
+    $('sample-reset').onclick = () => { sampler.reset(); metadataKey = ''; updateSampleStatus(); };
     updateStatus(); void refreshOfflineStatus({onStatus: updateStatus}).then(updateStatus).catch(() => {});
     $('offline-prepare').onclick = () => offlineAction(prepareOffline);
     $('offline-check').onclick = () => offlineAction(checkForUpdate);
@@ -86,7 +133,11 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
         $('import-status').textContent = 'The imported expedition could not open. Reload the game to recover your saved expedition; a recovery copy is also available here.';
       }
     };
-    const report = () => `Colossus Wake playtest\nBuild: ${BUILD_ID}\nDetail: ${getQuality()}\nScreen: ${innerWidth} × ${innerHeight}, DPR ${devicePixelRatio}\nBrowser: ${navigator.userAgent}\nHome Screen: ${matchMedia('(display-mode: standalone)').matches || navigator.standalone === true}\nOffline status: ${getOfflineStatus().message}\n\nFeedback:\n${$('feedback-notes').value.trim() || '(Add your notes here.)'}`;
+    const report = () => {
+      if (sampler.active) { recordMetadata(); sampler.setEligibility(performance.now(), eligibility()); }
+      const metadata = samplingMetadata();
+      return `Colossus Wake playtest\nBuild: ${metadata.build}\nDetail: ${metadata.quality}\nViewport: ${metadata.viewport.width} × ${metadata.viewport.height} CSS pixels\nRender buffer: ${metadata.renderBuffer.width} × ${metadata.renderBuffer.height} pixels\nDevice pixel ratio: ${metadata.devicePixelRatio}\nBrowser-reported user agent: ${metadata.browserReportedUserAgent}\nDisplay mode: ${metadata.displayMode}\nOffline status: ${getOfflineStatus().message}\n\n${formatFrameSample(sampler.snapshot())}\n\nFeedback:\n${$('feedback-notes').value.trim() || '(Add your notes here.)'}`;
+    };
     $('copy-feedback').onclick = async () => {
       const text = report();
       try { await navigator.clipboard.writeText(text); toast('Feedback copied. Paste it into our chat.'); }
@@ -94,5 +145,5 @@ export function createPlaytestTools({showDialog, closeDialog, getGame, loadGame,
     };
     $('download-feedback').onclick = () => download(report(), `Colossus-Wake-feedback-${BUILD_ID}.txt`, 'text/plain');
   }
-  return {open};
+  return {open, frame};
 }
