@@ -22,7 +22,7 @@ const report = {
 };
 const browser = await chromium.launch({headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? {channel: process.env.PLAYWRIGHT_CHANNEL} : {}), args: ['--mute-audio', '--enable-unsafe-swiftshader']});
 report.browser = browser.version();
-let context, page, other, phase = 'startup', faultExpected = false;
+let context, page, other, offlineBaseline, phase = 'startup', faultExpected = false;
 const contexts = new Set();
 const saveKey = 'colossus-wake-save-v1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -196,6 +196,15 @@ try {
     await other.locator('#withdraw').tap();
     assert.equal(await other.evaluate(() => window.__colossus.state.mode), 'expedition', 'Retained A combat still accepts actual controls');
     await other.close(); other = null;
+    // Subsequent independent contexts deliberately serve A again. An open B
+    // client would legitimately discover that artificial rollback on pageshow.
+    // Save and close this client's page first; keep its offline storage/context.
+    await page.bringToFront(); await menu(); await page.locator('[data-dialog-action="save"]').tap();
+    offlineBaseline = await savedIdentity();
+    const current = await offlineStatus();
+    assert.equal(current.installedBuildId, B.descriptor.buildId);
+    assert.equal(current.canApplyUpdate, false);
+    await page.close();
   });
 
   await check('Cold title automatically discovers and applies B without an Update button', async () => {
@@ -229,12 +238,10 @@ try {
   });
 
   await check('B reopens and continues offline after its server is stopped', async () => {
-    await page.bringToFront(); await menu(); await page.locator('[data-dialog-action="save"]').tap();
-    const before = await savedIdentity();
-    await installed(page, B.descriptor.buildId); await page.close();
+    assert.ok(offlineBaseline, 'The verified B page saved before independent server-switch fixtures');
     await server.close(); await context.setOffline(true);
     page = await context.newPage(); await open(page); await loaded(page, B.descriptor.buildId);
-    await page.locator('#continue').tap(); assert.deepEqual(await savedIdentity(), before);
+    await page.locator('#continue').tap(); assert.deepEqual(await savedIdentity(), offlineBaseline);
     await touchMove(); await playtest();
     const status = await page.evaluate(async () => (await import('/src/offline.js')).checkForUpdate());
     assert.equal(status.canPlayOffline, true); assert.equal(status.installedBuildId, B.descriptor.buildId);
