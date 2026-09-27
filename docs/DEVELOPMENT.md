@@ -7,7 +7,7 @@
 The game uses plain JavaScript ES modules with a vendored Three.js 0.185.1 renderer. Node.js serves files and runs tests; Chrome or Edge with WebGL2 renders the game. CI uses Node.js **24.18.0** for reproducible checks and packaging. There is no application bundling step for normal local play.
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm test
 npm start
 ```
@@ -29,7 +29,7 @@ node tests/alpha-ui-browser.mjs
 node tests/local-server-qa.mjs
 ```
 
-Browser scripts expect Playwright and installed Chrome. They try a locally available Playwright package, then the existing Codex bundled-runtime path. That fallback is machine-specific; a fresh contributor checkout needs an available Playwright environment. Browser checks are not included in `npm test`. Run GPU/browser suites serially to avoid contention and misleading timeouts or timings.
+The playtest candidate pins Playwright **1.62.1** and Vercel CLI **60.0.1** in its lockfile. Older browser scripts use installed Chrome and may fall back to the Codex bundled runtime; the delivery gate uses project-pinned Chromium. Browser checks are separate from `npm test`. Run GPU/browser suites serially to avoid contention and misleading timeouts or timings. Cloud Actions and browser installation in CI must wait until included runner/storage usage and disabled paid overages are verified; see [delivery setup](PRIVATE_DELIVERY.md).
 
 The opt-in `?test=1` URL exposes `window.__colossus` for state, renderer and time-advance inspection. Keep tests isolated from the owner's normal browser save. A worktree has a different folder identity; the launcher intentionally refuses to reuse a server for another checkout.
 
@@ -44,14 +44,24 @@ The opt-in `?test=1` URL exposes `window.__colossus` for state, renderer and tim
 | `node tests/alpha-render-qa.mjs` | Carrier/camera/lighting/quality matrix and warmed motion/resource observations |
 | `npm run test:mobile` | Tablet/phone workflows in desktop Chromium; port 4186 unless `GAME_TEST_URL` is set |
 | `npm run test:offline-browser` | Package installation, offline reopen, save resume and repair on a temporary loopback server |
+| `npm run test:iphone` | Focused phone presentation/input checks in desktop browser emulation |
+| `npm run build:playtest` | One isolated frozen runtime plus a metadata-only B test fixture; leaves source build-info untouched |
+| `npm run test:delivery` | Required serial full-game startup, touch, save, offline, A→B and credential-confinement checks against the frozen outputs |
+| `npm run verify:playtest` | Rechecks the frozen runtime inventory and hashes |
 
-The [Tests and package workflow](../.github/workflows/ci.yml) provides automated repository checks. CI does not substitute for GPU, art-review or physical-device evidence. Read the workflow for its current scope.
+The [Tests and private playtest delivery workflow](../.github/workflows/ci.yml) prepares checks and protected staging/promotion for `codex/playtest` only. Other branches and pull requests cannot deploy. The new Linux delivery workflow has not run; do not present the older Alpha 1 main CI result as its validation. No Actions run is authorized until included usage/no-overage confirmation. CI does not substitute for independent art review or physical-device evidence.
 
-The mobile build contains playable runtime files, assets, icons, manifest and offline worker. It excludes Git history, desktop launchers, credentials, tests and captures. The build ID covers runtime bytes and worker behavior; runtime changes require rebuilding, while documentation-only changes do not. Packaging writes the same ID into PC source after completion. Output expects the root of one stable HTTPS origin and does not configure or publish hosting. See [mobile preparation](../MOBILE_PLAYTEST.md).
+The mobile build contains playable runtime files, assets, icons, manifest and offline worker. It excludes Git history, desktop launchers, credentials, tests and captures. Default `build:mobile` writes its generated ID into PC source. For the delivery lane, use `build:playtest`: it keeps working-source identity untouched and records exact commit/build/hash provenance under ignored `artifacts/delivery/`. Commit metadata contributes to current package identity, so do not relabel an older tested artifact with a later documentation commit. Building alone does not publish; [PRIVATE_DELIVERY.md](PRIVATE_DELIVERY.md) governs hosting and handoff.
 
 ### Historical and canonical package IDs
 
-The historical local Alpha 1 package is `cb00d8cec12f2c169cf4`. Canonical line endings in the maintained checkout produce `b5d9adf4c4e48af6e780`: 107 total files, 105 precached files and 33,639,991 precached bytes. Nine packaged files differ only in line endings, which change the byte-based identity without changing gameplay. Two canonical builds matched across all 107 file hashes. The original playable checkout, Alpha 1 source tag, screenshots and historical QA remain unchanged. See [the dated repository note](../ALPHA1_VERIFICATION.md).
+The historical local Alpha 1 package is `cb00d8cec12f2c169cf4`. Canonical line endings in the September 24 Alpha 1 baseline produced `b5d9adf4c4e48af6e780`: 107 total files, 105 precached files and 33,639,991 precached bytes. Nine packaged files differed only in line endings. Two baseline builds matched across all 107 hashes. These are historical Alpha 1 identities, not the newer playtest candidate. The original `alpha-1` tag and historical QA remain unchanged. See [the dated repository note](../ALPHA1_VERIFICATION.md).
+
+### Blocked candidate evidence
+
+Final tested delivery source `11af190e7c5bc8b8aea68b9e0522a6ece610b07b` produced build `1f34a447888f6f64e784`: 179 unit tests and 110 runtime integrity checks passed. The required browser gate failed at 3/11 groups in Chrome 154 and 0/11 in pinned Chromium 151. A separate 8/8 offline regression used preceding build `90bd23ad6edcbca03cc8`; no complete passing A→B release gate exists. Later checkpoint `fbfda91` records blockers and was not separately packaged or browser-tested. These are September 24 records, not fresh tests performed during documentation maintenance.
+
+The latest visual result is 6.9/10 overall and 8.4/10 HUD; both visual and functional blockers remain. Keep [readiness](../delivery/readiness.json) false until the required evidence exists. `npm run handoff:playtest` is for finished eligible implementation after setup is verified, not read-only reviews or this blocked candidate. It assists ordinary integration/push and verification without rewriting history or changing the default branch. A successful push is insufficient: verify the matching Actions run and exact build at the permanent protected origin before reporting it live.
 
 ## Source map
 
@@ -98,6 +108,6 @@ Choose checks for affected behavior. Each script defines its environment variabl
 
 [Alpha 1 verification](../ALPHA1_VERIFICATION.md) records September 17, 2026 scope, revision, package identity, desktop measurements and limitations. Detailed local outputs remain under ignored `artifacts/`; historical links into those directories will not resolve from GitHub. Committed verification summaries and independent `art-reviews/` reports remain the portable record.
 
-The latest environment review ended at 7.5/10, below the 8.5 threshold. Historical scores reflect their own scope and remain in [the changelog](../CHANGELOG.md) and original reports. Follow [AGENTS.md](../AGENTS.md) for independent critics, fresh HUD captures, scoring and the four-round limit. Functional success is not aesthetic approval.
+The historical Alpha 1 environment review ended at 7.5/10. The later iPhone presentation review ended at 6.9/10 overall and 8.4/10 HUD. Both failed the 8.5 overall threshold; their scopes differ and original findings remain in [the changelog](../CHANGELOG.md) and reports. Follow [AGENTS.md](../AGENTS.md) for independent critics, fresh HUD captures, scoring and the four-round limit. Functional success is not aesthetic approval.
 
 For performance comparisons, retain the same hardware, viewport, quality, camera, movement route and timing method. Warm the full route before measuring lazy scenery uploads. Separate CPU callback time, GPU elapsed time, frame intervals and startup samples. Stable GPU resource counts do not prove heap or long-session stability, and desktop touch emulation does not verify physical iPad/iPhone behavior.

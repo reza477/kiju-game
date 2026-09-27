@@ -8,11 +8,11 @@ A single-player 3D city-builder on a ruined future Earth. Raise a Gothic castle 
 
 *Actual Alpha 1 desktop gameplay. [Screenshot provenance and cyborg view](docs/media/README.md).*
 
-Colossus Wake is a working title. This private repository contains the **Alpha 1 PC prototype**, version `0.10.0-alpha.1`, and its development history.
+Colossus Wake is a working title. This private repository contains the **Alpha 1 PC prototype**, version `0.10.0-alpha.1`, and subsequent development candidates. The default `main` branch retains the Alpha 1 baseline; the newer iPhone/private-delivery candidate is backed up on `codex/playtest`.
 
 [Playing & controls](docs/PLAYING.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 
-[Private iPhone delivery setup](docs/PRIVATE_DELIVERY.md) is implemented locally but blocked on hosting login, included-usage verification and the existing failed visual release gate. No permanent hosted game address is verified yet.
+**Private playtest: Configured but blocked.** The iPhone presentation pass and private delivery tooling are backed up, but both required gates remain failed: latest visual review **6.9/10 overall, 8.4/10 HUD** against an 8.5 overall threshold; final delivery-browser checks completed **3/11 groups in Chrome 154 and 0/11 in pinned Chromium 151**. Hosting/account setup and included usage also remain unverified. No permanent hosted game address exists. See [current delivery status](docs/PRIVATE_DELIVERY.md), [readiness](delivery/readiness.json), and [the iPhone review](art-reviews/iphone-pass1-04.md).
 
 ## Three factions, six carriers
 
@@ -38,13 +38,15 @@ node server.mjs
 
 Open [127.0.0.1:4178](http://127.0.0.1:4178) in Chrome or Edge with WebGL2 and hardware acceleration. Runtime libraries and assets are bundled; local play needs no login or internet connection. See the [first-expedition guide](docs/PLAYING.md#first-expedition).
 
-## Alpha 1 status
+## Historical Alpha 1 baseline
 
 The September 17, 2026 verification record includes **127 passing unit tests**, 180 rendering combinations, 1,296 Gothic weapon-clearance cases, and desktop, touch-emulation and offline-package checks. These are recorded results for the documented Alpha 1 revision; ongoing automated checks cover a narrower scope. See [Alpha 1 verification](ALPHA1_VERIFICATION.md) and [Tests and package](https://github.com/reza477/kiju-game/actions/workflows/ci.yml).
 
 The final independent environment review scored **7.5/10**. The **8.5 visual quality gate remains unmet** after four rounds; its final bounded review identified no concrete visual or runtime defect. [Read the critic's findings](art-reviews/alpha1-04.md).
 
-Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile performance and long-session memory stability remain pending. Touch controls and an offline package exist, but there is **no hosted mobile game link**. See [mobile playtest status](MOBILE_PLAYTEST.md).
+These results belong to the original Alpha 1 milestone, whose `alpha-1` tag remains unchanged. The newer candidate's recorded 179 passing unit tests do not clear its failed delivery gate. Its tested runtime is source `11af190`, build `1f34a447888f6f64e784`; checkpoint `fbfda91` subsequently recorded blockers and was not tested as a new release. See [candidate evidence](docs/PRIVATE_DELIVERY.md).
+
+Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile performance and long-session memory stability remain pending. See [the current phone and delivery guide](docs/PRIVATE_DELIVERY.md#phone-installation-and-updates).
 
 ## Saves and privacy
 

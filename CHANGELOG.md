@@ -2,6 +2,17 @@
 
 This history describes prototype milestones. A version entry records development work, not a public release or art-quality approval. Verification reports retain the evidence and review outcome for their particular revision.
 
+## iPhone presentation and private delivery candidate — September 24, 2026
+
+Preserved the completed iPhone presentation pass in `2a77d13`, reconciled the existing repository maintenance in `ba8d457`, and backed up private delivery preparation on `codex/playtest` through `fbfda91`. `main` and the original `alpha-1` tag retain their existing baseline. This candidate is **Configured but blocked**, not a hosted release.
+
+- Refined the phone HUD, panels, markers, touch selection, lifecycle input cleanup and opt-in performance feedback. The [presentation report](IPHONE_PASS1.md) records 148 unit tests, focused browser checks and frozen build `8f73de81f12f4aad019b`. Its historical uncommitted description records review-time state; the work was subsequently preserved in `2a77d13`.
+- Prepared one protected GitHub Actions → Vercel delivery lane, immutable runtime verification, client-pinned historical caches, safe automatic update discovery/application, recovery, and guarded promotion/rollback. Account setup and included-only usage remain unverified; no permanent hosted address or hosted A→B verification exists.
+- Final delivery evidence belongs to clean source `11af190e7c5bc8b8aea68b9e0522a6ece610b07b`, build `1f34a447888f6f64e784`: 179 unit tests and 110 runtime integrity checks passed. The required combined browser gate **failed**, completing 3/11 groups in Chrome 154 and 0/11 in pinned Chromium 151. A separate 8/8 offline regression used preceding build `90bd23ad6edcbca03cc8`; it is not a full A→B pass. Later `fbfda91` records these blockers and was not separately packaged or browser-tested.
+- The [fourth iPhone review](art-reviews/iphone-pass1-04.md) scored **6.9/10 overall, 8.4/10 HUD**; the 8.5 overall gate remains failed. No new concrete scoped defect was identified in that bounded review. The earlier Alpha 1 environment score remains a separate historical assessment.
+
+`delivery/readiness.json` remains false. An art-only owner exception cannot waive failed functional checks. Physical Apple devices, desktop WebKit, protected hosting and the Linux delivery workflow remain unverified. See [the full delivery status and setup](docs/PRIVATE_DELIVERY.md).
+
 ## Repository setup — September 24, 2026
 
 Established a maintained private GitHub default branch, organized project documentation, added automated tests/package checks, and prepared a draft Alpha 1 prerelease. Playable hosting remains separate and unconfigured.
