@@ -21,18 +21,33 @@ const report = {
   evidence: 'Isolated desktop Chromium with touch emulation, native RAF and wall time. Not hosted, desktop WebKit, physical iPhone, or a performance benchmark.',
   diagnosticExtendedWait: process.env.DELIVERY_DIAGNOSE_UPDATE === '1',
   fixtures: ['B is a separately frozen harmless release-metadata fixture.', 'Fault injection only affects this random-port loopback server.', 'One isolated page temporarily rejects its save-key write to exercise update refusal.', 'The second client is placed near its first rival solely to exercise actual Engage/Withdraw controls without a long travel wait. No hull, resources, combat statistics, or simulation clock are granted.'],
-  checks: [], observations: [], pageErrors: [], unexpectedConsoleErrors: [], expectedFaultErrors: [], failedRequests: [], remoteRequests: [],
+  checks: [], observations: [], pageErrors: [], unexpectedConsoleErrors: [], expectedFaultErrors: [], failedRequests: [], remoteRequests: [], diagnosticNetwork: [],
   limitations: ['Quota exhaustion, worker restart and deployment mutation cases require worker unit coverage; this browser gate does not claim real device storage exhaustion.', 'Foreground/connectivity events are browser-dispatched lifecycle checks; physical lock/resume remains untested.'],
 };
 const browser = await chromium.launch(deliveryBrowserOptions());
 report.browser = browser.version();
 report.graphics = await browserGraphicsInfo(browser);
-let context, page, other, offlineBaseline, phase = 'startup', expectedFault = null, deliberatelyOffline = false;
+let context, page, other, diagnosticPage, offlineBaseline, phase = 'startup', expectedFault = null, deliberatelyOffline = false;
 const contexts = new Set();
+const diagnosticRequests = new WeakMap();
+let diagnosticRequestSequence = 0, diagnosticPageSequence = 0;
 const saveKey = 'colossus-wake-save-v1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function observe(target) {
+  const pageId = ++diagnosticPageSequence;
+  const recordNetwork = (event, request, extra = {}) => {
+    const url = new URL(request.url());
+    // Only the loopback delivery server's release/worker lifecycle is recorded.
+    // Never include request headers, bodies, credentials, or unrelated URLs.
+    if (!['/release.json', '/sw.js'].includes(url.pathname) || ![...ownedServers].some(host => host.origin === url.origin)) return;
+    if (!diagnosticRequests.has(request)) diagnosticRequests.set(request, ++diagnosticRequestSequence);
+    report.diagnosticNetwork.push({at: new Date().toISOString(), phase, pageId, requestId: diagnosticRequests.get(request), event, path: url.pathname, ...extra});
+  };
+  target.on('request', request => recordNetwork('request', request));
+  target.on('response', response => recordNetwork('response', response.request(), {status: response.status()}));
+  target.on('requestfinished', request => recordNetwork('finished', request, {timing: request.timing()}));
+  target.on('requestfailed', request => recordNetwork('failed', request, {error: request.failure()?.errorText}));
   target.setDefaultTimeout(20000);
   target.on('pageerror', error => report.pageErrors.push({phase, message: error.message}));
   target.on('console', message => {
@@ -72,6 +87,9 @@ async function installed(target, build) {
   }, build, 150000);
 }
 async function open(target, host = server) {
+  // Retain the page before readyA can fail. Its caller receives the page only
+  // after installation, which previously left startup failures uncaptured.
+  diagnosticPage = target;
   observe(target);
   await target.goto(`${host.origin}/?test=1`, {waitUntil: 'domcontentloaded', timeout: 120000});
 }
@@ -88,7 +106,7 @@ async function readyA(value, host = server) {
 async function menu(target = page) {await target.locator('#mobile-menu').tap();}
 async function playtest(target = page) {await menu(target); await target.locator('[data-dialog-action="playtest"]').tap();}
 async function check(name, action) {
-  phase = name; await action(); report.checks.push(name); console.log(`PASS ${name}`);
+  phase = name; diagnosticPage = page; await action(); report.checks.push(name); console.log(`PASS ${name}`);
 }
 async function position(target = page) {return target.evaluate(() => ({x: window.__colossus.state.x, z: window.__colossus.state.z}));}
 async function touchMove(target = page) {
@@ -278,9 +296,10 @@ try {
   assert.deepEqual(report.unexpectedConsoleErrors, []);
 } catch (error) {
   report.failure = {phase, message: error.stack}; process.exitCode = 1;
-  if (page && !page.isClosed()) {
+  const failedPage = diagnosticPage && !diagnosticPage.isClosed() ? diagnosticPage : page;
+  if (failedPage && !failedPage.isClosed()) {
     let diagnosticTimer;
-    report.failure.browserState = await Promise.race([page.evaluate(async () => {
+    report.failure.browserState = await Promise.race([failedPage.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration('/');
       return {readyState: document.readyState, hidden: document.hidden, online: navigator.onLine, timeOrigin: performance.timeOrigin,
         navigation: performance.getEntriesByType('navigation').map(entry => ({domContentLoadedEventEnd: entry.domContentLoadedEventEnd, loadEventEnd: entry.loadEventEnd})),
@@ -288,7 +307,8 @@ try {
         applyClass: document.getElementById('offline-apply')?.className, active: reg?.active?.state, waiting: reg?.waiting?.state, installing: reg?.installing?.state};
     }), new Promise((_, reject) => {diagnosticTimer = setTimeout(() => reject(new Error('Failure-state capture exceeded 10 seconds.')), 10000);})])
       .catch(error => ({unavailable: error.message})).finally(() => clearTimeout(diagnosticTimer));
-    await page.screenshot({path: path.join(output, 'failure.png'), timeout: 10000}).catch(() => {});
+    report.failure.screenshot = await failedPage.screenshot({path: path.join(output, 'failure.png'), timeout: 10000})
+      .then(() => ({file: 'failure.png'})).catch(error => ({unavailable: error.message}));
   }
 } finally {
   for (const value of contexts) await value.close().catch(() => {});
