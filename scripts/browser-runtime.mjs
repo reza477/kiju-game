@@ -13,8 +13,11 @@ export function deliveryBrowserOptions({platform = process.platform, env = proce
   if (backend === 'llvmpipe' && (platform !== 'linux' || !env.DISPLAY || env.LIBGL_ALWAYS_SOFTWARE !== 'true' || env.GALLIUM_DRIVER !== 'llvmpipe')) {
     throw new Error('The llvmpipe experiment requires Linux, an existing X DISPLAY, LIBGL_ALWAYS_SOFTWARE=true and GALLIUM_DRIVER=llvmpipe.');
   }
+  // Chromium's Linux software-rendering list blocks llvmpipe (entry 3).
+  // Override that policy only for this explicitly selected isolated test driver;
+  // the real WebGL2 pixel/renderer preflight below still has to succeed.
   const graphicsArgs = backend === 'llvmpipe'
-    ? ['--enable-gpu', '--use-gl=angle', '--use-angle=gl', '--use-cmd-decoder=passthrough']
+    ? ['--enable-gpu', '--use-gl=angle', '--use-angle=gl', '--use-cmd-decoder=passthrough', '--ignore-gpu-blocklist']
     : ['--enable-unsafe-swiftshader', ...(backend === 'auto' ? [] : [`--use-angle=${backend}`])];
   return {headless: true, ...(env.PLAYWRIGHT_CHANNEL ? {channel: env.PLAYWRIGHT_CHANNEL} : {}), args: ['--mute-audio', ...graphicsArgs]};
 }
@@ -35,8 +38,10 @@ export async function browserGraphicsInfo(browser, {platform = process.platform,
     info.webgl2Probe = await Promise.race([probe.evaluate(() => {
       const began = performance.now(), canvas = document.createElement('canvas');
       canvas.width = canvas.height = 2;
+      let contextError = null;
+      canvas.addEventListener('webglcontextcreationerror', event => {contextError = event.statusMessage;});
       const gl = canvas.getContext('webgl2');
-      if (!gl) return {available: false, elapsedMs: performance.now() - began};
+      if (!gl) return {available: false, contextError, elapsedMs: performance.now() - began};
       const debug = gl.getExtension('WEBGL_debug_renderer_info');
       gl.clearColor(.25, .5, .75, 1); gl.clear(gl.COLOR_BUFFER_BIT);
       const pixel = new Uint8Array(4);

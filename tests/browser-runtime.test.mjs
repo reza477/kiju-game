@@ -17,7 +17,7 @@ test('ordinary Windows and Linux browser settings retain their existing backends
 
 test('Mesa diagnosis is explicit and needs the existing Linux display and software driver selection', () => {
   assert.deepEqual(deliveryBrowserOptions({platform: 'linux', env: mesaEnvironment}).args, [
-    '--mute-audio', '--enable-gpu', '--use-gl=angle', '--use-angle=gl', '--use-cmd-decoder=passthrough',
+    '--mute-audio', '--enable-gpu', '--use-gl=angle', '--use-angle=gl', '--use-cmd-decoder=passthrough', '--ignore-gpu-blocklist',
   ]);
   for (const key of ['DISPLAY', 'LIBGL_ALWAYS_SOFTWARE', 'GALLIUM_DRIVER']) {
     assert.throws(() => deliveryBrowserOptions({platform: 'linux', env: {...mesaEnvironment, [key]: ''}}), /requires Linux/);
@@ -26,11 +26,11 @@ test('Mesa diagnosis is explicit and needs the existing Linux display and softwa
   assert.throws(() => deliveryBrowserOptions({platform: 'linux', env: {PLAYTEST_GRAPHICS_BACKEND: 'unknown'}}), /Unsupported/);
 });
 
-function mockBrowser({cdpRenderer = renderer, probeResult = {}, evaluateError} = {}) {
+function mockBrowser({cdpRenderer = renderer, cdpWebgl = 'enabled', probeResult = {}, evaluateError} = {}) {
   const calls = {detached: 0, closed: 0, pages: 0, pageClosed: 0};
   const browser = {
     async newBrowserCDPSession() {
-      return {async send() {return {gpu: {auxAttributes: {glRenderer: cdpRenderer}, featureStatus: {webgl: 'enabled'}}};}, async detach() {calls.detached++;}};
+      return {async send() {return {gpu: {auxAttributes: {glRenderer: cdpRenderer}, featureStatus: {webgl: cdpWebgl}}};}, async detach() {calls.detached++;}};
     },
     async newPage() {
       calls.pages++;
@@ -65,7 +65,7 @@ test('Mesa diagnosis fails closed on fallback, unavailable WebGL2, or failed pix
   for (const mismatch of [
     {cdpRenderer: 'ANGLE (Google, SwiftShader)'},
     {probeResult: {renderer: 'ANGLE (Google, SwiftShader)'}},
-    {probeResult: {available: false}},
+    {cdpWebgl: 'unavailable_off', probeResult: {available: false}},
     {probeResult: {version: 'WebGL 1.0'}},
     {probeResult: {error: 1280}},
     {probeResult: {pixel: [0, 0, 0, 0]}},
