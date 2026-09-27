@@ -5,6 +5,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {chromium} from 'playwright';
 import {createDeliveryServer, readFrozenRelease} from './helpers/delivery-server.mjs';
+import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
+import {waitForBrowserCondition} from './helpers/browser-condition.mjs';
 
 const output = path.resolve(process.env.OUTPUT_DIR || 'artifacts/delivery/browser');
 await fs.mkdir(output, {recursive: true});
@@ -19,12 +21,13 @@ const report = {
   evidence: 'Isolated desktop Chromium with touch emulation, native RAF and wall time. Not hosted, desktop WebKit, physical iPhone, or a performance benchmark.',
   diagnosticExtendedWait: process.env.DELIVERY_DIAGNOSE_UPDATE === '1',
   fixtures: ['B is a separately frozen harmless release-metadata fixture.', 'Fault injection only affects this random-port loopback server.', 'One isolated page temporarily rejects its save-key write to exercise update refusal.', 'The second client is placed near its first rival solely to exercise actual Engage/Withdraw controls without a long travel wait. No hull, resources, combat statistics, or simulation clock are granted.'],
-  checks: [], observations: [], pageErrors: [], unexpectedConsoleErrors: [], expectedFaultErrors: [], remoteRequests: [],
+  checks: [], observations: [], pageErrors: [], unexpectedConsoleErrors: [], expectedFaultErrors: [], failedRequests: [], remoteRequests: [],
   limitations: ['Quota exhaustion, worker restart and deployment mutation cases require worker unit coverage; this browser gate does not claim real device storage exhaustion.', 'Foreground/connectivity events are browser-dispatched lifecycle checks; physical lock/resume remains untested.'],
 };
-const browser = await chromium.launch({headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? {channel: process.env.PLAYWRIGHT_CHANNEL} : {}), args: ['--mute-audio', '--enable-unsafe-swiftshader']});
+const browser = await chromium.launch(deliveryBrowserOptions());
 report.browser = browser.version();
-let context, page, other, offlineBaseline, phase = 'startup', faultExpected = false;
+report.graphics = await browserGraphicsInfo(browser);
+let context, page, other, offlineBaseline, phase = 'startup', faultExpected = false, deliberatelyOffline = false;
 const contexts = new Set();
 const saveKey = 'colossus-wake-save-v1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -34,8 +37,12 @@ function observe(target) {
   target.on('pageerror', error => report.pageErrors.push({phase, message: error.message}));
   target.on('console', message => {
     if (message.type() !== 'error') return;
-    (faultExpected ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text()});
+    const location = message.location();
+    const offlineMetadataFailure = deliberatelyOffline && location.url === `${server.origin}/release.json`
+      && /net::ERR_INTERNET_DISCONNECTED/.test(message.text());
+    (faultExpected || offlineMetadataFailure ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text(), location});
   });
+  target.on('requestfailed', request => report.failedRequests.push({phase, path: new URL(request.url()).pathname, error: request.failure()?.errorText}));
 }
 async function freshContext(origin = server.origin) {
   const value = await browser.newContext({viewport: {width: 844, height: 390}, deviceScaleFactor: 1, isMobile: true, hasTouch: true});
@@ -51,16 +58,7 @@ async function loaded(target, build) {
   await until(target, async expected => !!window.__colossus && (await import('/src/build-info.js')).BUILD_ID === expected, build);
 }
 async function until(target, predicate, argument, timeout = 120000) {
-  // Playwright's waitForFunction truth-tests the immediate predicate return;
-  // an async predicate therefore succeeds on its Promise before its boolean.
-  // page.evaluate awaits the Promise, so poll its actual resolved boolean here.
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    try {if (await target.evaluate(predicate, argument)) return;}
-    catch (error) {if (!/Execution context was destroyed|Cannot find context|because of a navigation/.test(error.message)) throw error;}
-    await delay(200);
-  }
-  throw new Error(`Timed out after ${timeout}ms waiting for a resolved browser condition.`);
+  return waitForBrowserCondition(target, predicate, argument, {timeoutMs: timeout});
 }
 async function offlineStatus(target = page) {
   return target.evaluate(async () => (await import('/src/offline.js')).refreshOfflineStatus());
@@ -153,6 +151,19 @@ try {
     });
   }
 
+  await check('Interrupted B leaves A playable after an actual offline reopen', async () => {
+    const before = await savedIdentity();
+    deliberatelyOffline = true; await context.setOffline(true);
+    const retained = await context.newPage(); await open(retained); await loaded(retained, A.descriptor.buildId);
+    await retained.locator('#continue').tap(); assert.deepEqual(await savedIdentity(retained), before);
+    await touchMove(retained);
+    const current = await offlineStatus(retained);
+    assert.equal(current.canPlayOffline, true); assert.equal(current.installedBuildId, A.descriptor.buildId);
+    await retained.screenshot({path: path.join(output, 'interrupted-update-offline-A.png')});
+    await retained.close(); await context.setOffline(false); deliberatelyOffline = false;
+    await page.bringToFront();
+  });
+
   await check('B downloads during play while two existing clients retain A', async () => {
     await other.bringToFront(); await loaded(other, A.descriptor.buildId);
     await other.evaluate(() => {const game = window.__colossus, rival = game.state.enemies[0]; game.state.x = rival.x - 32; game.state.z = rival.z; game.state.target = null; game.scene.snapCamera = true; game.advance(0);});
@@ -184,7 +195,8 @@ try {
       window.__restoreDeliverySave = () => {Storage.prototype.setItem = original; delete window.__restoreDeliverySave;};
       Storage.prototype.setItem = function(name, value) {if (name === key) throw new DOMException('Deliberate isolated save failure', 'QuotaExceededError'); return original.call(this, name, value);};
     }, saveKey);
-    await page.locator('#offline-apply').tap(); await page.waitForTimeout(350);
+    await page.locator('#offline-apply').tap();
+    await until(page, () => document.getElementById('offline-status')?.textContent.includes('could not be saved') === true);
     assert.equal(await page.evaluate(() => performance.timeOrigin), firstOrigin);
     assert.deepEqual(await savedIdentity(), before);
     await page.evaluate(() => window.__restoreDeliverySave());
@@ -249,13 +261,14 @@ try {
 
   await check('B reopens and continues offline after its server is stopped', async () => {
     assert.ok(offlineBaseline, 'The verified B page saved before independent server-switch fixtures');
-    await server.close(); await context.setOffline(true);
+    await server.close(); deliberatelyOffline = true; await context.setOffline(true);
     page = await context.newPage(); await open(page); await loaded(page, B.descriptor.buildId);
     await page.locator('#continue').tap(); assert.deepEqual(await savedIdentity(), offlineBaseline);
     await touchMove(); await playtest();
     const status = await page.evaluate(async () => (await import('/src/offline.js')).checkForUpdate());
     assert.equal(status.canPlayOffline, true); assert.equal(status.installedBuildId, B.descriptor.buildId);
     assert.notEqual(status.state, 'up-to-date', 'Offline is not a successful latest-release verification');
+    assert.equal(status.checkedAt, null, 'Cold offline launch has no successful online release check');
     report.observations.push({phase, offline: status});
     await page.screenshot({path: path.join(output, 'offline-B.png')});
   });
@@ -264,14 +277,16 @@ try {
 } catch (error) {
   report.failure = {phase, message: error.stack}; process.exitCode = 1;
   if (page && !page.isClosed()) {
-    report.failure.browserState = await page.evaluate(async () => {
+    let diagnosticTimer;
+    report.failure.browserState = await Promise.race([page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration('/');
       return {readyState: document.readyState, hidden: document.hidden, online: navigator.onLine, timeOrigin: performance.timeOrigin,
         navigation: performance.getEntriesByType('navigation').map(entry => ({domContentLoadedEventEnd: entry.domContentLoadedEventEnd, loadEventEnd: entry.loadEventEnd})),
         status: (await import('/src/offline.js')).getOfflineStatus(), statusText: document.getElementById('offline-status')?.textContent,
         applyClass: document.getElementById('offline-apply')?.className, active: reg?.active?.state, waiting: reg?.waiting?.state, installing: reg?.installing?.state};
-    }).catch(error => ({unavailable: error.message}));
-    await page.screenshot({path: path.join(output, 'failure.png')}).catch(() => {});
+    }), new Promise((_, reject) => {diagnosticTimer = setTimeout(() => reject(new Error('Failure-state capture exceeded 10 seconds.')), 10000);})])
+      .catch(error => ({unavailable: error.message})).finally(() => clearTimeout(diagnosticTimer));
+    await page.screenshot({path: path.join(output, 'failure.png'), timeout: 10000}).catch(() => {});
   }
 } finally {
   for (const value of contexts) await value.close().catch(() => {});

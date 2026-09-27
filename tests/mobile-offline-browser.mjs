@@ -5,6 +5,7 @@ import http from 'node:http';
 import {homedir} from 'node:os';
 import path from 'node:path';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
+import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
 const require=createRequire(import.meta.url);
 let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 // This test owns its server so it can prove offline reopening with that server
@@ -25,7 +26,8 @@ const server=http.createServer(async(req,res)=>{
 const port=Number(process.env.GAME_TEST_PORT||0);assert.ok(Number.isInteger(port)&&port>=0&&port<=65535,'GAME_TEST_PORT must be a valid loopback port');
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
 const base=`http://127.0.0.1:${server.address().port}`,out=process.env.OUTPUT_DIR||process.env.GAME_TEST_OUTPUT||'artifacts/mobile-offline';await fs.mkdir(out,{recursive:true});
-const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
+const browser=await playwright.chromium.launch(deliveryBrowserOptions());
+const graphics=await browserGraphicsInfo(browser);
 const context=await browser.newContext({viewport:{width:1366,height:1024},hasTouch:true,isMobile:true,deviceScaleFactor:1});
 let page=await context.newPage();const errors=[],checks=[],remote=[],failedRequests=[];
 const observe=page=>{page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push({message:m.text(),location:m.location()});});page.on('request',r=>{if(!r.url().startsWith(base))remote.push(r.url());});page.on('requestfailed',r=>failedRequests.push({url:r.url(),failure:r.failure()}));};observe(page);
@@ -89,5 +91,5 @@ try{
  await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus,{},{timeout:90000});await page.locator('#continue').tap();
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);checks.push('Explicit full-cache repair restores the game without deleting its save');
  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);checks.push('No browser runtime errors or third-party requests');
- await fs.writeFile(`${out}/results.json`,JSON.stringify({release,checks,errors,remote,limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,checks,errors,remote},null,2));
+ await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote},null,2));
 }catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
