@@ -4,6 +4,17 @@ import { readFile } from 'node:fs/promises';
 import YAML from 'yaml';
 const workflow = YAML.parse(await readFile(new URL('../.github/workflows/ci.yml',import.meta.url),'utf8'), { uniqueKeys: true });
 
+test('all hosted runner jobs require confirmed included usage before allocation', () => {
+  // A deploy-step check is too late: dependency installation and browser tests
+  // already consume runner minutes, including on direct pushes or dispatches.
+  assert.ok(workflow.on.push && workflow.on.workflow_dispatch);
+  const runnerJobs = Object.entries(workflow.jobs).filter(([, job]) => job['runs-on']);
+  assert.ok(runnerJobs.length > 0);
+  for (const [name, job] of runnerJobs) {
+    assert.equal(job.if, "vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED == 'true'", `${name} must reject unset or unconfirmed usage at the job boundary`);
+  }
+});
+
 test('one valid workflow keeps promotion serialized and tools/actions pinned', () => {
   assert.ok(workflow.on.push.branches.includes('codex/**'));
   assert.equal(workflow.concurrency['cancel-in-progress'],false);

@@ -22,6 +22,8 @@ concurrency:
 jobs:
   validate:
     name: Check, freeze, and publish passing playtests
+    # Evaluate before allocating a runner, including direct pushes and dispatches.
+    if: vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:

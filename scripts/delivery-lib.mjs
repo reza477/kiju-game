@@ -11,6 +11,33 @@ export function safeOrigin(value) {
   requireValue(url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash && url.pathname === '/', 'Use one HTTPS root origin without credentials, path or query.');
   return url.origin;
 }
+function deploymentOrigin(value) {
+  requireValue(typeof value === 'string' && /^https:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+vercel\.app\/?$/.test(value), 'Deployment output must contain a plain HTTPS vercel.app origin.');
+  return safeOrigin(value);
+}
+export function parseDeploymentOutput(output) {
+  requireValue(typeof output === 'string', 'Deployment output is unavailable.');
+  const text = output.trim();
+  // Legacy CLI output is accepted only when the entire stdout is one URL.
+  if (text.startsWith('https://')) return { url: deploymentOrigin(text) };
+  let result;
+  try { result = JSON.parse(text); }
+  catch { throw new Error('Deployment output is not valid structured JSON or a standalone URL.'); }
+  const deployment = result?.deployment;
+  requireValue(result?.status === 'ok' && !result.error && deployment && !deployment.error
+    && deployment.readyState === 'READY' && deployment.target === 'production'
+    && typeof deployment.id === 'string' && /^dpl_[a-zA-Z0-9]+$/.test(deployment.id), 'Deployment output did not report a ready production deployment.');
+  // Help/next-command URLs are not deployment identity.
+  return { id: deployment.id, url: deploymentOrigin(deployment.url) };
+}
+export function assertStagedDeployment(deployment, parsed, projectId) {
+  requireValue(deployment?.projectId === projectId && deployment.readyState === 'READY' && deployment.target === 'production', 'Staged deployment is not the ready production-target artifact.');
+  requireValue(typeof deployment.id === 'string' && /^dpl_[a-zA-Z0-9]+$/.test(deployment.id)
+    && (!parsed.id || deployment.id === parsed.id)
+    && typeof deployment.url === 'string' && deploymentOrigin(`https://${deployment.url}`) === parsed.url,
+  'Provider deployment identity differs from CLI output.');
+  return { url: parsed.url, id: deployment.id };
+}
 export function assertProtection(project, projectId, orgId) {
   requireValue(project.id === projectId && project.accountId === orgId, 'Hosting project/account mismatch.');
   requireValue(project.ssoProtection?.deploymentType === 'all', 'Vercel Authentication must protect ALL deployments, including production.');

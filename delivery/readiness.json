@@ -1,6 +1,6 @@
 {
   "eligible": false,
-  "reason": "The preceding visual gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. The Windows delivery repair now passes 12/12 combined checks in pinned Chromium 151 and Chrome 154 on frozen source e33125e, plus 184 unit tests. These are local GPU-backed desktop results; Linux CI, protected hosting and physical Apple-device checks remain unverified. Resolve the art gate or obtain an explicit art-only owner exception, and retain all functional/account/usage gates before publication. See docs/DELIVERY_REPAIR_2026-09-27.md.",
+  "reason": "The preceding visual gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. The Windows delivery repair passes 12/12 combined checks in pinned Chromium 151 and Chrome 154 on frozen source e33125e. Private empty hosting and included usage are now verified; no playable game is hosted. Setup repairs pass 189 unit tests. Linux CI, scoped CI publishing, nullable provider promotion reconciliation, hosted game updates and physical Apple-device checks remain to be established. Resolve the art gate or obtain an explicit art-only owner exception, and retain every functional/privacy gate. See docs/DELIVERY_REPAIR_2026-09-27.md and docs/PRIVATE_HOSTING_SETUP_2026-09-27.md.",
   "evidence": "art-reviews/iphone-pass1-04.md",
   "deliveryEvidence": "docs/DELIVERY_REPAIR_2026-09-27.md"
 }

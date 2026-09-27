@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir, cp } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { verifyRuntime, outputConfiguration, requireValue, safeOrigin, assertProtection, assertNoPendingPromotion, assertCurrentRevision, PLAYTEST_BRANCH, REPOSITORY } from './delivery-lib.mjs';
+import { verifyRuntime, outputConfiguration, requireValue, safeOrigin, parseDeploymentOutput, assertStagedDeployment, assertProtection, assertNoPendingPromotion, assertCurrentRevision, PLAYTEST_BRANCH, REPOSITORY } from './delivery-lib.mjs';
 import { hostedSmoke, hostedBrowserSmoke, privateFetch, assertDenied } from './hosted-smoke.mjs';
 
 const env = process.env;
@@ -100,11 +100,9 @@ async function stage(directory) {
     const timer = setTimeout(() => { child.kill(); reject(new Error('Staging timed out; permanent address was not moved.')); }, 8 * 60 * 1000);
     child.on('error', reject); child.on('exit', code => { clearTimeout(timer); code === 0 ? resolve(stdout) : reject(new Error(`Vercel staging exited ${code}; output withheld to protect credentials.`)); });
   });
-  const urls = output.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/g) || [];
-  const url = requireValue(urls.at(-1), 'CLI did not return a deployment URL.');
-  const deployment = (await vercel(`/v13/deployments/${new URL(url).hostname}${params}`)).data;
-  requireValue(deployment.projectId === projectId && deployment.readyState === 'READY' && deployment.target === 'production', 'Staged deployment is not the ready production-target artifact.');
-  return { url, id: deployment.id };
+  const parsed = parseDeploymentOutput(output);
+  const deployment = (await vercel(`/v13/deployments/${new URL(parsed.url).hostname}${params}`)).data;
+  return assertStagedDeployment(deployment, parsed, projectId);
 }
 
 // Empty probe first; not a playable asset and never assigned to the app origin.

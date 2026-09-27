@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertProtection, assertNoPendingPromotion, assertCurrentRevision, safeOrigin, outputConfiguration, digest } from '../scripts/delivery-lib.mjs';
+import { assertProtection, assertNoPendingPromotion, assertCurrentRevision, safeOrigin, parseDeploymentOutput, assertStagedDeployment, outputConfiguration, digest } from '../scripts/delivery-lib.mjs';
 import { hostedSmoke, installHostAuthorization } from '../scripts/hosted-smoke.mjs';
 import { canonicalRuntimeBytes } from '../scripts/build-mobile-release.mjs';
 
@@ -13,6 +13,43 @@ test('release text is identical across Windows and Linux checkouts without alter
 });
 
 const project = { id: 'prj_test', accountId: 'team_test', ssoProtection: { deploymentType: 'all' }, publicSource: false };
+const cliDeployment = { id: 'dpl_test', url: 'https://game-stage-test.vercel.app', readyState: 'READY', target: 'production' };
+test('CLI structured deployment identity ignores misleading next-command links', () => {
+  const output = JSON.stringify({ status: 'ok', deployment: cliDeployment,
+    message: 'Inspect https://unrelated.vercel.app', next: [{command: 'vercel promote https://wrong-next.vercel.app'}] });
+  assert.deepEqual(parseDeploymentOutput(output), { id: 'dpl_test', url: cliDeployment.url });
+});
+test('CLI parser accepts exact legacy URL output but rejects ambiguous text and error JSON', () => {
+  assert.deepEqual(parseDeploymentOutput(`\n${cliDeployment.url}/\n`), { url: cliDeployment.url });
+  for (const output of ['', '{', 'null', '[]', JSON.stringify(cliDeployment),
+    `Deployed ${cliDeployment.url}`, `${cliDeployment.url}\nhttps://another.vercel.app`,
+    JSON.stringify({status:'error',deployment:cliDeployment}),
+    JSON.stringify({status:'ok',error:{message:'failed'},deployment:cliDeployment}),
+    JSON.stringify({status:'ok',deployment:{...cliDeployment,id:undefined}}),
+    JSON.stringify({status:'ok',deployment:{...cliDeployment,readyState:'ERROR'}}),
+    JSON.stringify({status:'ok',deployment:{...cliDeployment,target:'preview'}})]) {
+    assert.throws(() => parseDeploymentOutput(output));
+  }
+});
+test('CLI deployment addresses reject credentials, paths, queries and foreign hosts', () => {
+  for (const url of ['http://game.vercel.app', 'https://secret@game.vercel.app', 'https://game.vercel.app/path',
+    'https://game.vercel.app/?token=secret', 'https://game.vercel.app/#fragment', 'https://game.vercel.app:443',
+    'https://game.vercel.app.evil.example', 'https://vercel.app', 'https://game.vercel.app?',
+    'https://game.vercel.app/../']) {
+    assert.throws(() => parseDeploymentOutput(JSON.stringify({status:'ok',deployment:{...cliDeployment,url}})));
+    assert.throws(() => parseDeploymentOutput(url));
+  }
+});
+test('provider lookup must confirm CLI identity and the ready production project', () => {
+  const parsed = parseDeploymentOutput(JSON.stringify({status:'ok',deployment:cliDeployment}));
+  const deployment = {...cliDeployment,url:new URL(cliDeployment.url).hostname,projectId:'prj_test'};
+  assert.deepEqual(assertStagedDeployment(deployment,parsed,'prj_test'), parsed);
+  assert.deepEqual(assertStagedDeployment(deployment,parseDeploymentOutput(cliDeployment.url),'prj_test'), parsed);
+  for (const change of [{id:'dpl_other'}, {url:'other.vercel.app'}, {projectId:'prj_other'},
+    {readyState:'BUILDING'}, {target:'preview'}, {url:undefined}]) {
+    assert.throws(() => assertStagedDeployment({...deployment,...change},parsed,'prj_test'));
+  }
+});
 test('Standard Protection and wrong project cannot upload game assets', () => {
   assert.doesNotThrow(() => assertProtection(project, 'prj_test', 'team_test'));
   for (const change of [{ssoProtection:{deploymentType:'prod_deployment_urls_and_all_previews'}},{publicSource:true},{link:{type:'github'}},{rollingRelease:{enabled:true}},{id:'other'}]) {
