@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir, cp } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { verifyRuntime, outputConfiguration, requireValue, safeOrigin, parseDeploymentOutput, assertStagedDeployment, assertProtection, assertNoPendingPromotion, assertCurrentRevision, PLAYTEST_BRANCH, REPOSITORY } from './delivery-lib.mjs';
+import { verifyRuntime, outputConfiguration, requireValue, safeOrigin, parseDeploymentOutput, assertStagedDeployment, assertProtection, assertNoPendingPromotion, assertCurrentRevision, recordPromotionInventory, assertPromotionBaseline, confirmObservedPromotion, PLAYTEST_BRANCH, REPOSITORY } from './delivery-lib.mjs';
 import { hostedSmoke, hostedBrowserSmoke, privateFetch, assertDenied } from './hosted-smoke.mjs';
 
 const env = process.env;
@@ -32,7 +32,22 @@ async function getProject() {
   const { data } = await vercel(`/v9/projects/${projectId}${params}`);
   assertProtection(data, projectId, orgId); return data;
 }
-async function freshHead() { const { data } = await github(`/git/ref/heads/${PLAYTEST_BRANCH}`); assertCurrentRevision(data.object?.sha, record.gitCommit); }
+async function freshHead() { const { data } = await github(`/git/ref/heads/${PLAYTEST_BRANCH}`); assertCurrentRevision(data.object?.sha, record.gitCommit); return data.object.sha; }
+async function readInventory() {
+  const domains = [], aliases = [];
+  let cursor;
+  do {
+    const page = (await vercel(`/v9/projects/${projectId}/domains${params}${cursor ? `&until=${cursor}` : ''}`)).data;
+    requireValue(Array.isArray(page.domains), 'Project domain inventory is unavailable.');
+    domains.push(...page.domains); cursor = page.pagination?.next;
+  } while (cursor);
+  do {
+    const page = (await vercel(`/v4/aliases${params}&projectId=${encodeURIComponent(projectId)}${cursor ? `&until=${cursor}` : ''}`)).data;
+    requireValue(Array.isArray(page.aliases), 'Project alias inventory is unavailable.');
+    aliases.push(...page.aliases); cursor = page.pagination?.next;
+  } while (cursor);
+  return { domains, aliases };
+}
 const { data: repository } = await github('');
 requireValue(repository.private === true, 'Repository must remain private.');
 let project = await getProject(); assertNoPendingPromotion(project);
@@ -46,25 +61,13 @@ for (let page = 1; ; page++) {
   }
   if (deployments.length < 100) break;
 }
-const domains = [];
-let domainCursor;
-do {
-  const page = (await vercel(`/v9/projects/${projectId}/domains${params}${domainCursor ? `&until=${domainCursor}` : ''}`)).data;
-  requireValue(Array.isArray(page.domains), 'Project domain inventory is unavailable.');
-  domains.push(...page.domains); domainCursor = page.pagination?.next;
-} while (domainCursor);
+const { domains, aliases } = await readInventory();
 requireValue(domains?.some(domain => domain.name === new URL(origin).hostname && domain.verified), 'Permanent address is not a verified domain of this dedicated project.');
 const protectedHosts = new Set(domains.map(domain => domain.name));
-let aliasCursor;
-do {
-  const page = (await vercel(`/v4/aliases${params}&projectId=${encodeURIComponent(projectId)}${aliasCursor ? `&until=${aliasCursor}` : ''}`)).data;
-  requireValue(Array.isArray(page.aliases), 'Project alias inventory is unavailable.');
-  for (const alias of page.aliases) {
-    requireValue(typeof alias.alias === 'string' && alias.alias.length > 0, 'Malformed hosting alias.');
-    protectedHosts.add(alias.alias);
-  }
-  aliasCursor = page.pagination?.next;
-} while (aliasCursor);
+for (const alias of aliases) {
+  requireValue(typeof alias.alias === 'string' && alias.alias.length > 0, 'Malformed hosting alias.');
+  protectedHosts.add(alias.alias);
+}
 // Bootstrap must first place harmless protected content on this permanent URL.
 // A setting alone is insufficient; public exceptions/redirects fail this check.
 for (const hostname of protectedHosts) {
@@ -116,11 +119,23 @@ const stagedCheck = await hostedSmoke(staged.url, verified.release, bypass, { re
 const browserCheck = await hostedBrowserSmoke(staged.url, bypass, record.buildId);
 // Recheck inside this non-cancelling serialized workflow, immediately before intent.
 project = await getProject(); assertNoPendingPromotion(project); await freshHead();
+const baselineInventory = recordPromotionInventory(await readInventory(), projectId, origin);
+const previousDeploymentId = project.targets?.production?.id;
+requireValue(typeof previousDeploymentId === 'string' && /^dpl_[a-zA-Z0-9]+$/.test(previousDeploymentId), 'Prior production deployment is required for rollback evidence.');
+assertPromotionBaseline({ inventory: baselineInventory, projectId, origin, previousDeploymentId, deploymentId: staged.id });
 const { data: intent } = await github('/deployments', 'POST', { ref: record.gitCommit, auto_merge: false, required_contexts: [], task: 'colossus-promote', environment: 'private-playtest', transient_environment: false, production_environment: false,
-  description: 'Serialized promotion intent; unresolved state blocks later releases.', payload: { projectId, targetDeploymentId: staged.id, buildId: record.buildId, artifactSha256: record.artifactSha256, origin, runId: env.GITHUB_RUN_ID, attemptId: randomUUID(), priorRequest: project.lastAliasRequest || null } });
+  description: 'Serialized promotion intent; unresolved state blocks later releases.', payload: { projectId, targetDeploymentId: staged.id, previousDeploymentId, baselineInventory, buildId: record.buildId, artifactSha256: record.artifactSha256, origin, runId: env.GITHUB_RUN_ID, attemptId: randomUUID(), priorRequest: project.lastAliasRequest || null } });
 const confirmIntent = (await github(`/deployments/${intent.id}`)).data;
-requireValue(confirmIntent.payload?.targetDeploymentId === staged.id, 'Could not persist promotion intent.');
+requireValue(confirmIntent.id === intent.id && confirmIntent.sha === record.gitCommit
+  && confirmIntent.payload?.projectId === projectId && confirmIntent.payload.targetDeploymentId === staged.id
+  && confirmIntent.payload.previousDeploymentId === previousDeploymentId && confirmIntent.payload.origin === origin
+  && confirmIntent.payload.buildId === record.buildId && confirmIntent.payload.artifactSha256 === record.artifactSha256
+  && JSON.stringify(recordPromotionInventory(confirmIntent.payload.baselineInventory, projectId, origin)) === JSON.stringify(baselineInventory),
+'Could not persist the exact promotion intent and rollback baseline.');
 await github(`/deployments/${intent.id}/statuses`, 'POST', { state: 'in_progress', description: 'Remote promotion pending; never infer cancellation from age.', auto_inactive: false });
+const intentStatus = (await github(`/deployments/${intent.id}/statuses?per_page=1`)).data[0];
+requireValue(intentStatus?.state === 'in_progress', 'Could not confirm the durable in-progress promotion intent.');
+const durableIntent = { ...confirmIntent, state: intentStatus.state };
 try { await freshHead(); }
 catch (error) {
   // No Vercel promotion request has been sent yet, so this outcome is known.
@@ -133,20 +148,42 @@ const promotion = await vercel(`/v10/projects/${projectId}/promote/${staged.id}$
 requireValue(promotion.status === 201, 'Promotion was queued or ambiguous; durable intent remains blocked for reconciliation.');
 const deadline = Date.now() + 5 * 60 * 1000;
 let promoted = false;
+let confirmation;
+let observedFallbackAllowed = true;
 while (Date.now() < deadline) {
   project = await getProject();
   const request = project.lastAliasRequest;
-  if (request?.toDeploymentId === staged.id && request.jobStatus === 'succeeded') { promoted = true; break; }
+  requireValue(request !== undefined, 'Provider promotion state is missing; durable intent remains unresolved.');
+  if (request !== null) observedFallbackAllowed = false;
+  if (request?.toDeploymentId === staged.id && request.jobStatus === 'succeeded') { promoted = true; confirmation = { mode: 'provider-request', request }; break; }
   if (request?.toDeploymentId === staged.id && ['failed','skipped'].includes(request.jobStatus)) {
     await github(`/deployments/${intent.id}/statuses`, 'POST', { state: 'failure', description: 'Provider confirmed terminal unsuccessful promotion.', auto_inactive: false });
     throw new Error('Provider confirmed promotion failure; review prior permanent release.');
   }
+  if (request === null) {
+    requireValue(observedFallbackAllowed, 'An explicit provider request disappeared; reconcile that request before completing the intent.');
+    confirmation = await confirmObservedPromotion({ responseStatus: promotion.status, baselineInventory,
+      expected: { projectId, orgId, deploymentId: staged.id, deploymentUrl: staged.url, previousDeploymentId, origin,
+        gitCommit: record.gitCommit, buildId: record.buildId, artifactSha256: record.artifactSha256 },
+      intent: durableIntent,
+      readSnapshot: async () => ({ project: await getProject(),
+        deployment: (await vercel(`/v13/deployments/${staged.id}${params}`)).data,
+        inventory: await readInventory(), currentHead: await freshHead() }),
+      verifyHosted: host => hostedSmoke(host, verified.release, bypass, { records: verified.records }) });
+    promoted = true; break;
+  }
   await new Promise(resolve => setTimeout(resolve, 2000));
 }
 requireValue(promoted, 'Promotion remains unresolved. Future releases will stop until reconciled.');
-const alias = (await vercel(`/v4/aliases/${new URL(origin).hostname}${params}`)).data;
-requireValue(alias.deploymentId === staged.id || alias.deployment?.id === staged.id, 'Permanent alias does not point to the exact staged deployment.');
-const permanent = await hostedSmoke(origin, verified.release, bypass, { records: verified.records });
-await github(`/deployments/${intent.id}/statuses`, 'POST', { state: 'success', description: `Verified ${record.buildId} at the permanent protected origin.`, environment_url: origin, auto_inactive: false });
-await writeFile('artifacts/delivery/published.json', JSON.stringify({ ...record, probe, staged, stagedCheck, browserCheck, permanent, intentId: intent.id, previousDeploymentId: project.lastAliasRequest.fromDeploymentId, verifiedAt: new Date().toISOString() }, null, 2));
+let permanent;
+if (confirmation.mode === 'observed-promotion') {
+  permanent = confirmation.hostedChecks.findLast(check => check.origin === origin);
+} else {
+  const alias = (await vercel(`/v4/aliases/${new URL(origin).hostname}${params}`)).data;
+  requireValue(alias.deploymentId === staged.id || alias.deployment?.id === staged.id, 'Permanent alias does not point to the exact staged deployment.');
+  permanent = await hostedSmoke(origin, verified.release, bypass, { records: verified.records });
+}
+await freshHead();
+await github(`/deployments/${intent.id}/statuses`, 'POST', { state: 'success', description: `Verified ${record.buildId} via ${confirmation.mode}.`, environment_url: origin, auto_inactive: false });
+await writeFile('artifacts/delivery/published.json', JSON.stringify({ ...record, probe, staged, stagedCheck, browserCheck, permanent, confirmation, intentId: intent.id, previousDeploymentId, verifiedAt: new Date().toISOString() }, null, 2));
 console.log(JSON.stringify({ origin, buildId: record.buildId, commit: record.gitCommit, deployment: staged.id, protected: true, verified: true }));

@@ -36,3 +36,15 @@ test('required tests and readiness precede the only deployment step', () => {
   assert.equal(steps[deploy].if,"github.ref == 'refs/heads/codex/playtest'");
   assert.ok(!steps[deploy]['continue-on-error']);
 });
+
+test('local artifact gate and eventual hosted browser checks use the same verified software backend', () => {
+  const steps = workflow.jobs.validate.steps;
+  const browser = steps.find(step => step.run?.includes('test:delivery'));
+  const deploy = steps.find(step => step.run?.includes('deliver:playtest'));
+  assert.match(browser.run, /^xvfb-run -a /);
+  assert.match(deploy.run, /^xvfb-run -a /);
+  assert.equal(browser.env.PLAYTEST_GRAPHICS_BACKEND, 'llvmpipe');
+  for (const key of ['PLAYTEST_GRAPHICS_BACKEND', 'LIBGL_ALWAYS_SOFTWARE', 'GALLIUM_DRIVER']) {
+    assert.equal(deploy.env[key], browser.env[key], `${key} must not change after the artifact passes`);
+  }
+});
