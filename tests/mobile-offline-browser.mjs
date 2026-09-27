@@ -26,7 +26,7 @@ const server=http.createServer(async(req,res)=>{
 const port=Number(process.env.GAME_TEST_PORT||0);assert.ok(Number.isInteger(port)&&port>=0&&port<=65535,'GAME_TEST_PORT must be a valid loopback port');
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
 const base=`http://127.0.0.1:${server.address().port}`,out=process.env.OUTPUT_DIR||process.env.GAME_TEST_OUTPUT||'artifacts/mobile-offline';await fs.mkdir(out,{recursive:true});
-const browser=await playwright.chromium.launch(deliveryBrowserOptions());
+const browser=await playwright.chromium.launch({channel:'chrome',...deliveryBrowserOptions()});
 const graphics=await browserGraphicsInfo(browser);
 const context=await browser.newContext({viewport:{width:1366,height:1024},hasTouch:true,isMobile:true,deviceScaleFactor:1});
 let page=await context.newPage();const errors=[],checks=[],remote=[],failedRequests=[];
