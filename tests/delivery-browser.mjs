@@ -27,7 +27,7 @@ const report = {
 const browser = await chromium.launch(deliveryBrowserOptions());
 report.browser = browser.version();
 report.graphics = await browserGraphicsInfo(browser);
-let context, page, other, offlineBaseline, phase = 'startup', faultExpected = false, deliberatelyOffline = false;
+let context, page, other, offlineBaseline, phase = 'startup', expectedFault = null, deliberatelyOffline = false;
 const contexts = new Set();
 const saveKey = 'colossus-wake-save-v1';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -40,7 +40,9 @@ function observe(target) {
     const location = message.location();
     const offlineMetadataFailure = deliberatelyOffline && location.url === `${server.origin}/release.json`
       && /net::ERR_INTERNET_DISCONNECTED/.test(message.text());
-    (faultExpected || offlineMetadataFailure ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text(), location});
+    const injectedResourceFailure = expectedFault && location.url === `${server.origin}${expectedFault.path}`
+      && /^Failed to load resource: (?:the server responded with a status of (?:401|404)\b|net::ERR_(?:EMPTY_RESPONSE|CONNECTION_CLOSED|CONNECTION_RESET|INCOMPLETE_CHUNKED_ENCODING|CONTENT_LENGTH_MISMATCH))/.test(message.text());
+    (injectedResourceFailure || offlineMetadataFailure ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text(), location});
   });
   target.on('requestfailed', request => report.failedRequests.push({phase, path: new URL(request.url()).pathname, error: request.failure()?.errorText}));
 }
@@ -128,7 +130,7 @@ try {
   const faultAsset = B.descriptor.files.find(file => file.url === '/src/main.js').url;
   for (const injected of [{kind: 'unauthorized', path: '/release.json'}, {kind: 'html', path: '/release.json'}, {kind: 'missing', path: faultAsset}, {kind: 'html', path: faultAsset}, {kind: 'interrupt', path: faultAsset}]) {
     await check(`${injected.kind} at ${injected.path} cannot replace complete A or its save`, async () => {
-      server.select('B'); server.inject(injected); faultExpected = true;
+      server.select('B'); server.inject(injected); expectedFault = injected;
       const before = await savedIdentity(), start = await page.evaluate(() => performance.timeOrigin), requestIndex = server.requests.length;
       const result = await page.evaluate(async () => (await import('/src/offline.js')).checkForUpdate());
       report.observations.push({phase, status: result});
@@ -147,7 +149,7 @@ try {
       const current = await offlineStatus(); assert.equal(current.installedBuildId, A.descriptor.buildId); assert.equal(current.canPlayOffline, true);
       assert.deepEqual(await savedIdentity(), before);
       // Let failed worker console diagnostics arrive before ending this fixture.
-      await delay(150); server.inject(null); faultExpected = false;
+      await delay(150); server.inject(null); expectedFault = null;
     });
   }
 
