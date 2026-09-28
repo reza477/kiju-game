@@ -79,15 +79,43 @@ function operation(callback, options = {}) {
 export function refreshOfflineStatus(options) { return operation(refresh, options); }
 async function fetchRelease() {
   if (!supported()) throw Object.assign(new Error(unavailableMessage), {unavailable: true});
-  const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 8000);
-  try {
-    const response = await fetch('/release.json', {cache: 'no-store', credentials: 'same-origin', redirect: 'error', signal: abort.signal});
-    if (response.status === 404) throw Object.assign(new Error(unavailableMessage), {unavailable: true});
-    if (!response.ok || response.redirected || !response.headers.get('content-type')?.includes('application/json')) throw new Error('The hosted release could not be verified. Check that this game address is signed in.');
-    const release = await response.json();
-    if (release.app !== 'colossus-wake' || release.schemaVersion !== 1 || !/^[a-f0-9]{20}$/.test(release.buildId) || !Array.isArray(release.files) || !release.files.some(file => file.url === '/index.html') || !release.files.some(file => file.url === '/src/build-info.js')) throw new Error('This address did not return a valid Colossus Wake release.');
-    return release;
-  } finally { clearTimeout(timer); }
+  const release = await new Promise((resolve, reject) => {
+    let worker, loading, ready = false, finished = false;
+    const finish = (error, value) => {
+      if (finished) return;
+      finished = true; clearTimeout(loading);
+      if (worker) {worker.onmessage = worker.onerror = worker.onmessageerror = null; worker.terminate();}
+      error ? reject(error) : resolve(value);
+    };
+    try {
+      // The handshake bounds loading this small same-origin script separately
+      // from its request. Start the 8-second transport deadline in the worker
+      // only AFTER the handshake; a busy rendering thread must not abort a
+      // completely downloaded response while its message waits for delivery.
+      worker = new Worker(new URL('./release-fetch-worker.js', import.meta.url));
+      loading = setTimeout(() => finish(new Error('The release checker could not start. Reopen the app and retry.')), 30000);
+      worker.onerror = event => {event.preventDefault?.(); finish(new Error('The release checker could not run. Reopen the app and retry.'));};
+      worker.onmessageerror = () => finish(new Error('The release checker returned an unreadable response.'));
+      worker.onmessage = ({data}) => {
+        if (!ready && data?.type === 'release-ready') {
+          ready = true; clearTimeout(loading);
+          try {worker.postMessage({type: 'fetch-release'});} catch {finish(new Error('The release checker could not start its request.'));}
+        } else if (ready && data?.type === 'release-result') finish(null, data.release);
+        else if (ready && data?.type === 'release-error') {
+          const messages = {
+            unavailable: unavailableMessage,
+            timeout: 'The release download timed out. Your current game is kept.',
+            unverified: 'The hosted release could not be verified. Check that this game address is signed in.',
+            invalid: 'This address did not return a valid Colossus Wake release.',
+            network: 'The release download could not finish. Retry when connected.',
+          };
+          finish(Object.assign(new Error(messages[data.kind] || 'The release checker failed to verify the response.'), {unavailable: data.kind === 'unavailable'}));
+        } else finish(new Error('The release checker returned an unexpected response.'));
+      };
+    } catch {finish(new Error('The release checker could not start. Reopen the app and retry.'));}
+  });
+  if (!release || release.app !== 'colossus-wake' || release.schemaVersion !== 1 || !/^[a-f0-9]{20}$/.test(release.buildId) || !Array.isArray(release.files) || !release.files.some(file => file?.url === '/index.html') || !release.files.some(file => file?.url === '/src/build-info.js')) throw new Error('This address did not return a valid Colossus Wake release.');
+  return release;
 }
 function waitUntilInstalled(worker, waitForActivation = false) {
   if (!worker) throw new Error('The installer did not start. Retry when connected.');

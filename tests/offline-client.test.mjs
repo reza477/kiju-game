@@ -1,25 +1,138 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
 import { BUILD_ID } from '../src/build-info.js';
 
+const releaseWorkerSource = await readFile(new URL('../src/release-fetch-worker.js', import.meta.url), 'utf8');
 let moduleCount = 0;
 async function withBrowser(overrides, run) {
   const saved = new Map();
-  const keys = ['navigator', 'location', 'isSecureContext', 'caches', 'fetch', 'window', 'document'];
+  const keys = ['navigator', 'location', 'isSecureContext', 'caches', 'fetch', 'window', 'document', 'Worker', 'setTimeout', 'clearTimeout'];
   for (const key of keys) saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   let registrations = 0, fetches = 0;
+  const workers = [];
+  // Execute the actual classic-worker transport in an isolated realm. Main
+  // client tests still use fake browser APIs; transport behavior is not a
+  // second hand-written implementation of its status/MIME/security rules.
+  class BrowserWorker {
+    constructor(url) {
+      this.url = url; this.terminated = false; this.handlers = new Map(); this.timers = new Set(); workers.push(this);
+      const self = {addEventListener: (name, listener) => this.handlers.set(name, listener),
+        postMessage: data => queueMicrotask(() => {if (!this.terminated) this.onmessage?.({data});})};
+      vm.runInNewContext(releaseWorkerSource, {self, AbortController, fetch: (...args) => globalThis.fetch(...args),
+        setTimeout: (callback, ms) => {const id = setTimeout(() => {this.timers.delete(id); callback();}, ms); this.timers.add(id); return id;},
+        clearTimeout: id => {clearTimeout(id); this.timers.delete(id);}});
+    }
+    postMessage(data) {queueMicrotask(() => {if (!this.terminated) void this.handlers.get('message')?.({data});});}
+    terminate() {this.terminated = true; for (const id of this.timers) clearTimeout(id); this.timers.clear();}
+  }
   const serviceWorker = Object.assign(new EventTarget(), { controller: null, getRegistration: async () => null, register: async () => { registrations++; throw new Error('Unexpected registration'); }, ...overrides.serviceWorker });
   let reloads = 0; const address = new URL('https://game.example/'); address.reload = () => { reloads++; };
   const doc = Object.assign(new EventTarget(), {hidden: false});
-  const values = { window: new EventTarget(), document: doc, navigator: { serviceWorker, onLine: true }, location: address, isSecureContext: true, caches: {}, fetch: async () => { fetches++; throw new Error('Unexpected network request'); }, ...overrides.globals };
+  const values = { window: new EventTarget(), document: doc, navigator: { serviceWorker, onLine: true }, location: address, isSecureContext: true, caches: {}, Worker: BrowserWorker, fetch: async () => { fetches++; throw new Error('Unexpected network request'); }, ...overrides.globals };
   for (const [key, value] of Object.entries(values)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   try {
     const offline = await import(`../src/offline.js?test=${++moduleCount}`);
-    await run(offline, { serviceWorker, counts: () => ({ registrations, fetches, reloads }) });
+    await run(offline, { serviceWorker, workers, defaultWorker: BrowserWorker, counts: () => ({ registrations, fetches, reloads }) });
   } finally {
+    for (const worker of workers) worker.terminate();
     for (const [key, descriptor] of saved) descriptor ? Object.defineProperty(globalThis, key, descriptor) : delete globalThis[key];
   }
 }
+
+const validRelease = {app: 'colossus-wake', schemaVersion: 1, buildId: BUILD_ID, files: [{url: '/index.html'}, {url: '/src/build-info.js'}]};
+
+test('metadata transport terminates after success and main validates the descriptor independently', async () => {
+  const active = fakeWorker(BUILD_ID);
+  await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
+    fetch: async () => new Response(JSON.stringify(validRelease), {headers: {'Content-Type': 'application/json'}}),
+  }}, async (offline, browser) => {
+    assert.equal((await offline.prepareOffline()).canPlayOffline, true);
+    assert.equal(browser.workers.length, 1); assert.equal(browser.workers[0].terminated, true);
+    let invalidWorker;
+    globalThis.Worker = class {
+      constructor() {invalidWorker = this; queueMicrotask(() => this.onmessage({data: {type: 'release-ready'}}));}
+      postMessage() {queueMicrotask(() => this.onmessage({data: {type: 'release-result', release: {app: 'other-app'}}}));}
+      terminate() {this.terminated = true;}
+    };
+    const result = await offline.prepareOffline();
+    assert.equal(result.state, 'error'); assert.match(result.message, /valid Colossus Wake release/);
+    assert.equal(invalidWorker.terminated, true); assert.equal(browser.counts().registrations, 0);
+  });
+});
+
+test('worker load failure is cleaned up and the next manual attempt creates a fresh transport', async () => {
+  const active = fakeWorker(BUILD_ID);
+  await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
+    fetch: async () => new Response(JSON.stringify(validRelease), {headers: {'Content-Type': 'application/json'}}),
+  }}, async (offline, browser) => {
+    let failedWorker, prevented = false, attempts = 0;
+    globalThis.Worker = class {
+      constructor(url) {
+        if (++attempts > 1) return new browser.defaultWorker(url);
+        failedWorker = this;
+        queueMicrotask(() => this.onerror({preventDefault() {prevented = true;}}));
+      }
+      terminate() {this.terminated = true;}
+    };
+    assert.match((await offline.prepareOffline()).message, /could not run/);
+    assert.equal(failedWorker.terminated, true); assert.equal(prevented, true);
+    assert.equal((await offline.prepareOffline()).canPlayOffline, true);
+    assert.equal(attempts, 2); assert.equal(browser.workers[0].terminated, true);
+  });
+});
+
+test('only worker bootstrap is timed on the main thread; ready clears it before response delivery', async () => {
+  const timers = new Map(); let sequence = 0, worker;
+  const active = fakeWorker(BUILD_ID);
+  await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
+    setTimeout: (callback, ms) => {const id = ++sequence; timers.set(id, {callback, ms}); return id;},
+    clearTimeout: id => timers.delete(id),
+    Worker: class {
+      constructor() {worker = this; this.commands = [];}
+      postMessage(data) {this.commands.push(data);}
+      terminate() {this.terminated = true;}
+    },
+  }}, async offline => {
+    const waiting = offline.prepareOffline(); await Promise.resolve();
+    assert.deepEqual([...timers.values()].map(timer => timer.ms), [30000]);
+    worker.onmessage({data: {type: 'release-ready'}});
+    assert.deepEqual(worker.commands, [{type: 'fetch-release'}]);
+    // Advancing any amount of main-thread time cannot expire the worker's
+    // completed response: there is deliberately no main response timer.
+    assert.equal(timers.size, 0);
+    worker.onmessage({data: {type: 'release-result', release: validRelease}});
+    assert.equal((await waiting).canPlayOffline, true);
+    assert.equal(worker.terminated, true); assert.equal(timers.size, 0);
+  });
+});
+
+test('a worker that never reaches its ready handshake has a finite cleanup boundary', async () => {
+  let watchdog, worker;
+  await withBrowser({globals: {
+    setTimeout: (callback, ms) => {assert.equal(ms, 30000); watchdog = callback; return 1;},
+    clearTimeout() {},
+    Worker: class {constructor() {worker = this;} terminate() {this.terminated = true;}},
+  }}, async offline => {
+    const waiting = offline.prepareOffline(); await Promise.resolve(); watchdog();
+    assert.match((await waiting).message, /could not start/); assert.equal(worker.terminated, true);
+    assert.equal(worker.onmessage, null); assert.equal(worker.onerror, null);
+  });
+});
+
+test('unreadable and unexpected worker responses terminate and cannot register a service worker', async () => {
+  for (const mode of ['messageerror', 'unexpected']) {
+    let worker;
+    await withBrowser({globals: {Worker: class {
+      constructor() {worker = this; queueMicrotask(() => mode === 'messageerror' ? this.onmessageerror() : this.onmessage({data: {type: 'not-the-protocol'}}));}
+      terminate() {this.terminated = true;}
+    }}}, async (offline, browser) => {
+      assert.equal((await offline.prepareOffline()).state, 'error');
+      assert.equal(worker.terminated, true); assert.equal(browser.counts().registrations, 0);
+    });
+  }
+});
 function fakeWorker(buildId, complete = true, overrides = {}) {
   const messages = [];
   return { scriptURL: 'https://game.example/sw.js', state: 'activated', messages,
