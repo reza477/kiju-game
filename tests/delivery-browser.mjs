@@ -7,6 +7,7 @@ import {chromium} from 'playwright';
 import {createDeliveryServer, readFrozenRelease} from './helpers/delivery-server.mjs';
 import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
 import {waitForBrowserCondition} from './helpers/browser-condition.mjs';
+import {installDeliveryDiagnostics} from './helpers/delivery-diagnostics.mjs';
 
 const output = path.resolve(process.env.OUTPUT_DIR || 'artifacts/delivery/browser');
 await fs.mkdir(output, {recursive: true});
@@ -64,6 +65,7 @@ function observe(target) {
 async function freshContext(origin = server.origin) {
   const value = await browser.newContext({viewport: {width: 844, height: 390}, deviceScaleFactor: 1, isMobile: true, hasTouch: true});
   contexts.add(value);
+  await value.addInitScript(installDeliveryDiagnostics);
   await value.addInitScript(() => {localStorage.setItem('colossus-quality-v1', 'performance'); localStorage.setItem('colossus-camera-mode', 'steady');});
   value.on('request', request => {
     const url = new URL(request.url());
@@ -302,6 +304,7 @@ try {
     report.failure.browserState = await Promise.race([failedPage.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration('/');
       return {readyState: document.readyState, hidden: document.hidden, online: navigator.onLine, timeOrigin: performance.timeOrigin,
+        diagnostics: window.__deliveryDiagnostics?.snapshot(),
         navigation: performance.getEntriesByType('navigation').map(entry => ({domContentLoadedEventEnd: entry.domContentLoadedEventEnd, loadEventEnd: entry.loadEventEnd})),
         status: (await import('/src/offline.js')).getOfflineStatus(), statusText: document.getElementById('offline-status')?.textContent,
         applyClass: document.getElementById('offline-apply')?.className, active: reg?.active?.state, waiting: reg?.waiting?.state, installing: reg?.installing?.state};
