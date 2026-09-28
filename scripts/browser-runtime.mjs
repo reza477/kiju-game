@@ -22,7 +22,48 @@ export function deliveryBrowserOptions({platform = process.platform, env = proce
   return {headless: true, ...(env.PLAYWRIGHT_CHANNEL ? {channel: env.PLAYWRIGHT_CHANNEL} : {}), args: ['--mute-audio', ...graphicsArgs]};
 }
 
-export async function browserGraphicsInfo(browser, {platform = process.platform, env = process.env} = {}) {
+// Run on the exact isolated default context connected with noDefaults:true.
+// Creating a new Playwright context here would reintroduce focus emulation.
+export async function browserTabLifecycleInfo(context) {
+  let first, second, deadline;
+  const work = async () => {
+    first = await context.newPage(); second = await context.newPage();
+    for (const page of [first, second]) {
+      await page.evaluate(() => {
+      window.__deliveryProbeFrames = 0;
+      const frame = () => {window.__deliveryProbeFrames++; requestAnimationFrame(frame);};
+      requestAnimationFrame(frame);
+      });
+    }
+    const sample = page => page.evaluate(() => ({hidden: document.hidden, frames: window.__deliveryProbeFrames}));
+    const phases = [];
+    for (const [foreground, background] of [[first, second], [second, first]]) {
+      await foreground.bringToFront();
+      while (true) {
+        const [front, back] = await Promise.all([sample(foreground), sample(background)]);
+        if (!front.hidden && back.hidden) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      const before = await Promise.all([sample(foreground), sample(background)]);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const after = await Promise.all([sample(foreground), sample(background)]);
+      const phase = {foregroundHidden: after[0].hidden, backgroundHidden: after[1].hidden,
+        foregroundFrames: after[0].frames - before[0].frames, backgroundFrames: after[1].frames - before[1].frames};
+      phases.push(phase);
+      if (phase.foregroundHidden || !phase.backgroundHidden || phase.foregroundFrames < 1 || phase.backgroundFrames > 1) {
+        throw new Error(`Native tab lifecycle probe failed: ${JSON.stringify(phases)}`);
+      }
+    }
+    return {mode: 'native-window-tabs', sampleMs: 500, phases};
+  };
+  try {
+    return await Promise.race([work(), new Promise((_, reject) => {
+      deadline = setTimeout(() => reject(new Error('Native tab lifecycle probe exceeded 10 seconds.')), 10000);
+    })]);
+  } finally {clearTimeout(deadline); await Promise.all([first?.close(), second?.close()]);}
+}
+
+export async function browserGraphicsInfo(browser, {platform = process.platform, env = process.env, nativeContext} = {}) {
   const session = await browser.newBrowserCDPSession();
   let info;
   try {
@@ -31,10 +72,13 @@ export async function browserGraphicsInfo(browser, {platform = process.platform,
       renderer: gpu.auxAttributes?.glRenderer || null, vendor: gpu.auxAttributes?.glVendor || null,
       webgl: gpu.featureStatus?.webgl || null, webgl2: gpu.featureStatus?.webgl2 || null};
   } finally {await session.detach();}
-  if (info.requestedBackend !== 'llvmpipe') return info;
+  if (info.requestedBackend !== 'llvmpipe') {
+    if (nativeContext) info.tabLifecycle = await browserTabLifecycleInfo(nativeContext);
+    return info;
+  }
   let probe, timer;
   try {
-    probe = await browser.newPage();
+    probe = await (nativeContext ? nativeContext.newPage() : browser.newPage());
     info.webgl2Probe = await Promise.race([probe.evaluate(() => {
       const began = performance.now(), canvas = document.createElement('canvas');
       canvas.width = canvas.height = 2;
@@ -66,6 +110,7 @@ export async function browserGraphicsInfo(browser, {platform = process.platform,
         || ![64, 128, 191, 255].every((expected, index) => Math.abs((actual.pixel?.[index] ?? -100) - expected) <= 1)) {
       throw new Error('The requested llvmpipe backend did not provide verified WebGL2 rendering.');
     }
+    if (nativeContext) info.tabLifecycle = await browserTabLifecycleInfo(nativeContext);
     return info;
   } catch (error) {
     // Callers collect graphics before creating their gameplay context. Close on

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
+import {deliveryBrowserOptions, browserGraphicsInfo, browserTabLifecycleInfo} from '../scripts/browser-runtime.mjs';
 
 const mesaEnvironment = {PLAYTEST_GRAPHICS_BACKEND: 'llvmpipe', DISPLAY: ':99', LIBGL_ALWAYS_SOFTWARE: 'true', GALLIUM_DRIVER: 'llvmpipe'};
 const renderer = 'ANGLE (Mesa, llvmpipe (LLVM 20.1.2, 256 bits), OpenGL 4.5)';
@@ -26,7 +26,7 @@ test('Mesa diagnosis is explicit and needs the existing Linux display and softwa
   assert.throws(() => deliveryBrowserOptions({platform: 'linux', env: {PLAYTEST_GRAPHICS_BACKEND: 'unknown'}}), /Unsupported/);
 });
 
-function mockBrowser({cdpRenderer = renderer, cdpWebgl = 'enabled', probeResult = {}, evaluateError} = {}) {
+function mockBrowser({cdpRenderer = renderer, cdpWebgl = 'enabled', probeResult = {}, evaluateError, foregroundFrames = 30, backgroundFrames = 0} = {}) {
   const calls = {detached: 0, closed: 0, pages: 0, pageClosed: 0};
   const browser = {
     async newBrowserCDPSession() {
@@ -38,6 +38,17 @@ function mockBrowser({cdpRenderer = renderer, cdpWebgl = 'enabled', probeResult 
         if (evaluateError) throw evaluateError;
         return {available: true, renderer, version: 'WebGL 2.0 (OpenGL ES 3.0 Chromium)', pixel: [64, 128, 191, 255], error: 0, elapsedMs: 4, ...probeResult};
       }, async close() {calls.pageClosed++;}};
+    },
+    async newContext() {
+      let active;
+      return {async newPage() {
+        let frames = 0;
+        const page = {async close() {}, async bringToFront() {active = page;}, async evaluate() {
+          frames += active === page ? foregroundFrames : backgroundFrames;
+          return {hidden: active !== page, frames};
+        }};
+        return page;
+      }, async close() {}};
     },
     async close() {calls.closed++;},
   };
@@ -59,6 +70,17 @@ test('Mesa diagnosis requires real WebGL2 pixel output and agrees with the CDP r
   assert.equal(info.webgl2Probe.elapsedMs, 4);
   assert.deepEqual(info.webgl2Probe.pixel, [64, 128, 191, 255]);
   assert.deepEqual(calls, {detached: 2, closed: 0, pages: 1, pageClosed: 1});
+});
+
+test('native lifecycle diagnosis requires visible foreground frames and throttled hidden tabs', async () => {
+  const {browser} = mockBrowser();
+  const info = await browserTabLifecycleInfo(await browser.newContext());
+  assert.equal(info.mode, 'native-window-tabs');
+  assert.equal(info.phases.length, 2);
+  for (const mismatch of [{foregroundFrames: 0}, {backgroundFrames: 5}]) {
+    const {browser} = mockBrowser(mismatch);
+    await assert.rejects(browserTabLifecycleInfo(await browser.newContext()), /Native tab lifecycle probe failed/);
+  }
 });
 
 test('Mesa diagnosis fails closed on fallback, unavailable WebGL2, or failed pixel rendering', async () => {
