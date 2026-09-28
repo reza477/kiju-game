@@ -49,7 +49,10 @@ function observe(target) {
   target.on('response', response => recordNetwork('response', response.request(), {status: response.status()}));
   target.on('requestfinished', request => recordNetwork('finished', request, {timing: request.timing()}));
   target.on('requestfailed', request => recordNetwork('failed', request, {error: request.failure()?.errorText}));
-  target.setDefaultTimeout(20000);
+  // The verified CPU renderer can spend >20s in initial shader/render work
+  // before Playwright observes two stable frames. Keep real actionability and
+  // touch dispatch; give this test driver time without changing game deadlines.
+  target.setDefaultTimeout(report.graphics.requestedBackend === 'llvmpipe' ? 60000 : 20000);
   target.on('pageerror', error => report.pageErrors.push({phase, message: error.message}));
   target.on('console', message => {
     if (message.type() !== 'error') return;

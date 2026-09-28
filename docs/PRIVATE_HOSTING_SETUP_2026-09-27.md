@@ -52,6 +52,8 @@ Ignored local evidence: `artifacts/delivery/hosting-project.json`, `bootstrap-st
 
 ## Actual Linux Actions evidence
 
+This section preserves the hosting-setup experiments. Later installer diagnostics and runtime repairs are tracked in [INSTALLER_THREAD_REPAIR_2026-09-27.md](INSTALLER_THREAD_REPAIR_2026-09-27.md), including the actual body-abort root cause, the subsequent checker-startup failure, and the current frozen candidate. The earlier failures below remain failures.
+
 | Source / matching run | Actual result |
 |---|---|
 | `309f511` / [36327554281](https://github.com/reza477/kiju-game/actions/runs/36327554281) | Units/build passed; game installation condition timed out at 150 seconds under SwiftShader. Zero combined behavior groups completed; no deployment step ran. |
