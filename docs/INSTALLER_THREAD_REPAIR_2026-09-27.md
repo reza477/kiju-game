@@ -2,6 +2,29 @@
 
 Scope: repair the remaining installation/update failure on the latest checkout. Preserve the iPhone presentation, engine, art, gameplay, controls, save schema/key and client-pinning protocol. Local checkpoint `codex/checkpoint-install-repair-20260927` retains the clean starting revision `900815e`.
 
+## Final verified result
+
+**The full installation/update functional gate now passes on Windows and Linux. Hosting remains configured but blocked by the existing visual gate.** Implementation source `d55644881550aa3d4aaa2dd5873492f13435754f` is privately pushed. Its matching [Actions run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486) passed all 226 unit tests, all 12 combined game scenarios, eight metadata transport regressions, three startup regressions, credential confinement and exact runtime integrity. The job's overall result is failure because `delivery/readiness.json` remains false; its publication step was skipped. A source push and these loopback game tests are not a deployment.
+
+Both platforms tested identical frozen release A `af7991973d3ec6fc31ad`, with SHA-256 `16d344548def9f0743708e3e0763edb02ae8af554aea09956b7e922b69aa4546` and 111 verified runtime files. Metadata-only B `34efede859e8c5f3ca8b` is a synthetic local fixture and must never be published. Tests preserve installation, save/Continue, rejected incomplete or unauthorized updates, interrupted-update offline reopening, two simultaneous sessions, failed-save update refusal, independent session updates, old-client byte pinning, automatic title updates, missing-cache-file recovery and offline reopening of B after the actual server stops.
+
+| Evidence | Windows | Linux Actions |
+|---|---|---|
+| Browser | Chromium 151.0.7922.34 | Chromium 151.0.7922.34 |
+| Renderer | NVIDIA RTX 4070 Ti SUPER / D3D11 | Mesa 25.2.8 llvmpipe / LLVM 20.1.2, verified WebGL2 |
+| Game phase, UTC 28 September | 05:42:52.869–05:45:35.112 | 05:44:04.166–06:06:53.106 |
+| Completed game groups | 12/12 | 12/12 |
+| Page errors / unexpected console errors / remote requests | 0 / 0 / 0 | 0 / 0 / 0 |
+| Owned resource cleanup | Complete | Complete |
+
+These are functional runs with native timing, not performance benchmarks or physical iPhone/iPad tests. Linux proves real native foreground/background tab behavior: 23/30 foreground frames in each 500 ms preflight sample and zero background frames; no visibility or renderer result was substituted. The earlier Windows native-window experiment remains a failed probe; ordinary Windows Playwright checks use their documented context instead. Desktop WebKit is not installed locally and was not tested.
+
+Current evidence is under ignored `artifacts/delivery/server-offline-final-pinned/` and `artifacts/delivery/linux-ci-d556448/playtest-d55644881550aa3d4aaa2dd5873492f13435754f/`, plus `server-offline-final-pinned.log`, `linux-ci-d556448.log`, `build.json` and `integrity.json`. The Windows output was copied from its shared default directory; an unrelated `failure.png` dated 25 September was excluded and retained under `historical-unrelated/`, as recorded in its README. The failed historical runs below are retained as causal evidence; their pending/rerun statements describe those earlier stages, not this final outcome.
+
+An independent scope audit confirms only two production paths changed since the checkpoint: `src/offline.js` and new `src/release-fetch-worker.js` (84 insertions, nine deletions). Every other runtime file, the engine, art, iPhone HUD/controls, save serialization, Gothic construction rules and service-worker client-pinning protocol are unchanged. Later revisions after `bf24be2` change test infrastructure and reports only.
+
+The sole remaining pre-publication eligibility decision is the owner's explicit art-only exception or a passing visual review. The prior four-round review is still 6.9/10 overall and 8.4/10 scoped HUD; this repair neither changes those scores nor starts another art pass. After that gate is legitimately cleared, scoped CI publishing and hosted game A-to-B verification still must run before calling the permanent protected origin playable. No game bytes have been uploaded, and physical Apple-device verification remains separate. Final read-only checks confirmed the repository private with default branch `main`, and anonymous `/`, `/release.json` and `/src/main.js` requests at the permanent hosting origin each returned an authentication redirect.
+
 ## Reproduced root cause
 
 Diagnostic-only source `b702fc7d703ef1b0cc06a4e9b6c02ffb29175088`, [Actions run 36376718271](https://github.com/reza477/kiju-game/actions/runs/36376718271), ran the unchanged production runtime with native timing and llvmpipe rendering. It again failed the initial offline-install condition at 150 seconds. The added test observers return native promises unchanged and do not read response bodies, change rendering quality or alter clocks/deadlines.
