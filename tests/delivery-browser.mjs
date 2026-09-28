@@ -94,8 +94,8 @@ function observe(target) {
   target.on('console', message => {
     if (message.type() !== 'error') return;
     const location = message.location();
-    const offlineMetadataFailure = deliberatelyOffline && location.url === `${server.origin}/release.json`
-      && /net::ERR_INTERNET_DISCONNECTED/.test(message.text());
+    const offlineMetadataFailure = deliberatelyOffline && ['/release.json', '/sw.js'].some(resource => location.url === `${server.origin}${resource}`)
+      && /net::ERR_(?:INTERNET_DISCONNECTED|CONNECTION_REFUSED)/.test(message.text());
     const injectedResourceFailure = expectedFault && location.url === `${server.origin}${expectedFault.path}`
       && /^Failed to load resource: (?:the server responded with a status of (?:401|404)\b|net::ERR_(?:EMPTY_RESPONSE|CONNECTION_CLOSED|CONNECTION_RESET|INCOMPLETE_CHUNKED_ENCODING|CONTENT_LENGTH_MISMATCH))/.test(message.text());
     (injectedResourceFailure || offlineMetadataFailure ? report.expectedFaultErrors : report.unexpectedConsoleErrors).push({phase, message: message.text(), location});
@@ -268,20 +268,30 @@ try {
       const current = await offlineStatus(); assert.equal(current.installedBuildId, A.descriptor.buildId); assert.equal(current.canPlayOffline, true);
       assert.deepEqual(await savedIdentity(), before);
       // Let failed worker console diagnostics arrive before ending this fixture.
-      await delay(150); server.inject(null); expectedFault = null;
+      // Keep the fault until the next one replaces it, then until the server
+      // stops. A native service-worker soft update must not find a healthy B
+      // in an accidental gap between this failed-update and offline fixture.
+      await delay(150);
     });
   }
 
   await check('Interrupted B leaves A playable after an actual offline reopen', async () => {
+    deliberatelyOffline = true;
+    await stage('Interrupted update: stop the actual server', () => server.close());
+    server.inject(null); expectedFault = null;
+    const offlineRequestCount = server.requests.length;
     const before = await savedIdentity();
-    deliberatelyOffline = true; await context.setOffline(true);
+    await context.setOffline(true);
     const retained = await context.newPage(); await open(retained); await loaded(retained, A.descriptor.buildId);
     await tap(retained, '#continue'); assert.deepEqual(await savedIdentity(retained), before);
     await touchMove(retained);
     const current = await offlineStatus(retained);
     assert.equal(current.canPlayOffline, true); assert.equal(current.installedBuildId, A.descriptor.buildId);
+    assert.equal(server.requests.length, offlineRequestCount, 'No browser or worker can reach the stopped server during offline reopening');
     await retained.screenshot({path: path.join(output, 'interrupted-update-offline-A.png')});
-    await retained.close(); await context.setOffline(false); deliberatelyOffline = false;
+    await retained.close();
+    await stage('Interrupted update: restore the same server origin', () => server.resume());
+    await context.setOffline(false); deliberatelyOffline = false;
     await foreground(page, 'Interrupted update: return to first expedition');
   });
 
