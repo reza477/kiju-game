@@ -80,26 +80,39 @@ export function refreshOfflineStatus(options) { return operation(refresh, option
 async function fetchRelease() {
   if (!supported()) throw Object.assign(new Error(unavailableMessage), {unavailable: true});
   const release = await new Promise((resolve, reject) => {
-    let worker, loading, ready = false, finished = false;
+    let worker, loading, startupCeiling, ready = false, finished = false;
+    const clearStartup = () => {clearTimeout(loading); clearTimeout(startupCeiling);};
     const finish = (error, value) => {
       if (finished) return;
-      finished = true; clearTimeout(loading);
+      finished = true; clearStartup();
       if (worker) {worker.onmessage = worker.onerror = worker.onmessageerror = null; worker.terminate();}
       error ? reject(error) : resolve(value);
     };
     try {
-      // The handshake bounds loading this small same-origin script separately
-      // from its request. Start the 8-second transport deadline in the worker
-      // only AFTER the handshake; a busy rendering thread must not abort a
-      // completely downloaded response while its message waits for delivery.
+      // Bootstrap allows 30 seconds of observable event-loop opportunity:
+      // a late 250ms heartbeat charges at most 250ms, not a whole render stall.
+      // A separate 90-second wall ceiling still bounds a never-ready worker.
+      // These startup limits end at ready; the worker retains its own unchanged
+      // 8-second request/body deadline, independent of main-thread delivery.
       worker = new Worker(new URL('./release-fetch-worker.js', import.meta.url));
-      loading = setTimeout(() => finish(new Error('The release checker could not start. Reopen the app and retry.')), 30000);
+      const startupFailure = () => finish(new Error('The release checker could not start. Reopen the app and retry.'));
+      const began = performance.now(); let observed = 0, previous = began;
+      const observeStartup = () => {
+        if (ready || finished) return;
+        const now = performance.now(); observed += Math.min(250, Math.max(0, now - previous)); previous = now;
+        if (observed >= 30000 || now - began >= 90000) startupFailure();
+        else loading = setTimeout(observeStartup, 250);
+      };
+      loading = setTimeout(observeStartup, 250);
+      startupCeiling = setTimeout(startupFailure, 90000);
       worker.onerror = event => {event.preventDefault?.(); finish(new Error('The release checker could not run. Reopen the app and retry.'));};
       worker.onmessageerror = () => finish(new Error('The release checker returned an unreadable response.'));
       worker.onmessage = ({data}) => {
         if (!ready && data?.type === 'release-ready') {
-          ready = true; clearTimeout(loading);
-          try {worker.postMessage({type: 'fetch-release'});} catch {finish(new Error('The release checker could not start its request.'));}
+          // Different task sources need not deliver an overdue timer before a
+          // queued message. A late ready cannot cancel the absolute ceiling.
+          if (performance.now() - began >= 90000) {startupFailure(); return;}
+          ready = true; clearStartup();
         } else if (ready && data?.type === 'release-result') finish(null, data.release);
         else if (ready && data?.type === 'release-error') {
           const messages = {
@@ -112,6 +125,9 @@ async function fetchRelease() {
           finish(Object.assign(new Error(messages[data.kind] || 'The release checker failed to verify the response.'), {unavailable: data.kind === 'unavailable'}));
         } else finish(new Error('The release checker returned an unexpected response.'));
       };
+      // Queue immediately: the worker can load and fetch while this thread is
+      // busy. Its ready message precedes its result on the same message channel.
+      worker.postMessage({type: 'fetch-release'});
     } catch {finish(new Error('The release checker could not start. Reopen the app and retry.'));}
   });
   if (!release || release.app !== 'colossus-wake' || release.schemaVersion !== 1 || !/^[a-f0-9]{20}$/.test(release.buildId) || !Array.isArray(release.files) || !release.files.some(file => file?.url === '/index.html') || !release.files.some(file => file?.url === '/src/build-info.js')) throw new Error('This address did not return a valid Colossus Wake release.');

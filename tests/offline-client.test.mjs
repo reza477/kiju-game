@@ -8,7 +8,7 @@ const releaseWorkerSource = await readFile(new URL('../src/release-fetch-worker.
 let moduleCount = 0;
 async function withBrowser(overrides, run) {
   const saved = new Map();
-  const keys = ['navigator', 'location', 'isSecureContext', 'caches', 'fetch', 'window', 'document', 'Worker', 'setTimeout', 'clearTimeout'];
+  const keys = ['navigator', 'location', 'isSecureContext', 'caches', 'fetch', 'window', 'document', 'Worker', 'setTimeout', 'clearTimeout', 'performance'];
   for (const key of keys) saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
   let registrations = 0, fetches = 0;
   const workers = [];
@@ -43,6 +43,30 @@ async function withBrowser(overrides, run) {
 
 const validRelease = {app: 'colossus-wake', schemaVersion: 1, buildId: BUILD_ID, files: [{url: '/index.html'}, {url: '/src/build-info.js'}]};
 
+function startupClock() {
+  let now = 0, sequence = 0; const timers = new Map();
+  return {
+    timers,
+    globals: {
+      performance: {now: () => now},
+      setTimeout: (callback, ms) => {const id = ++sequence; timers.set(id, {callback, ms, at: now + ms}); return id;},
+      clearTimeout: id => timers.delete(id),
+    },
+    jumpWithoutCallbacks(ms) {now += ms;},
+    advance(ms, {blocked = false} = {}) {
+      const until = now + ms;
+      if (blocked) now = until;
+      while (true) {
+        const due = [...timers].filter(([, timer]) => timer.at <= until).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!due) break;
+        if (!blocked) now = due[1].at;
+        timers.delete(due[0]); due[1].callback();
+      }
+      now = until;
+    },
+  };
+}
+
 test('metadata transport terminates after success and main validates the descriptor independently', async () => {
   const active = fakeWorker(BUILD_ID);
   await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
@@ -74,6 +98,7 @@ test('worker load failure is cleaned up and the next manual attempt creates a fr
         failedWorker = this;
         queueMicrotask(() => this.onerror({preventDefault() {prevented = true;}}));
       }
+      postMessage() {}
       terminate() {this.terminated = true;}
     };
     assert.match((await offline.prepareOffline()).message, /could not run/);
@@ -83,12 +108,11 @@ test('worker load failure is cleaned up and the next manual attempt creates a fr
   });
 });
 
-test('only worker bootstrap is timed on the main thread; ready clears it before response delivery', async () => {
-  const timers = new Map(); let sequence = 0, worker;
+test('a 31.5-second startup stall does not spend the observable startup budget or delay the queued request', async () => {
+  const clock = startupClock(); let worker;
   const active = fakeWorker(BUILD_ID);
   await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
-    setTimeout: (callback, ms) => {const id = ++sequence; timers.set(id, {callback, ms}); return id;},
-    clearTimeout: id => timers.delete(id),
+    ...clock.globals,
     Worker: class {
       constructor() {worker = this; this.commands = [];}
       postMessage(data) {this.commands.push(data);}
@@ -96,28 +120,66 @@ test('only worker bootstrap is timed on the main thread; ready clears it before 
     },
   }}, async offline => {
     const waiting = offline.prepareOffline(); await Promise.resolve();
-    assert.deepEqual([...timers.values()].map(timer => timer.ms), [30000]);
-    worker.onmessage({data: {type: 'release-ready'}});
     assert.deepEqual(worker.commands, [{type: 'fetch-release'}]);
+    assert.deepEqual([...clock.timers.values()].map(timer => timer.ms), [250, 90000]);
+    clock.advance(31500, {blocked: true}); assert.notEqual(worker.terminated, true);
+    worker.onmessage({data: {type: 'release-ready'}});
     // Advancing any amount of main-thread time cannot expire the worker's
     // completed response: there is deliberately no main response timer.
-    assert.equal(timers.size, 0);
+    assert.equal(clock.timers.size, 0); clock.advance(100000);
     worker.onmessage({data: {type: 'release-result', release: validRelease}});
     assert.equal((await waiting).canPlayOffline, true);
-    assert.equal(worker.terminated, true); assert.equal(timers.size, 0);
+    assert.equal(worker.terminated, true); assert.equal(clock.timers.size, 0);
   });
 });
 
-test('a worker that never reaches its ready handshake has a finite cleanup boundary', async () => {
-  let watchdog, worker;
+test('a responsive page terminates a never-ready worker after 30 seconds of startup opportunity', async () => {
+  const clock = startupClock(); let worker;
   await withBrowser({globals: {
-    setTimeout: (callback, ms) => {assert.equal(ms, 30000); watchdog = callback; return 1;},
-    clearTimeout() {},
-    Worker: class {constructor() {worker = this;} terminate() {this.terminated = true;}},
+    ...clock.globals,
+    Worker: class {constructor() {worker = this;} postMessage() {} terminate() {this.terminated = true;}},
   }}, async offline => {
-    const waiting = offline.prepareOffline(); await Promise.resolve(); watchdog();
+    const waiting = offline.prepareOffline(); await Promise.resolve();
+    clock.advance(29999); assert.notEqual(worker.terminated, true); clock.advance(1);
     assert.match((await waiting).message, /could not start/); assert.equal(worker.terminated, true);
-    assert.equal(worker.onmessage, null); assert.equal(worker.onerror, null);
+    assert.equal(worker.onmessage, null); assert.equal(worker.onerror, null); assert.equal(clock.timers.size, 0);
+  });
+});
+
+test('repeated stalls cannot exceed the 90-second startup ceiling and a later attempt can succeed', async () => {
+  const clock = startupClock(), created = []; const active = fakeWorker(BUILD_ID);
+  await withBrowser({serviceWorker: {controller: active, getRegistration: async () => ({active})}, globals: {
+    ...clock.globals,
+    Worker: class {constructor() {created.push(this);} postMessage() {} terminate() {this.terminated = true;}},
+  }}, async offline => {
+    const waiting = offline.prepareOffline(); await Promise.resolve();
+    for (let i = 0; i < 4; i++) {clock.advance(20000, {blocked: true}); assert.notEqual(created[0].terminated, true);}
+    clock.advance(10000, {blocked: true});
+    assert.match((await waiting).message, /could not start/); assert.equal(created[0].terminated, true);
+    assert.equal(clock.timers.size, 0);
+    const retry = offline.prepareOffline(); await Promise.resolve();
+    assert.equal(created.length, 2);
+    created[1].onmessage({data: {type: 'release-ready'}});
+    assert.equal(clock.timers.size, 0);
+    created[1].onmessage({data: {type: 'release-result', release: validRelease}});
+    assert.equal((await retry).canPlayOffline, true); assert.equal(created[1].terminated, true);
+    assert.equal(clock.timers.size, 0);
+  });
+});
+
+test('ready delivered before overdue timers still cannot bypass the absolute startup ceiling', async () => {
+  const clock = startupClock(); let worker;
+  await withBrowser({globals: {
+    ...clock.globals,
+    Worker: class {constructor() {worker = this;} postMessage() {} terminate() {this.terminated = true;}},
+  }}, async (offline, browser) => {
+    const waiting = offline.prepareOffline(); await Promise.resolve();
+    clock.jumpWithoutCallbacks(90000);
+    assert.equal(clock.timers.size, 2, 'The overdue timer callbacks have not run');
+    worker.onmessage({data: {type: 'release-ready'}});
+    assert.match((await waiting).message, /could not start/);
+    assert.equal(worker.terminated, true); assert.equal(clock.timers.size, 0);
+    assert.equal(browser.counts().registrations, 0);
   });
 });
 
@@ -126,6 +188,7 @@ test('unreadable and unexpected worker responses terminate and cannot register a
     let worker;
     await withBrowser({globals: {Worker: class {
       constructor() {worker = this; queueMicrotask(() => mode === 'messageerror' ? this.onmessageerror() : this.onmessage({data: {type: 'not-the-protocol'}}));}
+      postMessage() {}
       terminate() {this.terminated = true;}
     }}}, async (offline, browser) => {
       assert.equal((await offline.prepareOffline()).state, 'error');
