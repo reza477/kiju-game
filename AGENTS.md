@@ -17,7 +17,13 @@ Follow the owner's visual review loop for character animation, assets, and envir
 
 Write each independent review under `art-reviews/`; put local screenshots and detailed browser output under ignored `artifacts/critic-round-XX/` directories. Identify the reviewed revision and changes since the previous review. Builders must not rewrite the critic's scores or findings.
 
-Preserve the owner's latest design: tall stacked Gothic castle backpacks inspired by the supplied castle reference, growing vertically instead of a circular town. There are two variants per faction: flesh and cyborg humanoid kaijus; the original armored crawler and an elongated rectangular crawler with a giant forward spiral drill; the original horizontal airship envelopes and exactly four upright rounded balloons. British industrial and Eastern domed city architecture remain faction-specific. The September 2026 vertical-city request supersedes the earlier circular-ring design. Preserve local play, private source backup, and existing saves. This folder is independent of the Website workspace.
+Preserve the owner's latest design: tall stacked Gothic castle backpacks inspired by the supplied castle reference, growing vertically instead of a circular town. There are two variants per faction: flesh and cyborg humanoid kaijus; the original armored crawler and an elongated rectangular crawler with a giant forward spiral drill; the original horizontal airship envelopes and exactly four upright rounded balloons. British industrial and Eastern domed city architecture remain faction-specific. The September 2026 vertical-city request supersedes the earlier circular-ring design. Preserve local play, source backup under the visibility policy below, and existing saves. This folder is independent of the Website workspace.
+
+## Public source and protected hosting
+
+The owner's latest explicit instruction authorizes public source for `reza477/kiju-game`. This supersedes earlier private-repository requirements. Keep the GitHub source public and readable; do not restore private visibility based on historical reports or older task instructions. This does not grant an open-source license, authorize exposing credentials or personal files, or waive any release gate.
+
+The hosted playtest remains protected at the single origin in `PLAYTEST_ORIGIN`. Public GitHub source does not authorize public hosting, Vercel deployment-source exposure, or bypassing authentication. The current private-repository checks in `scripts/handoff-playtest.mjs` and `scripts/vercel-delivery.mjs` conflict with this source instruction and need a separate reviewed implementation change; do not work around them by making GitHub private or weakening hosted protection. Until corrected and verified, preserve that blocker alongside release readiness.
 
 ## Private playtest delivery
 

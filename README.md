@@ -8,11 +8,11 @@ A single-player 3D city-builder on a ruined future Earth. Raise a Gothic castle 
 
 *Actual Alpha 1 desktop gameplay. [Screenshot provenance and cyborg view](docs/media/README.md).*
 
-Colossus Wake is a working title. This private repository contains the **Alpha 1 PC prototype**, version `0.10.0-alpha.1`, and subsequent development candidates. The default `main` branch retains the Alpha 1 baseline; the newer iPhone/private-delivery candidate is backed up on `codex/playtest`.
+Colossus Wake is a working title. This source repository contains the **Alpha 1 PC prototype**, version `0.10.0-alpha.1`, and subsequent development candidates. The owner has authorized public source; the hosted playtest remains protected. The default `main` branch retains the Alpha 1 baseline; newer iPhone and delivery work is backed up on `codex/playtest`.
 
 [Playing & controls](docs/PLAYING.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 
-**Private playtest: Configured but blocked.** The iPhone presentation pass and private delivery tooling are backed up, but both required gates remain failed: latest visual review **6.9/10 overall, 8.4/10 HUD** against an 8.5 overall threshold; final delivery-browser checks completed **3/11 groups in Chrome 154 and 0/11 in pinned Chromium 151**. Hosting/account setup and included usage also remain unverified. No permanent hosted game address exists. See [current delivery status](docs/PRIVATE_DELIVERY.md), [readiness](delivery/readiness.json), and [the iPhone review](art-reviews/iphone-pass1-04.md).
+**Private playtest: Configured but blocked.** The complete Linux and Windows functional gate now passes for frozen source `d556448`, build `af7991973d3ec6fc31ad`. [Actions run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486) passed checks and integrity verification, then stopped at release eligibility: the visual score remains **6.9/10 overall, 8.4/10 HUD**, below the required 8.5 overall. The [permanent protected address](https://colossus-wake-playtest.vercel.app) serves only an empty setup page, **not a playable game**. A legacy private-repository code check also needs reconciliation with the public-source instruction. See [current delivery status](docs/PRIVATE_DELIVERY.md), [readiness](delivery/readiness.json), and [the iPhone review](art-reviews/iphone-pass1-04.md).
 
 ## Three factions, six carriers
 
@@ -44,7 +44,7 @@ The September 17, 2026 verification record includes **127 passing unit tests**, 
 
 The final independent environment review scored **7.5/10**. The **8.5 visual quality gate remains unmet** after four rounds; its final bounded review identified no concrete visual or runtime defect. [Read the critic's findings](art-reviews/alpha1-04.md).
 
-These results belong to the original Alpha 1 milestone, whose `alpha-1` tag remains unchanged. The newer candidate's recorded 179 passing unit tests do not clear its failed delivery gate. Its tested runtime is source `11af190`, build `1f34a447888f6f64e784`; checkpoint `fbfda91` subsequently recorded blockers and was not tested as a new release. See [candidate evidence](docs/PRIVATE_DELIVERY.md).
+These results belong to the original Alpha 1 milestone, whose `alpha-1` tag remains unchanged. The newer candidate separately records **226 unit tests, 12 game groups, 8 metadata-transport regressions, 3 startup regressions and 111 runtime-file integrity checks** passing. Its latest evidence uses source `d556448`, not the subsequent report commit `8230ce1`. See [the installer repair report](docs/INSTALLER_THREAD_REPAIR_2026-09-27.md).
 
 Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile performance and long-session memory stability remain pending. See [the current phone and delivery guide](docs/PRIVATE_DELIVERY.md#phone-installation-and-updates).
 
@@ -52,7 +52,7 @@ Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile perform
 
 Progress saves in the browser on your device, with manual export/import and recovery support. Keep an exported backup before clearing browser data or moving between devices. Saves do not synchronize automatically.
 
-The local game has no analytics, advertising, accounts, cloud saves or external runtime services. GitHub holds the private source backup; it does not host a playable game. Repository maintenance and future game hosting are separate workflows. See [repository maintenance](docs/REPOSITORY_MAINTENANCE.md).
+The local game has no analytics, advertising, accounts, cloud saves or external runtime services. Public source access and protected game hosting are separate: the hosting service requires authentication, while saves remain on the device. The source visibility change grants no new license to original game code or assets. See [repository maintenance](docs/REPOSITORY_MAINTENANCE.md).
 
 ## Working on the project
 

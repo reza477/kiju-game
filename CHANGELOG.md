@@ -2,6 +2,18 @@
 
 This history describes prototype milestones. A version entry records development work, not a public release or art-quality approval. Verification reports retain the evidence and review outcome for their particular revision.
 
+## Installer repair and protected setup — September 27–28, 2026
+
+Repaired release-metadata fetching and startup scheduling without changing the engine, art, phone presentation, controls, saves or service-worker client pinning. Production repair source is `bf24be2`; later revisions strengthened test infrastructure and recorded evidence.
+
+Frozen source `d55644881550aa3d4aaa2dd5873492f13435754f`, build `af7991973d3ec6fc31ad`, passed the complete Linux gate in [Actions run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486): 226 unit tests, 12 game groups, 8 metadata-transport regressions, 3 startup regressions, synthetic credential confinement and 111 exact runtime files. Matching Windows game checks passed 12/12 with the same A/B IDs and artifact hash. Later report checkpoint `8230ce1` is not a separately tested runtime. Earlier failures below remain historical evidence, not the current functional result.
+
+The workflow's overall result is **failure at release eligibility**, with publication skipped: the visual gate remains 6.9/10 overall and 8.4/10 HUD. The permanent protected origin now serves a generic setup page; account configuration, included-usage setup and protected placeholder promotion have evidence. No playable game, hosted game A→B, desktop WebKit or physical Apple-device result exists. See [installer evidence](docs/INSTALLER_THREAD_REPAIR_2026-09-27.md) and [hosting setup](docs/PRIVATE_HOSTING_SETUP_2026-09-27.md).
+
+## Source visibility policy — September 30 maintenance
+
+The owner's later explicit public-source instruction supersedes earlier private-GitHub requirements. Hosted playtest authentication and all release gates remain. The legacy `repository.private === true` deployment assertion is a deferred implementation blocker; do not satisfy it by reversing the owner's visibility choice. Historical private-repository reports describe their own dates and are not current policy. No license grant accompanies this documentation update.
+
 ## iPhone presentation and private delivery candidate — September 24, 2026
 
 Preserved the completed iPhone presentation pass in `2a77d13`, reconciled the existing repository maintenance in `ba8d457`, and backed up private delivery preparation on `codex/playtest` through `fbfda91`. `main` and the original `alpha-1` tag retain their existing baseline. This candidate is **Configured but blocked**, not a hosted release.
