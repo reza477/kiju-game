@@ -22,6 +22,8 @@ concurrency:
 jobs:
   validate:
     name: Check, freeze, and publish passing playtests
+    # Evaluate before allocating a runner, including direct pushes and dispatches.
+    if: vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
@@ -46,7 +48,13 @@ jobs:
       - name: Install pinned Chromium and Linux browser dependencies
         run: npx --no-install playwright install --with-deps chromium
       - name: Serial startup, touch, saves, offline and A-to-B update gate
-        run: npm run test:delivery
+        # Differential diagnosis: existing Mesa/Xvfb instead of SwiftShader.
+        # This is still CPU software rendering; the test rejects backend fallback.
+        env:
+          PLAYTEST_GRAPHICS_BACKEND: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          GALLIUM_DRIVER: llvmpipe
+        run: xvfb-run -a npm run test:delivery
       - name: Verify tested runtime unchanged and source untouched
         run: |
           npm run verify:playtest
@@ -66,7 +74,10 @@ jobs:
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           PLAYTEST_ORIGIN: ${{ vars.PLAYTEST_ORIGIN }}
           PLAYTEST_INCLUDED_USAGE_CONFIRMED: ${{ vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED }}
-        run: npm run deliver:playtest
+          PLAYTEST_GRAPHICS_BACKEND: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          GALLIUM_DRIVER: llvmpipe
+        run: xvfb-run -a npm run deliver:playtest
       - name: Preserve private verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

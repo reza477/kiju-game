@@ -4,6 +4,17 @@ import { readFile } from 'node:fs/promises';
 import YAML from 'yaml';
 const workflow = YAML.parse(await readFile(new URL('../.github/workflows/ci.yml',import.meta.url),'utf8'), { uniqueKeys: true });
 
+test('all hosted runner jobs require confirmed included usage before allocation', () => {
+  // A deploy-step check is too late: dependency installation and browser tests
+  // already consume runner minutes, including on direct pushes or dispatches.
+  assert.ok(workflow.on.push && workflow.on.workflow_dispatch);
+  const runnerJobs = Object.entries(workflow.jobs).filter(([, job]) => job['runs-on']);
+  assert.ok(runnerJobs.length > 0);
+  for (const [name, job] of runnerJobs) {
+    assert.equal(job.if, "vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED == 'true'", `${name} must reject unset or unconfirmed usage at the job boundary`);
+  }
+});
+
 test('one valid workflow keeps promotion serialized and tools/actions pinned', () => {
   assert.ok(workflow.on.push.branches.includes('codex/**'));
   assert.equal(workflow.concurrency['cancel-in-progress'],false);
@@ -24,4 +35,16 @@ test('required tests and readiness precede the only deployment step', () => {
   assert.equal(steps.filter(step=>step.run?.includes('deliver:playtest')).length,1);
   assert.equal(steps[deploy].if,"github.ref == 'refs/heads/codex/playtest'");
   assert.ok(!steps[deploy]['continue-on-error']);
+});
+
+test('local artifact gate and eventual hosted browser checks use the same verified software backend', () => {
+  const steps = workflow.jobs.validate.steps;
+  const browser = steps.find(step => step.run?.includes('test:delivery'));
+  const deploy = steps.find(step => step.run?.includes('deliver:playtest'));
+  assert.match(browser.run, /^xvfb-run -a /);
+  assert.match(deploy.run, /^xvfb-run -a /);
+  assert.equal(browser.env.PLAYTEST_GRAPHICS_BACKEND, 'llvmpipe');
+  for (const key of ['PLAYTEST_GRAPHICS_BACKEND', 'LIBGL_ALWAYS_SOFTWARE', 'GALLIUM_DRIVER']) {
+    assert.equal(deploy.env[key], browser.env[key], `${key} must not change after the artifact passes`);
+  }
 });

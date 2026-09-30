@@ -1,4 +1,5 @@
 import { requireValue, safeOrigin, digest } from './delivery-lib.mjs';
+import {deliveryBrowserOptions, browserGraphicsInfo} from './browser-runtime.mjs';
 
 export async function privateFetch(origin, pathname, secret) {
   origin = safeOrigin(origin);
@@ -131,8 +132,9 @@ export async function waitForHostedWorker(page, buildId, { timeoutMs = 180000, p
 export async function hostedBrowserSmoke(origin, secret, buildId) {
   origin = safeOrigin(origin);
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}), args: ['--enable-unsafe-swiftshader','--mute-audio'] });
+  const browser = await chromium.launch(deliveryBrowserOptions());
   try {
+    const graphics = await browserGraphicsInfo(browser);
     const context = await browser.newContext({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
     const errors = [];
     const authorization = await installHostAuthorization(context, origin, secret);
@@ -155,7 +157,7 @@ export async function hostedBrowserSmoke(origin, secret, buildId) {
     const requests = authorization.getStatistics();
     requireValue(requests.blockedRequests === 0 && requests.blockedRedirects === 0 && requests.failedRequests === 0, 'Hosted browser encountered blocked or failed authorization requests.');
     requireValue(!errors.length, 'Hosted startup runtime error.');
-    return { browser: browser.version(), titleReady: true, serviceWorkerAvailable: true, workerActivated: true,
+    return { browser: browser.version(), graphics, titleReady: true, serviceWorkerAvailable: true, workerActivated: true,
       workerControlsPage: true, verifiedOfflineComplete: true, installedBuildId: buildId, authenticatedUpdaterChecked: true,
       evidence: 'Desktop Chromium; not physical iPhone.' };
   } finally { await browser.close(); }

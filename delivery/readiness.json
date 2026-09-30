@@ -1,6 +1,6 @@
 {
   "eligible": false,
-  "reason": "The preceding visual gate failed after four rounds (overall 6.9/10, HUD 8.4/10). The required delivery browser gate also failed on 11af190: Chrome 154 timed out before a B worker request; pinned Chromium 151 timed out during initial offline installation. Resolve the required functional checks and the art gate (or an explicit art-only owner exception) before declaring this release eligible. See docs/PRIVATE_DELIVERY.md.",
+  "reason": "The visual release gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. Frozen source d55644881550aa3d4aaa2dd5873492f13435754f, build af7991973d3ec6fc31ad, passes the complete Linux functional gate in Actions run 36382922486: 226/226 unit tests, 12/12 game groups, 8/8 transport and 3/3 startup regressions, synthetic credential confinement and all 111 exact runtime files. Matching Windows game checks pass 12/12 with the same A/B build IDs and artifact hash. Production runtime is unchanged since bf24be2. The Actions run stops at release eligibility and publication is skipped. Obtain a passing art review or explicit art-only owner exception for private playtesting before enabling release; preserve all functional, privacy and included-only usage checks. Generic private hosting is verified, but no playable game is hosted. Actual scoped CI publishing, hosted game A-to-B, desktop WebKit and physical Apple-device checks remain unexercised.",
   "evidence": "art-reviews/iphone-pass1-04.md",
-  "deliveryEvidence": "docs/PRIVATE_DELIVERY.md"
+  "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
 }

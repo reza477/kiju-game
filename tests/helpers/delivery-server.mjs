@@ -37,7 +37,7 @@ export async function createDeliveryServer(releases) {
     const address = new URL(request.url, 'http://localhost');
     const pathname = address.pathname === '/' ? '/index.html' : address.pathname;
     // No cookies, authorization headers, or request query strings are logged.
-    const record = {release: selected, path: pathname, status: 200, injected: false};
+    const record = {at: new Date().toISOString(), release: selected, path: pathname, status: 200, injected: false};
     requests.push(record);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -55,17 +55,36 @@ export async function createDeliveryServer(releases) {
     response.end(request.method === 'HEAD' ? undefined : file.bytes);
   });
   server.on('connection', socket => {sockets.add(socket); socket.on('close', () => sockets.delete(socket));});
-  await new Promise((resolve, reject) => {server.once('error', reject); server.listen(0, '127.0.0.1', resolve);});
+  const listen = port => new Promise((resolve, reject) => {
+    const clear = () => {server.off('error', failed); server.off('listening', ready);};
+    const failed = error => {clear(); reject(error);};
+    const ready = () => {clear(); resolve();};
+    server.once('error', failed); server.once('listening', ready);
+    try {server.listen(port, '127.0.0.1');} catch (error) {failed(error);}
+  });
+  await listen(0);
   const port = server.address().port;
+  // Preserve the exact origin across a real server outage. Serialize lifecycle
+  // requests so resume cannot race an unfinished close, or choose a fresh port.
+  let lifecycle = Promise.resolve();
+  const transition = action => {
+    const result = lifecycle.then(action);
+    lifecycle = result.catch(() => {}); return result;
+  };
   return {
     origin: `http://127.0.0.1:${port}`, requests,
     select(name) {assert.ok(releases[name]); selected = name;},
     inject(value) {fault = value;},
-    async close() {
-      if (!server.listening) return;
-      const closed = new Promise(resolve => server.close(resolve));
-      for (const socket of sockets) socket.destroy();
-      await closed;
+    close() {
+      return transition(async () => {
+        if (!server.listening) return;
+        const closed = new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+        for (const socket of sockets) socket.destroy();
+        await closed;
+      });
+    },
+    resume() {
+      return transition(async () => {if (!server.listening) await listen(port);});
     },
   };
 }
