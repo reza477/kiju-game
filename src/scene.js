@@ -16,6 +16,7 @@ import {CinematicCamera} from './cinematic-camera.js';
 import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
 import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
 import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQuality} from './camera-input.js';
+import {createMovementPreparation} from './movement-preparation.js';
 export {makeCity,slotPosition};
 
 const previewBuildings=()=>{
@@ -129,6 +130,8 @@ export class GameScene {
     this.scene.add(this.sun,this.sun.target);
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
     this.landscape=createLandscape();this.landscape.setGroundTextures({grass:surfaceSet('grass'),soil:surfaceSet('soil'),slate:surfaceSet('rock')});this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
+    this.movementPreparation=createMovementPreparation(this.renderer,this.landscape.movementMaterials);
+    canvas.addEventListener('webglcontextrestored',()=>this.movementPreparation.invalidate());
     this.presentation=new Presentation(this.renderer,this.camera);this.atmosphere=new Atmosphere(this.scene);
     this.cityLighting=new CityLighting(this.scene);
     this.impactLights=[new T.PointLight(0xffc58b,0,13,2),new T.PointLight(0xffab73,0,13,2)];
@@ -386,5 +389,9 @@ export class GameScene {
     }
     this.updateCamera(s,dt,desiredZoom,battle);
     this.presentation.render(this.scene);
+    // Submit only the two traced first-crush shaders using the real output
+    // target and lights, after a normal frame. No draw, simulation or camera
+    // warmup, asynchronous transition, readiness wait, or extra resource copies.
+    if(this.environmentReady||this.environmentError)this.movementPreparation.prepare(this.scene,this.camera,this.presentation.enabled?this.presentation.target:null,`${this.quality}:${this.light}:${this.scene.environment?.uuid}`);
   }
 }

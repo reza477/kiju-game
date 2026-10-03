@@ -24,14 +24,16 @@ const selectionSceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?histor
 const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c];
 const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
 const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
-const vegetationTime = { value: 0 }, windMaterials = new Map();
-const metricInstanceMaterials=new Map();
+const vegetationTime = { value: 0 }, windMaterials = new WeakMap();
+const metricInstanceMaterials=new WeakMap();
 function metricInstanceMaterial(source){
   if(!source.userData.surfaceScale)return source;
-  if(metricInstanceMaterials.has(source.uuid))return metricInstanceMaterials.get(source.uuid);
+  if(metricInstanceMaterials.has(source))return metricInstanceMaterials.get(source);
   const m=source.clone(),prior=source.onBeforeCompile,priorKey=source.customProgramCacheKey();
   const sceneryRock=source.name.startsWith('rock ');
-  m.userData.shared=false;
+  // The source cache owns this clone; sites and persistent scenery borrow it.
+  // Removing one site must not invalidate the material in every other owner.
+  m.userData.shared=true;
   if(sceneryRock)m.normalScale.setScalar(.40);
   m.onBeforeCompile=shader=>{
     prior.call(source,shader);
@@ -78,7 +80,7 @@ function metricInstanceMaterial(source){
     }
   };
   m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':bank-rock':'');
-  metricInstanceMaterials.set(source.uuid,m);return m;
+  metricInstanceMaterials.set(source,m);return m;
 }
 const VEGETATION_GLSL = `
   uniform float uVegetationTime;
@@ -186,7 +188,7 @@ function animateVegetation(mesh, items, kind) {
   mesh.geometry.setAttribute('windFlex', new T.InstancedBufferAttribute(flex, 2));
   mesh.geometry.setAttribute('windMotion', new T.InstancedBufferAttribute(motion, 2));
   mesh.geometry.setAttribute('groundCoverLod', new T.InstancedBufferAttribute(new Float32Array(items.length).fill(kind==='grass'?1:0),1));
-  const key = mesh.material.uuid;
+  const key = mesh.material;
   if (!windMaterials.has(key)) {
     const material = mesh.material.clone(),volumeNormals=!!(material.userData.crownVolumeNormals||material.userData.rootedBladeNormals);
     if(material.userData.crownVolumeNormals)material.defines={...material.defines,CANOPY_SPRAY:1};
@@ -205,7 +207,10 @@ function animateVegetation(mesh, items, kind) {
     const silhouette={side:material.side,map:material.map,alphaTest:material.alphaTest};
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, ...silhouette });
     const distance = new T.MeshDistanceMaterial(silhouette);
-    for (const pass of [depth, distance]) { pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-distance-depth-v4'; }
+    for (const pass of [depth, distance]) { pass.userData.shared=!!material.userData.shared;pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-distance-depth-v4'; }
+    // Owned site materials expire with the site, including their shadow passes.
+    // Shared source materials keep their existing page-lifetime ownership.
+    material.addEventListener('dispose',()=>windMaterials.delete(key));
     windMaterials.set(key, { material, depth, distance });
   }
   const passes = windMaterials.get(key); mesh.material = passes.material; mesh.customDepthMaterial = passes.depth; mesh.customDistanceMaterial = passes.distance;
@@ -1002,6 +1007,9 @@ export function createWorldInteractions(group, records) {
       }
       flush();
     },
+    // These two existing pool materials caused the measured first-tree shader
+    // stall. Compile their real instanced configurations, never render a warmup.
+    movementMaterials: [stumps, brush],
     // Read-only inventory is useful for verification; it contains no simulation state.
     crushables: records.map(({ id, kind, x, z, size }) => ({ id, kind, x, z, size }))
   };
@@ -1296,6 +1304,7 @@ export function createLandscape() {
     update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),
+    movementMaterials: interactions.movementMaterials,
     setQuality(quality) {
       const low = quality === 'retro' || quality === 'low';
       if (grasses) grasses.visible = !low;

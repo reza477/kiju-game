@@ -177,7 +177,15 @@ export function batchStatic(group) {
   return group;
 }
 
-export function disposeGroup(group){group.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.isSkinnedMesh)o.skeleton?.dispose();if(o.geometry&&!o.geometry.userData.shared)o.geometry.dispose();if(o.material&&!Array.isArray(o.material)&&!o.material.userData.shared)o.material.dispose();});}
+export function disposeGroup(group){
+  const disposed=new Set();
+  const release=resource=>{if(resource&&!resource.userData?.shared&&!disposed.has(resource)){disposed.add(resource);resource.dispose();}};
+  group.traverse(o=>{
+    if(o.isInstancedMesh)o.dispose();if(o.isSkinnedMesh)release(o.skeleton);
+    release(o.geometry);
+    for(const material of [o.material,o.customDepthMaterial,o.customDistanceMaterial].flat())release(material);
+  });
+}
 
 export function createEnvironment(renderer) {
   const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d');

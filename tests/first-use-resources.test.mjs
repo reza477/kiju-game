@@ -1,0 +1,183 @@
+import test, {before, after} from 'node:test';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import * as T from '../vendor/three.module.js';
+import {createLandscape, createResourceSite} from '../src/landscape.js';
+import {disposeGroup} from '../src/materials.js';
+import {createMovementPreparation} from '../src/movement-preparation.js';
+import {WORLD_NODES} from '../src/simulation.js';
+
+// CPU ownership tests only. These inert DOM surfaces are the same approach as
+// environment-optimization.test.mjs: no image download, WebGL, or timing claim.
+const gradient={addColorStop(){}};
+const context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient},{get:(target,key)=>target[key]??(()=>{})});
+const documentStub={createElement:()=>({width:0,height:0,getContext:()=>context}),createElementNS:()=>({addEventListener(){},removeEventListener(){}})};
+let originalDocument,landscape;
+before(()=>{originalDocument=globalThis.document;globalThis.document=documentStub;landscape=createLandscape();});
+after(()=>{disposeGroup(landscape.group);if(originalDocument===undefined)delete globalThis.document;else globalThis.document=originalDocument;});
+
+function materialsIn(group){
+  const materials=new Set();
+  group.traverse(object=>{for(const material of [object.material,object.customDepthMaterial,object.customDistanceMaterial].flat().filter(Boolean))materials.add(material);});
+  return materials;
+}
+function watchDisposal(resources){
+  const counts=new Map([...resources].map(resource=>[resource,0])),listeners=new Map();
+  for(const resource of resources){const listener=()=>counts.set(resource,counts.get(resource)+1);listeners.set(resource,listener);resource.addEventListener('dispose',listener);}
+  return {counts,stop(){for(const [resource,listener]of listeners)resource.removeEventListener('dispose',listener);}};
+}
+const typedHash=array=>createHash('sha256').update(new Uint8Array(array.buffer,array.byteOffset,array.byteLength)).digest('hex');
+function siteIdentity(group){
+  group.updateMatrixWorld(true);const meshes=[];
+  group.traverse(mesh=>{
+    if(!mesh.isMesh)return;
+    const material=mesh.material;
+    meshes.push({name:mesh.name,transform:mesh.matrixWorld.elements.slice(),node:mesh.userData.node,
+      geometry:Object.fromEntries(Object.entries(mesh.geometry.attributes).map(([name,attribute])=>[name,{itemSize:attribute.itemSize,normalized:attribute.normalized,hash:typedHash(attribute.array)}])),
+      index:mesh.geometry.index?typedHash(mesh.geometry.index.array):null,
+      instances:mesh.instanceMatrix?typedHash(mesh.instanceMatrix.array):null,colors:mesh.instanceColor?typedHash(mesh.instanceColor.array):null,
+      castShadow:mesh.castShadow,receiveShadow:mesh.receiveShadow,
+      material:{name:material.name,color:material.color?.getHex(),side:material.side,roughness:material.roughness,metalness:material.metalness,alphaTest:material.alphaTest,opacity:material.opacity,transparent:material.transparent,depthWrite:material.depthWrite,vertexColors:material.vertexColors,defines:material.defines,cacheKey:material.customProgramCacheKey(),map:material.map?.uuid,alphaMap:material.alphaMap?.uuid,normalMap:material.normalMap?.uuid,roughnessMap:material.roughnessMap?.uuid}
+    });
+  });
+  return meshes;
+}
+
+test('disposing resource sites preserves the exact materials still attached to persistent scenery',()=>{
+  const worldMaterials=materialsIn(landscape.group),sites=WORLD_NODES.map(node=>createResourceSite(node));
+  const sharedWithSites=new Set(sites.flatMap(site=>[...materialsIn(site)].filter(material=>worldMaterials.has(material))));
+  const metric=[...sharedWithSites].filter(material=>material.customProgramCacheKey().includes('world-metric-scenery'));
+  assert.ok(metric.length>=3,'Exercise real metric scenery materials shared by the persistent landscape and sites.');
+  const watched=watchDisposal(sharedWithSites),identities=new Map([...sharedWithSites].map(material=>[material,material.uuid]));
+  try{
+    for(const site of sites)disposeGroup(site);
+    for(const material of sharedWithSites){
+      assert.equal(watched.counts.get(material),0,`Still-owned ${material.name} (${material.uuid}) was disposed by a resource site.`);
+      assert.ok(materialsIn(landscape.group).has(material),'Persistent scenery must retain the same material object.');
+      assert.equal(material.uuid,identities.get(material));
+    }
+    const replacement=createResourceSite(WORLD_NODES.find(node=>node.kind==='iron'));
+    try{
+      const replacementMaterials=materialsIn(replacement);
+      assert.ok(metric.some(material=>replacementMaterials.has(material)),'Reconstruction must reuse the existing compatible metric material object.');
+    }finally{disposeGroup(replacement);}
+    for(const material of sharedWithSites)assert.equal(watched.counts.get(material),0);
+  }finally{watched.stop();}
+});
+
+test('repeated woodland replacement disposes owned visible and shadow passes while retaining shared textures',()=>{
+  const node=WORLD_NODES.find(node=>node.id==='forest2'),input=JSON.stringify(node),oldOwned=new Set(),persistent=materialsIn(landscape.group);
+  let reference,textureReferences;
+  for(let cycle=0;cycle<4;cycle++){
+    const site=createResourceSite(node),all=materialsIn(site),owned=[...all].filter(material=>!material.userData.shared&&!persistent.has(material)),wind=[];
+    site.traverse(mesh=>{if(mesh.userData.windAnimated)wind.push(mesh);});
+    assert.ok(wind.some(mesh=>mesh.material.name==='Matte pine cutout'));
+    const ownedPasses=new Set(wind.filter(mesh=>!mesh.material.userData.shared&&!persistent.has(mesh.material)).flatMap(mesh=>[mesh.material,mesh.customDepthMaterial,mesh.customDistanceMaterial]));
+    assert.ok(ownedPasses.size>=6,'Exercise both leaf and pine visible/depth/distance ownership.');
+    for(const material of owned){assert.ok(!oldOwned.has(material),'A disposed owned material must not be returned from a cache.');oldOwned.add(material);}
+    const identity=siteIdentity(site);
+    if(reference)assert.deepEqual(identity,reference,'Rebuilding resources must preserve geometry, instances, picking identities, and material configuration.');
+    else reference=identity;
+    const textures=new Set(wind.map(mesh=>mesh.material.map).filter(Boolean));
+    if(textureReferences)assert.deepEqual(textures,textureReferences,'Unchanged cutout textures must retain their object identity.');else textureReferences=textures;
+    const textureHashes=new Map([...textures].map(texture=>[texture,texture.mipmaps?.map(mip=>typedHash(mip.data))]));
+    const watched=watchDisposal(ownedPasses),textureDisposals=watchDisposal(textures);
+    try{
+      disposeGroup(site);
+      for(const material of ownedPasses)assert.equal(watched.counts.get(material),1,`${material.type} ${material.name} (${material.uuid}) must be released once with its owner.`);
+      for(const texture of textures){assert.equal(textureDisposals.counts.get(texture),0,'Shared cutout artwork belongs to its existing texture cache.');assert.deepEqual(texture.mipmaps?.map(mip=>typedHash(mip.data)),textureHashes.get(texture));}
+    }finally{watched.stop();textureDisposals.stop();}
+    assert.equal(JSON.stringify(node),input,'Render-resource construction and disposal must not mutate node input.');
+  }
+});
+
+test('live resource sites keep independent mutable foliage state and instance buffers',()=>{
+  const node=WORLD_NODES.find(node=>node.kind==='wood'),first=createResourceSite(node),second=createResourceSite(node);
+  try{
+    const a=first.getObjectByName('Broadleaf canopies'),b=second.getObjectByName('Broadleaf canopies');
+    assert.ok(a?.isInstancedMesh&&b?.isInstancedMesh);
+    assert.notEqual(a.material,b.material);assert.notEqual(a.customDepthMaterial,b.customDepthMaterial);assert.notEqual(a.customDistanceMaterial,b.customDistanceMaterial);
+    assert.equal(a.material.map,b.material.map,'Read-only artwork may be shared.');
+    assert.notEqual(a.instanceMatrix,b.instanceMatrix);assert.notEqual(a.instanceColor,b.instanceColor);
+    for(const name of ['windRoot','windFlex','windMotion','groundCoverLod'])assert.notEqual(a.geometry.attributes[name],b.geometry.attributes[name]);
+    const color=b.material.color.clone(),alpha=b.material.alphaTest,normal=b.material.normalScale.clone(),matrix=b.instanceMatrix.array.slice();
+    a.material.color.setHex(0x123456);a.material.alphaTest=.25;a.material.normalScale.set(.23,.71);a.instanceMatrix.array[12]+=3;
+    assert.ok(b.material.color.equals(color));assert.equal(b.material.alphaTest,alpha);assert.ok(b.material.normalScale.equals(normal));assert.deepEqual(b.instanceMatrix.array,matrix);
+    const watched=watchDisposal(materialsIn(second));
+    try{disposeGroup(first);for(const [material,count]of watched.counts)assert.equal(count,0,`Disposing the other live site invalidated ${material.uuid}.`);}finally{watched.stop();}
+  }finally{disposeGroup(second);}
+});
+
+function preparationRenderer(initialTarget={name:'Previous presentation target'}){
+  let target=initialTarget,lost=false;
+  const calls=[],targets=[],renderer={
+    getContext:()=>({isContextLost:()=>lost}),getRenderTarget:()=>target,
+    setRenderTarget(value){targets.push(value);target=value;},
+    compile(object,camera,scene){calls.push({object,camera,scene,target});},
+    render(){assert.fail('Preparation must not render an extra frame.');},
+    compileAsync(){assert.fail('Preparation must not start asynchronous polling.');},
+    initTexture(){assert.fail('This focused program preparation must not add a texture warmup.');}
+  };
+  return {renderer,calls,targets,initialTarget,setLost(value){lost=value;}};
+}
+
+test('movement preparation submits only the two real effect objects under the actual lights and render target',()=>{
+  const {renderer,calls,targets,initialTarget}=preparationRenderer(),scene=new T.Scene(),camera=new T.PerspectiveCamera(),target={name:'Actual HDR scene target'};
+  const meshes=landscape.movementMaterials;
+  assert.deepEqual(meshes.map(mesh=>mesh.name),['Crushed tree stumps','Crushed fallen boughs']);
+  assert.ok(meshes.every(mesh=>mesh.isInstancedMesh&&mesh.count===0&&!mesh.visible));
+  scene.add(new T.DirectionalLight(0xffffff,3.4),new T.HemisphereLight(),landscape.group);
+  const before=siteIdentity(landscape.group),stats=JSON.stringify(landscape.stats),cameraBefore=camera.toJSON(),children=scene.children.slice(),parents=meshes.map(mesh=>mesh.parent);
+  const preparation=createMovementPreparation(renderer,meshes);
+  try{
+    assert.equal(preparation.prepare(scene,camera,target,'high:day:environment-a'),true);
+    assert.deepEqual(calls.map(call=>call.object),meshes,'Do not compile every world or carrier combination.');
+    for(const call of calls){assert.equal(call.camera,camera);assert.equal(call.scene,scene,'Use the real scene lighting, not a temporary unlit scene.');assert.equal(call.target,target);}
+    assert.deepEqual(targets,[target,initialTarget]);assert.equal(renderer.getRenderTarget(),initialTarget);
+    assert.deepEqual(siteIdentity(landscape.group),before,'Preparation must preserve geometry, attributes, transforms, material configuration, and texture identity.');
+    assert.deepEqual(camera.toJSON(),cameraBefore);assert.deepEqual(scene.children,children);assert.deepEqual(meshes.map(mesh=>mesh.parent),parents);
+    assert.ok(meshes.every(mesh=>mesh.count===0&&!mesh.visible),'Dormant pools must remain dormant.');
+    assert.equal(JSON.stringify(landscape.stats),stats,'Preparation must not replay interaction state or advance simulation-facing counters.');
+    assert.equal(preparation.status.attempts,1);assert.equal(preparation.status.error,null);assert.ok(Number.isFinite(preparation.status.submissionMs)&&preparation.status.submissionMs>=0);
+  }finally{scene.remove(landscape.group);}
+});
+
+test('movement preparation reuses the current configuration and refreshes quality, light, and environment changes',()=>{
+  const {renderer,calls}=preparationRenderer(),scene=new T.Scene(),camera=new T.PerspectiveCamera(),target={name:'HDR target'};
+  const preparation=createMovementPreparation(renderer,landscape.movementMaterials);
+  for(const [index,key]of ['high:day:environment-a','performance:day:environment-a','performance:dusk:environment-a','performance:dusk:environment-b','high:day:environment-a'].entries()){
+    const actualTarget=key.startsWith('performance')?null:target;
+    assert.equal(preparation.prepare(scene,camera,actualTarget,key),true);
+    assert.equal(preparation.status.attempts,index+1);assert.equal(calls.length,(index+1)*2);
+    assert.equal(calls.at(-1).target,actualTarget,'Direct Performance rendering must compile with the screen target.');
+    for(let repeat=0;repeat<5;repeat++)assert.equal(preparation.prepare(scene,camera,actualTarget,key),false);
+    assert.equal(calls.length,(index+1)*2,'Ordinary frames and scene transitions with the same configuration must not resubmit.');
+  }
+});
+
+test('lost contexts skip preparation and the restored-context invalidation permits the same configuration again',()=>{
+  const {renderer,calls,targets,setLost}=preparationRenderer(),preparation=createMovementPreparation(renderer,landscape.movementMaterials),scene=new T.Scene(),camera=new T.PerspectiveCamera();
+  setLost(true);assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),false);
+  assert.equal(calls.length,0);assert.equal(targets.length,0);assert.equal(preparation.status.attempts,0);
+  setLost(false);assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),true);assert.equal(calls.length,2);
+  setLost(true);preparation.invalidate();assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),false);
+  assert.equal(calls.length,2);assert.equal(preparation.status.attempts,1);
+  setLost(false);assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),true);
+  assert.equal(calls.length,4);assert.equal(preparation.status.attempts,2);assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),false);
+});
+
+test('a preparation error remains visible, restores the target, and retries only after a configuration change',t=>{
+  const {renderer,calls,initialTarget}=preparationRenderer(),scene=new T.Scene(),camera=new T.PerspectiveCamera(),target={name:'HDR target'},failure=new Error('Simulated renderer preparation failure'),errors=[];
+  const normalCompile=renderer.compile;
+  let failing=true;
+  renderer.compile=function(...args){normalCompile.apply(this,args);if(failing&&calls.length===2)throw failure;};
+  t.mock.method(console,'error',(...args)=>errors.push(args));
+  const preparation=createMovementPreparation(renderer,landscape.movementMaterials);
+  assert.equal(preparation.prepare(scene,camera,target,'high:day:environment-a'),true,'A preparation failure must not reject ordinary Begin/Continue.');
+  assert.equal(renderer.getRenderTarget(),initialTarget);assert.equal(preparation.status.error,failure.message);assert.equal(preparation.status.attempts,1);
+  assert.equal(errors.length,1);assert.equal(errors[0][1],failure,'Retain the original error for diagnosis.');
+  for(let repeat=0;repeat<5;repeat++)assert.equal(preparation.prepare(scene,camera,target,'high:day:environment-a'),false);
+  assert.equal(calls.length,2);assert.equal(errors.length,1);assert.equal(preparation.status.error,failure.message);
+  failing=false;assert.equal(preparation.prepare(scene,camera,null,'performance:day:environment-a'),true);
+  assert.equal(renderer.getRenderTarget(),initialTarget);assert.equal(preparation.status.error,null);assert.equal(preparation.status.attempts,2);assert.equal(calls.length,4);assert.equal(errors.length,1);
+});
