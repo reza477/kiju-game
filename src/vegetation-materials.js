@@ -81,16 +81,18 @@ function broadleaf(r) {
 }
 
 function pine(r) {
-  const rand = random(54617), ends = [[.18,.37],[.15,.59],[.26,.78],[.43,.88],[.62,.82],[.80,.68],[.83,.43],[.62,.48],[.35,.57]];
+  // Needles radiate above and below the fork. Distributing the same coverage
+  // vertically makes each existing spray a hanging branch mass, not a flat fan.
+  const rand = random(54617), ends = [[.16,.29],[.13,.52],[.23,.78],[.44,.90],[.67,.84],[.83,.66],[.85,.40],[.72,.16],[.48,.055],[.26,.16],[.56,.57]];
   for (const [ex, ey] of ends) {
-    const root = [.44 + rand() * .12, .17 + rand() * .16];
+    const root = [.43 + rand() * .12, .36 + rand() * .12];
     r.stroke(...root, ex, ey, .004, [191, 198, 176]);
     const axis = Math.atan2(ey - root[1], ex - root[0]);
     for (let j = 0; j < 10; j++) {
       const t = .14 + j * .091, nx = root[0] + (ex - root[0]) * t, ny = root[1] + (ey - root[1]) * t;
       for (const side of [-1, 1]) for (let layer = 0; layer < 3; layer++) {
-        const a = axis + side * (.46 + layer * .35 + rand() * .16), length = (.078 + rand() * .054) * (1 - t * .12), shade = .87 + rand() * .13;
-        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length, .035, .955), .0078 + rand() * .0046, [238 * shade, 254 * shade, 226 * shade], true);
+        const a = axis + side * (.46 + layer * .35 + rand() * .16), length = (.082 + rand() * .063) * (1 - t * .12), shade = .87 + rand() * .13;
+        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length, .035, .955), .0032 + rand() * .0022, [238 * shade, 254 * shade, 226 * shade], true);
       }
     }
   }
@@ -167,5 +169,9 @@ export function createVegetationMaterial(kind) {
     vertexColors: true, side: T.DoubleSide, roughness: .96, metalness: 0,
     alphaTest: CUTOUT, transparent: false, depthWrite: true
   });
+  // Wind's visible shader preserves the spray-volume normal on both faces.
+  // Shadow passes still use the identical card geometry and alpha cutout.
+  material.userData.crownVolumeNormals = kind === 'broadleaf' || kind === 'pine';
+  material.userData.rootedBladeNormals = kind === 'grass';
   return material;
 }

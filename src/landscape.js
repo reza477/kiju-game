@@ -30,10 +30,12 @@ function metricInstanceMaterial(source){
   if(!source.userData.surfaceScale)return source;
   if(metricInstanceMaterials.has(source.uuid))return metricInstanceMaterials.get(source.uuid);
   const m=source.clone(),prior=source.onBeforeCompile,priorKey=source.customProgramCacheKey();
+  const sceneryRock=source.name.startsWith('rock ');
   m.userData.shared=false;
+  if(sceneryRock)m.normalScale.setScalar(.40);
   m.onBeforeCompile=shader=>{
     prior.call(source,shader);
-    shader.uniforms.uScenerySurfaceScale={value:source.userData.surfaceScale};
+    shader.uniforms.uScenerySurfaceScale={value:sceneryRock?2.8:source.userData.surfaceScale};
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nuniform float uScenerySurfaceScale;').replace('#include <uv_vertex>',`#include <uv_vertex>
       #ifdef USE_INSTANCING
         vec3 surfaceWorld=(modelMatrix*instanceMatrix*vec4(position,1.0)).xyz;
@@ -53,8 +55,29 @@ function metricInstanceMaterial(source){
         #endif
       #endif
     `);
+    if(sceneryRock){
+      // Only landscape instances use this clone. Carrier/building stone and
+      // the shared scans retain their existing material settings and UV scale.
+      shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRockContact;')
+        .replace('#include <begin_vertex>',`#include <begin_vertex>
+          vec3 rockWorld=(modelMatrix*instanceMatrix*vec4(position,1.0)).xyz;
+          float riverCentre=5.0+sin(rockWorld.z*.009)*22.0+sin(rockWorld.z*.020)*7.0;
+          float riverHalfWidth=8.0+1.8*sin(rockWorld.z*.015+1.5);
+          float besideWater=1.0-smoothstep(riverHalfWidth+5.0,riverHalfWidth+11.0,abs(rockWorld.x-riverCentre));
+          float weathering=fract(sin(dot(instanceMatrix[3].xz,vec2(.1271,.3117)))*43758.5453);
+          vRockContact=vec3(1.0-smoothstep(-.65,.35,position.y),besideWater*(1.0-smoothstep(-.25,3.2,rockWorld.y)),weathering);
+        `);
+      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRockContact;')
+        .replace('#include <map_fragment>',`#include <map_fragment>
+          diffuseColor.rgb*=mix(vec3(1.13,1.12,1.06),vec3(.73,.81,.77),vRockContact.y);
+          diffuseColor.rgb*=mix(vec3(.94,1.0,1.02),vec3(1.04,.99,.92),vRockContact.z);
+          diffuseColor.rgb*=1.0-vRockContact.x*.09;
+        `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+          roughnessFactor=mix(clamp(roughnessFactor,.77,1.0),.48,vRockContact.y);
+        `);
+    }
   };
-  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v1';
+  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':bank-rock':'');
   metricInstanceMaterials.set(source.uuid,m);return m;
 }
 const VEGETATION_GLSL = `
@@ -99,6 +122,13 @@ const VEGETATION_NORMAL = `
       dot(vegetationInstance[0], vegetationInstance[0]),
       dot(vegetationInstance[1], vegetationInstance[1]),
       dot(vegetationInstance[2], vegetationInstance[2]))));
+    #ifdef CANOPY_SPRAY
+      // A restrained whole-tree gradient connects individual branch sprays.
+      // Small shrubs keep their authored normals; no vertices or wind change.
+      vec3 canopyOffset=vegetationNormalPoint-windRoot.xyz;
+      vec3 canopyNormal=normalize(vec3(canopyOffset.x,max(.5,windRoot.w*.16),canopyOffset.z));
+      vegetationBaseNormal=normalize(mix(vegetationBaseNormal,canopyNormal,smoothstep(3.0,7.0,windRoot.w)*.32));
+    #endif
     mat3 deformation = mat3(1.0) + vegetationGradient;
     vec3 bentNormal = normalize(
       cross(deformation[1], deformation[2]) * vegetationBaseNormal.x +
@@ -158,7 +188,20 @@ function animateVegetation(mesh, items, kind) {
   mesh.geometry.setAttribute('groundCoverLod', new T.InstancedBufferAttribute(new Float32Array(items.length).fill(kind==='grass'?1:0),1));
   const key = mesh.material.uuid;
   if (!windMaterials.has(key)) {
-    const material = mesh.material.clone(); material.onBeforeCompile = vegetationShader; material.customProgramCacheKey = () => 'rooted-cutout-distance-v5';
+    const material = mesh.material.clone(),volumeNormals=!!(material.userData.crownVolumeNormals||material.userData.rootedBladeNormals);
+    if(material.userData.crownVolumeNormals)material.defines={...material.defines,CANOPY_SPRAY:1};
+    material.onBeforeCompile = shader=>{
+      vegetationShader(shader);
+      // Foliage normals describe a spray volume or upward-curving grass blade,
+      // not the supporting card's front/back face. Avoid dark crossing seams.
+      if(volumeNormals)shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_begin>',`#include <normal_fragment_begin>
+        #ifdef DOUBLE_SIDED
+          normal*=faceDirection;
+          nonPerturbedNormal=normal;
+        #endif
+      `);
+    };
+    material.customProgramCacheKey = () => 'rooted-cutout-distance-v8'+(volumeNormals?':foliage-volume':'');
     const silhouette={side:material.side,map:material.map,alphaTest:material.alphaTest};
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, ...silhouette });
     const distance = new T.MeshDistanceMaterial(silhouette);
@@ -243,7 +286,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size), relief = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x5c7043, dry: 0x827459, meadow: 0x6d824e, soil: 0x6d5b46, litter:0x464335, moss:0x50633d, ash: 0x777269, slate: 0x687078, wet: 0x394d35, gravel: 0xaaa18a, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x647c44, dry: 0x948567, meadow: 0x778b50, soil: 0x785e43, litter:0x4f4637, moss:0x536844, ash: 0x777269, slate: 0x687078, wet: 0x46523e, gravel: 0x9a947e, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = renderedTerrainHeight(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -476,12 +519,17 @@ function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
 
 function createGround() {
   const geometry = new T.PlaneGeometry(1200, 1200, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS); geometry.rotateX(-Math.PI / 2);
-  const pos = geometry.attributes.position, uv = geometry.attributes.uv;
+  const pos = geometry.attributes.position, uv = geometry.attributes.uv,moisture=new Float32Array(pos.count);
   for (let i = 0; i < pos.count; i++) {
     const columns=TERRAIN_SEGMENTS+1,x=terrainGridCoordinate(i%columns),z=terrainGridCoordinate(Math.floor(i/columns));
     pos.setXYZ(i, x, renderedTerrainHeight(x, z), z);
     uv.setXY(i, (x + 600) / 1200, (600 - z) / 1200);
+    // A static material field follows the existing physical bank. Evaluating
+    // it here avoids additional fragment texture reads or moving the shoreline.
+    const waterline=-3+(bankWidth(x,z)+3)*.61;
+    moisture[i]=1-smooth(waterline-.3,waterline+2.4,shoreDistance(x,z));
   }
+  geometry.setAttribute('groundMoisture',new T.BufferAttribute(moisture,1));
   // Area-weighted normals follow the exact visible triangles. Reuse the cached
   // grid for the colour field instead of re-evaluating geology a million times.
   geometry.computeVertexNormals();
@@ -497,11 +545,12 @@ function createGround() {
   const material = new T.MeshStandardMaterial({ color: 0xffffff, map: surface.colour, roughness: .98 });
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms,surfaceUniforms);
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;varying vec3 vGroundPosition;varying vec3 vGroundNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = position.xz;vGroundPosition=position;vGroundNormal=normal;');
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;varying vec3 vGroundPosition;varying vec3 vGroundNormal;attribute float groundMoisture;varying float vGroundMoisture;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = position.xz;vGroundPosition=position;vGroundNormal=normal;vGroundMoisture=groundMoisture;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       varying vec2 vGroundXZ;
       varying vec3 vGroundPosition,vGroundNormal;
+      varying float vGroundMoisture;
       uniform sampler2D uGroundWeights;
       uniform sampler2D uMeadowDetail;
       uniform sampler2D uSurfaceGrass,uSurfaceSlate,uSurfaceSoil;
@@ -516,6 +565,12 @@ function createGround() {
       vec4 meadowField=texture2D(uMeadowDetail,vGroundXZ/9.0);
       vec3 weights = vec3(terrainField.rg,max(0.0,1.0-terrainField.r-terrainField.g));
       weights/=max(.001,dot(weights,vec3(1.0)));
+      // Break up only the organic material transition with the existing local
+      // tussock field. Pure meadow/earth and exposed rock retain their masks.
+      float organicWeight=weights.x+weights.z;
+      float turfFraction=weights.x/max(.001,organicWeight);
+      float turfBoundary=smoothstep(.10,.90,turfFraction+(meadowField.r-.5)*.24);
+      weights.x=organicWeight*turfBoundary;weights.z=organicWeight*(1.0-turfBoundary);
       vec3 surfaceWeights=weights*uSurfaceFlags;
       float escarpment=smoothstep(.20,.63,1.0-abs(normalize(vGroundNormal).y));
       // World-space projection must keep a fixed scale across changing slopes.
@@ -548,39 +603,46 @@ function createGround() {
       vec3 grassSecond=texture2D(uSurfaceGrass,(vGroundXZ.yx+vec2(13.7,27.1))/(uSurfaceScale.x*1.71)).rgb;
       vec3 grassGrain=mix(grassFirst,grassSecond,.22);
       float grassLuma=dot(grassGrain,vec3(.2126,.7152,.0722));
-      float grassReflectance=clamp(.24+grassLuma*4.3,.38,1.62);
-      vec3 grassChroma=clamp(grassGrain/max(.018,grassLuma),vec3(.58),vec3(1.48));
+      float grassReflectance=clamp(.49+grassLuma*3.2,.57,1.32);
+      vec3 grassChroma=clamp(grassGrain/max(.018,grassLuma),vec3(.85),vec3(1.18));
       // The scan supplies physical grain; it must not replace green meadow and
       // forest-litter colours with a uniform photograph of dry yellow pasture.
-      vec3 turfAlbedo=diffuseColor.rgb*vec3(.91,1.0,.86)*grassReflectance*mix(vec3(1.0),grassChroma,.56);
-      turfAlbedo*=1.0+(meadowField.g-.5)*.84;
-      vec3 litterSoil=soilFirst*.54+diffuseColor.rgb*.38;
-      float turfCover=mix(.28,.96,smoothstep(.10,.84,meadowField.r+weights.x*.38));
-      realAlbedo+=surfaceWeights.x*(mix(litterSoil,turfAlbedo,turfCover)-grassFirst);
+      vec3 turfAlbedo=diffuseColor.rgb*grassReflectance*mix(vec3(1.0),grassChroma,.16);
+      turfAlbedo*=1.0+(meadowField.g-.5)*.46;
+      // Let the habitat colours describe living turf, warm exposed soil and
+      // sheltered litter. The local scan adds grain, not a blanket of dry hay.
+      float soilLuma=dot(soilFirst,vec3(.2126,.7152,.0722));
+      vec3 soilChroma=clamp(soilFirst/max(.018,soilLuma),vec3(.85),vec3(1.18));
+      vec3 litterSoil=diffuseColor.rgb*vec3(1.06,.97,.88)*clamp(.52+soilLuma*3.0,.64,1.32)*mix(vec3(1.0),soilChroma,.18);
+      float localMoisture=clamp(vGroundMoisture+(meadowField.r-.5)*.22*4.0*vGroundMoisture*(1.0-vGroundMoisture),0.0,1.0);
+      float turfCover=mix(.58,1.0,smoothstep(.10,.84,meadowField.r+weights.x*.38));
+      realAlbedo+=surfaceWeights.x*(mix(litterSoil,turfAlbedo,turfCover)-grassFirst)+surfaceWeights.z*(litterSoil-soilFirst);
       diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.83+diffuseColor.rgb*.17,realBlend*mix(.81,.88,weights.x));
       diffuseColor.rgb*=mix(1.0,groundCavity,.35);
+      diffuseColor.rgb*=mix(1.0,.73,localMoisture);
     `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
       float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+rockRoughness*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
       roughnessFactor=clamp(mix(roughnessFactor,surfaceRoughness,realBlend*.68)+escarpment*joint*.06,.68,1.0);
+      roughnessFactor=mix(roughnessFactor,.50,localMoisture);
     `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       vec2 surfaceNormal=(texture2D(uNormalGrass,uvGrass).xy-.5)*surfaceWeights.x+(texture2D(uNormalSoil,uvSoil).xy-.5)*surfaceWeights.z;
       vec2 rockNx=texture2D(uNormalSlate,uvRockX).xy-.5,rockNy=texture2D(uNormalSlate,uvSlate).xy-.5,rockNz=texture2D(uNormalSlate,uvRockZ).xy-.5;
       vec3 rockNormal=vec3(0.0,rockNx.y,rockNx.x)*rockFaces.x+vec3(rockNy.x,0.0,rockNy.y)*rockFaces.y+vec3(rockNz.x,rockNz.y,0.0)*rockFaces.z;
-      normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*1.08+rockNormal*surfaceWeights.y*mix(.85,1.35,escarpment)));
+      normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*.76+rockNormal*surfaceWeights.y*mix(.85,1.35,escarpment)));
       vec2 meadowNormal=meadowField.ba*2.0-1.0;
-      normal=normalize(normal+mat3(viewMatrix)*vec3(meadowNormal.x,0.0,meadowNormal.y)*weights.x*.70);
+      normal=normalize(normal+mat3(viewMatrix)*vec3(meadowNormal.x,0.0,meadowNormal.y)*weights.x*.40);
       // Rooted tussock/deposition relief remains legible between individual
       // grass blades and whole hills. It changes shading, never carrier footing.
       float mesoX=terrainField.b*2.0-1.0;
       float mesoZ=terrainField.a*2.0-1.0;
-      normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.50-escarpment*.29));
+      normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.32-escarpment*.11));
     `).replace('#include <aomap_fragment>',`#include <aomap_fragment>
       reflectedLight.indirectDiffuse*=groundCavity;
       reflectedLight.indirectSpecular*=mix(1.0,groundCavity,roughnessFactor);
     `);
   };
-  material.customProgramCacheKey = () => 'alpha-meadow-geology-ground-v9';
+  material.customProgramCacheKey = () => 'habitat-ground-material-v12';
   const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
   ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness,createMeadowSurface()];
   ground.userData.setGroundTextures = textures => {
@@ -639,18 +701,23 @@ function createWater() {
         // on its inside bends, breaking the former symmetrical colour ribbon.
         float bend = vRiverField.w;
         float crossChannel = acrossRiver / channelWidth;
-        float deepAxis = crossChannel + bend * .36;
-        float bedNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .004 + .21, alongRiver * .0016 + .34)).r;
-        float reachNoise = texture2D(uRiverRippleTexture, vec2(alongRiver * .0019 + .61, acrossRiver * .004 + .17)).r;
+        float bedNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .006 + .21, alongRiver * .0024 + .34)).r;
+        float reachNoise = texture2D(uRiverRippleTexture, vec2(alongRiver * .0031 + .61, acrossRiver * .006 + .17)).r;
+        // Existing local deposition fields gently shift the colour of the
+        // deeper flow within the channel, breaking the uniform centre stripe.
+        // Channel boundaries, water vertices and flow timing stay unchanged.
+        float deepAxis = crossChannel + bend * .36 + (reachNoise-.52)*.75;
         float innerBank = sign(bend) * .61;
         float barShape = exp(-pow((crossChannel - innerBank) / .27, 2.0));
         float mineralBar = barShape * smoothstep(.12, .65, abs(bend)) * smoothstep(.42, .59, bedNoise);
         float pool = smoothstep(.43, .63, reachNoise) * (1.0 - smoothstep(.25, .90, abs(deepAxis)));
-        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.50 + (bedNoise - .35) * 1.8) + pool * .28 - mineralBar * .78, 0.0, 1.0);
+        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.50 + (bedNoise - .35) * 1.2) + pool * .18 - mineralBar * .78, 0.0, 1.0);
         float shallows = pow(1.0 - depth, 1.5);
-        vec3 deepColour = mix(vec3(.008, .038, .035), vec3(.005, .021, .034), pool * .83);
-        vec3 shallowColour = mix(vec3(.078, .128, .081), vec3(.158, .139, .080), mineralBar * .81);
+        vec3 deepColour = mix(vec3(.015, .050, .048), vec3(.008, .028, .040), pool * .83);
+        vec3 shallowColour = mix(vec3(.064, .110, .085), vec3(.142, .128, .080), mineralBar * .81);
         diffuseColor.rgb = mix(deepColour, shallowColour, shallows);
+        float deposition=smoothstep(.53,.61,bedNoise)*(1.0-smoothstep(.35,.90,abs(deepAxis)));
+        diffuseColor.rgb=mix(diffuseColor.rgb,shallowColour*vec3(.66,.70,.64),deposition*.10);
         diffuseColor.rgb *= .95 + (reachNoise - .53) * .20;
         float wetEdge = smoothstep(.72 + bankNoise * .32, 1.03, edgeDistance);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.031,.061,.037),wetEdge*(.38+bankNoise*.37));
@@ -661,7 +728,7 @@ function createWater() {
         float foamGrain=texture2D(uRiverRippleTexture,foamUV*vec2(4.9,2.3)+vec2(.31,.73)).r;
         float foam=smoothstep(.60,.70,foamNoise)*smoothstep(.44,.63,foamGrain)*smoothstep(.64,.83,edgeDistance)*(1.0-smoothstep(.92,1.01,edgeDistance));
         foam*=clamp(.10+smoothstep(.43,.61,reachNoise)*smoothstep(.08,.55,abs(bend))*1.3+mineralBar*.55,.10,1.0);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.40,.45,.40),foam*.48);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.40,.45,.40),foam*.28);
         float refractedLight=pow(max(0.0,sin(acrossRiver*1.7+sin(alongRiver*.62-uRiverTime*.31))*sin(alongRiver*.93-uRiverTime*.42)),8.0);
         diffuseColor.rgb+=vec3(.036,.044,.021)*refractedLight*mineralBar;
       `)
@@ -689,7 +756,7 @@ function createWater() {
       `)
       .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
   };
-  material.customProgramCacheKey = () => 'alpha-channel-river-v6';
+  material.customProgramCacheKey = () => 'alpha-channel-river-v9';
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };

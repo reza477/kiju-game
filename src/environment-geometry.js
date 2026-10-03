@@ -31,12 +31,20 @@ function cardBuilder() {
         const y = (v - (rooted ? 0 : .5)) * height;
         const curve = rooted ? v * v * bow : (1 - 4 * (u - .5) ** 2) * bow + Math.sin(v * Math.PI) * bow * .45;
         const position = centre.clone().addScaledVector(right, x).addScaledVector(up, y).addScaledVector(face, curve);
-        // Soft normals follow the bowed leaf volume, avoiding shiny flat planes.
-        const normal = face.clone().addScaledVector(right, (u - .5) * .82).addScaledVector(up, rooted ? .42 : (v - .5) * .68).normalize();
+        // Crown cards share a rounded spray volume instead of lighting each
+        // crossing plane separately. Rooted blades use an upward foliage
+        // normal so crossing cards do not become dark asterisks in the meadow.
+        // The foliage material keeps these normals on either card face.
+        const normal = rooted
+          ? face.clone().addScaledVector(right, (u - .5) * .82).addScaledVector(up, 1.15).normalize()
+          : new T.Vector3(position.x, position.y * .82 + .38, position.z).normalize();
         positions.push(position.x, position.y, position.z);
         normals.push(normal.x, normal.y, normal.z);
         uvs.push(u, v);
-        const light = tint * (rooted ? .73 + .27 * v : .91 + .09 * v);
+        const outer = Math.min(1, Math.hypot(position.x, position.z) / (width * .54));
+        const top = Math.max(0, Math.min(1, position.y / height + .5));
+        // Gentle interior occlusion binds the sprays without dark card seams.
+        const light = tint * (rooted ? .73 + .27 * v : .87 + outer * .08 + top * .05);
         colours.push(light, light, light);
         if (row < 2 && column < columns) {
           const a = first + row * (columns + 1) + column, b = a + columns + 1;
@@ -153,7 +161,7 @@ export function botanicalTree(batch, x,y,z,h,scale,pine) {
     const lateral=[end[0]+Math.sin(a)*scale*.48,end[1]+scale*.30,end[2]-Math.cos(a)*scale*.48];
     batch.wood.link(fork,lateral,scale*.025,trunkColour);
     const radius=(pine?1.21-level*.54:(upright?.92:1.25)+rand()*.30)*scale*(1+grove*.16);
-    const colour=new T.Color(pine?[0x496e51,0x567750,0x657e55,0x476b54][profile]:[0x536f35,0x889549,0x718644,0x446638][profile]).multiplyScalar(.89+rand()*.22).getHex();
+    const colour=new T.Color(pine?[0x576e52,0x627951,0x6b7d58,0x506f58][profile]:[0x67794c,0x818851,0x788355,0x58714b][profile]).multiplyScalar(.89+rand()*.22).getHex();
     const crowns=pine?batch.needles:batch.leaves;
     crowns.add(end[0],end[1],end[2],radius*(pine?1.08:upright?.83:1.14),radius*(pine?.69:upright?1.28:.92),radius,colour,a);
     // The spray's many individual folded leaves make light-bearing gaps between
