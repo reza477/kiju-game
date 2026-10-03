@@ -23,7 +23,7 @@ function builder() {
 function cardBuilder() {
   const positions = [], normals = [], uvs = [], colours = [], indices = [];
   return {
-    card(centre, right, up, width, height, bow, tint, rooted = false) {
+    card(centre, right, up, width, height, bow, tint, rooted = false, shape = null) {
       const face = new T.Vector3().crossVectors(right, up).normalize();
       const first = positions.length / 3, columns = rooted ? 1 : 2;
       for (let row = 0; row <= 2; row++) for (let column = 0; column <= columns; column++) {
@@ -31,6 +31,7 @@ function cardBuilder() {
         const y = (v - (rooted ? 0 : .5)) * height;
         const curve = rooted ? v * v * bow : (1 - 4 * (u - .5) ** 2) * bow + Math.sin(v * Math.PI) * bow * .45;
         const position = centre.clone().addScaledVector(right, x).addScaledVector(up, y).addScaledVector(face, curve);
+        if (shape) shape(position, u, v, right, up, face);
         // Crown cards share a rounded spray volume instead of lighting each
         // crossing plane separately. Rooted blades use an upward foliage
         // normal so crossing cards do not become dark asterisks in the meadow.
@@ -65,7 +66,63 @@ function cardBuilder() {
   };
 }
 
+// These are the authored 56670b3 support envelopes, not gameplay bounds.
+// Keep reshaped local assets inside them without changing any world instance,
+// root, interaction surface or branch construction sequence.
+function insideEnvelope(geometry, min, max) {
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox, position = geometry.attributes.position;
+  const scale = new T.Vector3(1, 1, 1), offset = new T.Vector3();
+  for (const [axis, key] of ['x', 'y', 'z'].entries()) {
+    if (box.min[key] < min[axis] || box.max[key] > max[axis]) {
+      scale[key] = (max[axis] - min[axis]) / (box.max[key] - box.min[key]);
+      offset[key] = min[axis] - box.min[key] * scale[key];
+    }
+  }
+  const normal = geometry.attributes.normal, point = new T.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    point.fromBufferAttribute(position, i).multiply(scale).add(offset);
+    position.setXYZ(i, point.x, point.y, point.z);
+    point.fromBufferAttribute(normal, i).divide(scale).normalize();
+    normal.setXYZ(i, point.x, point.y, point.z);
+  }
+  geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function pineSprayGeometry(distant) {
+  const b = cardBuilder(), rand = random(78521);
+  // Three long, uneven boughs carry the volume at both detail levels. The two
+  // near-only fans sit inside that outline rather than changing its perimeter.
+  const fans = [
+    [.13, .14, -.10, .02, 2.72, 2.28],
+    [2.21, -.28, .11, -.08, 2.58, 2.12],
+    [4.36, .48, -.03, .11, 2.63, 2.21],
+    [.47, -.63, .14, -.18, 1.54, 1.76],
+    [2.50, .68, -.11, -.10, 1.48, 1.71]
+  ];
+  for (let i = 0; i < (distant ? 3 : 5); i++) {
+    const [angle, tilt, x, y, width, height] = fans[i];
+    const right = new T.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const up = new T.Vector3(0, 1, 0).applyAxisAngle(right, tilt);
+    const centre = new T.Vector3(x, y, (rand() - .5) * .18);
+    b.card(centre, right, up, width, height, .26 + rand() * .07, .90 + rand() * .10, false,
+      (position, u, v, across, rise, face) => {
+        // Sweep and cup the branch across its length. Unequal hanging ends
+        // break the flat pad silhouette while the fork stays connected.
+        position.addScaledVector(across, Math.sin(v * Math.PI) * (.15 + i * .025));
+        position.addScaledVector(across, (u - .5) * width * (-.42 * v * v));
+        position.addScaledVector(rise, -Math.pow(Math.abs(u - .42) * 2, 2) * .34);
+        position.addScaledVector(face, Math.sin(v * Math.PI) * (u - .35) * .29);
+      });
+  }
+  return insideEnvelope(b.finish(),
+    distant ? [-1.1541745663, -1.0405642986, -1.3508864641] : [-1.3845872879, -1.1098904610, -1.2291122675],
+    distant ? [1.3268905878, 1.0763062239, 1.3072884083] : [1.4107578993, 1.0763062239, 1.3691959381]);
+}
+
 export function branchSprayGeometry(needles = false, distant = false) {
+  if (needles) return pineSprayGeometry(distant);
   const b = cardBuilder(), rand = random(needles ? 78521 : 81521), count = distant ? 3 : needles ? 5 : 6;
   for (let i = 0; i < count; i++) {
     const angle = i * 2.39996 + rand() * .28;
@@ -85,28 +142,50 @@ export function branchSprayGeometry(needles = false, distant = false) {
 
 export function grassTuftGeometry() {
   const b = cardBuilder(), rand = random(81951);
+  const corners = [.27, 2.26, 4.43], heights = [.88, .77, .84];
   for (let i = 0; i < 3; i++) {
-    const angle = i * 2.39996, right = new T.Vector3(Math.cos(angle), 0, Math.sin(angle));
-    const centre = new T.Vector3(Math.sin(angle) * .035, 0, Math.cos(angle) * .035);
-    b.card(centre, right, new T.Vector3(0, 1, 0), 1.04 + rand() * .13, .79 + rand() * .18, .13 + rand() * .09, .93 + rand() * .07, true);
+    const next = (i + 1) % 3;
+    const right = new T.Vector3(Math.cos(corners[next]) - Math.cos(corners[i]), 0, Math.sin(corners[next]) - Math.sin(corners[i])).normalize();
+    b.card(new T.Vector3(), right, new T.Vector3(0, 1, 0), 1, .88, 0, .93 + rand() * .07, true,
+      (position, u, v) => {
+        // Reuse the same three four-triangle strips around an irregular root
+        // cluster. Crossing through its centre made three strong radial prongs;
+        // bowed perimeter strips instead overlap as a volume from either side.
+        const corner = u < .5 ? i : next, angle = corners[corner] + Math.sin(v * Math.PI) * .09;
+        const radius = v === 0 ? .20 : v === .5 ? [.55, .53, .52][corner] : [.28, .23, .26][corner];
+        position.set(Math.cos(angle) * radius + .19 * v * v,
+          heights[corner] * v, Math.sin(angle) * radius + .12 * v * v);
+      });
   }
-  return b.finish();
+  const geometry = b.finish(), position = geometry.attributes.position, normal = geometry.attributes.normal;
+  // Retain the upward grass-volume normal used by the completed material pass;
+  // the support wraps the tuft, so its horizontal component follows that wrap.
+  for (let i = 0; i < normal.count; i++) {
+    const v = geometry.attributes.uv.getY(i);
+    const direction = new T.Vector3(position.getX(i) - .19 * v * v, 1.15, position.getZ(i) - .12 * v * v).normalize();
+    normal.setXYZ(i, direction.x, direction.y, direction.z);
+  }
+  return insideEnvelope(geometry, [-.5847644806, 0, -.5323136449], [.5847644806, .8877926469, .5473169684]);
 }
 
 export function fernGeometry() {
   const b=builder();
   for(let f=0;f<4;f++) {
-    const a=f*2.39996, dir=new T.Vector3(Math.cos(a),0,Math.sin(a));
+    const a=f*2.39996+[.08,-.17,.14,-.09][f], dir=new T.Vector3(Math.cos(a),0,Math.sin(a));
+    const sideward=new T.Vector3(-dir.z,0,dir.x),length=[.97,.76,.90,.83][f],sweep=[.19,-.23,.12,-.18][f];
     for(let i=1;i<6;i++) {
-      const t=i/6, c=dir.clone().multiplyScalar(t*.91); c.y=Math.sin(t*2.2)*.65;
-      const span=Math.sin(t*Math.PI)*.25;
+      const t=i/6, c=dir.clone().multiplyScalar(t*length).addScaledVector(sideward,Math.sin(t*Math.PI)*sweep);
+      c.y=.015+Math.sin(t*(2.3+f*.14))*(.64-f*.023);
+      const span=Math.sin(t*Math.PI)*(.25-f*.013);
       for(const side of [-1,1]) {
-        const end=c.clone().add(new T.Vector3(-dir.z*side*span+dir.x*.10,.035,dir.x*side*span+dir.z*.10));
-        b.leaf(c,end,span*.22,side*.15,.73+t*.24);
+        const reach=span*(side===1?1: .79+.07*f);
+        const end=c.clone().addScaledVector(sideward,side*reach).addScaledVector(dir,.14-t*.10);
+        end.y+=(.045-t*.13)*(1+f*.10);
+        b.leaf(c,end,span*.24,side*(.20+t*.40),.73+t*.24);
       }
     }
   }
-  return b.finish();
+  return insideEnvelope(b.finish(),[-.7173429728,.2265449613,-.8659747243],[.8583333492,.6911794543,.7572247386]);
 }
 
 export function fracturedRockGeometry() {

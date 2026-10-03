@@ -78,7 +78,7 @@ try{
         const landscape=createLandscape();
         const sites=sim.WORLD_NODES.map(node=>({node,group:createResourceSite(node)}));
         const groups=[{name:'landscape',group:landscape.group},...sites.map(({node,group})=>({name:'resource:'+node.id,group}))];
-        const inventory={meshes:0,instances:0,triangles:0,attributeValues:0,matrixValues:0,textureValues:0,spatialMeshes:0};
+        const inventory={meshes:0,instances:0,triangles:0,attributeValues:0,matrixValues:0,textureValues:0,spatialMeshes:0,windShadowPairs:0};
         const checkedAttributes=new Set(),checkedTextures=new Set();
         for(const {name,group}of groups){
           group.updateMatrixWorld(true);
@@ -96,6 +96,14 @@ try{
             if(mesh.isInstancedMesh){finite(mesh.instanceMatrix.array,name+' / '+mesh.name+' matrices');inventory.matrixValues+=mesh.instanceMatrix.array.length;inventory.instances+=mesh.count;}
             inventory.triangles+=(geometry.index?.count??position.count)/3*(mesh.isInstancedMesh?mesh.count:1);
             if(mesh.userData.spatialIndices)inventory.spatialMeshes++;
+            if(mesh.userData.windAnimated){
+              ensure(!Array.isArray(mesh.material),'Wind material must be a single visible pass');
+              for(const pass of [mesh.customDepthMaterial,mesh.customDistanceMaterial]){
+                ensure(pass,'Wind mesh lost its custom shadow silhouette: '+mesh.name);
+                for(const property of ['map','alphaMap','alphaTest','side'])ensure(pass[property]===mesh.material[property],mesh.name+' shadow '+property+' differs from visible cutout');
+                inventory.windShadowPairs++;
+              }
+            }
             for(const material of [mesh.material,mesh.customDepthMaterial,mesh.customDistanceMaterial].flat().filter(Boolean)){
               for(const property of ['opacity','roughness','metalness','alphaTest'])if(material[property]!==undefined)ensure(Number.isFinite(material[property]),'Non-finite material '+property);
               if(material.color)finite(material.color.toArray(),'material colour');
@@ -108,7 +116,8 @@ try{
         }
         // Normalize both ordinary batches and render cells to their immutable
         // original indices. Counts/cell traversal order may differ after culling
-        // partitioning; every allocated original matrix/root must survive.
+        // partitioning; every allocated original matrix/root, wind parameter,
+        // LOD flag and instance colour must survive.
         function canonical(group){
           group.updateMatrixWorld(true);
           const batches=new Map();
@@ -116,17 +125,28 @@ try{
             if(!mesh.isInstancedMesh)return;
             const name=mesh.userData.spatialBatch??mesh.name,indices=mesh.userData.spatialIndices;
             if(!indices)ensure(!batches.has(name),'Ambiguous ordinary batch name: '+name);
-            if(!batches.has(name))batches.set(name,{name,rows:[],roots:[],hasRoots:!!mesh.geometry.attributes.windRoot,world:mesh.matrixWorld.elements.slice(),active:0});
+            const attributes=Object.fromEntries([
+              ...['windFlex','windMotion','groundCoverLod'].map(key=>[key,mesh.geometry.attributes[key]]),
+              ['instanceColor',mesh.instanceColor]
+            ].filter(([,attribute])=>attribute));
+            const format=attribute=>({type:attribute.array.constructor.name,itemSize:attribute.itemSize,normalized:attribute.normalized,meshPerAttribute:attribute.meshPerAttribute});
+            if(!batches.has(name))batches.set(name,{name,rows:[],roots:[],hasRoots:!!mesh.geometry.attributes.windRoot,attributes:Object.fromEntries(Object.entries(attributes).map(([key,attribute])=>[key,{format:format(attribute),rows:[]}])),world:mesh.matrixWorld.elements.slice(),active:0});
             const batch=batches.get(name),root=mesh.geometry.attributes.windRoot,capacity=mesh.instanceMatrix.array.length/16;
             equal(mesh.matrixWorld.elements,batch.world,'Cell transform changed inside '+name);
             ensure(batch.hasRoots===!!root,'Mixed rooted/unrooted cells in '+name);
             if(indices){ensure(Object.isFrozen(indices),'Spatial addressing must be immutable');ensure(indices.length===capacity,'Spatial indices/capacity mismatch');}
             if(root)ensure(root.count===capacity,'Wind-root capacity mismatch in '+name);
+            equal(Object.keys(attributes),Object.keys(batch.attributes),'Mixed per-instance attributes in '+name);
+            for(const [key,attribute]of Object.entries(attributes)){
+              ensure(attribute.isInstancedBufferAttribute&&attribute.count===capacity,'Invalid '+key+' capacity in '+name);
+              equal(format(attribute),batch.attributes[key].format,'Mixed '+key+' format in '+name);
+            }
             for(let local=0;local<capacity;local++){
               const index=indices?indices[local]:local;
               ensure(Number.isInteger(index)&&index>=0&&batch.rows[index]===undefined,'Duplicate/invalid canonical slot in '+name);
               batch.rows[index]=Array.from(mesh.instanceMatrix.array.subarray(local*16,local*16+16));
               if(root)batch.roots[index]=Array.from(root.array.subarray(local*root.itemSize,(local+1)*root.itemSize));
+              for(const [key,attribute]of Object.entries(attributes))batch.attributes[key].rows[index]=Array.from(attribute.array.subarray(local*attribute.itemSize,(local+1)*attribute.itemSize));
             }
             batch.active+=mesh.count;
           });
@@ -135,8 +155,12 @@ try{
         }
         async function summaries(batches){
           const result=[];
-          for(const batch of batches)result.push({name:batch.name,capacity:batch.rows.length,active:batch.active,world:batch.world,
-            matrices:await hash(new Float32Array(batch.rows.flat())),roots:batch.hasRoots?await hash(new Float32Array(batch.roots.flat())):null});
+          for(const batch of batches){
+            const attributes={};
+            for(const [key,attribute]of Object.entries(batch.attributes))attributes[key]={...attribute.format,sha256:await hash(new globalThis[attribute.format.type](attribute.rows.flat()))};
+            result.push({name:batch.name,capacity:batch.rows.length,active:batch.active,world:batch.world,
+              matrices:await hash(new Float32Array(batch.rows.flat())),roots:batch.hasRoots?await hash(new Float32Array(batch.roots.flat())):null,attributes});
+          }
           return result;
         }
         const initial=canonical(landscape.group),canonicalGroups=[];
@@ -215,6 +239,7 @@ try{
   }
   assert.deepEqual(report.errors,[]);assert.deepEqual(report.remote,[]);assert.deepEqual(report.failedRequests,[]);
   report.checks.push('All inspected geometry, matrices, material scalars and procedural texture pixels are finite; local image assets loaded without errors.');
+  report.checks.push('Canonical wind flex/motion, ground-cover LOD flags and instance colours are exactly preserved; every wind mesh shares its visible map/alpha/side with depth and distance silhouettes.');
   report.checks.push('Forty saved destruction records hide identical canonical slots in expedition and battle and restore every original matrix/root/count; dormant pools return to zero.');
   report.passed=true;
 }catch(error){report.passed=false;report.failure=error.stack;process.exitCode=1;}

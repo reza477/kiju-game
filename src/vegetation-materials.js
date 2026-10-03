@@ -81,18 +81,20 @@ function broadleaf(r) {
 }
 
 function pine(r) {
-  // Needles radiate above and below the fork. Distributing the same coverage
-  // vertically makes each existing spray a hanging branch mass, not a flat fan.
-  const rand = random(54617), ends = [[.16,.29],[.13,.52],[.23,.78],[.44,.90],[.67,.84],[.83,.66],[.85,.40],[.72,.16],[.48,.055],[.26,.16],[.56,.57]];
-  for (const [ex, ey] of ends) {
-    const root = [.43 + rand() * .12, .36 + rand() * .12];
-    r.stroke(...root, ex, ey, .004, [191, 198, 176]);
+  // Connected, oblique branch axes carry unequal needle clusters. Transparent
+  // windows between forks expose real branches without outlining an oval pad.
+  const rand = random(54617), ends = [[.12,.48],[.31,.82],[.24,.24],[.51,.91],[.73,.54],[.88,.80],[.86,.35],[.64,.11],[.74,.89]];
+  const spine = t => [.18 + t * .58, .17 + t * .62 + Math.sin(t * Math.PI) * .035];
+  for (let i = 0; i < 9; i++) r.stroke(...spine(i / 9), ...spine((i + 1) / 9), .004, [191, 198, 176]);
+  for (let branch = 0; branch < ends.length; branch++) {
+    const [ex, ey] = ends[branch], root = spine(.09 + branch * .092);
+    r.stroke(...root, ex, ey, .0036, [191, 198, 176]);
     const axis = Math.atan2(ey - root[1], ex - root[0]);
     for (let j = 0; j < 10; j++) {
       const t = .14 + j * .091, nx = root[0] + (ex - root[0]) * t, ny = root[1] + (ey - root[1]) * t;
       for (const side of [-1, 1]) for (let layer = 0; layer < 3; layer++) {
-        const a = axis + side * (.46 + layer * .35 + rand() * .16), length = (.082 + rand() * .063) * (1 - t * .12), shade = .87 + rand() * .13;
-        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length, .035, .955), .0032 + rand() * .0022, [238 * shade, 254 * shade, 226 * shade], true);
+        const a = axis + side * (.34 + layer * .30 + rand() * .19), length = (.095 + rand() * .090) * (1.38 - t * 1.02), shade = .87 + rand() * .13;
+        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length - t * t * .061 - layer * .009, .035, .955), (.0051 + rand() * .0024) * (1.16 - t * .40), [238 * shade, 254 * shade, 226 * shade], true);
       }
     }
   }
@@ -101,10 +103,11 @@ function pine(r) {
 function grass(r) {
   const rand = random(43769);
   for (let i = 0; i < 58; i++) {
-    const spread = (i + .5) / 58, root = [.22 + rand() * .56, .018 + rand() * .016];
-    const tip = [.045 + spread * .91, .24 + Math.sin(spread * Math.PI) * (.26 + rand() * .44)];
+    const root = [.22 + rand() * .53, .018 + rand() * .016];
+    const height = .37 + rand() * .52 - Math.abs(root[0] - .48) * .30;
+    const tip = [clamp(root[0] + .075 + (rand() - .5) * .13, .045, .955), height];
     const colour = i % 8 === 0 ? [237, 228, 182] : [232 + rand() * 21, 248 + rand() * 7, 206 + rand() * 28];
-    r.blade(root, tip, (spread - .5) * (.08 + rand() * .11), .0061 + rand() * .0034, colour);
+    r.blade(root, tip, .055 + rand() * .060, .0077 + rand() * .0037, colour);
   }
 }
 
