@@ -2,11 +2,13 @@
 
 The repository [reza477/kiju-game](https://github.com/reza477/kiju-game) is the source backup and development home for **Colossus Wake**. The owner's latest explicit instruction requires public source; this supersedes earlier private-repository instructions. The scheduled maintenance check returns every three days.
 
-**Current delivery state: Configured but blocked.** The `codex/playtest` functional gate now passes on Linux and Windows. The visual gate/readiness remain failed, and the legacy source-only private-repository assertion must be reconciled separately. The single protected `PLAYTEST_ORIGIN` serves a generic setup page, not gameplay. [PRIVATE_DELIVERY.md](PRIVATE_DELIVERY.md) and [AGENTS.md](../AGENTS.md) govern delivery; public source does not weaken hosted authentication. Do not change the default branch.
+On 3 October 2026, the owner explicitly requested uploading and synchronizing completed work, with **Build kaiju city builder prototype** taking priority over this maintenance task for what was implemented and verified. Maintenance mirrors that chat's completed source, reports and actual review results; it does not change gameplay, reopen closed visual passes, reinterpret scores or make release decisions. This request authorizes source backup of the completed environment and foliage commits while their release gates remain failed. A source backup is not permission to promote a playable build.
+
+**Current delivery state: Configured but blocked.** The earlier `codex/playtest` repair passed its recorded Linux/Windows functional gate. Newer environment and foliage work is backed up on `codex/github-stewardship-20260927`; its full frozen installation/update gate has not been rerun. Both visual tasks ended at 7.6/10 after four rounds, and readiness remains false. The legacy source-only private-repository assertion must be reconciled separately. The single protected `PLAYTEST_ORIGIN` serves a generic setup page, not gameplay. [PRIVATE_DELIVERY.md](PRIVATE_DELIVERY.md) and [AGENTS.md](../AGENTS.md) govern delivery; public source does not weaken hosted authentication. Do not change the default branch.
 
 ## Sources of truth
 
-- The owner's latest instructions and the main development task, **Build kaiju city builder prototype**.
+- The owner's latest instructions and the main development task, **Build kaiju city builder prototype**, which is authoritative over maintenance interpretations of implementation, completed work, verification and review outcomes.
 - The original local game checkout and its Git branches, plus completed work in other game worktrees.
 - [AGENTS.md](../AGENTS.md), [private delivery instructions](PRIVATE_DELIVERY.md), [release readiness](../delivery/readiness.json), current game files, version/build identity, verification reports, and independent reviews.
 - Live GitHub branch tips, checks, issues, pull requests, and release records.
@@ -30,6 +32,7 @@ Read the main task for changed requirements before summarizing a build. Do not c
 ## Branches, versions, and releases
 
 - `main` remains the default branch and maintained Alpha 1 baseline. Do not change the default branch or integrate the currently blocked visual/runtime candidate.
+- `codex/github-stewardship-20260927` contains the current source backup, including unchanged development commits `56670b3` (environment materials) and `b30d21d` (foliage assets). Its additional commits reconcile source history and repository documentation only. Share this branch when the owner asks for the newest code; do not represent the older default branch or delivery branch as the latest implementation.
 - `codex/playtest` is the authorized private delivery branch. After finished work, passing required gates and verified setup, `npm run handoff:playtest` assists clean-tree fast-forward integration, ordinary push and verification. A divergence requires explicit reconciliation. Later no-push/no-deploy instructions override this default.
 - `codex/*` branches preserve individual development efforts. The initial prototype branch remains a historical checkpoint.
 - `alpha-1` identifies the existing local Alpha 1 source revision; never move a published tag.
@@ -39,6 +42,8 @@ Read the main task for changed requirements before summarizing a build. Do not c
 ## Validation boundaries
 
 Historical Alpha 1 main CI passed its portable tests/package checks. The newer [run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486), source `d556448` and build `af7991973d3ec6fc31ad`, passed 226 units, 12 game groups, 8 transport and 3 startup regressions, synthetic credential confinement and 111 runtime-file checks. Matching Windows game checks passed with the same artifact identity. Its overall conclusion is failure specifically at eligibility; publication was skipped because art remains 6.9/10 overall, 8.4/10 HUD. Subsequent `8230ce1` records evidence and must not replace the tested source identity.
+
+The subsequent [environment report](ENVIRONMENT_POLISH_PASS1_2026-10-02.md) and [foliage report](FOLIAGE_ASSETS_2026-10-02.md) retain their own evidence and limitations. The foliage source records 227 unit tests, 54 carrier cases, 13 interaction/save checks and preservation comparisons after the last runtime edit. Its failed 7.6/10 review is separate from the preceding environment pass's failed 7.6/10 result and the historical iPhone score. The foliage critic's prior technical role is disclosed in the original review. No source-backup merge, later documentation commit or skipped cloud check creates new runtime, art or installation evidence.
 
 Protected placeholder access and generic promotion now have [setup evidence](PRIVATE_HOSTING_SETUP_2026-09-27.md). Actual scoped CI publishing, hosted game A→B, desktop WebKit and physical Apple-device validation remain unexercised. Local touch emulation does not establish Safari, Home Screen, touch latency, thermal or long-session behavior. Keep historical failed reports and [Alpha 1 verification](../ALPHA1_VERIFICATION.md) in their original scope. GitHub source visibility and a protected placeholder do not make the game live.
 

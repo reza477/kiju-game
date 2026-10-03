@@ -4,6 +4,8 @@
 
 ## Local setup
 
+For the latest completed development source, use `codex/github-stewardship-20260927`, which preserves the main development chat's environment commit `56670b3` and foliage commit `b30d21d`. The owner made that chat authoritative for implementation, verification and release decisions. `main` remains the historical Alpha 1 baseline and `codex/playtest` remains the earlier delivery checkpoint; maintenance changes neither active developer checkout.
+
 The game uses plain JavaScript ES modules with a vendored Three.js 0.185.1 renderer. Node.js serves files and runs tests; Chrome or Edge with WebGL2 renders the game. CI uses Node.js **24.18.0** for reproducible checks and packaging. There is no application bundling step for normal local play.
 
 ```sh
@@ -59,9 +61,11 @@ The historical local Alpha 1 package is `cb00d8cec12f2c169cf4`. Canonical line e
 
 ### Blocked candidate evidence
 
-The current passing functional evidence belongs to frozen source `d55644881550aa3d4aaa2dd5873492f13435754f`, A `af7991973d3ec6fc31ad`, synthetic B `34efede859e8c5f3ca8b`, artifact SHA-256 `16d344548def9f0743708e3e0763edb02ae8af554aea09956b7e922b69aa4546`. Linux passed 226/226 units, 12/12 game groups, 8/8 metadata-transport and 3/3 startup regressions, synthetic credential confinement and 111 runtime integrity checks. Windows passed the same 12 game groups with identical A/B IDs and primary hash. Production repair source is `bf24be2`; later `8230ce1` records results, not a new tested runtime. See [the installer report](INSTALLER_THREAD_REPAIR_2026-09-27.md). Earlier `11af190` failures remain historical evidence; none was relabelled as a pass, and maintenance did not rerun the game.
+The newest graphics source, `b30d21d`, records 227 unit tests, 54 carrier cases, 13 interaction/save smoke checks and preservation comparisons after its last runtime edit. Maintenance's exact-source copy also passed 227 units after locked dependency setup. Both environment and foliage art loops ended at 7.6/10 after four rounds and remain closed. See [environment evidence](ENVIRONMENT_POLISH_PASS1_2026-10-02.md) and [foliage evidence](FOLIAGE_ASSETS_2026-10-02.md), including the environment matrix timing boundary and the foliage critic's disclosed prior technical role. No new full frozen installation/update gate, physical-device or hosted game validation is implied by this source backup.
 
-The visual result remains 6.9/10 overall and 8.4/10 HUD, so [readiness](../delivery/readiness.json) stays false. Generic protected hosting is verified at the permanent origin, but playable upload, actual CI publishing, hosted game A→B and Apple-device checks remain outstanding. `npm run handoff:playtest` is for finished eligible implementation, not read-only reviews or this blocked candidate. A successful push is insufficient: verify the matching Actions run and exact playable build at the permanent protected origin before reporting it live.
+The earlier passing full installation evidence belongs to frozen source `d55644881550aa3d4aaa2dd5873492f13435754f`, A `af7991973d3ec6fc31ad`, synthetic B `34efede859e8c5f3ca8b`, artifact SHA-256 `16d344548def9f0743708e3e0763edb02ae8af554aea09956b7e922b69aa4546`. Linux passed 226/226 units, 12/12 game groups, 8/8 metadata-transport and 3/3 startup regressions, synthetic credential confinement and 111 runtime integrity checks. Windows passed the same 12 game groups with identical A/B IDs and primary hash. Production repair source is `bf24be2`; later `8230ce1` records results, not a new tested runtime. See [the installer report](INSTALLER_THREAD_REPAIR_2026-09-27.md). Earlier `11af190` failures remain historical evidence; none was relabelled as a pass.
+
+The historical iPhone visual result was 6.9/10 overall and 8.4/10 HUD; the two later graphics tasks each scored 7.6 overall. None passed 8.5, so [readiness](../delivery/readiness.json) stays false and its development-owned contents are preserved. Generic protected hosting is verified at the permanent origin, but playable upload, actual CI publishing, hosted game A→B and Apple-device checks remain outstanding. `npm run handoff:playtest` is for finished eligible implementation, not read-only reviews or this blocked candidate. A successful source push is insufficient: verify the matching Actions run and exact playable build at the permanent protected origin before reporting it live.
 
 ### Public source compatibility blocker
 

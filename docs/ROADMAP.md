@@ -8,7 +8,7 @@ Six carrier variants, district construction and upgrades, resource travel/gather
 
 GitHub source maintenance keeps documentation, checks and backups aligned with completed development. It does not by itself publish a playable mobile build. See [repository maintenance](REPOSITORY_MAINTENANCE.md).
 
-The newer iPhone/delivery candidate is backed up on `codex/playtest`, while `main` retains Alpha 1. Its status is **Configured but blocked**: the complete Linux/Windows functional gate passes, but [readiness remains false](../delivery/readiness.json) for the visual gate. The permanent protected origin serves only a setup page. [Current evidence](PRIVATE_DELIVERY.md) supersedes earlier failed functional runs and the Cloudflare hosting proposal.
+The latest completed environment and foliage source is backed up on `codex/github-stewardship-20260927`; `codex/playtest` retains the earlier installer repair and `main` retains Alpha 1. The main development chat determines completed work and verification outcomes. Status remains **Configured but blocked**: both newer visual passes failed at 7.6/10 after four rounds, and [readiness remains false](../delivery/readiness.json). The complete Linux/Windows installation gate passed for the earlier `d556448` source, not a newly packaged graphics build. The permanent protected origin serves only a setup page. See [current evidence](PRIVATE_DELIVERY.md).
 
 ## Next validation priorities
 
@@ -20,6 +20,8 @@ The newer iPhone/delivery candidate is backed up on `codex/playtest`, while `mai
 - **Ongoing save compatibility:** preserve older expeditions, construction order, district IDs and scenery damage through future updates; exercise save export/import and recovery alongside runtime changes.
 
 ## Visual improvement priorities
+
+The [environment pass](ENVIRONMENT_POLISH_PASS1_2026-10-02.md) and distinct [foliage pass](FOLIAGE_ASSETS_2026-10-02.md) are complete, each with a closed four-round **7.6/10 failed** review. The following historical priorities are not authorization to reopen either pass. The latest remaining foliage limitations are repeated grass silhouettes and exposed pine branch structure; preserve the original [environment](../art-reviews/environment-pass1-round-04.md) and [foliage](../art-reviews/foliage-assets-round-04.md) findings without rewriting scores. Any further visual task needs its own owner-defined scope.
 
 The latest [iPhone presentation review](../art-reviews/iphone-pass1-04.md) scored **6.9/10 overall and 8.4/10 HUD**, below the 8.5 overall threshold after four rounds. Its sampled HUD defects were resolved; physical-phone feedback remains needed. An actual passing review or explicit art-only owner exception can address this remaining art blocker. Neither waives functional regression checks, protected hosting or included-only usage requirements.
 

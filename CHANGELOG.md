@@ -2,6 +2,17 @@
 
 This history describes prototype milestones. A version entry records development work, not a public release or art-quality approval. Verification reports retain the evidence and review outcome for their particular revision.
 
+## Environment and foliage source synchronization — October 3, 2026
+
+Uploaded the main development chat's completed October 2 source and reports through the existing maintenance draft, preserving original commits and results. The owner requested GitHub synchronization and explicitly made that chat authoritative for implementation and verification. No gameplay, review score, readiness setting or deployment decision was changed by maintenance.
+
+- Environment materials, `56670b3`: ground, foliage shading, pine artwork, rocks and riverbank treatment. The experimental culling change was removed. Final units, preservation and smoke checks passed; the 54-case carrier matrix predates the final partition rollback. [Original report](docs/ENVIRONMENT_POLISH_PASS1_2026-10-02.md).
+- Foliage assets, `b30d21d`, based on the complete environment commit: pine, grass and fern shape improvements within existing asset budgets, placements, interactions and save identities. Final-source 227 unit tests, 54 carrier cases and 13 smoke checks passed. Phone-emulation GPU medians rose by 0.225 ms portrait and 0.110 ms landscape; no reliable speedup is claimed. [Original report](docs/FOLIAGE_ASSETS_2026-10-02.md).
+- Both four-round art reviews ended at **7.6/10, failed**. The foliage critic's prior technical role remains disclosed in its original review. Neither task recertified the full frozen installation/update gate or physical Apple devices. Full media/evidence archives remain local.
+- Maintenance's isolated copy passed all 227 unit tests after installing the existing locked dependencies. Its first attempt lacked two development dependencies; the corrected run made no source or dependency-version changes. Browser and art evidence remains that recorded by the main development task.
+
+The latest source backup is `codex/github-stewardship-20260927`; `main`, `codex/playtest` and `alpha-1` retain their existing identities. This is source synchronization, not a playable release.
+
 ## Installer repair and protected setup — September 27–28, 2026
 
 Repaired release-metadata fetching and startup scheduling without changing the engine, art, phone presentation, controls, saves or service-worker client pinning. Production repair source is `bf24be2`; later revisions strengthened test infrastructure and recorded evidence.
