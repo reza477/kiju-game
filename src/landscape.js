@@ -8,7 +8,7 @@ import { valleyWoodland, valleyGroundCover, valleyDrainageDiagnostics, composeAu
 import { createBridgeAbutments } from './bridge-study.js';
 import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
-import { createMeadowSurface } from './meadow-surface.js';
+import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
 
 // All scenery is generated locally. Instancing keeps the many small details cheap.
 const TAU = Math.PI * 2;
@@ -34,7 +34,7 @@ function metricInstanceMaterial(source){
   // The source cache owns this clone; sites and persistent scenery borrow it.
   // Removing one site must not invalidate the material in every other owner.
   m.userData.shared=true;
-  if(sceneryRock)m.normalScale.setScalar(.40);
+  if(sceneryRock)m.normalScale.setScalar(.16);
   m.onBeforeCompile=shader=>{
     prior.call(source,shader);
     shader.uniforms.uScenerySurfaceScale={value:sceneryRock?2.8:source.userData.surfaceScale};
@@ -60,26 +60,32 @@ function metricInstanceMaterial(source){
     if(sceneryRock){
       // Only landscape instances use this clone. Carrier/building stone and
       // the shared scans retain their existing material settings and UV scale.
-      shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRockContact;')
+      shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec4 vRockContact;attribute float sceneryWet;')
         .replace('#include <begin_vertex>',`#include <begin_vertex>
           vec3 rockWorld=(modelMatrix*instanceMatrix*vec4(position,1.0)).xyz;
-          float riverCentre=5.0+sin(rockWorld.z*.009)*22.0+sin(rockWorld.z*.020)*7.0;
-          float riverHalfWidth=8.0+1.8*sin(rockWorld.z*.015+1.5);
-          float besideWater=1.0-smoothstep(riverHalfWidth+5.0,riverHalfWidth+11.0,abs(rockWorld.x-riverCentre));
+          float besideWater=sceneryWet;
           float weathering=fract(sin(dot(instanceMatrix[3].xz,vec2(.1271,.3117)))*43758.5453);
-          vRockContact=vec3(1.0-smoothstep(-.65,.35,position.y),besideWater*(1.0-smoothstep(-.25,3.2,rockWorld.y)),weathering);
+          vRockContact=vec4(1.0-smoothstep(-.65,.35,position.y),besideWater*(1.0-smoothstep(-.25,3.2,rockWorld.y)),weathering,rockWorld.y*.64+rockWorld.x*.13+rockWorld.z*.06);
         `);
-      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRockContact;')
-        .replace('#include <map_fragment>',`#include <map_fragment>
-          diffuseColor.rgb*=mix(vec3(1.13,1.12,1.06),vec3(.73,.81,.77),vRockContact.y);
+      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec4 vRockContact;')
+        .replace('#include <map_fragment>',`#ifdef USE_MAP
+          vec4 mineral=texture2D(map,vMapUv);
+          float mineralTone=dot(mineral.rgb,vec3(.2126,.7152,.0722));
+          diffuseColor.rgb*=mix(.36,.73,smoothstep(.04,.48,mineralTone));
+          diffuseColor.a*=mineral.a;
+          #endif
+          diffuseColor.rgb*=mix(vec3(.96,1.01,1.04),vec3(.41,.59,.54),vRockContact.y);
           diffuseColor.rgb*=mix(vec3(.94,1.0,1.02),vec3(1.04,.99,.92),vRockContact.z);
           diffuseColor.rgb*=1.0-vRockContact.x*.09;
+          // Quiet mineral bedding reads across existing fractured planes.
+          // This is material color only; the geological silhouette is retained.
+          diffuseColor.rgb*=mix(.90,1.04,smoothstep(.18,.60,fract(vRockContact.w)));
         `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
           roughnessFactor=mix(clamp(roughnessFactor,.77,1.0),.48,vRockContact.y);
         `);
     }
   };
-  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':bank-rock':'');
+  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':painterly-bank-rock-v2':'');
   metricInstanceMaterials.set(source,m);return m;
 }
 const VEGETATION_GLSL = `
@@ -88,6 +94,7 @@ const VEGETATION_GLSL = `
   attribute vec2 windFlex;
   attribute vec2 windMotion;
   attribute float groundCoverLod;
+  attribute float groundCoverMass;
   mat3 vegetationGradient;
   ${WIND_GLSL}
   vec3 rootedWindOffset(vec3 p) {
@@ -151,7 +158,7 @@ const VEGETATION_TRANSFORM = `
     float coverScale = 1.0;
     if (groundCoverLod > .5) {
       vec3 rootWorld = (modelMatrix * vec4(windRoot.xyz, 1.0)).xyz;
-      coverScale = 1.0 - smoothstep(155.0, 250.0, distance(cameraPosition, rootWorld));
+      coverScale = groundCoverMass * (1.0 - smoothstep(155.0, 250.0, distance(cameraPosition, rootWorld)));
       transformed *= coverScale;
     }
     vec3 vegetationPoint = (instanceMatrix * vec4(transformed, 1.0)).xyz;
@@ -188,6 +195,11 @@ function animateVegetation(mesh, items, kind) {
   mesh.geometry.setAttribute('windFlex', new T.InstancedBufferAttribute(flex, 2));
   mesh.geometry.setAttribute('windMotion', new T.InstancedBufferAttribute(motion, 2));
   mesh.geometry.setAttribute('groundCoverLod', new T.InstancedBufferAttribute(new Float32Array(items.length).fill(kind==='grass'?1:0),1));
+  // Cosmetic growth density uses an independent static habitat field. Farm
+  // crops, fern contacts, wind roots and every destruction slot are unchanged.
+  const meadow=mesh.name==='Low meadow grass'||mesh.name==='Meadow grass and river reeds';
+  const masses=items.map(item=>meadow?.30+.70*smooth(.33,.66,noise(item.x*.061+17,item.z*.055-9)):1);
+  mesh.geometry.setAttribute('groundCoverMass',new T.InstancedBufferAttribute(new Float32Array(masses),1));
   const key = mesh.material;
   if (!windMaterials.has(key)) {
     const material = mesh.material.clone(),volumeNormals=!!(material.userData.crownVolumeNormals||material.userData.rootedBladeNormals);
@@ -203,11 +215,11 @@ function animateVegetation(mesh, items, kind) {
         #endif
       `);
     };
-    material.customProgramCacheKey = () => 'rooted-cutout-distance-v8'+(volumeNormals?':foliage-volume':'');
+    material.customProgramCacheKey = () => 'rooted-sculpted-distance-v10'+(volumeNormals?':foliage-volume':'');
     const silhouette={side:material.side,map:material.map,alphaTest:material.alphaTest};
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, ...silhouette });
     const distance = new T.MeshDistanceMaterial(silhouette);
-    for (const pass of [depth, distance]) { pass.userData.shared=!!material.userData.shared;pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-distance-depth-v4'; }
+    for (const pass of [depth, distance]) { pass.userData.shared=!!material.userData.shared;pass.onBeforeCompile = vegetationShader; pass.customProgramCacheKey = () => 'rooted-gust-distance-depth-v5'; }
     // Owned site materials expire with the site, including their shadow passes.
     // Shared source materials keep their existing page-lifetime ownership.
     material.addEventListener('dispose',()=>windMaterials.delete(key));
@@ -253,7 +265,7 @@ function groundTexture(data, size, colour = false, repeat = false) {
   texture.magFilter = T.LinearFilter; texture.anisotropy = 4; texture.needsUpdate = true;
   return texture;
 }
-function groundDetail(kind) {
+function groundDetail() {
   const size = 256, data = new Uint8Array(size * size * 4);
   const periodic = (u, v, cells) => {
     const x = u * cells, z = v * cells, ix = Math.floor(x), iz = Math.floor(z), tx = smooth(0, 1, x - ix), tz = smooth(0, 1, z - iz);
@@ -265,13 +277,7 @@ function groundDetail(kind) {
     // Wrapped lattice noise is seamless without an obvious repeated wave or
     // checker pattern. Each surface has a different grain size and contrast.
     const grain = periodic(u, v, 97) - .5, middle = periodic(u, v, 31) - .5, broad = periodic(u, v, 7) - .5;
-    let value;
-    if (kind === 'grass') {
-      value = .55 + grain * .32 + middle * .19 + broad * .055;
-    } else if (kind === 'slate') {
-      const flakes = smooth(.53, .66, periodic(u, v, 19));
-      value = .59 + broad * .14 + grain * .21 + middle * .27 - flakes * .13;
-    } else value = .53 + broad * .13 + middle * .30 + grain * .27;
+    const value = .53 + broad * .13 + middle * .30 + grain * .27;
     const c = Math.round(Math.max(0, Math.min(1, value)) * 255), i = (z * size + x) * 4;
     data[i] = data[i + 1] = data[i + 2] = c; data[i + 3] = 255;
   }
@@ -289,9 +295,9 @@ function ruinFootprint(x, z) {
   return footprint;
 }
 function groundAlbedo() {
-  const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size), relief = new Float32Array(size * size);
+  const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x647c44, dry: 0x948567, meadow: 0x778b50, soil: 0x785e43, litter:0x4f4637, moss:0x536844, ash: 0x777269, slate: 0x687078, wet: 0x46523e, gravel: 0x9a947e, riverbed: 0x405c54, drainage:0x6b6755, silt:0x95876b, sedge:0x525e39 }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x566d51, dry: 0x82785c, meadow: 0x818b61, soil: 0x74614e, litter:0x494238, moss:0x526950, ash: 0x656c65, slate: 0x64716e, wet: 0x374c43, gravel: 0x838371, riverbed: 0x354c48, drainage:0x717363, silt:0x939079, sedge:0x52634e }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = renderedTerrainHeight(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -314,7 +320,7 @@ function groundAlbedo() {
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
     const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74,terraceFace*.78, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
     c.copy(palette.grass).lerp(palette.dry,cover.dry*.56+smooth(.46,.78,broad)*.13).lerp(palette.meadow,region.meadow*.28);
-    c.lerp(palette.soil,cover.bare*.64).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
+    c.lerp(palette.soil,smooth(.30,.75,cover.bare)*.48).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
     let clearingDistance=Math.hypot(x+30,z-40);for(const [cx,cz]of RESOURCE_CLEARINGS)clearingDistance=Math.min(clearingDistance,Math.hypot(x-cx,z-cz));
@@ -322,19 +328,23 @@ function groundAlbedo() {
     forest=Math.max(forest,eco.woods*.98);
     // Smaller clearings and tongues of woodland litter connect actual canopy
     // edges to the floor; their contour is not another broad painted circle.
-    forest=smooth(.12,.86,forest+(cover.patch-.48)*.28);
+    forest=smooth(.16,.77,forest+(noise(x*.041,z*.037)-.5)*.10);
     c.lerp(palette.litter,forest*(.59+cover.bare*.28)).lerp(palette.moss,forest*cover.cover*.28);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
-    const bankPatch=smooth(.27,.67,noise(x*.13+17,z*.075-8));
-    c.lerp(palette.gravel, bank * (.37+bankPatch*.59)).lerp(palette.wet,bank*(1-bankPatch)*.36);
+    const bankPatch=smooth(.39,.60,noise(x*.13+17,z*.075-8));
+    const wetToe=1-smooth(waterline-.1,waterline+2.7,d);
+    c.lerp(palette.gravel, bank * (.12+bankPatch*.52)).lerp(palette.wet,bank*((1-bankPatch)*.38+wetToe*.44));
     c.lerp(palette.riverbed, 1 - smooth(waterline-1.4+(bankPatch-.5)*2.2,waterline+.6+(bankPatch-.5)*1.8,d));
     c.lerp(palette.litter,eco.woods*.55).lerp(palette.moss,eco.wet*.60).lerp(palette.wet,eco.wet*(1-smooth(beach,beach+8,d))*.66);
     const channelEdge=Math.max(0,cover.bank-cover.channel*.75);
-    c.lerp(palette.sedge,channelEdge*.63).lerp(palette.drainage,cover.channel*(.58+washedStone*.22)).lerp(palette.silt,cover.fan*.65);
+    c.lerp(palette.sedge,channelEdge*.63).lerp(palette.drainage,cover.channel*(.32+washedStone*.12)).lerp(palette.silt,cover.fan*.36);
     // Geological striations are broad and follow the ridge, without vertex-sized
     // colour noise. The close detail comes from material-specific tiled textures.
-    c.multiplyScalar(.84+cover.patch*.18+cover.fine*.08+veins*.045);
+    const meadowMass=smooth(.38,.61,noise(x*.028+8,z*.033-4));
+    c.lerp(palette.meadow,meadowMass*(1-stone)*(1-bank)*(1-forest)*.32);
+    c.lerp(palette.litter,smooth(.30,.68,forest)*.38);
+    c.multiplyScalar(.94+smooth(.25,.75,broad)*.045+veins*.025);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255;
     // Base-colour alpha carries static geological cavity shading. Concave
@@ -343,13 +353,7 @@ function groundAlbedo() {
     const cavity=smooth(.007,.095,curvature)*stone*smooth(12,38,y);
     colourData[offset + 3] = Math.round((1-cavity*.48)*255);
     const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9,eco.wet*.94,cover.hollow*.47));
-    weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255); relief[i]=cover.relief;
-  }
-  // Store the static relief gradient once. Blue/alpha no longer require four
-  // neighbouring texture fetches for every ground fragment in every frame.
-  for(let row=0;row<size;row++)for(let col=0;col<size;col++){
-    const i=row*size+col,dx=relief[row*size+Math.min(size-1,col+1)]-relief[row*size+Math.max(0,col-1)],dz=relief[Math.min(size-1,row+1)*size+col]-relief[Math.max(0,row-1)*size+col];
-    weightData[i*4+2]=Math.round((dx*.5+.5)*255);weightData[i*4+3]=Math.round((dz*.5+.5)*255);
+    weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255);
   }
   return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
 }
@@ -380,6 +384,12 @@ class Instances {
       if (item.rotation) TEMP.quaternion.copy(item.rotation); else TEMP.rotation.set(0, item.yaw, 0);
       TEMP.updateMatrix(); mesh.setMatrixAt(i, TEMP.matrix); mesh.setColorAt(i, colour.setHex(item.colour));
     });
+    if(this.material.name.startsWith('rock ')) {
+      // Match the physical bank field. Instanced attributes follow spatial
+      // partitioning and saved-destruction slots with the rest of the geometry.
+      const wet=this.items.map(item=>{const x=item.x+this.group.position.x,z=item.z+this.group.position.z,line=-3+(bankWidth(x,z)+3)*.61;return 1-smooth(line-.3,line+3.2,shoreDistance(x,z));});
+      mesh.geometry.setAttribute('sceneryWet',new T.InstancedBufferAttribute(new Float32Array(wet),1));
+    }
     mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
     mesh.castShadow = this.castShadow; mesh.receiveShadow = true;
     mesh.computeBoundingSphere(); if (this.wind) animateVegetation(mesh, this.items, this.wind);
@@ -398,26 +408,6 @@ function irregularOrb(detail = 1) {
     p.setXYZ(i, x * scale, y * scale, z * scale);
   }
   geometry.computeVertexNormals(); return geometry;
-}
-function canopyGeometry(needles = false) {
-  // Indexed topology shares normals across faces, giving foliage a soft leaf mass
-  // instead of the individually lit polygon faces used for rocks.
-  const geometry = new T.SphereGeometry(1, needles ? 8 : 12, needles ? 6 : 8);
-  const positions = geometry.attributes.position;
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
-    const lobes = 1 + .065 * Math.sin(x * 6 + z * 3) * Math.sin(y * 5 - z * 4) + .025 * Math.cos(z * 11 + x * 7);
-    positions.setXYZ(i, x * lobes, y * lobes + .05 * Math.sin(x * 5) * (1 - y * y), z * lobes);
-  }
-  geometry.computeVertexNormals();
-  // Join the UV seam normals, preserving continuity in the repeated leaf texture.
-  const n = geometry.attributes.normal, columns = (needles ? 8 : 12) + 1, rows = (needles ? 6 : 8) + 1;
-  for (let row = 0; row < rows; row++) {
-    const a = row * columns, b = a + columns - 1;
-    const normal = new T.Vector3(n.getX(a) + n.getX(b), n.getY(a) + n.getY(b), n.getZ(a) + n.getZ(b)).normalize();
-    n.setXYZ(a, normal.x, normal.y, normal.z); n.setXYZ(b, normal.x, normal.y, normal.z);
-  }
-  return geometry;
 }
 function grassGeometry() {
   const positions = [], normals = [], uvs = [];
@@ -442,42 +432,6 @@ function treeBatches(group,distant=false) {
     needles: new Instances(group, branchSprayGeometry(true,distant), needles, !distant, 'foliage'),
     finish() { const prefix=distant?'Distant ':'';return [this.wood.finish(prefix+'Tree trunks and branches'), this.leaves.finish(prefix+'Broadleaf canopies'), this.needles.finish(prefix+'Pine boughs')].filter(Boolean); }
   };
-}
-function shapeTreeCrown(batch, starts, x, y, z, h, pine) {
-  // Shape the existing pieces after all random draws. Thus saved tree anchors and
-  // every later scenery ID retain their original deterministic generation order.
-  const seed = Math.abs(Math.sin(x * 17.71 + z * 43.13) * 941.73) % 1;
-  const profile = Math.floor(seed * 3), angle = seed * TAU;
-  const width = pine ? [1.16, .73, 1.01][profile] : [1.32, .66, 1.40][profile];
-  const depth = pine ? [.91, .85, 1.08][profile] : [1.05, .78, .86][profile];
-  const height = pine ? [.91, 1.24, 1.08][profile] : [.92, 1.30, .86][profile];
-  const lean = profile === 2 ? .17 : .035, ca = Math.cos(angle), sa = Math.sin(angle);
-  const transform = point => {
-    const dx = point.x - x, dz = point.z - z, dy = point.y - y;
-    const u = (dx * ca + dz * sa) * width + dy * lean, v = (-dx * sa + dz * ca) * depth;
-    return new T.Vector3(x + u * ca - v * sa, y + dy * height, z + u * sa + v * ca);
-  };
-  for (let i = starts[0]; i < batch.wood.items.length; i++) {
-    const item = batch.wood.items[i], centre = new T.Vector3(item.x, item.y, item.z);
-    const direction = UP.clone().applyQuaternion(item.rotation || new T.Quaternion()).multiplyScalar(item.sy * .5);
-    const a = transform(centre.clone().sub(direction)), b = transform(centre.clone().add(direction)), delta = b.clone().sub(a);
-    const p = a.add(b).multiplyScalar(.5); item.x = p.x; item.y = p.y; item.z = p.z;
-    item.sy = delta.length(); item.rotation = new T.Quaternion().setFromUnitVectors(UP, delta.normalize());
-    item.sx *= Math.sqrt(width * depth); item.sz *= Math.sqrt(width * depth);
-  }
-  const crowns = pine ? batch.needles : batch.leaves, first = pine ? starts[2] : starts[1];
-  for (let i = first; i < crowns.items.length; i++) {
-    const item = crowns.items[i], j = i - first, p = transform(new T.Vector3(item.x, item.y, item.z));
-    item.x = p.x; item.y = p.y; item.z = p.z; item.sx *= width; item.sz *= depth;
-    item.sy *= height * (pine ? .80 + (j % 3) * .14 : profile === 1 ? 1.14 : .73);
-    if (pine && j < 12) {
-      // Uneven sprays give an open, branching outline rather than repeated tiers.
-      const spread = .83 + .29 * Math.sin(j * 2.37 + angle);
-      item.x = x + (item.x - x) * spread; item.z = z + (item.z - z) * spread;
-      item.y += Math.sin(j * 1.79 + angle) * h * .026;
-    }
-    item.yaw += angle;
-  }
 }
 function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
   const starts = [batch.wood.items.length, batch.leaves.items.length, batch.needles.items.length];
@@ -538,125 +492,12 @@ function createGround() {
   // Area-weighted normals follow the exact visible triangles. Reuse the cached
   // grid for the colour field instead of re-evaluating geology a million times.
   geometry.computeVertexNormals();
-  const surface = groundAlbedo(), grass = groundDetail('grass'), soil = groundDetail('soil'), slate = groundDetail('slate');
-  const neutralNormal=groundTexture(new Uint8Array([128,128,255,255]),1),neutralRoughness=groundTexture(new Uint8Array([248,248,248,255]),1);
-  const surfaceUniforms={
-    uGroundWeights:{value:surface.weights},
-    uMeadowDetail:{value:createMeadowSurface()},
-    uSurfaceGrass:{value:grass},uSurfaceSlate:{value:slate},uSurfaceSoil:{value:soil},uSurfaceFlags:{value:new T.Vector3()},uSurfaceScale:{value:new T.Vector3(8,8,8)},
-    uNormalGrass:{value:neutralNormal},uNormalSlate:{value:neutralNormal},uNormalSoil:{value:neutralNormal},
-    uRoughGrass:{value:neutralRoughness},uRoughSlate:{value:neutralRoughness},uRoughSoil:{value:neutralRoughness}
-  };
-  const material = new T.MeshStandardMaterial({ color: 0xffffff, map: surface.colour, roughness: .98 });
-  material.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms,surfaceUniforms);
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vGroundXZ;varying vec3 vGroundPosition;varying vec3 vGroundNormal;attribute float groundMoisture;varying float vGroundMoisture;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundXZ = position.xz;vGroundPosition=position;vGroundNormal=normal;vGroundMoisture=groundMoisture;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec2 vGroundXZ;
-      varying vec3 vGroundPosition,vGroundNormal;
-      varying float vGroundMoisture;
-      uniform sampler2D uGroundWeights;
-      uniform sampler2D uMeadowDetail;
-      uniform sampler2D uSurfaceGrass,uSurfaceSlate,uSurfaceSoil;
-      uniform sampler2D uNormalGrass,uNormalSlate,uNormalSoil;
-      uniform sampler2D uRoughGrass,uRoughSlate,uRoughSoil;
-      uniform vec3 uSurfaceFlags,uSurfaceScale;
-    `).replace('#include <map_fragment>', `#include <map_fragment>
-      float groundCavity=clamp(diffuseColor.a,.52,1.0);
-      diffuseColor.a=opacity;
-      vec2 groundUV = vec2(vGroundXZ.x + 600.0, 600.0 - vGroundXZ.y) / 1200.0;
-      vec4 terrainField = texture2D(uGroundWeights, groundUV);
-      vec4 meadowField=texture2D(uMeadowDetail,vGroundXZ/9.0);
-      vec3 weights = vec3(terrainField.rg,max(0.0,1.0-terrainField.r-terrainField.g));
-      weights/=max(.001,dot(weights,vec3(1.0)));
-      // Break up only the organic material transition with the existing local
-      // tussock field. Pure meadow/earth and exposed rock retain their masks.
-      float organicWeight=weights.x+weights.z;
-      float turfFraction=weights.x/max(.001,organicWeight);
-      float turfBoundary=smoothstep(.10,.90,turfFraction+(meadowField.r-.5)*.24);
-      weights.x=organicWeight*turfBoundary;weights.z=organicWeight*(1.0-turfBoundary);
-      vec3 surfaceWeights=weights*uSurfaceFlags;
-      float escarpment=smoothstep(.20,.63,1.0-abs(normalize(vGroundNormal).y));
-      // World-space projection must keep a fixed scale across changing slopes.
-      // Varying the UV divisor by the normal produces contour-like distortion.
-      float mineralScale=uSurfaceScale.y;
-      vec2 uvGrass=vGroundXZ/uSurfaceScale.x,uvSlate=vGroundXZ/mineralScale,uvSoil=vGroundXZ/uSurfaceScale.z;
-      // Project exposed rock on all three axes. The real cliff faces keep their
-      // mineral grain instead of stretching a top-down photograph vertically.
-      vec3 rockFaces=pow(abs(normalize(vGroundNormal)),vec3(4.0));rockFaces/=max(.001,rockFaces.x+rockFaces.y+rockFaces.z);
-      vec2 uvRockX=vGroundPosition.zy/mineralScale,uvRockZ=vGroundPosition.xy/mineralScale;
-      vec3 rockAlbedo=texture2D(uSurfaceSlate,uvRockX).rgb*rockFaces.x+texture2D(uSurfaceSlate,uvSlate).rgb*rockFaces.y+texture2D(uSurfaceSlate,uvRockZ).rgb*rockFaces.z;
-      // Metre-scale beds and joints read at the City camera. They follow a common
-      // tilted bedding plane, with erosion breaks instead of random colour dots.
-      float erosionPhase=(texture2D(uSurfaceSoil,vGroundXZ*.005).r-.4)*7.0;
-      float bedding=(vGroundPosition.y+vGroundPosition.x*.17+vGroundPosition.z*.07+erosionPhase)/11.0;
-      float bedEdge=min(fract(bedding),1.0-fract(bedding));
-      float joint=1.0-smoothstep(.008,.040,bedEdge);
-      float bedColour=texture2D(uSurfaceSoil,vec2(floor(bedding)*.079+.3,.27)).r;
-      vec3 strataTint=mix(vec3(.74,.80,.86),vec3(.98,.93,.82),smoothstep(.16,.42,bedColour));
-      rockAlbedo*=mix(vec3(.92,.95,.98),strataTint*(1.0-joint*.26),escarpment);
-      // Cool exposed faces separate from warmer weathered shoulders and talus.
-      // This follows the actual slope rather than a uniform mountain tint.
-      rockAlbedo*=mix(vec3(.85,.80,.68),vec3(.88,.98,1.06),escarpment);
-      vec3 grassFirst=texture2D(uSurfaceGrass,uvGrass).rgb;
-      vec3 soilFirst=texture2D(uSurfaceSoil,uvSoil).rgb;
-      vec3 realAlbedo=grassFirst*surfaceWeights.x+rockAlbedo*surfaceWeights.y+soilFirst*surfaceWeights.z;
-      float realBlend=dot(surfaceWeights,vec3(1.0));
-      // Two incommensurate local samples break photographic tiling while the
-      // metre-scale field retains coherent meadows, litter and wet banks.
-      vec3 grassSecond=texture2D(uSurfaceGrass,(vGroundXZ.yx+vec2(13.7,27.1))/(uSurfaceScale.x*1.71)).rgb;
-      vec3 grassGrain=mix(grassFirst,grassSecond,.22);
-      float grassLuma=dot(grassGrain,vec3(.2126,.7152,.0722));
-      float grassReflectance=clamp(.49+grassLuma*3.2,.57,1.32);
-      vec3 grassChroma=clamp(grassGrain/max(.018,grassLuma),vec3(.85),vec3(1.18));
-      // The scan supplies physical grain; it must not replace green meadow and
-      // forest-litter colours with a uniform photograph of dry yellow pasture.
-      vec3 turfAlbedo=diffuseColor.rgb*grassReflectance*mix(vec3(1.0),grassChroma,.16);
-      turfAlbedo*=1.0+(meadowField.g-.5)*.46;
-      // Let the habitat colours describe living turf, warm exposed soil and
-      // sheltered litter. The local scan adds grain, not a blanket of dry hay.
-      float soilLuma=dot(soilFirst,vec3(.2126,.7152,.0722));
-      vec3 soilChroma=clamp(soilFirst/max(.018,soilLuma),vec3(.85),vec3(1.18));
-      vec3 litterSoil=diffuseColor.rgb*vec3(1.06,.97,.88)*clamp(.52+soilLuma*3.0,.64,1.32)*mix(vec3(1.0),soilChroma,.18);
-      float localMoisture=clamp(vGroundMoisture+(meadowField.r-.5)*.22*4.0*vGroundMoisture*(1.0-vGroundMoisture),0.0,1.0);
-      float turfCover=mix(.58,1.0,smoothstep(.10,.84,meadowField.r+weights.x*.38));
-      realAlbedo+=surfaceWeights.x*(mix(litterSoil,turfAlbedo,turfCover)-grassFirst)+surfaceWeights.z*(litterSoil-soilFirst);
-      diffuseColor.rgb=mix(diffuseColor.rgb,realAlbedo*.83+diffuseColor.rgb*.17,realBlend*mix(.81,.88,weights.x));
-      diffuseColor.rgb*=mix(1.0,groundCavity,.35);
-      diffuseColor.rgb*=mix(1.0,.73,localMoisture);
-    `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      float rockRoughness=texture2D(uRoughSlate,uvRockX).r*rockFaces.x+texture2D(uRoughSlate,uvSlate).r*rockFaces.y+texture2D(uRoughSlate,uvRockZ).r*rockFaces.z;
-      float surfaceRoughness=texture2D(uRoughGrass,uvGrass).r*weights.x+rockRoughness*weights.y+texture2D(uRoughSoil,uvSoil).r*weights.z;
-      roughnessFactor=clamp(mix(roughnessFactor,surfaceRoughness,realBlend*.68)+escarpment*joint*.06,.68,1.0);
-      roughnessFactor=mix(roughnessFactor,.50,localMoisture);
-    `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-      vec2 surfaceNormal=(texture2D(uNormalGrass,uvGrass).xy-.5)*surfaceWeights.x+(texture2D(uNormalSoil,uvSoil).xy-.5)*surfaceWeights.z;
-      vec2 rockNx=texture2D(uNormalSlate,uvRockX).xy-.5,rockNy=texture2D(uNormalSlate,uvSlate).xy-.5,rockNz=texture2D(uNormalSlate,uvRockZ).xy-.5;
-      vec3 rockNormal=vec3(0.0,rockNx.y,rockNx.x)*rockFaces.x+vec3(rockNy.x,0.0,rockNy.y)*rockFaces.y+vec3(rockNz.x,rockNz.y,0.0)*rockFaces.z;
-      normal=normalize(normal-mat3(viewMatrix)*(vec3(surfaceNormal.x,0.0,surfaceNormal.y)*.76+rockNormal*surfaceWeights.y*mix(.85,1.35,escarpment)));
-      vec2 meadowNormal=meadowField.ba*2.0-1.0;
-      normal=normalize(normal+mat3(viewMatrix)*vec3(meadowNormal.x,0.0,meadowNormal.y)*weights.x*.40);
-      // Rooted tussock/deposition relief remains legible between individual
-      // grass blades and whole hills. It changes shading, never carrier footing.
-      float mesoX=terrainField.b*2.0-1.0;
-      float mesoZ=terrainField.a*2.0-1.0;
-      normal=normalize(normal-mat3(viewMatrix)*vec3(mesoX,0.0,-mesoZ)*(.32-escarpment*.11));
-    `).replace('#include <aomap_fragment>',`#include <aomap_fragment>
-      reflectedLight.indirectDiffuse*=groundCavity;
-      reflectedLight.indirectSpecular*=mix(1.0,groundCavity,roughnessFactor);
-    `);
-  };
-  material.customProgramCacheKey = () => 'habitat-ground-material-v12';
-  const ground = new T.Mesh(geometry, material); ground.name = 'Continuous sculpted terrain'; ground.receiveShadow = true; ground.userData.ground = true; ground.userData.noBatch = true;
-  ground.userData.surfaceTextures = [surface.weights, grass, soil, slate,neutralNormal,neutralRoughness,createMeadowSurface()];
-  ground.userData.setGroundTextures = textures => {
-    for(const[kind,key,axis]of[['grass','Grass','x'],['slate','Slate','y'],['soil','Soil','z']]) {
-      const entry=textures?.[kind]; if(!entry?.map)continue;
-      surfaceUniforms['uSurface'+key].value=entry.map;surfaceUniforms['uNormal'+key].value=entry.normalMap||neutralNormal;surfaceUniforms['uRough'+key].value=entry.roughnessMap||neutralRoughness;
-      surfaceUniforms.uSurfaceFlags.value[axis]=1;surfaceUniforms.uSurfaceScale.value[axis]=kind==='slate'?22:Math.max(.5,entry.scale||8);
-    }
-  };
+  const surface=groundAlbedo(), detail=groundDetail();
+  const material=new T.MeshStandardMaterial({color:0xffffff,map:surface.colour,roughness:.94});
+  paintGround(material,{weights:surface.weights,detail});
+  const ground=new T.Mesh(geometry,material);ground.name='Continuous sculpted terrain';
+  ground.receiveShadow=true;ground.userData.ground=true;ground.userData.noBatch=true;
+  ground.userData.surfaceTextures=[surface.weights,detail];
   return ground;
 }
 function createWater() {
@@ -674,94 +515,9 @@ function createWater() {
   }
   const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
   geometry.setAttribute('riverField',new T.Float32BufferAttribute(riverFields,4));
-  const material = new T.MeshPhysicalMaterial({ color: 0xffffff, vertexColors:true, roughness: .24, metalness: 0, clearcoat: .32, clearcoatRoughness: .20, side: T.DoubleSide });
-  const time = { value: 0 }, rippleTexture = groundDetail('soil');
-  material.onBeforeCompile = shader => {
-    shader.uniforms.uRiverTime = time;
-    shader.uniforms.uRiverRippleTexture = { value: rippleTexture };
-    const common = '\nuniform float uRiverTime;\nvarying vec3 vRiverPosition,vRiverWind;\nvarying vec4 vRiverField;\n';
-    // Channel geometry and gusts change over metres; interpolate them from the
-    // existing river strip instead of re-running trigonometry for every pixel.
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>' + common + WIND_GLSL+'\nattribute vec4 riverField;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vec3 currentWind = worldWind(uRiverTime, position.xz);
-        vRiverWind=currentWind;vRiverField=riverField;
-        transformed.y += sin(position.z * .24 - uRiverTime * .72) * (.023 + currentWind.z * .022) + cos(position.x * .44 + position.z * .13 - uRiverTime * .43) * .019;
-        vRiverPosition = transformed;
-      `);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>' + common + '\nuniform sampler2D uRiverRippleTexture;')
-      .replace('#include <color_fragment>', `#include <color_fragment>
-        vec3 riverWind = vRiverWind;
-        // Stream coordinates follow the existing channel, instead of drawing
-        // intersecting wave lines across its world-aligned surface.
-        float alongRiver = vRiverPosition.z;
-        float acrossRiver = vRiverField.x;
-        float channelWidth = vRiverField.y;
-        float channelSlope = vRiverField.z;
-        vec2 streamTangent = normalize(vec2(channelSlope, 1.0));
-        vec2 streamAcross = vec2(streamTangent.y, -streamTangent.x);
-        float bankNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .014, alongRiver * .007)).r - .53;
-        float edgeDistance = abs(acrossRiver) / channelWidth;
-        // The deeper channel follows the outside of each meander. Deposits sit
-        // on its inside bends, breaking the former symmetrical colour ribbon.
-        float bend = vRiverField.w;
-        float crossChannel = acrossRiver / channelWidth;
-        float bedNoise = texture2D(uRiverRippleTexture, vec2(acrossRiver * .006 + .21, alongRiver * .0024 + .34)).r;
-        float reachNoise = texture2D(uRiverRippleTexture, vec2(alongRiver * .0031 + .61, acrossRiver * .006 + .17)).r;
-        // Existing local deposition fields gently shift the colour of the
-        // deeper flow within the channel, breaking the uniform centre stripe.
-        // Channel boundaries, water vertices and flow timing stay unchanged.
-        float deepAxis = crossChannel + bend * .36 + (reachNoise-.52)*.75;
-        float innerBank = sign(bend) * .61;
-        float barShape = exp(-pow((crossChannel - innerBank) / .27, 2.0));
-        float mineralBar = barShape * smoothstep(.12, .65, abs(bend)) * smoothstep(.42, .59, bedNoise);
-        float pool = smoothstep(.43, .63, reachNoise) * (1.0 - smoothstep(.25, .90, abs(deepAxis)));
-        float depth = clamp((1.0 - pow(abs(deepAxis), 1.65)) * (.50 + (bedNoise - .35) * 1.2) + pool * .18 - mineralBar * .78, 0.0, 1.0);
-        float shallows = pow(1.0 - depth, 1.5);
-        vec3 deepColour = mix(vec3(.015, .050, .048), vec3(.008, .028, .040), pool * .83);
-        vec3 shallowColour = mix(vec3(.064, .110, .085), vec3(.142, .128, .080), mineralBar * .81);
-        diffuseColor.rgb = mix(deepColour, shallowColour, shallows);
-        float deposition=smoothstep(.53,.61,bedNoise)*(1.0-smoothstep(.35,.90,abs(deepAxis)));
-        diffuseColor.rgb=mix(diffuseColor.rgb,shallowColour*vec3(.66,.70,.64),deposition*.10);
-        diffuseColor.rgb *= .95 + (reachNoise - .53) * .20;
-        float wetEdge = smoothstep(.72 + bankNoise * .32, 1.03, edgeDistance);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.031,.061,.037),wetEdge*(.38+bankNoise*.37));
-        // Long broken current seams curl around the inside bank, with sparse
-        // aeration at the gravel spits. Foam stays confined to physical shallows.
-        vec2 foamUV=vec2(acrossRiver*.074+sin(alongRiver*.033-uRiverTime*.16)*.12,alongRiver*.028-uRiverTime*.018);
-        float foamNoise=texture2D(uRiverRippleTexture,foamUV).r;
-        float foamGrain=texture2D(uRiverRippleTexture,foamUV*vec2(4.9,2.3)+vec2(.31,.73)).r;
-        float foam=smoothstep(.60,.70,foamNoise)*smoothstep(.44,.63,foamGrain)*smoothstep(.64,.83,edgeDistance)*(1.0-smoothstep(.92,1.01,edgeDistance));
-        foam*=clamp(.10+smoothstep(.43,.61,reachNoise)*smoothstep(.08,.55,abs(bend))*1.3+mineralBar*.55,.10,1.0);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.40,.45,.40),foam*.28);
-        float refractedLight=pow(max(0.0,sin(acrossRiver*1.7+sin(alongRiver*.62-uRiverTime*.31))*sin(alongRiver*.93-uRiverTime*.42)),8.0);
-        diffuseColor.rgb+=vec3(.036,.044,.021)*refractedLight*mineralBar;
-      `)
-      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        // Sheltered shallows have a broader reflection; gusts break the centre
-        // reflection gently, without changing exposure or adding bright lines.
-        roughnessFactor = clamp(roughnessFactor * mix(.78, 1.29, shallows) + mineralBar * .025 + (riverWind.z - .5) * .032, .18, .37);
-      `)
-      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        // Constant downstream advection cannot accelerate as game time grows;
-        // crosswind only adds a small, bounded lateral perturbation.
-        float crosswind = dot(riverWind.xy, streamAcross);
-        vec2 rippleUV = vec2(acrossRiver * .25, alongRiver * .085 - uRiverTime * .068);
-        rippleUV.x -= crosswind * .025 + sin(uRiverTime * .21 + alongRiver * .007) * .012;
-        float rippleStrength = (.11 + riverWind.z * .07) * (1.0 + shallows * .36);
-        float crossSlope = (texture2D(uRiverRippleTexture, rippleUV).r - .53) * rippleStrength;
-        float streamSlope = (texture2D(uRiverRippleTexture, rippleUV * vec2(.83, 1.17) + vec2(.37, .61)).r - .53) * rippleStrength * .7;
-        vec2 broadUV = vec2(acrossRiver * .018, alongRiver * .009 - uRiverTime * .0072);
-        broadUV.x -= crosswind * .003;
-        float broadStrength = (.15 + riverWind.z * .06) * (1.0 - shallows * .65);
-        float broadAcross = (texture2D(uRiverRippleTexture, broadUV).r - .53) * broadStrength;
-        float broadAlong = (texture2D(uRiverRippleTexture, broadUV + vec2(.29, .47)).r - .53) * broadStrength * .65;
-        vec2 surfaceSlope = streamAcross * (crossSlope + broadAcross) + streamTangent * (streamSlope + broadAlong);
-        normal = normalize(mat3(viewMatrix) * vec3(-surfaceSlope.x, 1.0, -surfaceSlope.y));
-      `)
-      .replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\nclearcoatNormal = normal;\n#endif');
-  };
-  material.customProgramCacheKey = () => 'alpha-channel-river-v9';
+  const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.43,metalness:0,side:T.DoubleSide,envMapIntensity:.58});
+  const time={value:0},rippleTexture=groundDetail();
+  paintRiver(material,time,rippleTexture,WIND_GLSL);
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
   water.userData.surfaceTextures = [rippleTexture];
   return { water, time };
@@ -1300,7 +1056,6 @@ export function createLandscape() {
   let actors = [];
   return {
     group, ground, water, heightAt, surfaceHeightAt: renderedTerrainHeight, stats, crushables: interactions.crushables,
-    setGroundTextures: textures => ground.userData.setGroundTextures(textures),
     update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),
@@ -1319,13 +1074,14 @@ export function createLandscape() {
 }
 
 function siteDetails(group) {
+  const surface=group.userData.painterlyRuin?getRuinMaterial:getMaterial;
   return {
-    stone: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('stone', 0xffffff)),
-    brick: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('brick', 0xffffff)),
+    stone: new Instances(group, new T.BoxGeometry(1, 1, 1), surface('stone', 0xffffff)),
+    brick: new Instances(group, new T.BoxGeometry(1, 1, 1), surface('brick', 0xffffff)),
     metal: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('metal', 0xffffff)),
     wood: new Instances(group, new T.BoxGeometry(1, 1, 1), getMaterial('wood', 0xffffff)),
     pipe: new Instances(group, new T.CylinderGeometry(1, 1, 1, 9), getMaterial('metal', 0xffffff)),
-    rubble: new Instances(group, irregularOrb(1), getMaterial('rock', 0xffffff)),
+    rubble: new Instances(group, irregularOrb(1), surface('rock', 0xffffff)),
     finish() { for (const key of ['stone', 'brick', 'metal', 'wood', 'pipe', 'rubble']) this[key].finish(`Resource site ${key}`); }
   };
 }
@@ -1383,13 +1139,14 @@ export function brokenRuinWallGeometry({width,height,depth=.72,seed=0,windows=tr
 function addBrokenRuinWall(group,{x,z,width,height,depth=.72,yaw=0,seed=0,brick=false,windows=true}){
   const geometry=brokenRuinWallGeometry({width,height,depth,seed,windows});
   // Extrusion UVs retain metre scale; scanned masonry does not stretch to fit a wall.
-  const mesh=new T.Mesh(geometry,getMaterial(brick?'brick':'stone',brick?0x91715b:0x90988a));
+  const mesh=new T.Mesh(geometry,getRuinMaterial(brick?'brick':'stone',brick?0x91715b:0x90988a));
   mesh.name='Fractured load-bearing ruin wall';mesh.position.set(x,.30,z);mesh.rotation.y=yaw;mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
 }
 
 function addIronRuins(group, node, rand) {
+  group.userData.painterlyRuin=true;
   const d = siteDetails(group), oldTown = node.id === 'ruins2';
-  box(group, 24, .13, 22, getMaterial('pavement', 0x90917e), 0, .02, 0);
+  box(group, 24, .13, 22, getRuinMaterial('pavement', 0x90917e), 0, .02, 0);
   // Empty window frames and fractured slabs reveal the age of the old cities.
   const buildings = oldTown ? [[-7, -6, 7, 5, 6], [3, -7, 5, 6, 8.5], [-7, 5, 5.5, 5, 4], [5, 5, 6, 5, 6.8]] : [[-6, -4, 8, 7, 5.4], [5, -7, 5, 5, 8], [-5, 7, 7, 4, 3.7]];
   for (let i = 0; i < buildings.length; i++) {
@@ -1419,14 +1176,14 @@ function addIronRuins(group, node, rand) {
     }
   }
   if (!oldTown) {
-    cylinder(group, 1.1, 1.8, 17, getMaterial('brick', 0x997050), -10, 8.5, -9, 12);
-    cylinder(group, 1.32, 1.32, .45, getMaterial('stone', 0xb3ad95), -10, 17, -9, 12);
-    cylinder(group, 1.02, 1.02, .04, getMaterial('metal', 0x394744), -10, 17.25, -9, 12);
+    cylinder(group, 1.1, 1.8, 17, getRuinMaterial('brick', 0x997050), -10, 8.5, -9, 12);
+    cylinder(group, 1.32, 1.32, .45, getRuinMaterial('stone', 0xb3ad95), -10, 17, -9, 12);
+    cylinder(group, 1.02, 1.02, .04, getRuinMaterial('metal', 0x394744), -10, 17.25, -9, 12);
     for(const x of [-8,7])d.pipe.link([x,0,3],[x,12.3,3],.21,0x7f6850);
     for(const y of [11.6,13.1])d.pipe.link([-8,y,3],[7,y,3],.19,0x8e7456);
     for(let i=0;i<5;i++)d.pipe.link([-8+i*3,11.6,3],[-5+i*3,13.1,3],.10,0x746d57);
-    cylinder(group, 2.1, 2.1, 4, getMaterial('metal', 0x82968c), 8.5, 6.1, 6, 16);
-    cone(group, 2.3, .7, getMaterial('metal', 0xa5afa0), 8.5, 8.45, 6, 16);
+    cylinder(group, 2.1, 2.1, 4, getRuinMaterial('metal', 0x82968c), 8.5, 6.1, 6, 16);
+    cone(group, 2.3, .7, getRuinMaterial('metal', 0xa5afa0), 8.5, 8.45, 6, 16);
     for (const dx of [-1.4, 1.4]) for (const dz of [-1.4, 1.4]) d.metal.add(8.5 + dx, 2.3, 6 + dz, .19, 4.6, .19, 0x657568);
     for (const z of [4.6, 7.4]) d.pipe.link([7.1, .3, z], [9.9, 4.4, z], .06, 0x6e7768);
     for (let i = 0; i < 3; i++) {
@@ -1435,7 +1192,7 @@ function addIronRuins(group, node, rand) {
     }
   } else {
     // A fractured aqueduct is the old town's strong silhouette and orientation cue.
-    const stone=getMaterial('stone',0xa6a99b);
+    const stone=getRuinMaterial('stone',0xa6a99b);
     for(const x of [-7,0,7]){
       const shape=new T.Shape();
       if(x===7){
@@ -1450,7 +1207,7 @@ function addIronRuins(group, node, rand) {
       }
       const geometry=new T.ExtrudeGeometry(shape,{depth:1.7,bevelEnabled:true,bevelSize:.10,bevelThickness:.1,bevelSegments:1,steps:1,curveSegments:10});
       const wall=new T.Mesh(geometry,stone);wall.position.set(x,0,-12.8);wall.castShadow=wall.receiveShadow=true;group.add(wall);
-      const cap=box(group,6.9,.6,2.1,getMaterial('stone',0xbbb9a4),x,x===7?.65:10.15,x===7?-6.6:-11.95);
+      const cap=box(group,6.9,.6,2.1,getRuinMaterial('stone',0xbbb9a4),x,x===7?.65:10.15,x===7?-6.6:-11.95);
       if(x===7){cap.rotation.y=.51;cap.rotation.z=-.09;}
     }
   }

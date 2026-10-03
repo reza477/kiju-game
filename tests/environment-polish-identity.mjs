@@ -12,7 +12,7 @@ import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8',maxBuffer:32*1024*1024});
-const revision=git('rev-parse',process.env.BASELINE_REV||'8230ce17a4ae26f3374e8ef9594db1095d5cb77f').trim();
+const revision=git('rev-parse',process.env.BASELINE_REV||'8320a432b0ce27fbe73eccd32a0b88120cd091ab').trim();
 const base=new URL(process.env.GAME_TEST_URL||'http://127.0.0.1:4197');
 assert.ok(['127.0.0.1','localhost','[::1]'].includes(base.hostname),'Use a local game server.');
 const out=path.resolve(process.env.OUTPUT_DIR||path.join(root,'artifacts/environment-polish/identity'));
@@ -25,6 +25,14 @@ const baseline=new Map(sourceFiles.map(file=>['/'+file,git('show',revision+':'+f
 const digest=text=>createHash('sha256').update(text).digest('hex');
 const report={baselineRevision:revision,candidateRevision:git('rev-parse','HEAD').trim(),
   fixture:'CPU-only production landscape/resource construction in separate blank browser contexts. All baseline /src files come from Git; vendor and image assets use the local server. No WebGLRenderer, gameplay loop or screenshots.',
+  approvedVisualExceptions:{
+    provenance:'Painterly dark-fantasy migration Phase 1 explicitly supersedes visual-output equality, not functional identity.',
+    treeParts:'Near/distant botanical trunk/branch/crown counts, decorative transforms and colours may change. Root, height, species role and wind parameters remain attached to each original tree; every saved tree must hide all its current parts.',
+    colours:'Environment instance colours and visible/shadow geometry/materials may change. Unchanged-role matrices, wind roots, flex/motion and LOD flags are still compared exactly.',
+    groundCoverMass:'The added static groundCoverMass attribute is a cosmetic scale between 0.30 and 1 only for the two named meadow/reed batches. All other vegetation stays at 1; functional matrices, roots, wind parameters and saved membership remain exact.',
+    debris:'Pine and broadleaf debris may change their visible geometry/materials. Both existing fixed-capacity pools, stumps, logs, rocks, tracks, damage IDs, destruction rules and reset behavior remain strict.',
+    surfaces:'Ground/water shading and textures may change. Ground/water positions, index topology, transforms, terrain samples, resource proxies and simulation state remain exact.'
+  },
   checks:[],errors:[],remote:[],failedRequests:[],source:{baseline:[],current:[]}};
 const snapshots={};
 let browser;
@@ -132,6 +140,12 @@ try{
             const format=attribute=>({type:attribute.array.constructor.name,itemSize:attribute.itemSize,normalized:attribute.normalized,meshPerAttribute:attribute.meshPerAttribute});
             if(!batches.has(name))batches.set(name,{name,rows:[],roots:[],hasRoots:!!mesh.geometry.attributes.windRoot,attributes:Object.fromEntries(Object.entries(attributes).map(([key,attribute])=>[key,{format:format(attribute),rows:[]}])),world:mesh.matrixWorld.elements.slice(),active:0});
             const batch=batches.get(name),root=mesh.geometry.attributes.windRoot,capacity=mesh.instanceMatrix.array.length/16;
+            const mass=mesh.geometry.attributes.groundCoverMass;
+            if(mass){
+              ensure(mass.isInstancedBufferAttribute&&mass.itemSize===1&&mass.count===capacity,'Invalid cosmetic growth-mass capacity in '+name);
+              const approved=['Low meadow grass','Meadow grass and river reeds'].includes(name);
+              for(const value of mass.array)ensure(approved?value>=.30-1e-7&&value<=1:value===1,'Cosmetic growth scale escapes its approved meadow role: '+name);
+            }
             equal(mesh.matrixWorld.elements,batch.world,'Cell transform changed inside '+name);
             ensure(batch.hasRoots===!!root,'Mixed rooted/unrooted cells in '+name);
             if(indices){ensure(Object.isFrozen(indices),'Spatial addressing must be immutable');ensure(indices.length===capacity,'Spatial indices/capacity mismatch');}
@@ -163,8 +177,33 @@ try{
           }
           return result;
         }
+        const botanicalName=name=>/^(Distant )?(Tree trunks and branches|Broadleaf canopies|Pine boughs)$/.test(name);
+        const standingTreePart=(batch,index)=>botanicalName(batch.name)&&batch.attributes.windFlex.rows[index][0]!==0;
+        const hiddenIdentity=(batch,index)=>botanicalName(batch.name)?[batch.name,{root:batch.roots[index],matrix:batch.rows[index]}]:[batch.name,index];
+        const rootKey=root=>JSON.stringify(root);
+        function botanicalIdentity(batch){
+          ensure(batch.hasRoots,'Botanical part lost its functional tree root: '+batch.name);
+          const roots=new Map();
+          for(let i=0;i<batch.rows.length;i++){
+            const root=batch.roots[i],key=rootKey(root);
+            const wind=Object.fromEntries(['windFlex','windMotion','groundCoverLod'].map(name=>{
+              ensure(batch.attributes[name],'Botanical part lost '+name+': '+batch.name);
+              return[name,batch.attributes[name].rows[i]];
+            }));
+            if(roots.has(key))equal(wind,roots.get(key).wind,'Parts of a tree have inconsistent wind behavior: '+batch.name+':'+key);
+            else roots.set(key,{root,wind});
+          }
+          return{name:batch.name,world:batch.world,trees:[...roots.values()].sort((a,b)=>rootKey(a.root).localeCompare(rootKey(b.root)))};
+        }
+        async function functionalBatches(batches){
+          const ordinary=await summaries(batches.filter(batch=>!botanicalName(batch.name)));
+          for(const batch of ordinary)delete batch.attributes.instanceColor;
+          return{ordinary,botanical:batches.filter(batch=>botanicalName(batch.name)).map(botanicalIdentity)};
+        }
         const initial=canonical(landscape.group),canonicalGroups=[];
         for(const {name,group}of groups)canonicalGroups.push({name,batches:await summaries(name==='landscape'?initial:canonical(group))});
+        const functionalGroups=[];
+        for(const {name,group}of groups)functionalGroups.push({name,batches:await functionalBatches(name==='landscape'?initial:canonical(group))});
         const roots=new Map();
         for(const batch of initial.filter(b=>['Broadleaf canopies','Pine boughs','Distant Broadleaf canopies','Distant Pine boughs'].includes(b.name)))for(const root of batch.roots){
           const key=root[0]+','+root[2];if(roots.has(key))equal(root,roots.get(key),'Inconsistent tree root');roots.set(key,root);
@@ -189,6 +228,23 @@ try{
         for(const kind of new Set(anchors.map(a=>a.kind)))if(!damage.some(id=>anchors.find(a=>a.id===id).kind===kind))damage[damage.length-1]=anchors.find(a=>a.kind===kind).id;
         ensure(damage.length===40&&new Set(damage).size===40,'Kind coverage must keep forty distinct records');
         const originalByName=new Map(initial.map(batch=>[batch.name,batch]));
+        function verifyTreeMapping(batches,ids){
+          const destroyedRoots=new Set(anchors.filter(anchor=>anchor.kind==='tree'&&ids.includes(anchor.id)).map(anchor=>Math.fround(anchor.x)+','+Math.fround(anchor.z)));
+          let hiddenParts=0;
+          for(const batch of batches.filter(batch=>botanicalName(batch.name))){
+            const original=originalByName.get(batch.name);
+            for(let i=0;i<batch.rows.length;i++){
+              // Authored-valley also places static fallen logs in its wood
+              // batch. Their zero-flex roots are not standing-tree anchors;
+              // preserve their original transform/root ownership separately.
+              if(!standingTreePart(batch,i))continue;
+              const root=batch.roots[i],expected=destroyedRoots.has(root[0]+','+root[2]),hidden=batch.rows[i][13]===-5000;
+              ensure(hidden===expected,'Saved tree ownership mismatch: '+batch.name+':'+i+' root '+rootKey(root));
+              if(hidden)hiddenParts++;else equal(batch.rows[i],original.rows[i],'Unrelated tree changed during destruction');
+            }
+          }
+          return hiddenParts;
+        }
         const damageRounds=[];
         for(const mode of ['expedition','battle']){
           const saved=JSON.parse(JSON.stringify(damage));landscape.resetInteractions({mode,damage:saved});
@@ -200,15 +256,39 @@ try{
             if(original.active===0)continue; // Fixed-capacity debris pools become active.
             for(let i=0;i<batch.rows.length;i++){
               const before=original.rows[i],after=batch.rows[i];
-              if(after[13]===-5000&&before[13]!==-5000)hidden.push([batch.name,i]);
+              if(after[13]===-5000&&before[13]!==-5000){if(!standingTreePart(original,i))hidden.push(hiddenIdentity(original,i));}
               else equal(after,before,'Damage changed an unrelated original matrix: '+batch.name+':'+i);
             }
           }
-          ensure(hidden.length>=40,'Damage did not hide original scenery');
-          damageRounds.push({mode,hidden,batches:await summaries(damaged)});
+          const hiddenTreeParts=verifyTreeMapping(damaged,damage);
+          ensure(hidden.length+hiddenTreeParts>=40,'Damage did not hide original scenery');
+          damageRounds.push({mode,hidden,batches:await functionalBatches(damaged),hiddenTreeParts});
           landscape.resetInteractions();ensure(landscape.stats.destroyedCount===0&&landscape.stats.poolDraw.submittedInstances===0,'Reset left destruction or dormant pool submissions');
           equal(await summaries(canonical(landscape.group)),canonicalGroups[0].batches,'Reset failed exact original matrix/root/count restoration');
         }
+        // Exhaustive save-ID mapping is required when cosmetic instance counts
+        // change. Exercise every anchor in bounded groups (under the unchanged
+        // 512-record debris capacity); compare non-tree ownership with baseline.
+        const ownershipRounds=[];
+        for(let offset=0;offset<anchors.length;offset+=96){
+          const ids=anchors.slice(offset,offset+96).map(anchor=>anchor.id);
+          landscape.resetInteractions({mode:'expedition',damage:ids.slice()});
+          ensure(landscape.stats.destroyedCount===ids.length,'Saved anchor was not restored');
+          const damaged=canonical(landscape.group),hidden=[];
+          const hiddenTreeParts=verifyTreeMapping(damaged,ids);
+          for(const batch of damaged){
+            const original=originalByName.get(batch.name);
+            if(original.active===0)continue;
+            for(let i=0;i<batch.rows.length;i++){
+              if(standingTreePart(original,i))continue;
+              if(batch.rows[i][13]===-5000&&original.rows[i][13]!==-5000)hidden.push(hiddenIdentity(original,i));
+              else equal(batch.rows[i],original.rows[i],'Non-tree ownership changed unrelated scenery');
+            }
+          }
+          ownershipRounds.push({ids,hidden,hiddenTreeParts});
+        }
+        landscape.resetInteractions();
+        equal(await summaries(canonical(landscape.group)),canonicalGroups[0].batches,'Exhaustive saved-damage check did not restore every original instance');
         const surfaces=[];
         for(const [name,mesh]of [['ground',landscape.ground],['water',landscape.water]])surfaces.push({name,transform:mesh.matrixWorld.elements.slice(),positions:await typed(mesh.geometry.attributes.position),indices:await typed(mesh.geometry.index),ground:!!mesh.userData.ground});
         const samples=[];
@@ -218,10 +298,18 @@ try{
           finite(values,'terrain samples');ensure(Math.abs(Math.hypot(n.x,n.y,n.z)-1)<1e-10,'Non-unit terrain normal');samples.push(...values);
         }
         const resources=[];
+        const structuralResources=[];
         for(const {node,group}of sites){
           const proxy=group.getObjectByName('Resource selection'),ring=group.getObjectByName('Resource boundary');
           ensure(proxy?.userData.node===node.id&&ring,'Resource lost selection proxy/boundary');
           resources.push({node,transform:group.matrixWorld.elements.slice(),proxy:{node:proxy.userData.node,transform:proxy.matrixWorld.elements.slice(),positions:await typed(proxy.geometry.attributes.position),indices:await typed(proxy.geometry.index)},boundary:{transform:ring.matrixWorld.elements.slice(),positions:await typed(ring.geometry.attributes.position),indices:await typed(ring.geometry.index)}});
+          // Ruin art is material-only in this pass. Preserve actual structural
+          // meshes too, not only the invisible picking proxy. Botanical meshes
+          // carry explicit wind tags and their root/ownership proof is above.
+          const structural=[];group.traverse(mesh=>{if(mesh.isMesh&&!mesh.userData.windAnimated)structural.push(mesh);});
+          const meshes=[];
+          for(const mesh of structural)meshes.push({name:mesh.name,transform:mesh.matrixWorld.elements.slice(),positions:await typed(mesh.geometry.attributes.position),indices:await typed(mesh.geometry.index)});
+          structuralResources.push({id:node.id,meshes});
         }
         const games=[];
         for(const [faction,variant]of [['kaiju','flesh'],['kaiju','cyborg'],['crawler','standard'],['crawler','drill'],['airship','horizontal'],['airship','vertical']]){
@@ -230,24 +318,29 @@ try{
         }
         const start=performance.now();while(surfaceDiagnostics().pending){ensure(performance.now()-start<30000,'Local surface textures did not settle');await new Promise(resolve=>setTimeout(resolve,25));}
         const assets=surfaceDiagnostics();ensure(assets.failures.length===0,'Local surface image failed');
-        return{anchors,canonicalGroups,treeRoots,surfaces,terrain:{count:samples.length/18,sha256:await hash(new Float64Array(samples))},resources,games,damage,damageRounds,inventory,assets};
+        return{anchors,canonicalGroups,functionalGroups,treeRoots,surfaces,terrain:{count:samples.length/18,sha256:await hash(new Float64Array(samples))},resources,structuralResources,games,damage,damageRounds,ownershipRounds,inventory,assets};
       });
     }finally{await context.close();}
   }
-  for(const field of ['anchors','canonicalGroups','treeRoots','surfaces','terrain','resources','games','damage','damageRounds']){
+  for(const field of ['anchors','functionalGroups','treeRoots','surfaces','terrain','resources','structuralResources','games','damage']){
     assert.deepEqual(snapshots.current[field],snapshots.baseline[field],field+' changed from baseline');report.checks.push(field+' is exactly preserved');
+  }
+  const withoutPartCounts=rounds=>rounds.map(({hiddenTreeParts,...round})=>round);
+  for(const field of ['damageRounds','ownershipRounds']){
+    assert.deepEqual(withoutPartCounts(snapshots.current[field]),withoutPartCounts(snapshots.baseline[field]),field+' functional ownership changed');
+    report.checks.push(field+' preserves IDs, non-tree membership and all current tree-part ownership; cosmetic tree-part counts may differ.');
   }
   assert.deepEqual(report.errors,[]);assert.deepEqual(report.remote,[]);assert.deepEqual(report.failedRequests,[]);
   report.checks.push('All inspected geometry, matrices, material scalars and procedural texture pixels are finite; local image assets loaded without errors.');
-  report.checks.push('Canonical wind flex/motion, ground-cover LOD flags and instance colours are exactly preserved; every wind mesh shares its visible map/alpha/side with depth and distance silhouettes.');
-  report.checks.push('Forty saved destruction records hide identical canonical slots in expedition and battle and restore every original matrix/root/count; dormant pools return to zero.');
+  report.checks.push('Canonical wind flex/motion and ground-cover LOD flags are preserved per original tree root and per unchanged-role instance; visible colours and botanical part transforms are authorized art changes. Every wind mesh shares its visible map/alpha/side with shadow passes.');
+  report.checks.push('Forty saved destruction records preserve non-tree canonical slots in expedition and battle. Every saved anchor is additionally exercised in bounded groups; all tree parts hide with their parent, no unrelated tree hides, and reset restores all current matrices/roots/counts.');
   report.passed=true;
 }catch(error){report.passed=false;report.failure=error.stack;process.exitCode=1;}
 finally{
   if(browser)await browser.close();
   for(const mode of ['baseline','current'])if(snapshots[mode]){
-    const {anchors,treeRoots,canonicalGroups,terrain,inventory,assets,damageRounds}=snapshots[mode];
-    report[mode]={anchors:anchors.length,rootedTrees:treeRoots.length,canonicalGroups,terrain,inventory,assets,damage:damageRounds.map(({mode,hidden})=>({mode,hiddenInstances:hidden.length}))};
+    const {anchors,treeRoots,canonicalGroups,terrain,inventory,assets,damageRounds,ownershipRounds}=snapshots[mode];
+    report[mode]={anchors:anchors.length,rootedTrees:treeRoots.length,canonicalGroups,terrain,inventory,assets,damage:damageRounds.map(({mode,hidden,hiddenTreeParts})=>({mode,hiddenUnchangedInstances:hidden.length,hiddenTreeParts})),ownership:ownershipRounds.map(({ids,hidden,hiddenTreeParts})=>({ids,hiddenUnchangedInstances:hidden.length,hiddenTreeParts}))};
   }
   report.source.baseline.sort((a,b)=>a.file.localeCompare(b.file));report.source.current.sort((a,b)=>a.file.localeCompare(b.file));
   await fs.mkdir(out,{recursive:true});await fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2));

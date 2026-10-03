@@ -85,6 +85,9 @@ report.firstMovingRouteMethod=process.env.FIRST_MOVING_ROUTE==='1'?'B: fixture-r
 if(phase==='before'){assert.deepEqual(report.source.changes,[],'Untouched baseline product source differs from checkpoint.');assert.deepEqual(report.source.untracked,[]);}
 let fixture;
 try{fixture=await fs.readFile(path.resolve(process.env.FIXTURE_PATH||'artifacts/environment-pass1/fixture.json'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
+const closeFixturePath=path.resolve(process.env.CLOSE_FIXTURE_PATH||'artifacts/painterly/close-destination-save.json');
+let closeFixture;
+if(process.env.CLOSE_ENVIRONMENT==='1')try{closeFixture=await fs.readFile(closeFixturePath,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
 const browserChannel=process.env.BROWSER_CHANNEL||'chrome';
 const browser=await chromium.launch({headless:true,...(browserChannel==='pinned'?{}:{channel:browserChannel}),args:['--mute-audio','--enable-gpu','--use-angle=d3d11']});
 report.browser={version:browser.version(),channel:browserChannel,headless:true,args:['--mute-audio','--enable-gpu','--use-angle=d3d11']};
@@ -185,8 +188,12 @@ async function capture(session,row,name){
       !toast.getAnimations().some(animation=>animation.playState==='running'||animation.pending);
   });
   if(await session.page.evaluate(()=>window.__colossus.state.paused))await session.page.evaluate(()=>window.__polishWaitCamera());
+  // Optional art handoff: retain the ordinary PLAYING HUD and native clock.
+  // Settle the recorded fixture first; do not alter the production pause UI.
+  if(process.env.PLAYING_CAPTURE==='1'){await session.page.keyboard.press('p');await session.page.evaluate(()=>window.__polishWaitFrames(3));await session.page.waitForFunction(()=>!document.querySelector('#pause-overlay')?.checkVisibility()&&!window.__colossus.state.paused);}
   const evidence=await snapshot(session.page),file=path.join(out,`${row.name}-${name}.png`);
   await session.page.screenshot({path:file});row.shots.push({name,file,...evidence});
+  if(process.env.PLAYING_CAPTURE==='1'){await session.page.keyboard.press('p');await session.page.evaluate(()=>{window.__colossus.state.time=12;});}
   console.log(JSON.stringify({event:'screenshot',phase,profile:row.name,name,file,environment:evidence}));
 }
 async function visibleBatches(page){return page.evaluate(async()=>{
@@ -283,7 +290,22 @@ try{
       if(mode!=='timing'){
         if(captureViews.has('city'))await capture(session,row,'city');
         await session.page.evaluate(()=>{const g=window.__colossus.scene;g.yaw+=Math.PI;g.snapCamera=true;});await session.page.evaluate(()=>window.__polishWaitFrames(60));if(captureViews.has('reverse'))await capture(session,row,'reverse');
-        await session.page.evaluate(()=>{const g=window.__colossus.scene;g.zoom=52;g.pitch=.42;g.snapCamera=true;});await session.page.evaluate(()=>window.__polishWaitFrames(60));if(captureViews.has('close'))await capture(session,row,'close');
+        if(process.env.CLOSE_ENVIRONMENT==='1'){
+          if(!closeFixture){
+            assert.equal(phase,'before','Create the close save by actual baseline travel first.');
+            await session.page.evaluate(()=>window.__polishReset());
+            await session.page.keyboard.press('p');
+            await session.page.locator('#destinations-toggle').click();
+            await session.page.locator('#destinations button').filter({hasText:'The Broken Meridian'}).click();
+            await session.page.waitForFunction(()=>window.__colossus.state.gathering==='ruins2',null,{timeout:45000});
+            await session.page.keyboard.press('p');
+            closeFixture=await session.page.evaluate(async()=>{const{serialize}=await import('/src/simulation.js');return serialize(window.__colossus.state);});
+            await fs.mkdir(path.dirname(closeFixturePath),{recursive:true});await fs.writeFile(closeFixturePath,closeFixture);
+          }
+          await session.page.evaluate(async saved=>{const{deserialize}=await import('/src/simulation.js');const{state:s,scene:g}=window.__colossus;Object.assign(s,deserialize(saved));s.paused=true;g.setGame(s);g.setView('city');Object.assign(g,{yaw:1.15,zoom:66,pitch:.60,snapCamera:true});window.__colossus.advance(0);},closeFixture);
+          row.closeFixture={file:closeFixturePath,sha256:createHash('sha256').update(closeFixture).digest('hex'),method:'Same baseline production save after native destination-UI travel to The Broken Meridian from the recorded main fixture; includes actual saved destruction. Reconstructed on both builds; no changed map or collision rules.'};
+        }else await session.page.evaluate(()=>{const g=window.__colossus.scene;g.zoom=52;g.pitch=.42;g.snapCamera=true;});
+        await session.page.evaluate(()=>window.__polishWaitFrames(60));if(captureViews.has('close'))await capture(session,row,'close');
         if(captureViews.has('wide')){await session.page.evaluate(()=>{window.__polishReset();const g=window.__colossus.scene;g.zoom=112;g.snapCamera=true;});await session.page.evaluate(()=>window.__polishWaitFrames(60));await capture(session,row,'wide');}
       }
       if(mode!=='preview'&&mode!=='record'){

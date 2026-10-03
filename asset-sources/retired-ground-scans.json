@@ -1,0 +1,88 @@
+{
+  "provider": "Poly Haven",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "apiCredit": "Powered by Poly Haven",
+  "downloaded": "2026-09-08",
+  "environment": {
+    "id": "kloppenheim_06_puresky",
+    "name": "Kloppenheim 06 (Pure Sky)",
+    "authors": {
+      "Greg Zaal": "Original",
+      "Jarod Guest": "Sky edits"
+    },
+    "source": "https://polyhaven.com/a/kloppenheim_06_puresky",
+    "path": "daylight.hdr",
+    "bytes": 1173154,
+    "md5": "995d68b1656f26452572645c0ffe898b",
+    "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloppenheim_06_puresky_1k.hdr"
+  },
+  "retiredBy": "Painterly Phase 1; no active runtime consumers. Original bytes retained by baseline8320a43 and complete A release.",
+  "assets": {
+    "grass": {
+      "id": "leafy_grass",
+      "name": "Leafy Grass",
+      "source": "https://polyhaven.com/a/leafy_grass",
+      "authors": {
+        "Charlotte Baglioni": "All"
+      },
+      "dimensions": [
+        2000,
+        2000
+      ],
+      "files": {
+        "color": {
+          "path": "grass-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_diff_1k.jpg",
+          "bytes": 1195394,
+          "md5": "0dbc071e91d6905edfcfbe8eb785a1ab"
+        },
+        "normal": {
+          "path": "grass-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_nor_gl_1k.jpg",
+          "bytes": 1466049,
+          "md5": "8279e096e204ea326d57a318869f99df"
+        },
+        "roughness": {
+          "path": "grass-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/leafy_grass/leafy_grass_rough_1k.jpg",
+          "bytes": 511385,
+          "md5": "05f6bb1383e12b327727d313c5899cf2"
+        }
+      }
+    },
+    "soil": {
+      "id": "forest_ground_04",
+      "name": "Forest Ground 04",
+      "source": "https://polyhaven.com/a/forest_ground_04",
+      "authors": {
+        "Rob Tuytel": "Photography, Processing",
+        "Rico Cilliers": "Minor adjustment"
+      },
+      "dimensions": [
+        3150.0000953674316,
+        3150.0000953674316
+      ],
+      "files": {
+        "color": {
+          "path": "soil-color.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_diff_1k.jpg",
+          "bytes": 1113899,
+          "md5": "6ad9df4d731a238299806f739a26af83"
+        },
+        "normal": {
+          "path": "soil-normal.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_nor_gl_1k.jpg",
+          "bytes": 1326812,
+          "md5": "a010a0802c2d9a930c6f00d3b1f196d2"
+        },
+        "roughness": {
+          "path": "soil-roughness.jpg",
+          "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_rough_1k.jpg",
+          "bytes": 627507,
+          "md5": "b5c7ba5c16f00261e9a765d52cf7e0ac"
+        }
+      }
+    }
+  }
+}

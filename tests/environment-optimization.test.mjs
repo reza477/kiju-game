@@ -112,7 +112,8 @@ test('saved pine crowns use the pine debris pool and every species restores its 
       records.push({id:'species:'+species,kind:'tree',x:items[0].x,z:items[0].z,size:1.2,parts:[{batch:{mesh:source,items},first:0,count:2}]});
     }
     const api=createWorldInteractions(group,records),pine=group.getObjectByName('Crushed fallen pine boughs'),broadleaf=group.getObjectByName('Crushed fallen boughs');
-    assert.notEqual(pine.material.map,broadleaf.material.map,'Species must retain their distinct foliage silhouettes.');
+    assert.equal(pine.material.userData.vegetationKind,'pine');assert.equal(broadleaf.material.userData.vegetationKind,'broadleaf');
+    assert.notDeepEqual(pine.geometry.attributes.position.array,broadleaf.geometry.attributes.position.array,'Species retain distinct physical crown silhouettes after the approved removal of cutout textures.');
     for(let species=0;species<records.length;species++){
       api.resetInteractions({mode:'expedition',damage:JSON.parse(JSON.stringify([records[species].id]))});assert.equal(api.stats.destroyedCount,1);
       const expected=species<2?pine:broadleaf,other=species<2?broadleaf:pine;

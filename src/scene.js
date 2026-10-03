@@ -13,7 +13,7 @@ import {createBattery,animateWeapons,weaponMuzzles,arcGeometry} from './armament
 import {facingOf,batteryArc} from './weapon-layout.js';
 import {cannonMountProfile} from './castle-collision.js';
 import {CinematicCamera} from './cinematic-camera.js';
-import {surfaceSet,surfaceDiagnostics} from './surface-library.js';
+import {surfaceDiagnostics} from './surface-library.js';
 import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
 import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQuality} from './camera-input.js';
 import {createMovementPreparation} from './movement-preparation.js';
@@ -129,7 +129,7 @@ export class GameScene {
     this.sun.shadow.mapSize.set(initialShadowSize,initialShadowSize);this.sun.shadow.camera.left=-65;this.sun.shadow.camera.right=65;this.sun.shadow.camera.top=65;this.sun.shadow.camera.bottom=-65;this.sun.shadow.camera.near=.5;this.sun.shadow.camera.far=270;this.sun.shadow.bias=-.00012;this.sun.shadow.normalBias=.025;this.sun.shadow.radius=1.4;
     this.scene.add(this.sun,this.sun.target);
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
-    this.landscape=createLandscape();this.landscape.setGroundTextures({grass:surfaceSet('grass'),soil:surfaceSet('soil'),slate:surfaceSet('rock')});this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
+    this.landscape=createLandscape();this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
     this.movementMaterials=[...this.landscape.movementMaterials];
     this.movementPreparation=createMovementPreparation(this.renderer,this.movementMaterials);
     canvas.addEventListener('webglcontextrestored',()=>this.movementPreparation.invalidate());

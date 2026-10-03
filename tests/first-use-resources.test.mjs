@@ -49,6 +49,11 @@ test('disposing resource sites preserves the exact materials still attached to p
   const sharedWithSites=new Set(sites.flatMap(site=>[...materialsIn(site)].filter(material=>worldMaterials.has(material))));
   const metric=[...sharedWithSites].filter(material=>material.customProgramCacheKey().includes('world-metric-scenery'));
   assert.ok(metric.length>=3,'Exercise real metric scenery materials shared by the persistent landscape and sites.');
+  // Ruins now have an explicitly separate painted masonry family. They must
+  // reuse their own cached instances, rather than the former world-rock family.
+  const ironIndex=WORLD_NODES.findIndex(node=>node.kind==='iron');
+  const ironMetric=[...materialsIn(sites[ironIndex])].filter(material=>material.userData.shared&&material.customProgramCacheKey().includes('world-metric-scenery'));
+  assert.ok(ironMetric.length>=3,'Exercise real cached iron-site surfaces.');
   const watched=watchDisposal(sharedWithSites),identities=new Map([...sharedWithSites].map(material=>[material,material.uuid]));
   try{
     for(const site of sites)disposeGroup(site);
@@ -60,7 +65,7 @@ test('disposing resource sites preserves the exact materials still attached to p
     const replacement=createResourceSite(WORLD_NODES.find(node=>node.kind==='iron'));
     try{
       const replacementMaterials=materialsIn(replacement);
-      assert.ok(metric.some(material=>replacementMaterials.has(material)),'Reconstruction must reuse the existing compatible metric material object.');
+      assert.ok(ironMetric.every(material=>replacementMaterials.has(material)),'Reconstruction must reuse every existing compatible iron-site metric material object.');
     }finally{disposeGroup(replacement);}
     for(const material of sharedWithSites)assert.equal(watched.counts.get(material),0);
   }finally{watched.stop();}
@@ -72,7 +77,7 @@ test('repeated woodland replacement disposes owned visible and shadow passes whi
   for(let cycle=0;cycle<4;cycle++){
     const site=createResourceSite(node),all=materialsIn(site),owned=[...all].filter(material=>!material.userData.shared&&!persistent.has(material)),wind=[];
     site.traverse(mesh=>{if(mesh.userData.windAnimated)wind.push(mesh);});
-    assert.ok(wind.some(mesh=>mesh.material.name==='Matte pine cutout'));
+    assert.ok(wind.some(mesh=>mesh.material.userData.vegetationKind==='pine'));
     const ownedPasses=new Set(wind.filter(mesh=>!mesh.material.userData.shared&&!persistent.has(mesh.material)).flatMap(mesh=>[mesh.material,mesh.customDepthMaterial,mesh.customDistanceMaterial]));
     assert.ok(ownedPasses.size>=6,'Exercise both leaf and pine visible/depth/distance ownership.');
     for(const material of owned){assert.ok(!oldOwned.has(material),'A disposed owned material must not be returned from a cache.');oldOwned.add(material);}

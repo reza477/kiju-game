@@ -1,58 +1,58 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from '../vendor/three.module.js';
-import { createMeadowSurface } from '../src/meadow-surface.js';
+import {getMaterial} from '../src/materials.js';
+import {paintGround,paintRiver,getRuinMaterial} from '../src/painterly-surfaces.js';
+import {WIND_GLSL} from '../src/weather.js';
 
-test('meadow surface supplies a local packed tile with useful coverage and bounded normals', () => {
-  const texture = createMeadowSurface(), { width, height, data } = texture.image;
-  assert.ok(texture.isDataTexture);
-  assert.equal(width, 512); assert.equal(height, 512);
-  assert.ok(data instanceof Uint8Array); assert.equal(data.length, width * height * 4);
-  assert.equal(texture.colorSpace, T.NoColorSpace);
-  assert.equal(texture.wrapS, T.RepeatWrapping); assert.equal(texture.wrapT, T.RepeatWrapping);
-  assert.equal(texture.minFilter, T.LinearMipmapLinearFilter); assert.equal(texture.generateMipmaps, true);
-  assert.equal(texture.userData.tileMetres, 9);
-  assert.equal(createMeadowSurface(), texture, 'Reuse the original asset across landscape batches');
-  const stats = Array.from({ length: 4 }, () => ({ low: 255, high: 0, sum: 0 }));
-  let soil = 0, turf = 0, transition = 0;
-  for (let index = 0; index < data.length; index += 4) {
-    for (let channel = 0; channel < 4; channel++) {
-      const value = data[index + channel], s = stats[channel];
-      assert.ok(Number.isFinite(value)); s.low = Math.min(s.low, value); s.high = Math.max(s.high, value); s.sum += value;
-    }
-    soil += data[index] < 64; turf += data[index] > 191;
-    transition += data[index] >= 64 && data[index] <= 191;
-  }
-  const pixels = width * height;
-  assert.ok(soil / pixels > .10 && turf / pixels > .10 && transition / pixels > .20, 'Tile must contain turf, soil and ragged intermediate cover');
-  assert.ok(stats[1].high - stats[1].low > 90, 'Blades/litter must produce readable albedo detail');
-  for (const s of stats.slice(2)) {
-    assert.ok(Math.abs(s.sum / pixels - 127.5) < .25, 'Normals must have no directional tilt bias');
-    assert.ok(s.low >= 57 && s.high <= 198 && s.high - s.low > 35, 'Micro-normal slopes must be useful and bounded');
-  }
+// Approved migration removes the old packed meadow overlay. These tests cover
+// the active replacement's ownership and shader integration, not GPU appearance.
+const shader=()=>({vertexShader:T.ShaderLib.standard.vertexShader,fragmentShader:T.ShaderLib.standard.fragmentShader,uniforms:{}});
+
+test('painted ground borrows only owner textures and preserves render configuration',()=>{
+  const first=new T.MeshStandardMaterial({color:0x637758,roughness:.91,side:T.FrontSide}),second=first.clone();
+  const weights=new T.DataTexture(new Uint8Array(4),1,1),detail=new T.DataTexture(new Uint8Array(4),1,1),otherWeights=weights.clone(),otherDetail=detail.clone();
+  const before={color:first.color.getHex(),roughness:first.roughness,side:first.side,depthWrite:first.depthWrite,transparent:first.transparent};
+  paintGround(first,{weights,detail});paintGround(second,{weights:otherWeights,detail:otherDetail});
+  const a=shader(),b=shader();first.onBeforeCompile(a);second.onBeforeCompile(b);
+  assert.equal(a.uniforms.uHabitat.value,weights);assert.equal(a.uniforms.uBrushGrain.value,detail);
+  assert.equal(b.uniforms.uHabitat.value,otherWeights);assert.equal(b.uniforms.uBrushGrain.value,otherDetail);
+  assert.notEqual(a.uniforms.uHabitat,b.uniforms.uHabitat);
+  assert.deepEqual({color:first.color.getHex(),roughness:first.roughness,side:first.side,depthWrite:first.depthWrite,transparent:first.transparent},before);
+  assert.match(a.vertexShader,/attribute float groundMoisture/);
+  assert.ok(!/transformed\s*[+*\/-]?=/.test(a.vertexShader),'Ground surface hook must not displace functional terrain.');
+  assert.ok(!/grassScan|soilScan|uMeadow/.test(a.fragmentShader),'Obsolete meadow sampling must not survive.');
+  let disposed=0;for(const texture of[weights,detail])texture.addEventListener('dispose',()=>disposed++);
+  first.dispose();assert.equal(disposed,0,'Material disposal must not independently release owner-managed textures.');
+  second.dispose();for(const texture of[weights,detail,otherWeights,otherDetail])texture.dispose();
 });
 
-test('all packed channels wrap without an artificial boundary discontinuity', () => {
-  const { data, width, height } = createMeadowSurface().image;
-  for (let channel = 0; channel < 4; channel++) {
-    let edgeX = 0, edgeY = 0, interiorX = 0, interiorY = 0;
-    const at = (x, y) => data[(y * width + x) * 4 + channel];
-    for (let y = 0; y < height; y++) {
-      edgeX += Math.abs(at(0, y) - at(width - 1, y));
-      for (let x = 0; x < width - 1; x++) interiorX += Math.abs(at(x + 1, y) - at(x, y));
-    }
-    for (let x = 0; x < width; x++) {
-      edgeY += Math.abs(at(x, 0) - at(x, height - 1));
-      for (let y = 0; y < height - 1; y++) interiorY += Math.abs(at(x, y + 1) - at(x, y));
-    }
-    // Adjacent samples across the repeat seam should behave like interior
-    // neighbours; first/last texels need not be identical pixel-centre samples.
-    assert.ok(edgeX / height < interiorX / (height * (width - 1)) * 1.5);
-    assert.ok(edgeY / width < interiorY / (width * (height - 1)) * 1.5);
-  }
+test('ground and river keys differ while river clocks and local inputs remain independent',()=>{
+  const ground=new T.MeshStandardMaterial(),a=new T.MeshStandardMaterial(),b=new T.MeshStandardMaterial();
+  const texture=new T.DataTexture(new Uint8Array(4),1,1),clockA={value:7},clockB={value:11};
+  paintGround(ground,{weights:texture,detail:texture});paintRiver(a,clockA,texture,WIND_GLSL);paintRiver(b,clockB,texture,WIND_GLSL);
+  const first=shader(),second=shader();a.onBeforeCompile(first);b.onBeforeCompile(second);
+  assert.notEqual(ground.customProgramCacheKey(),a.customProgramCacheKey());assert.equal(a.customProgramCacheKey(),b.customProgramCacheKey());
+  assert.equal(first.uniforms.uRiverTime,clockA);assert.equal(second.uniforms.uRiverTime,clockB);
+  assert.equal(first.uniforms.uRiverBrush.value,texture);clockA.value=23;assert.equal(clockB.value,11);
+  assert.match(first.vertexShader,/attribute vec4 riverField/);
+  assert.ok(!/riverCentre|riverHalfWidth/.test(first.vertexShader+first.fragmentShader),'Use supplied channel field, not duplicate shoreline equations.');
+  for(const material of[ground,a,b])material.dispose();texture.dispose();
 });
 
-test('independent CPU generation reproduces every packed texel exactly', async () => {
-  const independent = await import('../src/meadow-surface.js?independent-cpu-test');
-  assert.deepEqual(independent.createMeadowSurface().image.data, createMeadowSurface().image.data);
+test('ruin variants reuse shared surfaces without modifying carrier sources or borrowed maps',()=>{
+  const oldDocument=globalThis.document,gradient={addColorStop(){}};
+  const context=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient},{get:(target,key)=>target[key]??(()=>{})});
+  globalThis.document={createElement:()=>({width:0,height:0,getContext:()=>context}),createElementNS:()=>({addEventListener(){},removeEventListener(){}})};
+  try{
+    for(const kind of['stone','brick','pavement','rock']){
+      const source=getMaterial(kind,0xffffff),before={roughness:source.roughness,normal:source.normalScale.toArray(),compile:source.onBeforeCompile,key:source.customProgramCacheKey};
+      const variant=getRuinMaterial(kind,0xffffff);
+      assert.notEqual(variant,source);assert.equal(getRuinMaterial(kind,0xffffff),variant);assert.equal(variant.userData.shared,true);
+      assert.equal(variant.map,source.map);assert.equal(variant.normalMap,source.normalMap);assert.equal(variant.roughnessMap,source.roughnessMap);
+      assert.deepEqual({roughness:source.roughness,normal:source.normalScale.toArray(),compile:source.onBeforeCompile,key:source.customProgramCacheKey},before);
+      assert.ok(variant.normalScale.x<source.normalScale.x);assert.notEqual(variant.customProgramCacheKey(),source.customProgramCacheKey());
+    }
+    assert.equal(getRuinMaterial('metal',0xffffff),getMaterial('metal',0xffffff),'Retain existing shared iron preparation material.');
+  }finally{if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;}
 });
