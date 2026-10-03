@@ -1,4 +1,4 @@
-// Bounded preparation of two already allocated effect materials. Three r185's
+// Bounded preparation of existing traced materials. Three r185's
 // public compile(object,camera,targetScene) submits programs without drawing or
 // waiting for completion. Unlike compileAsync it leaves no pending poll that
 // can outlive a lost context. Normal rendering still owns readiness and errors.

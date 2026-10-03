@@ -130,7 +130,8 @@ export class GameScene {
     this.scene.add(this.sun,this.sun.target);
     this.rim=new T.DirectionalLight(0x9eb9cf,.8);this.rim.position.set(70,35,-55);this.scene.add(this.rim,this.rim.target);this.sunOffset=new T.Vector3();
     this.landscape=createLandscape();this.landscape.setGroundTextures({grass:surfaceSet('grass'),soil:surfaceSet('soil'),slate:surfaceSet('rock')});this.surfaceDiagnostics=surfaceDiagnostics;this.world=this.landscape.group;this.ground=this.landscape.ground;this.scene.add(this.world);
-    this.movementPreparation=createMovementPreparation(this.renderer,this.landscape.movementMaterials);
+    this.movementMaterials=[...this.landscape.movementMaterials];
+    this.movementPreparation=createMovementPreparation(this.renderer,this.movementMaterials);
     canvas.addEventListener('webglcontextrestored',()=>this.movementPreparation.invalidate());
     this.presentation=new Presentation(this.renderer,this.camera);this.atmosphere=new Atmosphere(this.scene);
     this.cityLighting=new CityLighting(this.scene);
@@ -154,6 +155,9 @@ export class GameScene {
   setGame(s,options={}){
     this.cityLighting.reset();
     for(const light of this.impactLights)light.intensity=0;
+    // Drop the borrowed site mesh before its owner is disposed. Keep the same
+    // bounded array so context/quality preparation always sees current objects.
+    this.movementMaterials.length=this.landscape.movementMaterials.length;
     if(this.city){this.city.root.removeFromParent();disposeGroup(this.city.root);}
     for(const city of this.enemyCities){city.root.removeFromParent();disposeGroup(city.root);}
     for(const site of this.labels){site.removeFromParent();disposeGroup(site);}
@@ -164,7 +168,13 @@ export class GameScene {
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
     this.enemyCities=[];this.labels=[];this.pickables=[];
-    for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);}
+    for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);
+      // Portrait first-use tracing identified this shared instanced metal
+      // program after the final environment replaced the loading environment.
+      // One existing representative covers both iron sites; no clone or draw.
+      const metal=site.getObjectByName('Resource site metal');
+      if(this.movementMaterials.length===this.landscape.movementMaterials.length&&metal?.isInstancedMesh)this.movementMaterials.push(metal);
+    }
     for(const e of s.enemies){
       const city=makeCity(e.faction,true,2,e.variant);const sample=previewBuildings();sample[2]={type:'cannon',level:1,remaining:0};
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
@@ -389,9 +399,9 @@ export class GameScene {
     }
     this.updateCamera(s,dt,desiredZoom,battle);
     this.presentation.render(this.scene);
-    // Submit only the two traced first-crush shaders using the real output
+    // Submit only the traced debris and site-metal shaders using the real output
     // target and lights, after a normal frame. No draw, simulation or camera
     // warmup, asynchronous transition, readiness wait, or extra resource copies.
-    if(this.environmentReady||this.environmentError)this.movementPreparation.prepare(this.scene,this.camera,this.presentation.enabled?this.presentation.target:null,`${this.quality}:${this.light}:${this.scene.environment?.uuid}`);
+    if(this.environmentReady||this.environmentError)this.movementPreparation.prepare(this.scene,this.camera,this.presentation.enabled?this.presentation.target:null,`${this.quality}:${this.light}:${this.scene.environment?.uuid}:${this.movementMaterials[2]?.material.uuid??'none'}`);
   }
 }
