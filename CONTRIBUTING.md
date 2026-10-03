@@ -1,13 +1,13 @@
 # Contributing
 
-Colossus Wake is an owner-directed private game project. Coordinate work through repository issues and pull requests, and read [AGENTS.md](AGENTS.md) before changing the game. See [development setup](docs/DEVELOPMENT.md) for commands and [repository maintenance](docs/REPOSITORY_MAINTENANCE.md) for backup and synchronization rules.
+Colossus Wake is an owner-directed game project with public source and protected playtest hosting. Coordinate work through repository issues and pull requests, and read [AGENTS.md](AGENTS.md) before changing the game. See [development setup](docs/DEVELOPMENT.md) for commands and [repository maintenance](docs/REPOSITORY_MAINTENANCE.md) for backup and synchronization rules.
 
 ## Make a focused change
 
 1. Check the current game task and working tree before editing. Use an isolated worktree when development is active, so repository maintenance cannot overwrite in-progress game work.
 2. Keep a change focused on one problem or improvement. Use a descriptive branch, normally under `codex/` for agent-authored work.
 3. Preserve existing saves, district identities, scenery identities, local play and offline behavior. Review migrations explicitly if state formats change.
-4. Run `npm test` and the checks relevant to the affected behavior. For runtime changes, build the offline package with `npm run build:mobile`; this updates `src/build-info.js` and should be included with the runtime change.
+4. Run `npm test` and the checks relevant to the affected behavior. For the protected playtest lane, use `npm run build:playtest`, test those frozen bytes and run `npm run verify:playtest`; preserve their actual source/build identity. Follow [the delivery guide](docs/PRIVATE_DELIVERY.md) for all required release gates.
 5. Describe the resulting behavior, validation performed and remaining limitations in the pull request. Documentation-only changes need link/content checks, not a fresh visual review or a claim that gameplay was retested.
 
 ## Protect the game's design
@@ -30,6 +30,6 @@ Include the game version or build ID, carrier variant, view, graphics setting, b
 
 Unit checks, desktop browser checks and real-device results are different evidence. Label touch emulation as emulation. Do not infer Safari performance, long-session stability or aesthetic approval from an automated pass.
 
-## Keep source and assets private
+## Protect sensitive data and preserve provenance
 
-Do not commit credentials, `.env` files, logs, user save exports, personal feedback or full ignored capture directories. Preserve existing third-party credits and licenses. New dependencies or assets need identifiable provenance and redistribution terms; do not add an open-source license for the original game without the owner's decision. Publishing a playable build or changing repository visibility is separate from routine private source backup.
+Do not commit credentials, `.env` files, logs, user save exports, personal feedback or full ignored capture directories. Preserve existing third-party credits and licenses. New dependencies or assets need identifiable provenance and redistribution terms; do not add an open-source license for the original game without the owner's decision. The owner authorized public source access on 27 September 2026. Keep repository source public while preserving the separate protected-game delivery gates; Actions logs and uploaded evidence are not private storage.

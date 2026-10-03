@@ -1,0 +1,104 @@
+# Installer scheduling repair — 27 September 2026
+
+Scope: repair the remaining installation/update failure on the latest checkout. Preserve the iPhone presentation, engine, art, gameplay, controls, save schema/key and client-pinning protocol. Local checkpoint `codex/checkpoint-install-repair-20260927` retains the clean starting revision `900815e`.
+
+## Final verified result
+
+**The full installation/update functional gate now passes on Windows and Linux. Hosting remains configured but blocked by the existing visual gate.** Implementation source `d55644881550aa3d4aaa2dd5873492f13435754f` is privately pushed. Its matching [Actions run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486) passed all 226 unit tests, all 12 combined game scenarios, eight metadata transport regressions, three startup regressions, credential confinement and exact runtime integrity. The job's overall result is failure because `delivery/readiness.json` remains false; its publication step was skipped. A source push and these loopback game tests are not a deployment.
+
+Both platforms tested identical frozen release A `af7991973d3ec6fc31ad`, with SHA-256 `16d344548def9f0743708e3e0763edb02ae8af554aea09956b7e922b69aa4546` and 111 verified runtime files. Metadata-only B `34efede859e8c5f3ca8b` is a synthetic local fixture and must never be published. Tests preserve installation, save/Continue, rejected incomplete or unauthorized updates, interrupted-update offline reopening, two simultaneous sessions, failed-save update refusal, independent session updates, old-client byte pinning, automatic title updates, missing-cache-file recovery and offline reopening of B after the actual server stops.
+
+| Evidence | Windows | Linux Actions |
+|---|---|---|
+| Browser | Chromium 151.0.7922.34 | Chromium 151.0.7922.34 |
+| Renderer | NVIDIA RTX 4070 Ti SUPER / D3D11 | Mesa 25.2.8 llvmpipe / LLVM 20.1.2, verified WebGL2 |
+| Game phase, UTC 28 September | 05:42:52.869–05:45:35.112 | 05:44:04.166–06:06:53.106 |
+| Completed game groups | 12/12 | 12/12 |
+| Page errors / unexpected console errors / remote requests | 0 / 0 / 0 | 0 / 0 / 0 |
+| Owned resource cleanup | Complete | Complete |
+
+These are functional runs with native timing, not performance benchmarks or physical iPhone/iPad tests. Linux proves real native foreground/background tab behavior: 23/30 foreground frames in each 500 ms preflight sample and zero background frames; no visibility or renderer result was substituted. The earlier Windows native-window experiment remains a failed probe; ordinary Windows Playwright checks use their documented context instead. Desktop WebKit is not installed locally and was not tested.
+
+Current evidence is under ignored `artifacts/delivery/server-offline-final-pinned/` and `artifacts/delivery/linux-ci-d556448/playtest-d55644881550aa3d4aaa2dd5873492f13435754f/`, plus `server-offline-final-pinned.log`, `linux-ci-d556448.log`, `build.json` and `integrity.json`. The Windows output was copied from its shared default directory; an unrelated `failure.png` dated 25 September was excluded and retained under `historical-unrelated/`, as recorded in its README. The failed historical runs below are retained as causal evidence; their pending/rerun statements describe those earlier stages, not this final outcome.
+
+An independent scope audit confirms only two production paths changed since the checkpoint: `src/offline.js` and new `src/release-fetch-worker.js` (84 insertions, nine deletions). Every other runtime file, the engine, art, iPhone HUD/controls, save serialization, Gothic construction rules and service-worker client-pinning protocol are unchanged. Later revisions after `bf24be2` change test infrastructure and reports only.
+
+The sole remaining pre-publication eligibility decision is the owner's explicit art-only exception or a passing visual review. The prior four-round review is still 6.9/10 overall and 8.4/10 scoped HUD; this repair neither changes those scores nor starts another art pass. After that gate is legitimately cleared, scoped CI publishing and hosted game A-to-B verification still must run before calling the permanent protected origin playable. No game bytes have been uploaded, and physical Apple-device verification remains separate. Final read-only checks confirmed the repository private with default branch `main`, and anonymous `/`, `/release.json` and `/src/main.js` requests at the permanent hosting origin each returned an authentication redirect.
+
+## Reproduced root cause
+
+Diagnostic-only source `b702fc7d703ef1b0cc06a4e9b6c02ffb29175088`, [Actions run 36376718271](https://github.com/reza477/kiju-game/actions/runs/36376718271), ran the unchanged production runtime with native timing and llvmpipe rendering. It again failed the initial offline-install condition at 150 seconds. The added test observers return native promises unchanged and do not read response bodies, change rendering quality or alter clocks/deadlines.
+
+| Event | Milliseconds after document navigation |
+|---|---:|
+| Metadata fetch starts | 39,780.2 |
+| HTTP 200 headers reach JavaScript | 65,904.1 |
+| JSON body read starts | 65,904.2 |
+| Existing timeout aborts its signal | 65,904.6 |
+| Body rejects with `AbortError` | 65,904.7 |
+| Updater publishes its error | 65,904.8 |
+| Test refresh later reports `not-installed` | 67,936.6 |
+
+Network timing reports response completion in **2.555 ms**. Main-thread long tasks of **9,603 ms** and **16,340 ms** delayed processing. The eight-second timer remained armed across response-body consumption; after the long tasks, it aborted the body before installation/registration could start. No `/sw.js` request appeared. This is direct evidence of the deadline/scheduling coupling, not a slow server or a failed service-worker registration. Repeated test refreshes subsequently obscured the earlier error; the nonmutating status observer preserves it.
+
+The earlier Windows-only renderer adjustment allowed GPU-backed checks to pass but did not repair this production coupling. This pass addresses it in the metadata transport itself.
+
+## Narrow runtime change
+
+Implementation source `72910bf311f7f4444a37bda93eb1fa6af79eb9d7` moves only `/release.json` fetching, complete body parsing and the unchanged **8,000 ms** transport deadline to a self-contained same-origin classic worker. A completed response no longer retains a main-thread timer that can invalidate it while delivery waits behind rendering. The worker keeps `cache: no-store`, `credentials: same-origin` and `redirect: error`; authentication HTML, redirects, malformed JSON and invalid descriptors fail closed. Main-thread descriptor validation remains independent.
+
+The first repair used a separate **30,000 ms main-thread startup handshake**. Its cloud retest exposed a second scheduling boundary: the parent could not observe worker readiness within that wall-clock interval under the initial rendering load. This intermediate revision is not a complete fix.
+
+At source `72910bf`, check startup was at **40,084.1 ms**; the worker script returned HTTP 200, but the startup watchdog fired at **70,357.8 ms** before the parent processed readiness. Main-thread tasks took **10,067 ms** and **17,725 ms** during this interval. No metadata or service-worker request followed. The evidence does not establish whether readiness was already queued or worker initialization itself was delayed. A separate real-browser regression reproduced failure against the frozen revision with a **31.5-second main-thread stall before readiness**, which the previous transport-only test did not exercise.
+
+The follow-up repair queues the metadata command immediately; native worker messaging retains it until the worker can handle it. Startup now has a **30-second observation budget**, charged at most 250 ms per 250 ms heartbeat so a long rendering task cannot consume the entire opportunity to observe readiness. A **90-second wall-clock backstop** bounds an unresponsive startup at the next available event-loop turn. This deliberately changes the new startup policy, not the existing worker-owned eight-second network deadline. Readiness clears the bootstrap watchdog; there is no main-thread response deadline.
+
+Result, error, malformed message, load failure and startup timeout terminate the worker. A retry creates a fresh one. The worker has no imports or save/cache writes; the normal package manifest includes and hashes its single local source file. Existing update installation, safe activation and save safeguards are unchanged.
+
+[The HTML worker standard](https://html.spec.whatwg.org/multipage/workers.html) describes the separate execution context. No external asset service, new dependency, engine change or installation was needed for this repair.
+
+## Evidence and release identity
+
+- Full local unit suite after the startup follow-up: **218/218 passed**, zero skipped.
+- Independent review: **47 focused tests passed**, including metadata transport, updater/save safeguards, service-worker client pinning, retained caches and packaging.
+- Provisional real Chromium transport regression: **8/8 passed**. The fast response actually completed during a **10.5-second main-thread block** and remained usable; genuinely stalled headers/body failed at approximately eight seconds. Same-origin cookie inclusion and refusal to contact a foreign redirect target were verified with synthetic local fixtures. These are transport checks, not full gameplay or physical-device evidence.
+- Frozen committed A: `6372f979f9eb6bf61f43`, source `72910bf311f7f4444a37bda93eb1fa6af79eb9d7`, artifact SHA-256 `6114911919f0ed62c1f1711257dccc1ac746732b36b9a455c253c3c2747ee724`; **111 exact runtime files verified**.
+- Synthetic B: `ee989ace7bb9983534f1`; local update fixture only, never publish it.
+- Frozen `72910bf` Windows game gate: **12/12 passed**, exit zero, Chromium 151.0.7922.34, NVIDIA RTX 4070 Ti SUPER/D3D11. Zero page errors, unexpected console errors or remote requests. The run covered failed/incomplete downloads, preservation of saves, two open A clients while B downloads, failed-save refusal, safe update, old-client pinning, title update, missing-module recovery and offline reopening with the server stopped. Its eight transport regressions also passed.
+- Matching intermediate cloud run [36377103085](https://github.com/reza477/kiju-game/actions/runs/36377103085): **216/216 units and 8/8 transport checks passed; 0/12 game groups completed** because the new startup watchdog failed as described above. llvmpipe WebGL2 rendering was verified. This remains a failed functional gate, not a passing deployment.
+- The focused native-browser startup regression fails against frozen `72910bf`. The follow-up provisional package passes **3/3**: one 31.5-second stall, two 16-second stalls with delayed worker-source delivery, and a never-ready worker that fails cleanly after 31.19 seconds on a responsive page. All native workers are terminated. These tests use the actual packaged `offline.js` and stop intentionally at its registration boundary; they are not a replacement for the complete game gate. Unit tests additionally verify the 90-second ceiling even if a late ready message reaches JavaScript before its overdue timer.
+- Final frozen source: `bf24be2945f4ecfff8dbe5bc5b6b52369c33f2c2`; A `26be0dfc79448e976455`, synthetic B `3d585437c1680c0fc1d7`, artifact SHA-256 `ff4398e7eb6eac718f9e58376a45f1d88f7d2f6a05368653abf3f6269fe59a27`. All 111 exact runtime files verify after testing.
+- Final Windows pinned Chromium game run: **12/12 passed**, exit zero; all **8 transport + 3 startup** regressions and synthetic credential-confinement checks also passed. The report is `artifacts/delivery/startup-final-pinned/results.json`. The game gate retains its renderer, graphics preset, native clocks and existing simulation/save fixtures.
+- Matching Linux run [36378230442](https://github.com/reza477/kiju-game/actions/runs/36378230442): **218/218 units and all 11 targeted native-browser regressions passed**. The actual game installed and safely reopened on A; status became `ready`, `canPlayOffline: true`, `installedBuildId: 26be0dfc79448e976455`, then confirmed up to date. The original installer failure is resolved on this runner. The combined gate still failed before completing its first group: the subsequent real tap on the crawler selection button exceeded Playwright's 20-second visibility/enabled/stability wait. Rendering long tasks include 13.396 seconds and 8.220 seconds; the ten-second failure screenshot also timed out. This is not a passing combined test or deployment.
+
+The next test-only adjustment allows 60 seconds for normal Playwright actions **only after the llvmpipe renderer has been positively verified**. All other drivers retain 20 seconds. It preserves actionability checks, real touch dispatch, native timing, the viewport/quality and every production timeout. It does not force clicks, skip a scenario, reduce visual work or claim interactive performance. The matching full rerun must pass before eligibility can advance.
+
+Ignored evidence: `artifacts/delivery/linux-ci-b702fc7/`, `linux-ci-72910bf/`, `metadata-worker-unit.log`, `metadata-worker-transport-provisional/release-transport.json`, `metadata-worker-pinned/`, `startup-regression-before/`, and `build-pre-metadata-thread-repair.json`. The previous frozen Windows artifact and failure reports remain intact. The provisional transport package has source identity `local` and must not be relabeled as the committed release.
+
+Publication remains disabled while required functional checks or the existing visual gate fail. The permanent protected address still contains only the setup placeholder. Hosted game A-to-B, actual scoped CI publishing, desktop WebKit and physical iPhone/iPad checks are not established by the tests above.
+
+## Second-session Linux diagnosis
+
+Test-only source `26c07bbd09afba510df71e666e50a0781c200964`, run [36378793053](https://github.com/reza477/kiju-game/actions/runs/36378793053), passed 218 unit tests, eight transport regressions and three startup regressions. Its actual game completed initial installation, crawler selection, real touch movement, save, reload, Continue and the offline-ready observation. It then exceeded the existing 120-second runtime condition while opening the second A session. No full compound group completed, and publication did not run. A was `07d6a1be61eb47b41371`, synthetic B `20ef7243272c456e77be`, artifact SHA-256 `0bf64456097e6a3ee77ce55297e500d5105b6a86bbd38e15c42a0ac2a4c69eff`. The production runtime is unchanged from `bf24be2`.
+
+The test now records timestamped starts/ends/failures for each initial installation, touch and second-session step in `progress.json`. Driver operations and cleanup are bounded in Node, and results are persisted before cleanup. This does not extend the 120-second runtime or 150-second installation conditions.
+
+A separate native-browser probe established that ordinary Playwright headless pages both report visible. Removing its three background-throttling command-line overrides and launching a normal window was insufficient: Playwright also enables per-page focus emulation. Disabling focus emulation through a second CDP session did not clear the original session's visibility override in an actual Chrome 154 probe. That rejected approach was not sent to CI or represented as a fix.
+
+The next differential uses an isolated temporary-profile Chromium window in the runner's existing Xvfb display and Playwright's supported `connectOverCDP({noDefaults:true})` default context. It must prove actual foreground/background visibility and native RAF behavior before gameplay. Each test context has its own owned browser/profile; ordinary Windows test settings remain unchanged. The mobile viewport and touch capability are real browser emulation; locator actionability is checked before native touch events, since a connected default context lacks Playwright's immutable `hasTouch` option. No visibility event, game clock, renderer, animation, quality, save, or update result is stubbed.
+
+The headless behavior is evidence of a test-environment mismatch, not yet proof that it caused the second-session timeout. A complete rerun remains required.
+
+The local native-window experiment did **not** pass visibility preflight. A bare-CDP control, with no Playwright attachment, also recorded both Chrome 154 pages as visible and advancing roughly 94 frames/second before Page/Runtime/auto-attachment were enabled. Thus Playwright focus emulation is not established as the complete cause on this machine. Evidence is `artifacts/delivery/native-tabs-bare-cdp.json`. The supported native driver stays fail-closed; only a successful actual Linux preflight could allow its game gate to run. Its separate one-page touch probe did pass: 844×390, DPR 1, one touch point, trusted touch/pointer/click events and completed owned cleanup. Neither that probe nor 223/223 passing local unit tests establishes the Linux differential result.
+
+Frozen diagnostic source `65ae3c4c1e0bdae7d8f752702ff0eebdbd397653` produces A `3f910286c8c73988623e`, synthetic B `b517b0cd38998877da90`, SHA-256 `2f700cfe142a87a28ea8d59137288b3cd6ea8866732072cf834add392e1010ed`. Its complete Windows pipeline exits zero: **12/12 game scenarios, 8/8 transport checks, 3/3 startup checks and credential confinement**. Pinned Chromium 151.0.7922.34 uses NVIDIA RTX 4070 Ti SUPER/D3D11; the game phase ran 05:19:28–05:22:04 UTC on 28 September (27 September Pacific). Page errors, unexpected console errors and remote requests are all zero; owned cleanup completed. All 111 exact runtime files verified after completion. Evidence: `artifacts/delivery/native-differential-final-pinned/`.
+
+Matching Linux run [36381165909](https://github.com/reza477/kiju-game/actions/runs/36381165909) passed its actual native visibility/RAF and llvmpipe WebGL2 preflight in 2.602 seconds. Thus the Windows probe failure does not transfer to this runner. It also passed installation and automatic title reopening. This is a bounded diagnostic comparison, not a performance claim.
+
+Run `36381165909` finished with **6/12 combined groups passed**, then failed the interrupted-update offline-reopen group. The actual game sessions were respectively visible and hidden, both preserving their paused state. Second-session loading completed in 15.915 seconds after navigation. Thus the previous second-session stall is resolved by the native Linux setup; this remains an incomplete combined gate.
+
+The new failure was in the test's offline boundary: the retained tab initially loaded A, then reopened into B while its page metadata fetch failed with `ERR_INTERNET_DISCONNECTED`. An isolated native Chromium regression reproduced the mechanism without the game: after a failed B installation, `context.setOffline(true)` blocked ordinary page and existing-worker fetches, but reopening cached A triggered a browser-native service-worker script update and a new installer that fetched B successfully. The server recorded `/sw.js` and all B payloads **after** offline mode was applied (05:33:34.897 UTC; script at 05:33:36.545; payloads at 05:33:36.560–563). `navigator.onLine` was not a reliable indicator for this connected-context case. Evidence: `artifacts/delivery/native-offline-update-probe.json` and its reproducible ignored script. This is a demonstrated test-emulation hole, not evidence that the game's cached A was lost or that ordinary offline requests worked.
+
+The test-only correction holds the last injected download fault until the local server is actually stopped, then cold-opens A with that server unavailable. It asserts the stopped server receives no requests. Only after the cached game, save and touch checks finish does it restart the same owned server on the same origin for the remaining B update scenarios. Faults are replaced directly between negative cases, removing an unintended healthy-B interval. Network emulation remains supplemental; no game renderer, timing, save or update logic changes. The final full rerun is still required.
+
+The isolated after-repair native Chrome 154 fixture passes: cached A remains active with only cache A and zero server requests during the real outage; B starts downloading only after the exact origin resumes. Evidence: `artifacts/delivery/native-offline-update-stopped-probe.json`. Three new actual-socket tests cover refused connections, serialized shutdown/restart, original-port conflict/retry and sanitized request timestamps. **226/226 unit tests pass.** The complete Windows game rerun against the unchanged frozen `65ae3c4` runtime passes **12/12**, with zero unexpected errors and completed cleanup: `artifacts/delivery/server-offline-fix-pinned/results.json`. This does not yet establish the matching Linux outcome.

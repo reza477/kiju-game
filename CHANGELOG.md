@@ -2,6 +2,40 @@
 
 This history describes prototype milestones. A version entry records development work, not a public release or art-quality approval. Verification reports retain the evidence and review outcome for their particular revision.
 
+## Environment and foliage source synchronization — October 3, 2026
+
+Uploaded the main development chat's completed October 2 source and reports through the existing maintenance draft, preserving original commits and results. The owner requested GitHub synchronization and explicitly made that chat authoritative for implementation and verification. No gameplay, review score, readiness setting or deployment decision was changed by maintenance.
+
+- Environment materials, `56670b3`: ground, foliage shading, pine artwork, rocks and riverbank treatment. The experimental culling change was removed. Final units, preservation and smoke checks passed; the 54-case carrier matrix predates the final partition rollback. [Original report](docs/ENVIRONMENT_POLISH_PASS1_2026-10-02.md).
+- Foliage assets, `b30d21d`, based on the complete environment commit: pine, grass and fern shape improvements within existing asset budgets, placements, interactions and save identities. Final-source 227 unit tests, 54 carrier cases and 13 smoke checks passed. Phone-emulation GPU medians rose by 0.225 ms portrait and 0.110 ms landscape; no reliable speedup is claimed. [Original report](docs/FOLIAGE_ASSETS_2026-10-02.md).
+- Both four-round art reviews ended at **7.6/10, failed**. The foliage critic's prior technical role remains disclosed in its original review. Neither task recertified the full frozen installation/update gate or physical Apple devices. Full media/evidence archives remain local.
+- Maintenance's isolated copy passed all 227 unit tests after installing the existing locked dependencies. Its first attempt lacked two development dependencies; the corrected run made no source or dependency-version changes. Browser and art evidence remains that recorded by the main development task.
+
+The latest source backup is `codex/github-stewardship-20260927`; `main`, `codex/playtest` and `alpha-1` retain their existing identities. This is source synchronization, not a playable release.
+
+## Installer repair and protected setup — September 27–28, 2026
+
+Repaired release-metadata fetching and startup scheduling without changing the engine, art, phone presentation, controls, saves or service-worker client pinning. Production repair source is `bf24be2`; later revisions strengthened test infrastructure and recorded evidence.
+
+Frozen source `d55644881550aa3d4aaa2dd5873492f13435754f`, build `af7991973d3ec6fc31ad`, passed the complete Linux gate in [Actions run 36382922486](https://github.com/reza477/kiju-game/actions/runs/36382922486): 226 unit tests, 12 game groups, 8 metadata-transport regressions, 3 startup regressions, synthetic credential confinement and 111 exact runtime files. Matching Windows game checks passed 12/12 with the same A/B IDs and artifact hash. Later report checkpoint `8230ce1` is not a separately tested runtime. Earlier failures below remain historical evidence, not the current functional result.
+
+The workflow's overall result is **failure at release eligibility**, with publication skipped: the visual gate remains 6.9/10 overall and 8.4/10 HUD. The permanent protected origin now serves a generic setup page; account configuration, included-usage setup and protected placeholder promotion have evidence. No playable game, hosted game A→B, desktop WebKit or physical Apple-device result exists. See [installer evidence](docs/INSTALLER_THREAD_REPAIR_2026-09-27.md) and [hosting setup](docs/PRIVATE_HOSTING_SETUP_2026-09-27.md).
+
+## Source visibility policy — September 30 maintenance
+
+The owner's later explicit public-source instruction supersedes earlier private-GitHub requirements. Hosted playtest authentication and all release gates remain. The legacy `repository.private === true` deployment assertion is a deferred implementation blocker; do not satisfy it by reversing the owner's visibility choice. Historical private-repository reports describe their own dates and are not current policy. No license grant accompanies this documentation update.
+
+## iPhone presentation and private delivery candidate — September 24, 2026
+
+Preserved the completed iPhone presentation pass in `2a77d13`, reconciled the existing repository maintenance in `ba8d457`, and backed up private delivery preparation on `codex/playtest` through `fbfda91`. `main` and the original `alpha-1` tag retain their existing baseline. This candidate is **Configured but blocked**, not a hosted release.
+
+- Refined the phone HUD, panels, markers, touch selection, lifecycle input cleanup and opt-in performance feedback. The [presentation report](IPHONE_PASS1.md) records 148 unit tests, focused browser checks and frozen build `8f73de81f12f4aad019b`. Its historical uncommitted description records review-time state; the work was subsequently preserved in `2a77d13`.
+- Prepared one protected GitHub Actions → Vercel delivery lane, immutable runtime verification, client-pinned historical caches, safe automatic update discovery/application, recovery, and guarded promotion/rollback. Account setup and included-only usage remain unverified; no permanent hosted address or hosted A→B verification exists.
+- Final delivery evidence belongs to clean source `11af190e7c5bc8b8aea68b9e0522a6ece610b07b`, build `1f34a447888f6f64e784`: 179 unit tests and 110 runtime integrity checks passed. The required combined browser gate **failed**, completing 3/11 groups in Chrome 154 and 0/11 in pinned Chromium 151. A separate 8/8 offline regression used preceding build `90bd23ad6edcbca03cc8`; it is not a full A→B pass. Later `fbfda91` records these blockers and was not separately packaged or browser-tested.
+- The [fourth iPhone review](art-reviews/iphone-pass1-04.md) scored **6.9/10 overall, 8.4/10 HUD**; the 8.5 overall gate remains failed. No new concrete scoped defect was identified in that bounded review. The earlier Alpha 1 environment score remains a separate historical assessment.
+
+`delivery/readiness.json` remains false. An art-only owner exception cannot waive failed functional checks. Physical Apple devices, desktop WebKit, protected hosting and the Linux delivery workflow remain unverified. See [the full delivery status and setup](docs/PRIVATE_DELIVERY.md).
+
 ## Repository setup — September 24, 2026
 
 Established a maintained private GitHub default branch, organized project documentation, added automated tests/package checks, and prepared a draft Alpha 1 prerelease. Playable hosting remains separate and unconfigured.

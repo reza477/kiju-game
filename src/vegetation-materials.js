@@ -81,16 +81,20 @@ function broadleaf(r) {
 }
 
 function pine(r) {
-  const rand = random(54617), ends = [[.18,.37],[.15,.59],[.26,.78],[.43,.88],[.62,.82],[.80,.68],[.83,.43],[.62,.48],[.35,.57]];
-  for (const [ex, ey] of ends) {
-    const root = [.44 + rand() * .12, .17 + rand() * .16];
-    r.stroke(...root, ex, ey, .004, [191, 198, 176]);
+  // Connected, oblique branch axes carry unequal needle clusters. Transparent
+  // windows between forks expose real branches without outlining an oval pad.
+  const rand = random(54617), ends = [[.12,.48],[.31,.82],[.24,.24],[.51,.91],[.73,.54],[.88,.80],[.86,.35],[.64,.11],[.74,.89]];
+  const spine = t => [.18 + t * .58, .17 + t * .62 + Math.sin(t * Math.PI) * .035];
+  for (let i = 0; i < 9; i++) r.stroke(...spine(i / 9), ...spine((i + 1) / 9), .004, [191, 198, 176]);
+  for (let branch = 0; branch < ends.length; branch++) {
+    const [ex, ey] = ends[branch], root = spine(.09 + branch * .092);
+    r.stroke(...root, ex, ey, .0036, [191, 198, 176]);
     const axis = Math.atan2(ey - root[1], ex - root[0]);
     for (let j = 0; j < 10; j++) {
       const t = .14 + j * .091, nx = root[0] + (ex - root[0]) * t, ny = root[1] + (ey - root[1]) * t;
       for (const side of [-1, 1]) for (let layer = 0; layer < 3; layer++) {
-        const a = axis + side * (.46 + layer * .35 + rand() * .16), length = (.078 + rand() * .054) * (1 - t * .12), shade = .87 + rand() * .13;
-        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length, .035, .955), .0078 + rand() * .0046, [238 * shade, 254 * shade, 226 * shade], true);
+        const a = axis + side * (.34 + layer * .30 + rand() * .19), length = (.095 + rand() * .090) * (1.38 - t * 1.02), shade = .87 + rand() * .13;
+        r.leaf(nx, ny, clamp(nx + Math.cos(a) * length, .035, .955), clamp(ny + Math.sin(a) * length - t * t * .061 - layer * .009, .035, .955), (.0051 + rand() * .0024) * (1.16 - t * .40), [238 * shade, 254 * shade, 226 * shade], true);
       }
     }
   }
@@ -99,10 +103,11 @@ function pine(r) {
 function grass(r) {
   const rand = random(43769);
   for (let i = 0; i < 58; i++) {
-    const spread = (i + .5) / 58, root = [.22 + rand() * .56, .018 + rand() * .016];
-    const tip = [.045 + spread * .91, .24 + Math.sin(spread * Math.PI) * (.26 + rand() * .44)];
+    const root = [.22 + rand() * .53, .018 + rand() * .016];
+    const height = .37 + rand() * .52 - Math.abs(root[0] - .48) * .30;
+    const tip = [clamp(root[0] + .075 + (rand() - .5) * .13, .045, .955), height];
     const colour = i % 8 === 0 ? [237, 228, 182] : [232 + rand() * 21, 248 + rand() * 7, 206 + rand() * 28];
-    r.blade(root, tip, (spread - .5) * (.08 + rand() * .11), .0061 + rand() * .0034, colour);
+    r.blade(root, tip, .055 + rand() * .060, .0077 + rand() * .0037, colour);
   }
 }
 
@@ -167,5 +172,9 @@ export function createVegetationMaterial(kind) {
     vertexColors: true, side: T.DoubleSide, roughness: .96, metalness: 0,
     alphaTest: CUTOUT, transparent: false, depthWrite: true
   });
+  // Wind's visible shader preserves the spray-volume normal on both faces.
+  // Shadow passes still use the identical card geometry and alpha cutout.
+  material.userData.crownVolumeNormals = kind === 'broadleaf' || kind === 'pine';
+  material.userData.rootedBladeNormals = kind === 'grass';
   return material;
 }

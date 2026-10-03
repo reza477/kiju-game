@@ -1,91 +1,110 @@
-/* Mobile access and save tools; the shared 3D scene and game rules are unchanged. */
-.mobile-panels { display: none; }
-#playtest-open { display: block; margin-top: 8px; }
-.playtest-section { margin: 22px 0; padding-top: 20px; border-top: 1px solid var(--line); }
-.playtest-section h3 { margin-bottom: 10px; }
-.playtest-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-.playtest-actions button, .file-button { padding: 10px 13px; min-height: 44px; border: 1px solid var(--line); border-radius: 3px; background: #243b32; cursor: pointer; font-size: 13px; }
-.file-button { position: relative; display: inline-flex; align-items: center; overflow: hidden; }
-.file-button:focus-within { outline: 2px solid var(--gold); }
-.file-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.playtest-section textarea { display: block; width: 100%; resize: vertical; margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 3px; color: var(--cream); background: #0e201d; font: 16px/1.45 'Segoe UI',sans-serif; }
-.playtest-section label { font-size: 13px; }
-.playtest-note, .build-label { font-size: 12px !important; }
-#offline-status, #import-status { color: var(--gold); }
-#import-confirm { padding: 12px; border: 1px solid var(--gold); border-radius: 3px; }
-#import-confirm button { min-height: 44px; margin: 5px; }
-#dialog { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
-@media (max-width: 850px) {
-  .build-tray { min-width: 0; }
-  .buildings { overflow-x: auto; overscroll-behavior-x: contain; }
-  .build-option { min-width: 72px; }
+/* Shared playtest tools and a compact green/brass touch HUD. No game rules. */
+.mobile-panels,.sheet-heading{display:none}
+.dialog-toolbar{display:contents}.dialog-toolbar>span{display:none}
+.playtest-shortcuts{display:flex;flex-wrap:wrap;gap:8px}.playtest-shortcuts button{min-height:44px;padding:8px 14px;font-size:14px}
+.map-marker{width:max-content}
+.battle-player-hull{display:flex;justify-content:space-between;gap:12px;margin-top:8px;padding-top:7px;border-top:1px solid var(--line);font-size:12px}
+.city-ledger{display:grid;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px}
+.city-ledger>div{display:flex;justify-content:space-between;gap:8px}.city-ledger .negative{color:#f0b19b}
+.menu-settings,.playtest-section{margin:22px 0;padding-top:20px;border-top:1px solid var(--line)}
+.menu-settings h3,.playtest-section h3{margin-bottom:10px}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.settings-grid button{min-height:48px;padding:10px;font-size:14px}
+#playtest-open{display:block;margin-top:8px}
+.playtest-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.playtest-actions button,.file-button{padding:10px 13px;min-height:44px;border:1px solid var(--line);border-radius:3px;background:#243b32;cursor:pointer;font-size:14px}
+.file-button{position:relative;display:inline-flex;align-items:center;overflow:hidden}.file-button:focus-within{outline:2px solid var(--gold)}
+.file-button input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.playtest-section textarea{display:block;width:100%;resize:vertical;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:3px;color:var(--cream);background:#0e201d;font:16px/1.45 'Segoe UI',sans-serif}
+.playtest-section label,.playtest-note,.build-label{font-size:14px!important;overflow-wrap:anywhere}
+#offline-status,#import-status,#sample-status{color:var(--gold)}
+#import-confirm{padding:12px;border:1px solid var(--gold);border-radius:3px}#import-confirm button{min-height:44px;margin:5px}
+#dialog{max-height:calc(100dvh - max(24px,env(safe-area-inset-top)) - max(24px,env(safe-area-inset-bottom)));overflow-y:auto;overscroll-behavior:contain}
+@media(max-width:850px){.build-tray{min-width:0}.buildings{overflow-x:auto;overscroll-behavior-x:contain}.build-option{min-width:72px}}
+@media(pointer:coarse){
+ html,body{height:100dvh}button{touch-action:manipulation}
+ .time-controls button,.view-switch button,.minor,.text-button,.selection button,.battle-tactics button,.dialog-close,#destinations button{min-height:44px;min-width:44px}
+ .topbar{top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;transform:none}
+ .brand{min-height:44px;min-width:44px;justify-content:center}
+ .control-hint,.utility{display:none}
+ #touch-pad{left:max(8px,env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom));z-index:3}
+ #touch-pad button{width:44px;height:44px;margin:3px;font-size:22px;touch-action:none;background:#17342eea;border-color:#d4bf8e70}
+ .build-tray{bottom:calc(125px + env(safe-area-inset-bottom))}
+ .build-option .name,.build-option .cost{font-size:14px;white-space:normal;line-height:1.4}
+ .build-option{min-width:120px;min-height:80px}
+ .population{display:flex}.resource strong{font-size:16px}.city-ledger{font-size:14px}
+ .city-card .minor,.city-card .minor span,.status-line,.selection p,.selection .primary,.selection .stats-row,#destinations button,.map-legend,.tower-floor-control,.tower-floor-control select{font-size:14px;line-height:1.45}
+ .hull-label,.hull-label strong{font-size:14px;letter-spacing:0}
+ .battle-player-hull{font-size:14px}
+ .battle-tactics button.active{background:#d4bf8e;color:#1d302c;border-color:#f0dca8}
+ .map-marker{min-width:44px;min-height:44px;max-width:240px;font-size:14px;padding:10px 12px;white-space:normal;line-height:1.3;background:#18392ff2}
+ .map-marker.rival{background:#483d2ff2}
+ #dialog{width:min(620px,calc(100% - 24px));padding:0;margin:auto;scroll-padding:76px 0 20px}
+ .dialog-toolbar{display:flex;position:sticky;top:0;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px 8px 20px;min-height:61px;background:#20372f;border-bottom:1px solid var(--line);z-index:3}
+ .dialog-toolbar>span{display:block;font:12px Georgia,serif;letter-spacing:2px;color:var(--gold)}
+ .dialog-toolbar:has(.dialog-close.hidden){display:none}
+ .dialog-close{position:static;float:none;margin:0;background:#2c453b;border:1px solid var(--line);border-radius:4px}
+ #dialog-content{padding:16px 20px 24px}
+ .playtest-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.playtest-shortcuts button{min-width:0;min-height:52px;padding:8px 6px;white-space:normal}
+ #dialog-content h2{font-size:28px;padding-right:40px}#dialog-content p,.menu-buttons button,.help-grid{font-size:14px;line-height:1.55}
+ #dialog-content .primary{font-size:16px}.menu-buttons{gap:10px;margin-top:14px}.menu-buttons button{min-height:48px;padding:12px}
+ .audio-mix input{min-height:44px}.audio-mix label,.asset-credit summary{font-size:14px}
+ .district-grid button{min-height:44px;min-width:44px;font-size:14px}.district-grid{gap:8px}
+ .bearing-controls{gap:8px}.bearing-controls button{font-size:14px;min-height:44px}
+ .vertical-build small,.stack-preview,.vertical-build p,.battery-placement small{font-size:14px;line-height:1.45}
+ #toast{top:auto;bottom:calc(176px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);font-size:14px;padding:12px 16px}
+ body.in-battle #toast{top:285px;bottom:auto;line-height:1.4}
 }
-@media (pointer: coarse) {
-  .time-controls button, .view-switch button, .utility button, .minor, .text-button,
-  .selection button, .battle-tactics button, .dialog-close, #destinations button { min-height: 44px; }
-  #touch-pad button { width: 44px; height: 44px; touch-action: none; }
-  .control-hint { display: none; }
-  .topbar { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); width: auto; transform: none; }
-  .utility { bottom: max(8px, env(safe-area-inset-bottom)); flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; max-width: calc(100% - 20px); }
-  .utility button { flex-shrink: 0; font-size: 11px; }
-  .build-tray { bottom: calc(65px + env(safe-area-inset-bottom)); }
-  .build-option { min-width: 75px; }
-  .build-option .name, .build-option .cost { font-size: 10px; }
-  #touch-pad { bottom: calc(215px + env(safe-area-inset-bottom)); left: max(15px, env(safe-area-inset-left)); }
-  #dialog { width: min(600px, calc(100% - 24px)); padding: 28px 20px; }
-  .dialog-close { min-width: 44px; }
-  .in-battle .battle-actions { bottom: calc(65px + env(safe-area-inset-bottom)); }
+@media(pointer:coarse) and (max-width:700px),(pointer:coarse) and (max-height:560px){
+ :root{--hud-top:max(8px,env(safe-area-inset-top));--hud-bottom:max(8px,env(safe-area-inset-bottom))}
+ .topbar{height:62px;padding:0 6px;gap:5px}
+ .brand>span:nth-child(2){display:none}.seal.small{width:29px;height:29px;font-size:14px}
+ .resources{justify-content:space-evenly;gap:7px;min-width:0}.resource{gap:0;min-width:0}
+ .resource-icon{display:none}.resource small{display:block;font-size:10px;letter-spacing:.7px;margin-bottom:3px}.resource strong{font-size:14px;white-space:nowrap}
+ .population{display:flex}.topbar .rate,#day,#speed{display:none}.time-controls{gap:0}.time-controls button{width:44px;height:44px;padding:0;font-size:18px}
+ .view-switch{top:calc(var(--hud-top) + 70px);left:50%;right:auto;transform:translateX(-50%);max-width:calc(100% - 16px);padding:3px;gap:2px}
+ .view-switch button{font-size:14px;min-height:44px;padding:8px 11px;white-space:nowrap}.view-switch kbd{display:none}
+ .mobile-panels{display:flex;position:absolute;top:auto;bottom:var(--hud-bottom);left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));gap:8px;padding:6px;background:#172c27f5;border:1px solid var(--line);border-radius:5px;z-index:5}
+ .mobile-panels button{flex:1;min-height:44px;min-width:44px;padding:8px;font-size:14px;border-radius:3px}
+ .mobile-panels [aria-expanded=true]{background:#d4bf8e;color:#1d302c;border-color:#f0dca8}
+ .left-stack,.right-stack{display:none;position:absolute;top:calc(var(--hud-top) + 128px);bottom:calc(var(--hud-bottom) + 174px);left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;max-height:none;gap:10px;overflow-y:auto;overscroll-behavior:contain;scroll-padding:64px 0 16px;z-index:4;background:#172c27fa;border:1px solid #d4bf8e70;border-radius:5px;box-shadow:0 10px 28px #061d1966}
+ body[data-mobile-panel=city] .left-stack,body[data-mobile-panel=map] .right-stack{display:flex}
+ .sheet-heading{display:flex;position:sticky;top:0;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;background:#1d382ffb;color:var(--gold);font:18px Georgia,serif;border-bottom:1px solid var(--line);z-index:2;order:-2;flex-shrink:0}
+ .sheet-heading button{min-width:44px;min-height:44px;font-size:24px;border-radius:3px}
+ .left-stack>.selection{order:-1}.left-stack>.panel,.right-stack>.panel{border:0;box-shadow:none;backdrop-filter:none;background:transparent;flex-shrink:0}
+ .city-card,.selection,.map-card{padding:16px}.city-card h2{font-size:26px;margin:8px 0 16px}.selection h3{font-size:23px}
+ .city-card .eyebrow,.selection .eyebrow,.section-heading{font-size:11px;letter-spacing:1.3px}
+ .city-card .minor{display:flex;flex-direction:column;align-items:flex-start;margin-top:12px;padding:12px;gap:4px}.city-card .minor span{display:block;margin:0}
+ #tower-floor-control{margin-top:16px}#tower-floor{height:48px;font-size:16px;width:100%}
+ .selection p{margin-bottom:14px}.selection .stats-row{font-size:14px}.selection .primary{padding:12px;font-size:14px}
+ .map-card{padding-top:6px}#minimap{max-height:none;width:100%;height:auto}.map-legend{font-size:12px}#destinations-toggle{font-size:14px;padding:10px 0}
+ #destinations button{padding:12px 2px;min-height:48px}.journal{display:block}.journal summary,.objective summary{font-size:12px;min-height:44px;line-height:44px}#journal p,.objective-item{font-size:14px}
+ .objective{display:block;padding:14px 16px}
+ .build-tray{display:none;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));bottom:calc(var(--hud-bottom) + 70px);width:auto;min-width:0;max-height:calc(100dvh - var(--hud-top) - var(--hud-bottom) - 215px);transform:none;padding:0 12px 12px;overflow-y:auto;overscroll-behavior:contain;z-index:4;background:#172c27fa;border-color:#d4bf8e70}
+ body[data-mobile-panel=build] .build-tray{display:block}.build-tray .sheet-heading{margin:0 -12px 12px}.tray-heading{flex-wrap:wrap;gap:8px}.tray-heading>.eyebrow{display:none}.tray-heading>span:nth-child(2){font-size:14px;max-width:none;flex:1;line-height:1.4}.tray-heading button{font-size:14px;min-height:44px;min-width:72px}
+ .buildings{display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow:visible}.build-option{min-width:0;padding:12px 8px;min-height:86px}.build-option .icon{display:none}.build-option .name{font-size:16px;min-height:0;margin:0 0 5px}.build-option .cost{font-size:14px}
+ #touch-pad{bottom:calc(var(--hud-bottom) + 72px);left:max(8px,env(safe-area-inset-left))}body[data-mobile-panel=build] #touch-pad{display:none}
+ body.in-battle .mobile-panels,body.in-battle .left-stack,body.in-battle .right-stack{display:none}
+ .in-battle .battle-title{top:calc(var(--hud-top) + 70px);left:8px;right:8px;transform:none;width:auto;padding:12px 14px;text-align:left}.battle-title .eyebrow{font-size:10px}.battle-title h2{font-size:22px;margin:5px 0 8px}.battle-title .hull-label{font-size:12px;margin-bottom:5px}.battle-title .hull-label strong{font-size:14px}#battle-distance{font-size:14px;margin-top:7px}
+ .in-battle .battle-actions{bottom:var(--hud-bottom);left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;min-width:0;transform:none;padding:10px;background:#172c27f5}
+ .battle-tactics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}.battle-tactics button{font-size:14px;min-height:44px;padding:8px 6px}
+ .weapons{gap:8px}.weapons .primary{font-size:14px;padding:12px 8px;min-height:52px}.weapons .minor{font-size:14px;padding:8px;min-width:72px}.weapons small{font-size:14px}.weapons kbd{display:none}
+ #battery-status{font-size:14px;line-height:1.4;margin-top:8px}#battle-advice{font-size:14px;line-height:1.4;margin-top:8px;text-align:left}
+ .in-battle #touch-pad{bottom:calc(var(--hud-bottom) + 285px)}#paused-banner{top:45%;font-size:20px;padding:16px 20px;max-width:90%}#paused-banner span{font-size:14px;line-height:1.4;letter-spacing:0}
+ body.in-battle #toast{top:calc(var(--hud-top) + 252px);bottom:auto}
+ #intro{padding-top:18px}.intro-copy .eyebrow,.local-note{font-size:11px}.intro-copy .text-button{font-size:14px}.faction{min-height:52px}.faction strong{font-size:14px}.variant-options button{min-height:52px;font-size:14px}.variant-options small{font-size:12px}
 }
-@media (pointer: coarse) and (max-width: 700px), (pointer: coarse) and (max-height: 560px) {
-  .topbar { height: 56px; padding: 0 8px; gap: 5px; }
-  .resources { gap: 12px; }
-  .time-controls { gap: 3px; }
-  .time-controls button { min-width: 34px; }
-  .view-switch { top: calc(72px + env(safe-area-inset-top)); max-width: calc(100% - 20px); }
-  .view-switch button { padding: 6px 12px; font-size: 11px; }
-  .mobile-panels { display: flex; gap: 6px; position: absolute; top: calc(128px + env(safe-area-inset-top)); left: 10px; right: 10px; }
-  .mobile-panels button { min-height: 44px; padding: 8px 12px; font-size: 12px; }
-  .left-stack, .right-stack { display: none; position: absolute; top: calc(180px + env(safe-area-inset-top)); bottom: calc(200px + env(safe-area-inset-bottom)); left: 10px; right: auto; width: min(300px, calc(100% - 20px)); max-height: none; overflow-y: auto; overscroll-behavior: contain; z-index: 4; }
-  body[data-mobile-panel="city"] .left-stack { display: flex; }
-  body[data-mobile-panel="map"] .right-stack { display: flex; }
-  .city-card, .selection, .map-card { padding: 15px; }
-  .city-card h2 { font-size: 24px; }
-  .city-card .eyebrow, .hull-label, .selection .eyebrow, .section-heading { font-size: 10px; }
-  .city-card .minor, .selection p, .selection .primary, .status-line, #destinations button { font-size: 12px; }
-  .city-card .minor span, .map-legend { font-size: 10px; }
-  #destinations-toggle { font-size: 12px; }
-  .build-tray { display: none; left: 10px; right: 10px; width: auto; min-width: 0; transform: none; }
-  body[data-mobile-panel="build"] .build-tray { display: block; }
-  #touch-pad { bottom: calc(65px + env(safe-area-inset-bottom)); }
-  body[data-mobile-panel="build"] #touch-pad { bottom: calc(215px + env(safe-area-inset-bottom)); }
-  .tray-heading > span:nth-child(2) { font-size: 9px; }
-  .utility { left: 10px; right: 10px; }
-  .in-battle .mobile-panels, .in-battle .left-stack, .in-battle .right-stack { display: none; }
-  .in-battle .battle-title { top: calc(76px + env(safe-area-inset-top)); }
-  #paused-banner { top: 48%; font-size: 18px; }
-}
-@media (pointer: coarse) and (max-height: 560px) {
-  .view-switch { left: max(10px, env(safe-area-inset-left)); top: calc(76px + env(safe-area-inset-top)); transform: none; }
-  .view-switch button { padding: 6px 10px; }
-  .mobile-panels { left: auto; right: max(10px, env(safe-area-inset-right)); top: calc(80px + env(safe-area-inset-top)); }
-  .left-stack, .right-stack { top: calc(133px + env(safe-area-inset-top)); bottom: calc(62px + env(safe-area-inset-bottom)); width: 260px; }
-  .right-stack { left: auto; right: max(10px, env(safe-area-inset-right)); }
-  .build-tray { left: 175px; right: max(10px, env(safe-area-inset-right)); max-height: calc(100% - 200px); overflow-y: auto; }
-  body[data-mobile-panel="build"] #touch-pad { bottom: calc(65px + env(safe-area-inset-bottom)); }
-  .build-option .icon { display: none; }
-  .build-option .name { min-height: 26px; }
-  .tray-heading { margin-bottom: 5px; }
-  .utility { left: 175px; }
-  #intro { padding-top: 14px; }
-  .intro-copy { margin-top: 8px; }
-  .intro-top, .intro-lead, .intro-copy .rule, .local-note { display: none; }
-  h1 { font-size: 32px; margin-top: 10px; }
-  .primary.large { margin-top: 16px; }
-  #faction-select { left: auto; right: max(20px, env(safe-area-inset-right)); width: 48%; bottom: max(12px, env(safe-area-inset-bottom)); }
-  #faction-description { margin-bottom: 8px; }
-  .faction { min-height: 44px; padding: 8px 5px; }
-  .faction-symbol, .faction small { display: none; }
-  .faction strong { font-size: 12px; }
-  .orbit-hint { margin-top: 8px; }
-  #playtest-open { max-width: 240px; }
+@media(pointer:coarse) and (max-height:560px){
+ .topbar{height:58px}.resources{max-width:590px;margin:auto}.resource strong{font-size:16px}.resource small{font-size:11px}.topbar .brand>span:nth-child(2){display:block;font-size:9px}
+ .view-switch{left:max(8px,env(safe-area-inset-left));top:calc(var(--hud-top) + 66px);transform:none;max-width:calc(100% - 355px)}.view-switch button{padding:8px 9px}
+ .mobile-panels{left:auto;right:max(8px,env(safe-area-inset-right));width:320px;bottom:var(--hud-bottom)}
+ .left-stack,.right-stack{left:auto;right:max(8px,env(safe-area-inset-right));width:320px;top:calc(var(--hud-top) + 66px);bottom:calc(var(--hud-bottom) + 70px)}
+ .build-tray{left:auto;right:max(8px,env(safe-area-inset-right));width:320px;top:calc(var(--hud-top) + 66px);bottom:calc(var(--hud-bottom) + 70px);max-height:none}
+ #touch-pad{bottom:var(--hud-bottom)}body[data-mobile-panel=build] #touch-pad{display:block}
+ .in-battle .battle-title{left:calc(max(8px,env(safe-area-inset-left)) + 160px);right:max(8px,env(safe-area-inset-right));top:calc(var(--hud-top) + 66px);width:auto;padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;grid-template-areas:'name distance' 'enemy own' 'bar .';gap:5px 20px}.battle-title h2{grid-area:name;font-size:20px;margin:0}.battle-title .eyebrow{display:none}.battle-title .hull-label{grid-area:enemy;margin:0}.battle-title>.bar{grid-area:bar;height:4px}.battle-title #battle-distance{grid-area:distance;margin:0;align-self:center;font-size:14px}.battle-title .battle-player-hull{grid-area:own;margin:0;padding:0;border:0;align-self:center}
+ .in-battle .battle-actions{left:calc(max(8px,env(safe-area-inset-left)) + 160px);right:max(8px,env(safe-area-inset-right));padding:8px;max-height:calc(100dvh - 208px);overflow-y:auto;overscroll-behavior:contain}.battle-tactics{grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}.battle-tactics button{font-size:14px;padding:6px}.weapons .primary{min-height:44px;padding:8px}.weapons .minor{min-height:44px}#battle-advice{display:none}.in-battle #touch-pad{bottom:var(--hud-bottom)}
+ #withdraw{min-width:134px}#withdraw br{display:none}#withdraw small{margin-left:5px}
+ #toast{bottom:calc(var(--hud-bottom) + 120px);max-width:380px;left:12px;text-align:left}#toast,#toast.show{transform:none}
+ body.in-battle #toast{top:calc(var(--hud-top) + 66px);bottom:auto;left:max(8px,env(safe-area-inset-left));right:auto;width:148px;max-width:148px;padding:10px 8px;transform:none}
+ #intro{padding-top:14px}.intro-copy{margin-top:8px}.intro-top,.intro-lead,.intro-copy .rule,.local-note{display:none}h1{font-size:32px;margin-top:10px}.primary.large{margin-top:16px}
+ #faction-select{left:auto;right:max(20px,env(safe-area-inset-right));width:48%;bottom:max(12px,env(safe-area-inset-bottom))}#faction-description{margin-bottom:8px}.faction{padding:8px 5px}.faction-symbol,.faction small{display:none}.orbit-hint{margin-top:8px}#playtest-open{max-width:240px}
 }

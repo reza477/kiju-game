@@ -1,4 +1,4 @@
-name: Tests and package
+name: Tests and private playtest delivery
 
 on:
   push:
@@ -6,19 +6,29 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      exercise_failure:
+        description: "Prove the release gate blocks deployment (never publishes)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.ref == 'refs/heads/codex/playtest' && 'colossus-private-promotion' || format('ci-{0}', github.ref) }}
+  cancel-in-progress: false
 
 jobs:
   validate:
-    name: Tests and offline package
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: Check, freeze, and publish passing playtests
+    # Evaluate before allocating a runner, including direct pushes and dispatches.
+    if: vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -33,7 +43,50 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run simulation, save, input, and offline tests
         run: npm test
-      - name: Build offline package
-        run: npm run build:mobile
-      - name: Verify committed runtime build identity
-        run: git diff --exit-code -- src/build-info.js
+      - name: Build one frozen release plus a nonpublishing update fixture
+        run: npm run build:playtest
+      - name: Install pinned Chromium and Linux browser dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Serial startup, touch, saves, offline and A-to-B update gate
+        # Differential diagnosis: existing Mesa/Xvfb instead of SwiftShader.
+        # This is still CPU software rendering; the test rejects backend fallback.
+        env:
+          PLAYTEST_GRAPHICS_BACKEND: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          GALLIUM_DRIVER: llvmpipe
+        run: xvfb-run -a npm run test:delivery
+      - name: Verify tested runtime unchanged and source untouched
+        run: |
+          npm run verify:playtest
+          git diff --exit-code -- src/build-info.js
+      - name: Enforce release eligibility and exercise failure when requested
+        if: github.ref == 'refs/heads/codex/playtest' || inputs.exercise_failure
+        env:
+          PLAYTEST_EXERCISE_FAILURE: ${{ inputs.exercise_failure && 'true' || 'false' }}
+        run: node scripts/check-release-readiness.mjs
+      - name: Stage protected exact bytes, test, and promote if still current
+        if: github.ref == 'refs/heads/codex/playtest'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROTECTION_BYPASS: ${{ secrets.VERCEL_PROTECTION_BYPASS }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          PLAYTEST_ORIGIN: ${{ vars.PLAYTEST_ORIGIN }}
+          PLAYTEST_INCLUDED_USAGE_CONFIRMED: ${{ vars.PLAYTEST_INCLUDED_USAGE_CONFIRMED }}
+          PLAYTEST_GRAPHICS_BACKEND: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          GALLIUM_DRIVER: llvmpipe
+        run: xvfb-run -a npm run deliver:playtest
+      - name: Preserve private verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playtest-${{ github.sha }}
+          path: |
+            artifacts/delivery/build.json
+            artifacts/delivery/integrity.json
+            artifacts/delivery/published.json
+            artifacts/delivery/browser/
+          if-no-files-found: ignore
+          retention-days: 7
