@@ -10,18 +10,19 @@ import {deliveryBrowserOptions,browserGraphicsInfo} from '../scripts/browser-run
 import {waitForBrowserCondition} from './helpers/browser-condition.mjs';
 import {verifyRuntime} from '../scripts/delivery-lib.mjs';
 
-const output=path.resolve(process.env.OUTPUT_DIR||'artifacts/painterly/release-browser');
+const output=path.resolve(process.env.OUTPUT_DIR||'artifacts/painterly/release-browser-final');
 await fs.mkdir(output,{recursive:true});
 const A=await readFrozenRelease(process.env.GAME_RELEASE_DIR),B=await readFrozenRelease(process.env.GAME_NEXT_RELEASE_DIR);
 assert.notEqual(A.descriptor.buildId,B.descriptor.buildId);
 assert.notEqual(A.descriptor.gitCommit,'local');assert.notEqual(B.descriptor.gitCommit,'local');
 const server=await createDeliveryServer({A,B}),saveKey='colossus-wake-save-v1';
 const report={startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['GAME_RELEASE_DIR','GAME_NEXT_RELEASE_DIR','OUTPUT_DIR','PLAYWRIGHT_CHANNEL','PLAYTEST_GRAPHICS_BACKEND'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]]))},
-  protocol:'Actual frozen baseline A and art candidate B, same isolated loopback origin; native RAF, UI Save/Continue/update, real stopped-server offline, rollback.',
+  protocol:'Scoped single-gameplay-writer compatibility: actual frozen baseline A and art candidate B, same isolated loopback origin; an old A title/preview client remains open, native RAF, UI Save/Continue/update, real stopped-server offline, rollback. This is not unrestricted multiple-active-game save safety.',
   fixtures:['Rich old save is prepared through the baseline production simulation build/upgrade/tick functions, with accelerated fixture time and a position at the existing forest to gather. No resource grants, costs, rates, geometry, random seeds or rules are changed.',
     'Eight existing tree/rock damage IDs are restored through production landscape reset. This tests serialized damage reconstruction, not a claim of input-driven crushing.',
     'Test-owned browser context only. Windows desktop Chromium touch emulation is not physical iPhone/iPad or Safari evidence. Ordinary Playwright tabs prove multiple-client byte pinning; they do not establish native background-tab or lock/resume behavior.',
-    'Concurrent-save conflict resolution is not proven: unchanged main.js saves each started session on pagehide/beforeunload. The old A client stays open through compatibility assertions; closing a stale client could overwrite newer progress under that existing last-writer behavior. This source-supported risk is separate from release-byte pinning and is not repaired or runtime-reproduced by this art gate.'],
+    'Unrestricted multiple-active-game save preservation FAILED in preserved prior runs. Unchanged main.js autosaves paused started sessions every 30 seconds and saves on pagehide/beforeunload. Original release-browser/results.json reproduced replacement by a slightly NEWER second A snapshot during an interrupted update, before B activation. The subsequent synchronized-fixture attempt in release-browser-verified/results.json failed when an offline A session wrote a later snapshot and the primary caller saved its own older paused snapshot during update. This run isolates one active gameplay save writer: the old peer remains on the real title/preview without Continue, and the current gameplay page closes before offline reopening. No production save handler is disabled or changed.'],
+  gates:{scope:'Single active gameplay writer plus a separate old title/preview client',unrestrictedMultipleSessionSaveSafety:'FAILED — competing A-session save replacement reproduced in preserved runs; unresolved',overallReleaseReadiness:'BLOCKED — unrestricted multi-session save gate and independent art gate have failed'},
   releases:{A:{buildId:A.descriptor.buildId,commit:A.descriptor.gitCommit,root:A.root},B:{buildId:B.descriptor.buildId,commit:B.descriptor.gitCommit,root:B.root}},
   checks:[],observations:[],pageErrors:[],consoleErrors:[],expectedFaults:[],remoteRequests:[],failedRequests:[],passed:false};
 let browser,context,page,peer,phase='startup',offline=false,fault=null;
@@ -74,7 +75,7 @@ async function cachesComplete(target){
   for(const release of [A,B]){const found=inventories.find(x=>x.id===release.descriptor.buildId);assert.ok(found,'Complete historical release cache missing');for(const file of release.descriptor.files)assert.ok(found.paths.includes(file.url),'Retained cache lost '+file.url);}
   report.observations.push({phase,caches:inventories.map(({name,id,paths})=>({name,id,fileCount:paths.length}))});
 }
-async function updateTo(release){await panel();await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());await until(page,async id=>{const s=await(await import('/src/offline.js')).refreshOfflineStatus();return s.canApplyUpdate&&s.updateBuildId===id;},release.descriptor.buildId);const before=await rawSave();await page.locator('#offline-apply').tap();await loaded(page,release);assert.equal(await rawSave(),before,'Paused Save and update must preserve exact rich save');return JSON.parse(before);}
+async function updateTo(release){await panel();await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());await until(page,async id=>{const s=await(await import('/src/offline.js')).refreshOfflineStatus();return s.canApplyUpdate&&s.updateBuildId===id;},release.descriptor.buildId);const before=await page.evaluate(()=>JSON.stringify(window.__colossus.snapshot()));await page.locator('#offline-apply').tap();await loaded(page,release);assert.equal(await rawSave(),before,'Paused Save and update must save the exact caller snapshot');return JSON.parse(before);}
 
 try{
   report.releases.A.artifactSha256=(await verifyRuntime(A.root)).artifactSha256;report.releases.B.artifactSha256=(await verifyRuntime(B.root)).artifactSha256;
@@ -103,8 +104,11 @@ try{
     await fs.writeFile(path.join(output,'isolated-old-save.json'),JSON.stringify(oldSave,null,2)+'\n');
   });
   await check('A reload/Continue reconstructs districts, resources and destroyed scenery before updating',async()=>{
-    await page.reload({waitUntil:'domcontentloaded'});await loaded(page,A);await resume(page,oldSave);oldSave=await save();await panel();
-    peer=await open(A);await resume(peer,oldSave);await page.bringToFront();
+    await page.reload({waitUntil:'domcontentloaded'});await loaded(page,A);await resume(page,oldSave);oldSave=await save();
+    peer=await open(A);await rendered(peer);await verifyClientBytes(peer,A);
+    assert.equal(await peer.locator('#continue').isVisible(),true,'Old peer stays on its real title/preview, never Continue.');
+    await page.bringToFront();oldSave=await save();await panel();
+    report.observations.push({phase,oldPeerTitlePreviewOnly:true,activeGameplayWriters:1,reason:'Isolate update compatibility while retaining the original failed two-active-game save evidence.'});
   });
   await check('Interrupted B art-module download cannot replace complete A or alter its save',async()=>{
     const artModule=B.descriptor.files.find(file=>file.url==='/src/painterly-vegetation.js');
@@ -116,23 +120,24 @@ try{
     report.observations.push({phase,status:result});
   });
   await check('Interrupted B leaves complete A playable on offline reopening with the actual server stopped',async()=>{
-    offline=true;await server.close();server.inject(null);fault=null;await context.setOffline(true);const requests=server.requests.length;
-    const retained=await open(A);await resume(retained,oldSave);await verifyClientBytes(retained,A);assert.equal(server.requests.length,requests);await retained.screenshot({path:path.join(output,'interrupted-B-offline-A.png')});await retained.close();
-    await server.resume();await context.setOffline(false);offline=false;await page.bringToFront();
+    await page.close();offline=true;await server.close();server.inject(null);fault=null;await context.setOffline(true);const requests=server.requests.length;
+    page=await open(A);await resume(page,oldSave);await verifyClientBytes(page,A);assert.equal(server.requests.length,requests);await page.screenshot({path:path.join(output,'interrupted-B-offline-A.png')});oldSave=await save();await panel();
+    await server.resume();await context.setOffline(false);offline=false;
   });
-  await check('B fully downloads while both open A clients retain their old runtime and art bytes',async()=>{
+  await check('B fully downloads while the gameplay A client and old A title client retain all old runtime and art bytes',async()=>{
     await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());await until(page,async()=> (await import('/src/offline.js')).getOfflineStatus().canApplyUpdate);
     await loaded(page,A);await loaded(peer,A);await verifyClientBytes(peer,A);await verifyClientBytes(page,A);
   });
-  await check('Save and update loads actual B and preserves the rich A save; the old A session remains pinned',async()=>{
-    // A peer may save on focus changes; capture the caller's current frozen state
-    // through the production save control before moving to the update panel.
-    await page.locator('#close-dialog').tap();oldSave=await save();await panel();oldSave=await updateTo(B);
-    // Keep the old session open through the gate. Closing a started expedition
-    // deliberately invokes its ordinary pagehide save; that is a separate
-    // last-writer policy and must not overwrite this caller's compatibility
-    // fixture merely as test cleanup between assertions.
-    await loaded(peer,A);await verifyClientBytes(peer,A);
+  await check('Save and update loads actual B and preserves its caller save; title-peer automatic reload is recorded',async()=>{
+    oldSave=await updateTo(B);
+    report.observations.push({phase,callerLoadedB:true,callerSaveSha256:sha(JSON.stringify(oldSave))});await write();
+    const peerBuild=await peer.evaluate(async()=> (await import('/src/build-info.js')).BUILD_ID);
+    assert.ok([A.descriptor.buildId,B.descriptor.buildId].includes(peerBuild),'Unexpected title-peer runtime.');
+    assert.equal(await peer.locator('#continue').isVisible(),true,'Peer remains at title without starting gameplay.');
+    await verifyClientBytes(peer,peerBuild===A.descriptor.buildId?A:B);
+    report.observations.push({phase,titlePeerBuildAfterB:peerBuild,titlePeerAutoReloaded:peerBuild===B.descriptor.buildId,oldABytesAfterBEstablished:peerBuild===A.descriptor.buildId,limitation:'Visible title clients are permitted to update automatically. A title-peer run does not establish an old active-game save/pinning gate.'});await write();
+    const beforePeerClose=await rawSave();await peer.close();peer=null;
+    assert.equal(await rawSave(),beforePeerClose,'Closing the old A title/preview client changed the save.');
     await verifyClientBytes(page,B);await resume(page,oldSave);await cachesComplete(page);
   });
   await check('B progresses the imported save through unchanged production rules and saves/reopens it',async()=>{

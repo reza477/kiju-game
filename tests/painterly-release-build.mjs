@@ -8,7 +8,7 @@ import {createHash} from 'node:crypto';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
 import {verifyRuntime} from '../scripts/delivery-lib.mjs';
 
-const output = path.resolve(process.env.OUTPUT_DIR || 'artifacts/painterly/release');
+const output = path.resolve(process.env.OUTPUT_DIR || 'artifacts/painterly/release-final');
 const git = (root, ...args) => execFileSync('git', args, {cwd:root, encoding:'utf8', maxBuffer:32*1024*1024}).trim();
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const report = {startedAt:new Date().toISOString(), command:{executable:process.execPath,args:process.argv.slice(1),environment:{}}, releases:{}, checks:[], passed:false};
@@ -24,6 +24,7 @@ try {
     assert.match(commit,/^[a-f0-9]{40}$/);
     assert.equal(git(root,'branch','--show-current'),'','Release checkouts must be detached from the implementation branch.');
     if(label==='A')assert.equal(commit,process.env.BASELINE_COMMIT||'8320a432b0ce27fbe73eccd32a0b88120cd091ab');
+    if(label==='B'&&process.env.CANDIDATE_COMMIT){assert.equal(commit,process.env.CANDIDATE_COMMIT,'Candidate checkout must contain the explicitly requested final commit.');report.command.environment.CANDIDATE_COMMIT=process.env.CANDIDATE_COMMIT;}
     const hashes={};
     for(const file of git(root,'ls-files','src','index.html','assets','vendor','package.json','package-lock.json').split('\n').filter(Boolean).sort())hashes[file]=hash(await fs.readFile(path.join(root,file)));
     const source={root,commit,hashes,fingerprint:hash(JSON.stringify(hashes))};

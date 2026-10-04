@@ -5,9 +5,20 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { REVISION } from 'three';
+import { registerHooks } from 'node:module';
+import * as T from '../vendor/three.module.js';
 import { branchSprayGeometry, grassTuftGeometry, fracturedRockGeometry } from '../src/environment-geometry.js';
+
+// The installed official addon and editable runtime meshes must share the
+// project's pinned Three instance, even in this Node-only workshop validator.
+// This resolution hook is local to this process and ships no runtime loader.
+const rendererUrl = new URL('../vendor/three.module.js', import.meta.url).href;
+registerHooks({ resolve(specifier, context, nextResolve) {
+  return specifier === 'three' ? {url:rendererUrl,shortCircuit:true} : nextResolve(specifier,context);
+} });
+const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+const dependency = JSON.parse(await fs.readFile(new URL('../node_modules/three/package.json', import.meta.url), 'utf8'));
+if (dependency.version !== '0.185.1' || T.REVISION !== '185') throw new Error('Workshop and runtime renderer versions differ.');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'artifacts', 'painterly-assets');
@@ -58,6 +69,8 @@ async function exportAndValidate(name, create, doubleSided = false) {
   const geometry = create(), bytes = encodeGlb(geometry, name, doubleSided);
   const loaded = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
   const mesh = loaded.scene.children[0];
+  if (!(loaded.scene instanceof T.Group) || !(mesh.geometry instanceof T.BufferGeometry))
+    throw new Error(`${name}: loader resolved a different Three module instance`);
   if (loaded.cameras.length || !mesh?.isMesh || mesh.position.length() || mesh.scale.toArray().some(x => x !== 1))
     throw new Error(`${name}: unexpected scene transforms or cameras`);
   for (const [attribute, expected] of Object.entries(geometry.attributes)) {
@@ -75,7 +88,7 @@ async function exportAndValidate(name, create, doubleSided = false) {
   const record = { name, path: relative, bytes: bytes.length, sha256: hash(bytes),
     triangles: (geometry.index?.count ?? geometry.attributes.position.count) / 3,
     bounds: { min: geometry.boundingBox.min.toArray(), max: geometry.boundingBox.max.toArray() },
-    validated: ['glTF2 official pinned loader', 'exact positions normals UVs vertex colours indices', 'metres +Y up identity transforms', 'no cameras lights textures or external requests', 'opaque matte material'] };
+    validated: ['glTF2 official pinned loader and identical runtime Three module instance', 'exact positions normals UVs vertex colours indices', 'metres +Y up identity transforms', 'no cameras lights textures or external requests', 'opaque matte material'] };
   geometry.dispose(); mesh.geometry.dispose(); mesh.material.dispose();
   return record;
 }
@@ -91,7 +104,7 @@ for (const [name, create, doubleSided] of [
 const sources = await Promise.all(sourcePaths.map(async source => {
   const bytes = await fs.readFile(path.join(root, source)); return { path: source, bytes: bytes.length, sha256: hash(bytes) };
 }));
-const inventory = { generatedAt: new Date().toISOString(), tool: { node: process.version, three: `0.${REVISION}.1`, source: 'package-lock.json pinned dependency' },
+const inventory = { generatedAt: new Date().toISOString(), tool: { node: process.version, three: dependency.version, source: 'package-lock.json pinned official addon; process-local bare Three resolution uses vendor/three.module.js', rendererInstance: 'Verified Group and BufferGeometry constructors are the runtime vendor constructors' },
   authoring: 'Original deterministic local sculpted mesh definitions. No external assets or services. Project-owned source.',
   runtime: 'Synchronous direct BufferGeometry from the same source. GLB files are workshop outputs, not runtime downloads. No duplicate runtime Three module or new loader.',
   validationScope: 'Official glTF loader exact geometry/material round trip; in-game lighting, shadows and wind must be verified in the running game separately.',
