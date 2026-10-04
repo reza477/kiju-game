@@ -49,7 +49,7 @@ after(() => {
 
 test('actual robot uses requested clip, keeps exact castle/weapon/control transforms, and leaves original body fallback', () => {
   const imported = build(); assert.equal(imported.meshyCarrier.kind, 'cyborg'); assert.equal(imported.meshyCarrier.instance.clip.name, 'Casual_Walk');
-  assert.equal(imported.meshyCarrier.instance.capabilities.triangles, 2566); assert.equal(imported.meshyCarrier.instance.capabilities.bones.length, 28);
+  assert.equal(imported.meshyCarrier.instance.capabilities.triangles, 57620); assert.equal(imported.meshyCarrier.instance.capabilities.bones.length, 28);
   assert.equal(imported.deckY, 34); assert.equal(imported.scale, .55); assert.equal(imported.verticalLayout.heightScale, .5);
   assert.ok(imported.limbs.every(limb => !limb.obj.visible)); assert.ok(legacy.limbs.every(limb => limb.obj.visible));
   for (let i = 0; i < 100; i++) {
@@ -95,6 +95,38 @@ test('actual robot skips hidden legacy raycast subtrees but preserves slot, weap
   const harness = city.frame.children.filter(object => object.isMesh && object.userData.batched && object.visible && object.material.visible);
   assert.ok(harness.length > 0, 'The separately constructed cyborg harness remains visible');
   for (const mesh of harness) assert.ok(faceRay(mesh).intersectObject(city.root, true).some(hit => hit.object === mesh), 'Visible harness remains a surface target');
+});
+
+test('remeshed contact is a hand-owned skin vertex and complete boot geometry remains available for exact support', () => {
+  const city = build(), adapter = city.meshyCarrier, mesh = adapter.renderMeshes[0], joints = new Set();
+  adapter.arm.hand.traverse(object => {if (object.isBone) joints.add(mesh.skeleton.bones.indexOf(object));});
+  const index = adapter.arm.contactVertex, skin = mesh.geometry.attributes.skinIndex, weight = mesh.geometry.attributes.skinWeight;
+  assert.ok(Number.isInteger(index) && index >= 0 && index < mesh.geometry.attributes.position.count);
+  let influence = 0; for (let lane = 0; lane < 4; lane++) if (joints.has(skin.getComponent(index, lane))) influence += weight.getComponent(index, lane);
+  assert.ok(influence > .99999, 'The visual marker must follow only the actual hand and its descendants');
+  for (const foot of adapter.feet) {
+    assert.ok(foot.fullIndices.length > 1000, 'The complete remeshed boot cannot be replaced by the old sparse hull');
+    assert.ok(foot.indices.length < foot.fullIndices.length);
+    assert.ok(foot.indices.every(index => foot.fullIndices.includes(index)));
+    const legJoints = new Set(); foot.upper.traverse(bone => {if (bone.isBone) legJoints.add(mesh.skeleton.bones.indexOf(bone));});
+    for (const vertex of foot.fullIndices) for (let k = 0; k < 4; k++) {
+      if (weight.getComponent(vertex, k) > 0) assert.ok(legJoints.has(skin.getComponent(vertex, k)), 'A later opposite-leg or arm solve must not invalidate this boot support minimum');
+    }
+  }
+});
+
+test('world-Y support metric equals the actual complete skinned boot minimum through motion and stops', () => {
+  const city = build(), adapter = city.meshyCarrier, mesh = adapter.renderMeshes[0], vertex = new T.Vector3();
+  for (let frame = 0; frame < 32; frame++) {
+    place(city, -40 + frame * .17, -5 + frame * .23, Math.floor(frame / 8) * .7);
+    animateCity(city, frame / 15, frame < 20);
+    let minimum = Infinity;
+    for (const foot of adapter.feet) for (const index of foot.fullIndices) {
+      mesh.getVertexPosition(index, vertex); vertex.applyMatrix4(mesh.matrixWorld);
+      minimum = Math.min(minimum, vertex.y - renderedTerrainHeight(vertex.x, vertex.z));
+    }
+    assert.ok(Math.abs(minimum - adapter.metrics.minimumFootGap) < 1e-7, 'Support metric must equal a fresh complete boot scan: ' + minimum + ' / ' + adapter.metrics.minimumFootGap);
+  }
 });
 
 test('actual skinned boot hull clears rendered terrain and walking upper body clears the unchanged castle volume', () => {
@@ -157,23 +189,28 @@ test('native Grove to Foundry routes settle both complete boot hulls, including 
         if (total > .4 && position.getY(i) < .23) indices.push(i);
       }
       assert.ok(indices.length > 400, 'Include the full boot: this source left toe is weighted to its shin');
-      const z = indices.map(i => position.getZ(i)); return {indices, middle: (Math.min(...z) + Math.max(...z)) / 2};
+      const z = indices.map(i => position.getZ(i)), x = indices.map(i => position.getX(i));
+      return {indices, middle: (Math.min(...z) + Math.max(...z)) / 2, across: (Math.min(...x) + Math.max(...x)) / 2};
     });
     const update = () => {place(city, state.x, state.z, state.angle); animateCity(city, state.time, state.moving); city.root.updateMatrixWorld(true);};
     const support = () => boots.map(boot => {
-      const vertex = new T.Vector3(); let front = Infinity, rear = Infinity;
+      const vertex = new T.Vector3(); let front = Infinity, rear = Infinity, left = Infinity, right = Infinity;
       for (const index of boot.indices) {
         mesh.getVertexPosition(index, vertex); vertex.applyMatrix4(mesh.matrixWorld);
         const gap = vertex.y - renderedTerrainHeight(vertex.x, vertex.z);
         if (position.getZ(index) < boot.middle) rear = Math.min(rear, gap); else front = Math.min(front, gap);
+        if (position.getX(index) < boot.across) left = Math.min(left, gap); else right = Math.min(right, gap);
       }
-      return {front, rear};
+      return {front, rear, left, right};
     });
     const verifySupport = label => {
       for (const foot of support()) {
-        assert.ok(Math.min(foot.front, foot.rear) >= -.005 && Math.min(foot.front, foot.rear) < .025, label + ': real boot must touch without penetrating');
+        assert.ok(Math.min(foot.front, foot.rear) >= -.005 && Math.min(foot.front, foot.rear) < .025, label + ': real boot must touch without penetrating: ' + JSON.stringify(foot));
         assert.ok(Math.max(foot.front, foot.rear) < .4, label + ': boot must not remain perched on a toe/heel above the ground: ' + JSON.stringify(foot));
+        assert.ok(Math.max(foot.left, foot.right) < .4, label + ': both sides of the boot need support: ' + JSON.stringify(foot));
       }
+      const ankles = adapter.feet.map(foot => adapter.instance.root.worldToLocal(foot.foot.getWorldPosition(new T.Vector3())));
+      assert.ok(Math.abs(ankles[0].x - ankles[1].x) > .45, label + ': resting feet must retain a separated weight-bearing stance');
     };
     const settle = () => {for (let i = 0; i < hz * 2; i++) {tick(state, 1 / hz); update();}};
     update();

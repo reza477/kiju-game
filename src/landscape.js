@@ -13,6 +13,7 @@ import { packValleyDetail } from './valley-ground-detail.js';
 import { bindMeshyPilot, bindMeshyTreeCoverage } from './meshy-pilot.js';
 import { bindGroundDressing } from './ground-dressing.js';
 import { createGroundCoverVolume } from './ground-cover-volume.js';
+import { createDecorativeRoadRemnants } from './decorative-roads.js';
 
 // Local scenery mixes the existing generated world with a bounded imported kit.
 const TAU = Math.PI * 2;
@@ -1061,6 +1062,8 @@ export function createLandscape() {
   const meadowDetail=createMeadowDetail(group);
   const groundCover=createGroundCoverVolume({timeUniform:vegetationTime,existingRecords:records});
   group.add(groundCover.group);
+  const decorativeRoads=createDecorativeRoadRemnants({existingRecords:records});
+  group.add(decorativeRoads.group);
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
@@ -1070,6 +1073,7 @@ export function createLandscape() {
   stats.meshyTreeCoverage={near:trees.coverage,distant:distantTrees.coverage};
   stats.groundDressing=dressing.stats;
   stats.groundCoverVolume=groundCover.stats;
+  stats.decorativeRoads=decorativeRoads.stats;
   stats.drainage=valleyDrainageDiagnostics();
   stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
@@ -1088,6 +1092,7 @@ export function createLandscape() {
       if (fernMesh) fernMesh.visible = !low;
       if (meadowDetail) meadowDetail.visible = !low;
       groundCover.setQuality(quality);
+      decorativeRoads.setQuality(quality);
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
       pilot.treeMeshes.forEach(mesh => { mesh.castShadow = !low; });
       distantCanopyMeshes.forEach(mesh=>{mesh.castShadow=false;});

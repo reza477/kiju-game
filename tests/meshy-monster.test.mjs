@@ -8,7 +8,7 @@ import {createMeshyMonsterPose, inspectMeshyMonsterRig, MONSTER_RIG} from '../sr
 
 // Use the actual, locally inspected skin. Images are omitted only from this
 // CPU-only parser; geometry, joints, weights and bind matrices remain exact.
-const candidates = ['../assets/carriers/meshy/flesh.glb', '../artifacts/carrier-assets/optimized/monster-smart-rig-1024.glb'].map(path => new URL(path, import.meta.url));
+const candidates = ['../assets/carriers/meshy/flesh.glb'].map(path => new URL(path, import.meta.url));
 const source = candidates.find(path => fs.existsSync(path));
 const assetTest = (name, fn) => test(name, {skip: !source && 'The inspected local Meshy monster GLB is unavailable'}, fn);
 const digest = value => createHash('sha256').update(Buffer.from(value.buffer, value.byteOffset, value.byteLength)).digest('hex');
@@ -40,7 +40,8 @@ function soleVertices(mesh, end) {
 }
 
 assetTest('actual Smart Rig has four complete weighted leg chains; incompatible rigs are rejected explicitly', async () => {
-  const f = await fixture(); assert.equal(f.bones.size, 66);
+  const f = await fixture(); assert.equal(f.bones.size, 54);
+  assert.equal(f.mesh.geometry.index.count / 3, 57692, 'Keep every triangle of the new rigged remesh');
   for (const [name, chain] of Object.entries(MONSTER_RIG)) if (name !== 'tail') assert.ok(soleVertices(f.mesh, f.bones.get(chain.at(-1))).length > 30);
   assert.throws(() => inspectMeshyMonsterRig({...f.instance, capabilities: {animations: ['guessed walk']}}), /static Smart Rig/);
   f.bones.get('Bone_033').name = 'different rig'; assert.throws(() => inspectMeshyMonsterRig(f.instance), /differs/);
@@ -58,9 +59,23 @@ assetTest('distance drives gait, paused/repeated time freezes it, and actor/deck
   assert.throws(() => f.controller.update({time: 3, moving: true, distanceDelta: -1}), /Invalid/);
 });
 
+assetTest('weight-bearing paws keep the inspected wrist-to-toe pose through start, stride, turn and sustained stop', async () => {
+  const f = await fixture(() => 0, {strideDistance: 8.8, supportCrouch: .12});
+  const toes = Object.entries(MONSTER_RIG).filter(([name]) => name !== 'tail').map(([name, chain]) => {
+    const toe = f.bones.get(chain.at(-1)); return {name, toe, rest: toe.quaternion.clone()};
+  });
+  for (let frame = 0; frame < 120; frame++) {
+    const moving = frame >= 12 && frame < 90, heading = frame < 50 ? 0 : .8;
+    f.actor.position.z += moving ? .08 : 0; f.actor.rotation.y = heading;
+    f.controller.update({time: frame / 30, moving, distanceDelta: moving ? .08 : 0, heading});
+    for (const {name, toe, rest} of toes) assert.ok(toe.quaternion.angleTo(rest) < 1e-6, name + ': the supporting paw must not curl through the toe joint');
+  }
+  f.controller.dispose();
+});
+
 assetTest('four-beat walk plants the actual weighted paws while turning on uneven ground with nonuniform body fit', async () => {
   const ground = (x, z) => .045 * x + .025 * z + .15 * Math.sin(z * .15), f = await fixture(ground), point = new T.Vector3();
-  const groups = Object.entries(MONSTER_RIG).filter(([key]) => key !== 'tail').map(([name, chain]) => ({name, vertices: soleVertices(f.mesh, f.bones.get(chain.at(-1)))}));
+  const groups = Object.entries(MONSTER_RIG).filter(([key]) => key !== 'tail').map(([name, chain]) => ({name, vertices: soleVertices(f.mesh, f.bones.get(chain.at(-2)))}));
   let worstPenetration = 0, largestContactGap = 0, maxIkError = 0, previous = null, swingingFrames = 0;
   for (let frame = 0; frame < 360; frame++) {
     const time = frame / 60, angle = time * .12;
@@ -128,7 +143,7 @@ assetTest('actual travel controls and carrier support keep a heavy 8.8m stride r
       state.angle = route === 'reverse' ? Math.PI : 0; state.resources.food = 100000;
       simulation.travel(state, ...(route === 'reverse' ? [state.x, state.z - 90] : route === 'hill' ? [-40, -5] : [state.x, state.z + 90]));
       delete city.gaitPrevious; delete city.gaitDistance; for (const limb of city.limbs) {limb.plant = null; limb.swing = null;}
-      const groups = Object.entries(MONSTER_RIG).filter(([key]) => key !== 'tail').map(([name, chain]) => ({name, vertices: soleVertices(f.mesh, f.bones.get(chain.at(-1)))}));
+      const groups = Object.entries(MONSTER_RIG).filter(([key]) => key !== 'tail').map(([name, chain]) => ({name, vertices: soleVertices(f.mesh, f.bones.get(chain.at(-2)))}));
       let previous = null, replants = 0, minimum = Infinity, maximum = -Infinity, maxError = 0;
       for (let frame = 0; frame < 480; frame++) {
         const before = {x: state.x, z: state.z};

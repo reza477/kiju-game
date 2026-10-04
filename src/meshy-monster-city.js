@@ -6,6 +6,7 @@ import {renderedTerrainHeight} from './terrain.js';
 import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
 
 export const meshyMonsterReady=()=>meshyCarriersStatus().assets.find(asset=>asset.kind==='flesh')?.state==='ready';
+export const MONSTER_BODY_FIT=Object.freeze({x:-.325,y:-1.8,z:-12,scaleX:16,scaleY:21,scaleZ:16,strikeAdvance:3.3});
 const ease=(a,b,value)=>{const t=T.MathUtils.clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);};
 
 // Closed, bowed padding plus two raised leather bands, in one draw per side.
@@ -97,7 +98,8 @@ function createSaddle(rig,meshes){
 
 export function createMeshyMonsterCity(rig){
   const instance=instantiateMeshyCarrier('flesh');
-  instance.root.scale.set(16,21,16);instance.root.position.set(-.325,-1.8,-12);rig.add(instance.root);
+  const fit=MONSTER_BODY_FIT;
+  instance.root.scale.set(fit.scaleX,fit.scaleY,fit.scaleZ);instance.root.position.set(fit.x,fit.y,fit.z);rig.add(instance.root);
   const renderMeshes=[];instance.body.traverse(object=>{if(object.isSkinnedMesh)renderMeshes.push(object);});
   const controller=createMeshyMonsterPose(instance,{groundHeight:renderedTerrainHeight,strideDistance:8.8,supportCrouch:.12});
   const saddle=createSaddle(rig,renderMeshes);saddle.update();
@@ -111,6 +113,11 @@ export function animateMeshyMonsterCity(city,time,moving){
   const age=time-city.strikeTime,contact=city.strikeContactTime??.7,end=city.strikeDuration??1.3;
   const active=age>=0&&age<end&&city.strikeTarget?.isVector3&&city.strikeHand;
   const weight=active?ease(.14,.55,age)*(1-ease(contact+.22,end,age)):0;
+  // The new, unstretched source arm is 1.56 world metres short at the existing
+  // monster contact. A bounded skin-only weight shift supplies that reach;
+  // planted paws and the skin-anchored saddle follow through the normal solver.
+  // The city rig, collision body, weapons, target marker and event stay fixed.
+  adapter.instance.root.position.z=MONSTER_BODY_FIT.z+MONSTER_BODY_FIT.strikeAdvance*weight;
   const status=adapter.controller.update({time,moving,distanceDelta:distance,heading:city.heading,
     strikeHand:active?city.strikeHand.getWorldPosition(new T.Vector3()):null,strikeWeight:weight});
   adapter.metrics.visibleStrikeError=status?.strikeError??null;

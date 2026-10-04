@@ -3,10 +3,10 @@ import {bankWidth, protectedResource, renderedTerrainHeight, roadZ, shoreDistanc
 
 // This layer is visual-only: it has its own deterministic sampler and never
 // registers scenery IDs, consumes landscape randomness or changes saved records.
-export const GROUND_COVER_LIMITS=Object.freeze({instances:4400,patches:560,extent:184,cellSize:96,maxRadius:1.6,minimumNormalY:.935,startRadius:27});
+export const GROUND_COVER_LIMITS=Object.freeze({instances:6400,patches:760,extent:184,cellSize:96,maxRadius:1.6,minimumNormalY:.935,startRadius:27});
 const TAU=Math.PI*2,UP=new T.Vector3(0,1,0);
 const QUALITIES=Object.freeze({high:[1,135,195],balanced:[.72,115,170],medium:[.72,115,170],low:[.38,85,135],performance:[.18,65,105],retro:[.18,65,105]});
-const COLOURS={grass:[0x526137,0x7c8b50,0x94a36b],fern:[0x425b38,0x658049,0x849663],shrub:[0x3f5634,0x657d43,0x82935b]};
+const COLOURS={grass:[0x4b5734,0x687b46,0x87965c],fern:[0x425b38,0x658049,0x849663],shrub:[0x3f5634,0x657d43,0x82935b]};
 function random(seed){let value=seed>>>0;return()=>((value=(Math.imul(value,1664525)+1013904223)>>>0)/4294967296);}
 
 function sceneryExclusion(records){
@@ -40,7 +40,7 @@ export function groundCoverLocationAllowed(x,z,radius=GROUND_COVER_LIMITS.maxRad
 
 export function createGroundCoverPlacements(existingRecords=[]){
   const rand=random(0x6c74b923),placements=[],occupied=new Map(),blocked=sceneryExclusion(existingRecords),separation=.73,anchors=[];
-  const coreBudget=Math.floor(GROUND_COVER_LIMITS.instances*.70);
+  const coreBudget=Math.floor(GROUND_COVER_LIMITS.instances*.55);
   let patchCount=0,attempts=0;
   function place(x,z,kind,patch,zone,edge=0){
     attempts++;
@@ -100,11 +100,11 @@ export function createGroundCoverPlacements(existingRecords=[]){
   for(let fringe=0;fringe<GROUND_COVER_LIMITS.patches&&placements.length<GROUND_COVER_LIMITS.instances;fringe++){
     const edgePatch=anchors.length&&rand()<.56,anchor=edgePatch?anchors[Math.floor(rand()*anchors.length)]:null;
     const angle=rand()*TAU,offset=anchor?anchor.radius*(.35+rand()*.94):0;
-    const cx=anchor?anchor.cx+Math.cos(angle)*offset:(rand()-.5)*250;
-    const cz=anchor?anchor.cz+Math.sin(angle)*offset:(rand()-.5)*310+10;
+    const cx=anchor?anchor.cx+Math.cos(angle)*offset:(rand()-.5)*352;
+    const cz=anchor?anchor.cz+Math.sin(angle)*offset:(rand()-.5)*352;
     const spread=5.5+rand()*6.5,width=.52+terrainNoise(cx*.071-19,cz*.083+7)*.50,start=placements.length;
     if(!groundCoverLocationAllowed(cx,cz,.2))continue;
-    for(let member=0;member<15&&placements.length<GROUND_COVER_LIMITS.instances;member++){
+    for(let member=0;member<23&&placements.length<GROUND_COVER_LIMITS.instances;member++){
       const a=rand()*TAU,edge=Math.sqrt(rand()),r=edge*spread;
       // Probability and size taper together, leaving scattered rooted plants
       // between the full clumps and open soil rather than a hard patch edge.
@@ -124,26 +124,39 @@ export function createGroundCoverGeometry(kind){
   const positions=[],colours=[],palette=COLOURS[kind].map(hex=>new T.Color(hex)),colour=new T.Color();
   const emit=(a,b,c)=>{for(const point of[a,b,c]){positions.push(...point);const h=Math.max(0,Math.min(1,point[1]));colour.copy(palette[0]).lerp(palette[1],Math.min(1,h*2.6)).lerp(palette[2],Math.max(0,h-.25)*.70);colours.push(colour.r,colour.g,colour.b);}};
   if(kind==='shrub'){
-    const solid=new T.IcosahedronGeometry(1,0),p=solid.attributes.position;solid.computeBoundingBox();
-    const bottom=solid.boundingBox.min.y,height=solid.boundingBox.max.y-bottom;
-    const point=i=>{const x=p.getX(i),z=p.getZ(i),h=(p.getY(i)-bottom)/height,a=Math.atan2(z,x),wide=.77+.23*Math.min(1,h*3.1);return[x*wide*(1+.035*Math.sin(a*3)),h,z*wide*.97];};
-    for(let i=0;i<p.count;i+=3)emit(point(i),point(i+1),point(i+2));solid.dispose();
-  }else{
-    for(let leaf=0;leaf<6;leaf++){
-      const a=leaf*2.399963+.26,dx=Math.cos(a),dz=Math.sin(a),reach=.95+(leaf%3)*.075;
-      const height=kind==='fern'?.55+(leaf%3)*.06:.80+(leaf%3)*.07,width=kind==='fern'?.22:.20;
-      const point=(t,h,side)=>[dx*reach*t-dz*width*side,h,dz*reach*t+dx*width*side];
-      const shoulder=kind==='fern'?.50:.66;
-      const root=[0,0,0],left=point(shoulder,height*.68,1),right=point(shoulder,height*.68,-1),tip=point(1,height*.70,0);
-      if(kind==='fern'){
-        const ridge=point(.53,height,0);
-        emit(root,left,ridge);emit(root,ridge,right);emit(left,tip,ridge);emit(right,ridge,tip);
-      }else{
-        // Upright blades bow out into a fan; each broad two-face blade has a
-        // visible ridge instead of a thin front-facing billboard.
-        const peak=point(.88,height,0);
-        emit(root,left,peak);emit(root,peak,right);
+    // Three unequal rooted crowns read as one branching bush, rather than a
+    // smooth geodesic ball. All crowns share the same tiny opaque draw.
+    for(const [cx,cz,r,h,phase]of[[0,.14,.63,.96,.2],[-.40,-.23,.50,.67,.55],[.42,-.28,.43,.56,-.12]]){
+      const bottom=[cx,0,cz],top=[cx+.06,h,cz-.04],rim=[];
+      for(let i=0;i<4;i++){const a=phase+i*TAU/4;rim.push([cx+Math.cos(a)*r,h*(.43+(i%2)*.09),cz+Math.sin(a)*r]);}
+      for(let i=0;i<4;i++){const a=rim[i],b=rim[(i+1)%4];emit(bottom,a,b);emit(a,top,b);}
+    }
+  }else if(kind==='fern'){
+    // Four bowed fronds, each with two opposing pairs of folded leaflets.
+    // Notches between the leaflets supply the fern silhouette from City view.
+    for(let frond=0;frond<4;frond++){
+      const a=frond*2.399963+.26,dx=Math.cos(a),dz=Math.sin(a),reach=.97+(frond%3)*.045,height=.62+(frond%3)*.055;
+      const point=(t,y,side)=>[dx*reach*t-dz*side,y,dz*reach*t+dx*side];
+      for(let tier=0;tier<2;tier++){
+        const start=tier? .46:0,end=tier?1:.58,centre=tier?.72:.31,width=tier?.18:.27;
+        const root=point(start,tier?height*.84:0,0),tip=point(end,tier?height*.72:height*.94,0),ridge=point(centre,height*(tier?1:.73),0);
+        for(const side of[-1,1]){
+          const leaf=point(centre-.065,height*(tier?.72:.47),side*width);
+          if(side<0){emit(root,leaf,ridge);emit(leaf,tip,ridge);}else{emit(root,ridge,leaf);emit(leaf,ridge,tip);}
+        }
       }
+    }
+  }else{
+    // Unequal upright blades share a loose windward lean. Offset roots and
+    // shortened outer blades avoid the repeated five-pointed star silhouette.
+    // The envelope contracts inside the already checked placement footprint.
+    const blades=[[-.14,.06,.98,.52,.085,.10],[.10,-.07,.79,.67,.075,.62],[-.02,.14,.56,.44,.080,2.1],[.17,.10,.66,.56,.068,-.38],[-.18,-.09,.43,.38,.072,2.7]];
+    for(const [rx,rz,height,reach,width,a]of blades){
+      const dx=Math.cos(a),dz=Math.sin(a);
+      const point=(t,h,side)=>[rx+dx*reach*t-dz*width*side,h,rz+dz*reach*t+dx*width*side];
+      const root=[rx,0,rz],left=point(.38,height*.52,1),right=point(.38,height*.52,-1);
+      const peak=point(1,height,0);
+      emit(root,left,peak);emit(root,peak,right);
     }
   }
   const geometry=new T.BufferGeometry();geometry.name='Ground cover '+kind+' master';

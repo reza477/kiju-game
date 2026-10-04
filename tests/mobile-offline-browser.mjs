@@ -106,7 +106,8 @@ async function verifyCarrierAssets(phase,{offline=false}={}){
  assert.equal(actual.status.state,'ready');assert.deepEqual(actual.status.assets.map(asset=>asset.kind).sort(),['cyborg','flesh']);
  assert.ok(actual.status.assets.every(asset=>asset.state==='ready'&&asset.error===null),'Imported carrier failed and used a fallback');
  assert.deepEqual([...new Set(actual.actors.map(actor=>actor.kind))].sort(),['cyborg','flesh'],'Both actual imported carrier identities are required');
- assert.ok(actual.actors.every(actor=>actor.meshes.length===1&&actor.meshes.every(mesh=>mesh.skinned&&mesh.inScene&&mesh.finite&&mesh.bones===(actor.kind==='cyborg'?28:66))),'Imported rig missing or invalid');
+ // Inspected current exports: 28-joint humanoid, 54-joint remeshed Smart Rig.
+ assert.ok(actual.actors.every(actor=>actor.meshes.length===1&&actor.meshes.every(mesh=>mesh.skinned&&mesh.inScene&&mesh.finite&&mesh.bones===(actor.kind==='cyborg'?28:54))),'Imported rig missing or invalid');
  assert.ok(actual.completeCaches.length>0,'No complete cache exists for the actual release build');
  for(const cache of actual.completeCaches){
   assert.equal(cache.glbs.length,2);for(const expected of carrierEvidence.manifest){const cached=cache.glbs.find(file=>file.url===expected.url);assert.ok(cached&&!cached.missing,'Cached carrier missing: '+expected.url);for(const key of ['bytes','sha256','type'])assert.equal(cached[key],expected[key],phase+': cached carrier '+key+' mismatch');}

@@ -51,7 +51,11 @@ class Glb:
         self.j, self.bin = json.loads(chunks[0][1]), chunks[1][1]
         j = self.j
         require(j['asset']['version'] == '2.0' and len(j['buffers']) == 1, 'Unsupported glTF structure')
-        require(not j.get('extensionsUsed') and not j.get('extensionsRequired'), 'Extensions require explicit support')
+        extensions = set(j.get('extensionsUsed', [])) | set(j.get('extensionsRequired', []))
+        require(extensions <= {'KHR_materials_specular'}, 'Extensions require explicit support')
+        for material in j.get('materials', []):
+            specular = material.get('extensions', {}).get('KHR_materials_specular', {})
+            require(set(specular) <= {'specularFactor', 'specularColorFactor'}, 'Specular texture extensions require explicit support')
         require(not j['buffers'][0].get('uri'), 'External buffer not supported')
         require(0 <= len(self.bin) - j['buffers'][0]['byteLength'] <= 3, 'BIN declared length mismatch')
         self.cache = {}

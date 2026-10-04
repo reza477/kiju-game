@@ -26,7 +26,9 @@ while offset < len(raw):
 assert not any(x.get('uri') for x in model['buffers'] + model.get('images', []))
 def view_bytes(view):
     return binary[view.get('byteOffset', 0):view.get('byteOffset', 0)+view['byteLength']]
-assert not model.get('extensionsUsed')
+assert (set(model.get('extensionsUsed', [])) | set(model.get('extensionsRequired', []))) <= {'KHR_materials_specular'}
+for material in model.get('materials', []):
+    assert set(material.get('extensions', {}).get('KHR_materials_specular', {})) <= {'specularFactor', 'specularColorFactor'}
 assert not any(a.get('sparse') for a in model['accessors'])
 geometry_hashes = [hashlib.sha256(view_bytes(model['bufferViews'][a['bufferView']])).hexdigest()
                    for a in model['accessors']]

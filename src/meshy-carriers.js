@@ -8,7 +8,7 @@ const files = Object.freeze({cyborg: '../assets/carriers/meshy/cyborg.glb', fles
 const instances = new WeakMap();
 const cloneData = value => JSON.parse(JSON.stringify(value));
 const MAX_BYTES = 64 * 1024 * 1024;
-const allowedExtensions = new Set(['KHR_materials_unlit', 'KHR_mesh_quantization', 'KHR_texture_transform']);
+const allowedExtensions = new Set(['KHR_materials_unlit', 'KHR_mesh_quantization', 'KHR_texture_transform', 'KHR_materials_specular']);
 
 export function inspectCarrierDocument(bytes) {
   if (!(bytes instanceof ArrayBuffer) || bytes.byteLength < 28 || bytes.byteLength > MAX_BYTES) throw new Error('Invalid or oversized local carrier GLB');

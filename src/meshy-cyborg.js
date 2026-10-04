@@ -17,31 +17,79 @@ function soleIndices(mesh, side) {
   const skin = mesh.geometry.attributes.skinIndex, weights = mesh.geometry.attributes.skinWeight, position = mesh.geometry.attributes.position;
   const joints = new Set(mesh.skeleton.bones.map((b, i) => b.name.startsWith('mixamorig' + side) && /Leg|Foot|Toe/.test(b.name) ? i : -1)); joints.delete(-1);
   const candidates = [], p = new T.Vector3();
+  mesh.geometry.computeBoundingBox();
+  const bounds = mesh.geometry.boundingBox, bootTop = bounds.min.y + (bounds.max.y - bounds.min.y) * .2353;
   for (let i = 0; i < position.count; i++) {
     let influence = 0;
     for (let k = 0; k < 4; k++) if (joints.has(skin.getComponent(i, k))) influence += weights.getComponent(i, k);
-    if (influence > .4 && position.getY(i) < .4) candidates.push({index: i, y: position.getY(i)});
+    if (influence > .4 && position.getY(i) < bootTop) candidates.push({index: i, y: position.getY(i)});
   }
   if (!candidates.length) throw new Error('Inspected cyborg lacks weighted ' + side + ' sole vertices');
   const unique = new Map();
-  for (const item of candidates) {p.fromBufferAttribute(position, item.index); unique.set(p.toArray().map(n => n.toFixed(5)).join(','), item.index);}
+  for (const item of candidates) {p.fromBufferAttribute(position, item.index); unique.set([...p.toArray(), ...[0, 1, 2, 3].flatMap(k => [skin.getComponent(item.index, k), weights.getComponent(item.index, k)])].join(','), item.index);}
   const indices = [...unique.values()];
-  // Bounded real skin vertices per foot. Keep actual 3D boundary extrema,
-  // not an invisible box whose flat bottom could hide a penetrating boot.
+  // The remesh has dense boots with mixed shin/ankle influence. Keep a lower
+  // spatial envelope plus each influencing joint's directional extrema; a
+  // single geometric hull loses vertices that become lowest after skinning.
   const chosen = new Set();
-  for (let a = 0; a < 16; a++) for (const y of [-1, 0, 1]) {
-    let best = null, score = -Infinity;
-    for (const index of indices) {const value = Math.cos(a * Math.PI / 8) * position.getX(index) + y * position.getY(index) + Math.sin(a * Math.PI / 8) * position.getZ(index); if (value > score) {score = value; best = index;}}
-    if (best !== null) chosen.add(best);
+  const box = new T.Box3().setFromPoints(indices.map(index => new T.Vector3().fromBufferAttribute(position, index))), size = box.getSize(new T.Vector3()), cells = new Map();
+  for (const index of indices) {
+    const x = Math.min(11, Math.floor((position.getX(index) - box.min.x) / Math.max(size.x, 1e-8) * 12)), z = Math.min(11, Math.floor((position.getZ(index) - box.min.z) / Math.max(size.z, 1e-8) * 12)), key = x + ',' + z;
+    if (!cells.has(key) || position.getY(index) < position.getY(cells.get(key))) cells.set(key, index);
   }
-  indices.sort((a, b) => position.getY(a) - position.getY(b));
-  for (const index of indices) {if (chosen.size >= 48) break; chosen.add(index);}
-  return [...chosen];
+  for (const index of cells.values()) chosen.add(index);
+  for (const joint of joints) {
+    const members = indices.filter(index => [0, 1, 2, 3].some(k => skin.getComponent(index, k) === joint && weights.getComponent(index, k) > .15));
+    for (let a = 0; a < 8; a++) for (const y of [-1, 0, 1]) {
+      let best = null, score = -Infinity;
+      for (const index of members) {const value = Math.cos(a * Math.PI / 4) * position.getX(index) + y * position.getY(index) + Math.sin(a * Math.PI / 4) * position.getZ(index); if (value > score) {score = value; best = index;}}
+      if (best !== null) chosen.add(best);
+    }
+  }
+  return {indices: [...chosen], fullIndices: indices};
 }
 
+function palmContactIndex(mesh, hand) {
+  const joints = new Set(); hand.traverse(object => {if (object.isBone) joints.add(mesh.skeleton.bones.indexOf(object));});
+  const position = mesh.geometry.attributes.position, skin = mesh.geometry.attributes.skinIndex, weight = mesh.geometry.attributes.skinWeight;
+  const direction = point(hand).sub(point(hand.parent)).normalize().transformDirection(mesh.matrixWorld.clone().invert());
+  let best = -1, score = -Infinity;
+  for (let i = 0; i < position.count; i++) {
+    let influence = 0; for (let k = 0; k < 4; k++) if (joints.has(skin.getComponent(i, k))) influence += weight.getComponent(i, k);
+    if (influence < .99999) continue;
+    const projected = position.getX(i) * direction.x + position.getY(i) * direction.y + position.getZ(i) * direction.z;
+    if (projected > score) {score = projected; best = i;}
+  }
+  if (best < 0) throw new Error('Inspected cyborg has no hand-owned contact surface');
+  return best;
+}
+
+const soleSamplers = new WeakMap();
 function sampleSole(mesh, indices, height = () => 0, dx = 0, dz = 0) {
-  const p = new T.Vector3(); let gap = Infinity;
-  for (const index of indices) {mesh.getVertexPosition(index, p); p.applyMatrix4(mesh.matrixWorld); gap = Math.min(gap, p.y - height(p.x + dx, p.z + dz));}
+  let scratch = soleSamplers.get(mesh);
+  if (!scratch) {
+    scratch = {palette: [], point: new T.Vector3(), bound: new T.Vector4(), transformed: new T.Vector4()};
+    soleSamplers.set(mesh, scratch);
+  }
+  const {palette, point: p, bound, transformed} = scratch, {bones, boneInverses} = mesh.skeleton;
+  // IK changes the pose between sampler calls. Refresh here, not once per
+  // rendered frame. Matrix4 keeps the same double precision as Three's CPU
+  // skin path; the GPU's Float32 skeleton.boneMatrices is not equivalent.
+  for (let i = 0; i < bones.length; i++) (palette[i] ??= new T.Matrix4()).multiplyMatrices(bones[i].matrixWorld, boneInverses[i]);
+  const skin = mesh.geometry.attributes.skinIndex, weights = mesh.geometry.attributes.skinWeight;
+  let gap = Infinity;
+  for (const index of indices) {
+    // Preserve the ordinary base/morph vertex and the vendored skin operation
+    // order exactly. Only repeated per-vertex bone matrix products are reused.
+    T.Mesh.prototype.getVertexPosition.call(mesh, index, p);
+    bound.set(p.x, p.y, p.z, 1).applyMatrix4(mesh.bindMatrix); p.set(0, 0, 0);
+    for (let lane = 0; lane < 4; lane++) {
+      const weight = weights.getComponent(index, lane);
+      if (weight !== 0) p.addScaledVector(transformed.copy(bound).applyMatrix4(palette[skin.getComponent(index, lane)]), weight);
+    }
+    p.applyMatrix4(mesh.bindMatrixInverse); p.applyMatrix4(mesh.matrixWorld);
+    gap = Math.min(gap, p.y - height(p.x + dx, p.z + dz));
+  }
   return gap;
 }
 
@@ -49,11 +97,33 @@ function profileFor(probe) {
   let mesh; probe.body.traverse(object => {if (object.isSkinnedMesh) {if (mesh) throw new Error('Cyborg adapter requires the inspected single skinned body'); mesh = object;}});
   if (!mesh) throw new Error('Cyborg adapter requires the inspected skinned body');
   if (profiles.has(mesh.geometry)) return profiles.get(mesh.geometry);
-  const feet = ['Left', 'Right'].map(side => ({side, indices: soleIndices(mesh, side), foot: bone(probe, side + 'Foot'), samples: [], minimum: Infinity}));
-  const duration = probe.clip.duration, count = 120, step = duration / count;
+  const feet = ['Left', 'Right'].map(side => ({side, ...soleIndices(mesh, side), foot: bone(probe, side + 'Foot'), samples: [], minimum: Infinity}));
+  const firstPose = poseSnapshot(probe.body);
+  mesh.skeleton.pose(); probe.root.updateMatrixWorld(true);
+  const bindPose = new Map(poseSnapshot(probe.body).map(pose => [pose.object.name, pose]));
+  for (const foot of feet) {
+    foot.restOrientation = foot.foot.getWorldQuaternion(new T.Quaternion());
+    const hip = point(bone(probe, foot.side + 'UpLeg')), knee = point(bone(probe, foot.side + 'Leg'));
+    foot.restReach = hip.distanceTo(knee) + knee.distanceTo(point(foot.foot));
+    // The source's almost straight left bind knee has a tiny backwards bend;
+    // using that as a pole flips its knee when ground support bends the leg.
+    // The real ankle-to-toe direction provides a stable forward-facing plane.
+    foot.kneePole = point(bone(probe, foot.side + 'ToeBase')).sub(point(foot.foot));
+    foot.kneePole.y = 0; foot.kneePole.normalize();
+    foot.kneePole.x = T.MathUtils.clamp(foot.kneePole.x, -.2, .2); foot.kneePole.normalize();
+  }
+  for (const pose of firstPose) {pose.object.position.copy(pose.position); pose.object.quaternion.copy(pose.quaternion); pose.object.scale.copy(pose.scale);}
+  probe.root.updateMatrixWorld(true);
+  const position = mesh.geometry.attributes.position;
+  for (const foot of feet) {
+    const low = foot.fullIndices.filter(index => position.getY(index) < .23), z = low.map(index => position.getZ(index)), middle = (Math.min(...z) + Math.max(...z)) / 2;
+    foot.front = low.filter(index => position.getZ(index) >= middle); foot.rear = low.filter(index => position.getZ(index) < middle);
+  }
+  const duration = probe.clip.duration, count = 120, step = duration / count; let minimumHipHeight = Infinity;
   for (let i = 0; i <= count; i++) {
     probe.mixer.setTime(Math.min(duration - 1e-6, i * step)); probe.root.updateMatrixWorld(true);
-    for (const foot of feet) {const sample = {height: sampleSole(mesh, foot.indices), z: point(foot.foot).z}; foot.samples.push(sample); foot.minimum = Math.min(foot.minimum, sample.height);}
+    minimumHipHeight = Math.min(minimumHipHeight, bone(probe, 'Hips').position.y);
+    for (const foot of feet) {const sample = {height: sampleSole(mesh, foot.indices), z: point(foot.foot).z, front: sampleSole(mesh, foot.front), rear: sampleSole(mesh, foot.rear)}; foot.samples.push(sample); foot.minimum = Math.min(foot.minimum, sample.height);}
   }
   const velocities = [];
   for (const foot of feet) for (let i = 1; i < count; i++) {
@@ -62,22 +132,27 @@ function profileFor(probe) {
   }
   if (velocities.length < 8) throw new Error('Cannot measure a grounded stride from inspected Casual_Walk');
   velocities.sort((a, b) => a - b);
-  // This double-support moment in the original Casual_Walk has both real
-  // boot hulls down. An arbitrary frozen walk phase can balance on its toes;
-  // ankle-only correction also misses this export's shin-weighted left boot.
-  const idlePhase = .675;
+  // Select the new export's measured double-support moment. The old rig's
+  // fixed phases produced heel-perching after the owner's rerigging.
+  let idleSample = 0, idleScore = Infinity;
+  for (let i = 0; i < count; i++) {
+    const score = feet.reduce((sum, foot) => sum + Math.abs(foot.samples[i].front - foot.samples[i].rear) + Math.max(0, foot.samples[i].height - foot.minimum), 0);
+    if (score < idleScore) {idleScore = score; idleSample = i;}
+  }
+  const idlePhase = idleSample / count;
   probe.mixer.setTime(duration * idlePhase); probe.root.updateMatrixWorld(true);
   const idlePose = poseSnapshot(probe.body).map(({object, position, quaternion, scale}) => ({name: object.name, position, quaternion, scale}));
-  // The exported boots have asymmetric weights. Use the right leg's planted
-  // moment from a later stride of that same clip, instead of flattening a
-  // shin-weighted boot by twisting its ankle or changing imported skin data.
-  const idleRightPhase = 110 / 120;
-  probe.mixer.setTime(duration * idleRightPhase);
-  for (const pose of idlePose) if (pose.name.startsWith('mixamorigRight') && /Leg|Foot|Toe/.test(pose.name)) {
-    const source = probe.body.getObjectByName(pose.name); pose.position.copy(source.position); pose.quaternion.copy(source.quaternion); pose.scale.copy(source.scale);
+  // A walking double-support frame still crosses the robot's narrow boots.
+  // Retain the source upper body, but settle the lower body into the actual
+  // remesh bind stance. No source key, bone length, body fit or game rig changes.
+  for (const pose of idlePose) if (pose.name === HIP || /^mixamorig(?:Left|Right)(?:UpLeg|Leg|Foot|Toe)/.test(pose.name)) {
+    const bind = bindPose.get(pose.name); if (pose.name !== HIP) pose.position.copy(bind.position); pose.quaternion.copy(bind.quaternion); pose.scale.copy(bind.scale);
+    // Reserve a small measured fraction of leg reach for uneven-ground support,
+    // so the wide resting stance cannot lock a knee before the boot arrives.
+    if (pose.name === HIP) pose.position.y = minimumHipHeight - Math.min(...feet.map(foot => foot.restReach)) * .025;
   }
-  const profile = {duration, count, sourceDistance: velocities[Math.floor(velocities.length / 2)] * duration, stanceSamples: velocities.length, idlePhase, idleRightPhase, idlePose,
-    feet: feet.map(({side, indices, samples, minimum}) => ({side, indices, samples, minimum}))};
+  const profile = {duration, count, sourceDistance: velocities[Math.floor(velocities.length / 2)] * duration, stanceSamples: velocities.length, idlePhase, idleScore, idlePose,
+    feet: feet.map(({side, indices, fullIndices, samples, minimum, restOrientation, kneePole}) => ({side, indices, fullIndices, samples, minimum, restOrientation, kneePole}))};
   profiles.set(mesh.geometry, profile); return profile;
 }
 
@@ -98,11 +173,10 @@ export function createMeshyCyborg(rig, {instantiate = instantiateMeshyCarrier, c
   // Existing positive-X strike side is Meshy's named Left arm. The source's
   // named Right arm lies on negative X; never infer side from its English name.
   const arm = {upper: bone(instance, 'LeftArm'), lower: bone(instance, 'LeftForeArm'), hand: bone(instance, 'LeftHand')};
-  // Inspected vertex 5065 lies on the palm/knuckle surface and is weighted
-  // solely to LeftHand (.6325766) and its Middle4 child (.3674234). The bone
-  // endpoint is inside the palm, so an arbitrary fraction of it is not contact.
-  const knuckle = new T.Object3D(); knuckle.name = 'Imported cyborg visible palm contact'; arm.hand.add(knuckle); arm.knuckle = knuckle; arm.contactVertex = 5065;
   const renderMeshes = []; instance.body.traverse(object => {if (object.isSkinnedMesh) renderMeshes.push(object);});
+  // The export's indices change after remeshing. Derive an actual terminal
+  // hand surface from its own weights, never carry over an old vertex number.
+  const knuckle = new T.Object3D(); knuckle.name = 'Imported cyborg visible hand contact'; arm.hand.add(knuckle); arm.knuckle = knuckle; arm.contactVertex = palmContactIndex(renderMeshes[0], arm.hand);
   const surface = new T.Vector3(); renderMeshes[0].getVertexPosition(arm.contactVertex, surface); surface.applyMatrix4(renderMeshes[0].matrixWorld); arm.knuckle.position.copy(arm.hand.worldToLocal(surface));
   instance.root.scale.set(CYBORG_BODY_FIT.scaleX, CYBORG_BODY_FIT.scaleY, CYBORG_BODY_FIT.scaleZ); instance.root.position.set(CYBORG_BODY_FIT.x, CYBORG_BODY_FIT.y, CYBORG_BODY_FIT.z); instance.root.rotation.y = CYBORG_BODY_FIT.yaw; rig.add(instance.root);
   return {kind: 'cyborg', instance, poseInstance, posePairs, idlePose, motion: {time: null, idle: 0, heading: null, moving: null}, controller: {dispose: () => disposeMeshyCarrier(poseInstance)}, profile, rest, feet, arm, spine: bone(instance, 'Spine'), renderMeshes, previous: null, strideDistance,
@@ -122,13 +196,16 @@ function spaceRotate(object, delta, space) {
 
 // Two-bone correction uses each imported chain's measured length and bind axes.
 // It never stretches the skin, changes the old physical rig or moves its marker.
-function solveChain(upper, lower, effector, worldTarget, space) {
+function solveChain(upper, lower, effector, worldTarget, space, kneePole = null) {
   const local = object => space.worldToLocal(point(object)), target = space.worldToLocal(worldTarget.clone());
   const start = local(upper), elbow = local(lower), end = local(effector), a = elbow.clone().sub(start), b = end.clone().sub(elbow);
   const l1 = a.length(), l2 = b.length(), line = target.clone().sub(start), raw = line.length();
   if (raw < 1e-7 || l1 < 1e-7 || l2 < 1e-7) return Infinity;
   const distance = T.MathUtils.clamp(raw, Math.abs(l1 - l2) + 1e-5, l1 + l2 - 1e-5), direction = line.multiplyScalar(1 / raw);
-  let bend = a.clone().addScaledVector(direction, -a.dot(direction));
+  // Ground support must not inherit a transient inward knee plane from the
+  // retargeted walk. The inspected toe direction supplies a stable forward plane.
+  const pole = kneePole || a;
+  let bend = pole.clone().addScaledVector(direction, -pole.dot(direction));
   if (bend.lengthSq() < 1e-8) bend = new T.Vector3(0, 0, 1).addScaledVector(direction, -direction.z);
   if (bend.lengthSq() < 1e-8) bend.set(1, 0, 0);
   bend.normalize();
@@ -159,7 +236,7 @@ function leanForContact(adapter, worldTarget, weight) {
   };
   let bestAngle = 0, bestError = reachError();
   if (bestError > 0) for (let step = 1; step <= 32; step++) {
-    const angle = step / 32 * 1.05 * weight;
+    const angle = step / 32 * 1.3 * weight;
     spine.quaternion.copy(original); spine.updateWorldMatrix(false, true);
     spaceRotate(spine, new T.Quaternion().setFromAxisAngle(axis, angle), space);
     const error = reachError();
@@ -205,19 +282,29 @@ export function animateMeshyCyborg(city, time, moving, {height = renderedTerrain
     const ankle = point(foot.foot);
     if (!stance || distance >= 8) foot.plant = null;
     if (stance && !foot.plant) {
-      const n = normal(ankle.x, ankle.z), tilt = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(n.x, n.y, n.z));
-      foot.plant = {x: ankle.x, z: ankle.z, quaternion: tilt.multiply(foot.foot.getWorldQuaternion(new T.Quaternion()))};
+      const n = normal(ankle.x, ankle.z), up = new T.Vector3(n.x, n.y, n.z).normalize();
+      const forward = new T.Vector3(0, 0, 1).transformDirection(instance.root.matrixWorld); forward.addScaledVector(up, -forward.dot(up)).normalize();
+      foot.plant = {x: ankle.x, z: ankle.z, normal: up, forward};
     }
     const target = ankle.clone(); if (foot.plant) {target.x = foot.plant.x; target.z = foot.plant.z;}
-    for (let iteration = 0; iteration < 5; iteration++) {
-      const actual = point(foot.foot), gap = sampleSole(mesh, foot.indices, height, target.x - actual.x, target.z - actual.z);
+    let support = null;
+    if (foot.plant) {
+      // Fit the plane in unscaled model coordinates. A world quaternion alone
+      // cannot flatten a sole beneath the unchanged nonuniform body scaling.
+      const up = foot.plant.normal.clone().applyMatrix3(new T.Matrix3().setFromMatrix4(instance.root.matrixWorld).transpose()).normalize();
+      const forward = foot.plant.forward.clone().transformDirection(instance.root.matrixWorld.clone().invert()); forward.addScaledVector(up, -forward.dot(up)).normalize();
+      const right = new T.Vector3().crossVectors(up, forward).normalize(); forward.crossVectors(right, up).normalize();
+      support = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(right, up, forward)).multiply(foot.restOrientation);
+    }
+    for (let iteration = 0; iteration < 7; iteration++) {
+      const actual = point(foot.foot), gap = sampleSole(mesh, iteration < 5 ? foot.indices : foot.fullIndices, height, target.x - actual.x, target.z - actual.z);
       target.y = actual.y - gap + lift + .003;
-      solveChain(foot.upper, foot.lower, foot.foot, target, instance.root);
-      if (foot.plant) {const parent = foot.foot.parent.getWorldQuaternion(new T.Quaternion()); foot.foot.quaternion.copy(parent.invert()).multiply(foot.plant.quaternion);}
+      solveChain(foot.upper, foot.lower, foot.foot, target, instance.root, foot.kneePole);
+      if (support) foot.foot.quaternion.copy(relativeQuaternion(foot.foot.parent, instance.root).invert()).multiply(support);
       instance.root.updateMatrixWorld(true);
     }
     foot.contact = stance; foot.contactTarget = target;
-    minimumFootGap = Math.min(minimumFootGap, sampleSole(mesh, foot.indices, height));
+    minimumFootGap = Math.min(minimumFootGap, sampleSole(mesh, foot.fullIndices, height));
   }
   // The retargeted export has slightly asymmetric boot heights. Settle its
   // visible body on the lowest supported boot after IK; leave the city rig and
@@ -226,7 +313,9 @@ export function animateMeshyCyborg(city, time, moving, {height = renderedTerrain
   const supported = point(instance.root); supported.y += supportCorrection;
   instance.root.position.copy(instance.root.parent.worldToLocal(supported)); instance.root.updateMatrixWorld(true);
   adapter.metrics.bodySupportCorrection = supportCorrection;
-  adapter.metrics.minimumFootGap = Math.min(...adapter.feet.map(foot => sampleSole(mesh, foot.indices, height)));
+  // This correction is a world-Y translation: every sampled gap increases
+  // by the same amount, with unchanged X/Z and terrain height.
+  adapter.metrics.minimumFootGap = minimumFootGap + supportCorrection;
   const age = time - city.strikeTime, contact = city.strikeContactTime ?? .7, end = city.strikeDuration ?? 1.3;
   const active = age >= 0 && age < end && city.strikeTarget?.isVector3 && city.strikeHand;
   adapter.metrics.visibleStrikeError = null; adapter.metrics.unreachableStrike = false;

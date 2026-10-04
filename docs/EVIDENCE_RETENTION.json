@@ -2,7 +2,16 @@
   "updatedAt": "2026-10-04T14:09:06.4231271Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
-  "workRequestsSinceCleanup": 0,
+  "workRequestsSinceCleanup": 1,
+  "newGroupsSinceCleanup": [
+    {
+      "group": "rig-ground-refresh",
+      "request": "Use the newer remeshed and rigged humanoid/monster, add efficient ground cover and broken old roads.",
+      "baselineCommit": "32e7d003645bdb8aece23745b434d1c5025033a7",
+      "evidenceRoot": "artifacts/rig-ground-refresh",
+      "status": "in progress"
+    }
+  ],
   "retainedGroups": [
     {
       "group": "meshy-tree-coverage",
@@ -40,6 +49,6 @@
     "Old source-containing archives and operational releases retained where redundancy/inactivity was not established.",
     "Protected mixed files outside the retained groups have existence/size evidence, not a before/after content-hash claim.",
     "No gameplay, browser, benchmark or art-review rerun for this housekeeping task. No publication or deployment.",
-    "Runtime remains the previously tested cab53c7404ef4507a6239ffe6815d91ac1dcbe88 content; later housekeeping commit changes instructions, cleanup tooling and this ledger only."
+    "The last cleanup preserved the cab53c7404ef4507a6239ffe6815d91ac1dcbe88 runtime. The separately tracked rig-ground-refresh work group starts from the preserved 32e7d003645bdb8aece23745b434d1c5025033a7 checkpoint."
   ]
 }

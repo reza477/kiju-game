@@ -86,6 +86,17 @@ class CarrierTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'own bufferView'):
             carrier.Glb(self.path)
 
+    def test_scalar_specular_metadata_is_preserved_but_new_texture_extensions_reject(self):
+        self.j['extensionsUsed'] = ['KHR_materials_specular']
+        self.j['materials'] = [{'extensions': {'KHR_materials_specular': {'specularFactor': 0}}}]
+        write(self.path, self.j, self.data)
+        before = carrier.Glb(self.path)
+        self.assertTrue(carrier.verify_texture_only(before, carrier.Glb(self.path))['normalizedMetadataIdentical'])
+        self.j['materials'][0]['extensions']['KHR_materials_specular']['specularTexture'] = {'index': 0}
+        write(self.path, self.j, self.data)
+        with self.assertRaisesRegex(ValueError, 'Specular texture'):
+            carrier.Glb(self.path)
+
     def test_hierarchy_cycle_is_rejected(self):
         self.j['nodes'][0]['children'] = [1]
         self.j['nodes'][1]['children'] = [0]
