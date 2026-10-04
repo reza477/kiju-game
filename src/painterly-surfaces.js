@@ -192,7 +192,7 @@ export function paintRiver(material, time, ripple, windGLSL) {
         diffuseColor.rgb=mix(diffuseColor.rgb,channelColour,pilotWater);
       `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
         roughnessFactor=clamp(.43+shallows*.10+(vRiverWind.z-.5)*.018,.40,.56);
-        roughnessFactor=mix(roughnessFactor,.38+pilotShallows*.18,pilotWater);
+        roughnessFactor=mix(roughnessFactor,.56+pilotShallows*.09,pilotWater);
       `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
         vec2 slope=vec2(0.0);
         if(pilotWater<1.0) {
@@ -206,8 +206,10 @@ export function paintRiver(material, time, ripple, windGLSL) {
         // The existing clock and vertex motion remain untouched; there is no
         // additional animation loop or water simulation, and no new texture.
         if(pilotWater>0.0) {
-          float currentPhase=alongRiver*.92+acrossRiver*.18-uRiverTime*.72;
-          float crossPhase=alongRiver*1.87-acrossRiver*.29-uRiverTime*1.03;
+          // The existing bank brush breaks the coherent bands seen looking
+          // toward the sun. Keep both ordinary ripple clocks unchanged.
+          float currentPhase=alongRiver*.92+acrossRiver*.18+brush*3.4-uRiverTime*.72;
+          float crossPhase=alongRiver*1.87-acrossRiver*.29+brush*4.1-uRiverTime*1.03;
           float shoreDamping=1.0-pilotShallows*.44;
           vec2 currentSlope=tangent*cos(currentPhase)*(.020+vRiverWind.z*.006)
             +across*cos(crossPhase)*.010;
@@ -215,10 +217,12 @@ export function paintRiver(material, time, ripple, windGLSL) {
         }
         normal=normalize(mat3(viewMatrix)*vec3(-slope.x,1.0,-slope.y));
       `).replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-        // Keep a broad sky reflection from reading as a white painted ribbon.
-        // Direct highlights still use the ordinary lights, normals and BRDF.
-        reflectedLight.indirectSpecular*=1.0-pilotWater*.28;
+        // Both direct sunlight and the sky contributed to the white striped
+        // channel at the reviewed sun-facing angle. Limit only this reach's
+        // specular contribution; ordinary diffuse light and shadows remain.
+        reflectedLight.directSpecular*=1.0-pilotWater*.60;
+        reflectedLight.indirectSpecular*=1.0-pilotWater*.60;
       `);
   };
-  material.customProgramCacheKey=()=> 'painterly-channel-v3-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-channel-v4-meshy-pilot';
 }
