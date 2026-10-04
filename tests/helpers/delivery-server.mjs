@@ -30,7 +30,8 @@ export async function readFrozenRelease(directory) {
   return {root, descriptor, files};
 }
 
-export async function createDeliveryServer(releases) {
+export async function createDeliveryServer(releases, {contentSecurityPolicy} = {}) {
+  if(contentSecurityPolicy!==undefined)assert.ok(typeof contentSecurityPolicy==='string'&&contentSecurityPolicy.length>0&&contentSecurityPolicy.length<=8192&&!/[\r\n]/.test(contentSecurityPolicy),'Optional CSP must be one nonempty HTTP header value.');
   let selected = 'A', fault = null;
   const requests = [], sockets = new Set();
   const server = http.createServer((request, response) => {
@@ -41,6 +42,7 @@ export async function createDeliveryServer(releases) {
     requests.push(record);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
+    if(contentSecurityPolicy!==undefined)response.setHeader('Content-Security-Policy',contentSecurityPolicy);
     if (request.method !== 'GET' && request.method !== 'HEAD') {record.status = 405; response.writeHead(405).end(); return;}
     if (fault?.path === pathname) {
       record.injected = true;

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runInNewContext} from 'node:vm';
 import {pilotConfig,validatePilotConfig,nextNativeSegment} from './helpers/meshy-pilot-config.mjs';
+import {installMeshyObserver} from './helpers/meshy-native-observer.mjs';
 
 test('pilot routes remain distinct, bounded and return to their common origin',()=>{
   validatePilotConfig(pilotConfig);
@@ -25,4 +27,16 @@ test('native navigation reaches every fixed waypoint across camera headings',()=
 test('invalid route coordinates or capture layouts fail before a browser launches',()=>{
   const config=structuredClone(pilotConfig);config.routes[0].waypoints[0]=[NaN,0];assert.throws(()=>validatePilotConfig(config));
   assert.throws(()=>validatePilotConfig({...pilotConfig,captures:[]}));
+});
+
+test('the isolated route fixture is installed once and cannot erase a real save on reload',()=>{
+  const values=new Map(),localStorage={getItem:key=>values.has(key)?values.get(key):null,setItem:(key,value)=>values.set(key,value)};
+  const install=()=>{
+    const window={addEventListener(){}},document={addEventListener(){}};
+    runInNewContext('('+installMeshyObserver.toString()+')({quality:"high",fixture:"initial isolated fixture",gpuTiming:false})',{window,document,localStorage,requestAnimationFrame(){},performance:{now:()=>0}});
+  };
+  install();assert.equal(values.get('colossus-wake-save-v1'),'initial isolated fixture');
+  const nativeSave=JSON.stringify({worldDamage:{expedition:['tree:477','river-spit:1'],battle:[]},x:-51,z:-116});
+  localStorage.setItem('colossus-wake-save-v1',nativeSave);install();
+  assert.equal(values.get('colossus-wake-save-v1'),nativeSave,'A page reload must load the saved destruction instead of recreating intact trees');
 });

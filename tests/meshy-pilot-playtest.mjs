@@ -10,10 +10,11 @@ import {chromium} from 'playwright';
 import {installMeshyObserver} from './helpers/meshy-native-observer.mjs';
 import {pilotConfig,profiles,nextNativeSegment,validatePilotConfig} from './helpers/meshy-pilot-config.mjs';
 import {waitForBrowserCondition} from './helpers/browser-condition.mjs';
+import {runMeshyFunctional} from './helpers/meshy-functional.mjs';
 
 const toolRoot=fileURLToPath(new URL('..',import.meta.url)),out=path.resolve(process.env.OUTPUT_DIR||'artifacts/meshy-pilot/playtest');
 const mode=process.env.MODE||'timing',sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-assert.ok(['timing','capture','paired-timing','paired-capture'].includes(mode),'Unknown MODE.');
+assert.ok(['timing','capture','functional','paired-timing','paired-capture'].includes(mode),'Unknown MODE.');
 const configBytes=process.env.PILOT_CONFIG?await fs.readFile(process.env.PILOT_CONFIG):Buffer.from(JSON.stringify(pilotConfig));
 const config=validatePilotConfig(JSON.parse(configBytes)),selected=profiles.filter(p=>!process.env.PROFILE||process.env.PROFILE===p.name);
 assert.ok(selected.length,'Unknown PROFILE.');
@@ -112,9 +113,28 @@ if(mode.startsWith('paired-')){
     if(process.env.PILOT_REQUIRE_ASSETS==='1'){assert.equal(observed.status.state,'ready');assert.ok(observed.status.assets.length);assert.ok(observed.stats,'Pilot records are attached to the actual game landscape.');}
     return observed;
   }
-  async function nativeCamera(target,visit){
+  async function resourceDestination(id,visit){
+    const node=await page.evaluate(id=>window.__colossus.state.nodes.find(n=>n.id===id),id);assert.ok(node);
+    if(!await page.locator('#destinations').isVisible())await tap('#destinations-toggle');
+    const button=page.locator('#destinations button').filter({hasText:node.name});
+    await button.evaluate(button=>button.addEventListener('click',()=>{const s=window.__colossus.state;window.__meshyProbe.resourceClick={x:s.x,z:s.z,time:s.time};},{capture:true,once:true}));
+    if(visit.profile.mobile)await button.tap();else await button.click();
+    const observed=await page.evaluate(()=>({boundary:window.__meshyProbe.resourceClick,target:{...window.__colossus.state.target}}));
+    assert.ok(observed.boundary,'The actual resource-button click was not observed');
+    const distance=Math.hypot(observed.boundary.x-node.x,observed.boundary.z-node.z);
+    const direction=distance>.01?[(observed.boundary.x-node.x)/distance,(observed.boundary.z-node.z)/distance]:[0,1];
+    const expected={x:node.x+direction[0]*22,z:node.z+direction[1]*22};
+    assert.deepEqual(observed.target,expected,'Resource travel must preserve the existing 22 m stand-off');
+    await until(()=>window.__colossus.state.target===null,undefined,90000);
+    const arrival=await snapshot();assert.ok(Math.hypot(arrival.state.x-node.x,arrival.state.z-node.z)<23,'Native resource arrival missed its existing gathering radius');
+    assert.equal(await page.evaluate(()=>window.__colossus.state.gathering),node.id);
+    if(await page.locator('#destinations').isVisible())await tap('#destinations-toggle');
+    return{requested:node,eventBoundary:observed.boundary,selectedTarget:observed.target,expectedTarget:expected,arrival,input:'Real Resource destinations button'};
+  }
+  async function nativeCamera(target,visit,{allowPinch=false}={}){
     // Choose a real unoccluded canvas rectangle; HUD stays fully visible.
     const point=await page.evaluate(()=>{const c=window.__colossus.scene.renderer.domElement;for(const y of [.48,.38,.58,.28])for(const x of [.5,.4,.6,.3,.7]){const px=innerWidth*x,py=innerHeight*y;if(document.elementFromPoint(px,py)===c)return{x:px,y:py};}throw Error('No visible canvas drag start.');});
+    const strokes=[];
     for(let tries=0;tries<20;tries++){
       const current=(await snapshot()).environment.camera,dx=Math.max(-70,Math.min(70,(current.yaw-target.yaw)/.006)),dy=Math.max(-45,Math.min(45,(target.pitch-current.pitch)/.004));
       if(Math.abs(dx)<.3&&Math.abs(dy)<.3)break;
@@ -123,15 +143,25 @@ if(mode.startsWith('paired-')){
       // and can neither converge nor safely frame a playing screenshot.
       if(visit.profile.mobile){await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+8,y:point.y,id:1}]});for(let n=1;n<=8;n++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+8+(dx-8)*n/8,y:point.y+dy*n/8,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
       else{await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+8,point.y);await page.mouse.move(point.x+dx,point.y+dy,{steps:8});await page.mouse.up();}
+      strokes.push({dx,dy,point,after:(await snapshot()).environment.camera});
     }
     const before=(await snapshot()).environment.camera;
     if(Math.abs(before.zoom-target.zoom)>.02){
-      if(visit.profile.mobile)throw Error('Pilot phone capture defaults must retain the normal City zoom; use separately verified native pinch before changing them.');
-      await page.mouse.move(point.x,point.y);await page.mouse.wheel(0,(target.zoom-before.zoom)/.06);
+      if(visit.profile.mobile){
+        if(!allowPinch)throw Error('Pilot phone capture defaults must retain the normal City zoom; use the separate native functional pinch check.');
+        for(let tries=0;tries<10;tries++){
+          const current=(await snapshot()).environment.camera.zoom;if(Math.abs(current-target.zoom)<.01)break;
+          const contact=await page.evaluate(()=>{const canvas=window.__colossus.scene.renderer.domElement,half=Math.min(55,innerWidth*.12);for(const y of [.48,.38,.58,.28])for(const x of [.5,.4,.6]){const px=innerWidth*x,py=innerHeight*y;if([-.15,-1.5,1.5,.15].every(scale=>document.elementFromPoint(px+half*scale,py)===canvas))return{x:px,y:py,half};}throw Error('No unoccluded two-contact canvas span');});
+          const ratio=Math.max(.65,Math.min(1.5,current/target.zoom)),contacts=scale=>[-1,1].map((side,index)=>({x:contact.x+contact.half*scale*side,y:contact.y,id:index+1}));
+          try{await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:contacts(1)});for(let n=1;n<=10;n++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:contacts(1+(ratio-1)*n/10)});}
+          finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
+          strokes.push({pinch:true,contact,ratio,before:current,after:(await snapshot()).environment.camera.zoom});
+        }
+      }else{await page.mouse.move(point.x,point.y);await page.mouse.wheel(0,(target.zoom-before.zoom)/.06);}
     }
     await until(()=>{const s=window.__colossus.scene;return Math.abs(s.camera.position.distanceTo(s.cameraAim))>0;});
     const actual=(await snapshot()).environment.camera;
-    visit.cameraInput={target,actual,point,method:visit.profile.mobile?'Native single-touch canvas drag; normal City zoom':'Native canvas mouse drag and wheel'};
+    visit.cameraInput={target,actual,point,strokes,method:visit.profile.mobile?(allowPinch?'Native canvas orbit and two-contact pinch':'Native single-touch canvas drag; normal City zoom'):'Native canvas mouse drag and wheel'};
     for(const key of ['yaw','pitch','zoom'])assert.ok(Math.abs(actual[key]-target[key])<.012,'Native camera '+key+' failed: '+JSON.stringify({target,actual}));
   }
   try{
@@ -153,17 +183,16 @@ if(mode.startsWith('paired-')){
           const label=route.name+'/'+warmth,row={name:route.name,warmth,waypoints:[]};visit.routes.push(row);await write();await page.evaluate(label=>window.__meshyProbe.arm(label),label);
           for(const waypoint of route.waypoints)row.waypoints.push(await navigate(waypoint,visit));
           if(route.resourceId){
-            const node=await page.evaluate(id=>window.__colossus.state.nodes.find(n=>n.id===id),route.resourceId);assert.ok(node);
-            await tap('#destinations-toggle');const button=page.locator('#destinations button').filter({hasText:node.name});if(profile.mobile)await button.tap();else await button.click();
-            const selectedTarget=await page.evaluate(()=>({...window.__colossus.state.target}));assert.equal(selectedTarget.x,node.x);assert.equal(selectedTarget.z,node.z);
-            await until(()=>window.__colossus.state.target===null,undefined,90000);
-            row.resource={requested:node,selectedTarget,arrival:await snapshot(),input:'Real Resource destinations button'};
-            if(await page.locator('#destinations').isVisible())await tap('#destinations-toggle');
+            row.resource=await resourceDestination(route.resourceId,visit);
             for(const waypoint of route.returnWaypoints)row.waypoints.push(await navigate(waypoint,visit));
           }
           Object.assign(row,await page.evaluate(()=>window.__meshyProbe.finish()));assert.equal(row.focusLost,false,'Measured route lost foreground focus');assert.equal(row.contextLost,false);assert.ok(row.frames.length>10);assert.ok(row.firstRenderedMovementMs!==null);assert.ok(row.frameIntervalMs.max<1000,'One-second frame stall');await write();
         }
+        visit.directionCoverage=[...new Set(visit.routes.flatMap(route=>route.waypoints.flatMap(waypoint=>waypoint.segments.map(segment=>segment.direction))))].sort();
+        assert.deepEqual(visit.directionCoverage,['down','left','right','up'],'Varied routes must exercise all four ordinary movement directions');
         visit.pilot=await captureReady();visit.final=await snapshot();
+      }else if(mode==='functional'){
+        visit.functional=await runMeshyFunctional({page,visit,cdp,tap,snapshot,nativeCamera,navigate,captureReady,until,resourceDestination,record:write});
       }else{
         visit.pilot=await captureReady();await nativeCamera(item.camera,visit);
         // A fixed number of native rendered frames lets the ordinary spring

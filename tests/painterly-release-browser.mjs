@@ -3,12 +3,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {readFrozenRelease,createDeliveryServer} from './helpers/delivery-server.mjs';
 import {deliveryBrowserOptions,browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
 import {waitForBrowserCondition} from './helpers/browser-condition.mjs';
 import {verifyRuntime} from '../scripts/delivery-lib.mjs';
+import {readPilotContentSecurityPolicy} from './helpers/pilot-content-security-policy.mjs';
 
 const output=path.resolve(process.env.OUTPUT_DIR||'artifacts/painterly/release-browser-final');
 await fs.mkdir(output,{recursive:true});
@@ -20,8 +22,8 @@ assert.ok(Array.isArray(pilotDamageIds)&&pilotDamageIds.every(id=>typeof id==='s
 assert.equal(new Set(pilotDamageIds).size,pilotDamageIds.length,'Pilot damage IDs must be unique.');
 const interruptedAssetPath=process.env.INTERRUPT_ASSET_PATH||'/src/painterly-vegetation.js';
 assert.ok(B.descriptor.files.some(file=>file.url===interruptedAssetPath),'INTERRUPT_ASSET_PATH must name an actual versioned candidate file.');
-const server=await createDeliveryServer({A,B}),saveKey='colossus-wake-save-v1';
-const report={startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['GAME_RELEASE_DIR','GAME_NEXT_RELEASE_DIR','OUTPUT_DIR','PLAYWRIGHT_CHANNEL','PLAYTEST_GRAPHICS_BACKEND','PILOT_DAMAGE_IDS','INTERRUPT_ASSET_PATH'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]]))},
+const saveKey='colossus-wake-save-v1';
+const report={startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['GAME_RELEASE_DIR','GAME_NEXT_RELEASE_DIR','OUTPUT_DIR','PLAYWRIGHT_CHANNEL','PLAYTEST_GRAPHICS_BACKEND','PILOT_DAMAGE_IDS','INTERRUPT_ASSET_PATH','MESHY_PILOT','GAME_TEST_URL'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]]))},
   pilot:{additionalOldSaveDamageIds:pilotDamageIds,interruptedAssetPath},
   protocol:'Scoped single-gameplay-writer compatibility: actual frozen baseline A and art candidate B, same isolated loopback origin; an old A title/preview client remains open, native RAF, UI Save/Continue/update, real stopped-server offline, rollback. This is not unrestricted multiple-active-game save safety.',
   fixtures:['Rich old save is prepared through the baseline production simulation build/upgrade/tick functions, with accelerated fixture time and a position at the existing forest to gather. No resource grants, costs, rates, geometry, random seeds or rules are changed.',
@@ -31,10 +33,10 @@ const report={startedAt:new Date().toISOString(),command:{executable:process.exe
   gates:{scope:'Single active gameplay writer plus a separate old title/preview client',unrestrictedMultipleSessionSaveSafety:'FAILED — competing A-session save replacement reproduced in preserved runs; unresolved',overallReleaseReadiness:'BLOCKED — unrestricted multi-session save gate and independent art gate have failed'},
   releases:{A:{buildId:A.descriptor.buildId,commit:A.descriptor.gitCommit,root:A.root},B:{buildId:B.descriptor.buildId,commit:B.descriptor.gitCommit,root:B.root}},
   checks:[],observations:[],pageErrors:[],consoleErrors:[],expectedFaults:[],remoteRequests:[],failedRequests:[],passed:false};
-let browser,context,page,peer,phase='startup',offline=false,fault=null;
+let server,browser,context,page,peer,phase='startup',offline=false,fault=null;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const until=(target,predicate,argument)=>waitForBrowserCondition(target,predicate,argument,{timeoutMs:150000});
-const write=()=>fs.writeFile(path.join(output,'results.json'),JSON.stringify({...report,requests:server.requests},null,2)+'\n');
+const write=()=>fs.writeFile(path.join(output,'results.json'),JSON.stringify({...report,requests:server?.requests??[]},null,2)+'\n');
 async function check(name,callback){phase=name;report.currentStage={name,startedAt:new Date().toISOString()};await write();console.log('START '+name);await callback();report.checks.push({name,finishedAt:new Date().toISOString()});console.log('PASS '+name);await write();}
 function observe(target){
   target.setDefaultTimeout(30000);
@@ -78,9 +80,9 @@ async function identity(target,expected){
 }
 async function resume(target,expected){await target.locator('#continue').tap();await menu(target);await rendered(target);return identity(target,expected);}
 async function verifyClientBytes(target,release){
-  const actual=await target.evaluate(async files=>{const out=[];for(const file of files){const response=await fetch(file.url),bytes=await response.arrayBuffer();const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');out.push({url:file.url,status:response.status,bytes:bytes.byteLength,sha256:hash,type:response.headers.get('Content-Type')});}return out;},release.descriptor.files);
-  for(const file of release.descriptor.files){const value=actual.find(item=>item.url===file.url);assert.equal(value.status,200);assert.equal(value.sha256,file.sha256,file.url+' mixed release bytes');assert.equal(value.bytes,file.bytes);assert.equal(value.type,file.type,file.url+' MIME');}
-  report.observations.push({phase,pinnedRelease:release.descriptor.buildId,verifiedFileCount:actual.length,verifiedBytes:release.descriptor.totalBytes});
+  const actual=await target.evaluate(async files=>{const out=[];for(const file of files){const response=await fetch(file.url),bytes=await response.arrayBuffer();const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(x=>x.toString(16).padStart(2,'0')).join('');out.push({url:file.url,status:response.status,bytes:bytes.byteLength,sha256:hash,type:response.headers.get('Content-Type'),contentSecurityPolicy:response.headers.get('Content-Security-Policy')});}return out;},release.descriptor.files);
+  for(const file of release.descriptor.files){const value=actual.find(item=>item.url===file.url);assert.equal(value.status,200);assert.equal(value.sha256,file.sha256,file.url+' mixed release bytes');assert.equal(value.bytes,file.bytes);assert.equal(value.type,file.type,file.url+' MIME');if(report.localContentSecurityPolicy)assert.equal(value.contentSecurityPolicy,report.localContentSecurityPolicy.header,file.url+' did not retain the actual candidate CSP header.');}
+  report.observations.push({phase,pinnedRelease:release.descriptor.buildId,verifiedFileCount:actual.length,verifiedBytes:release.descriptor.totalBytes,exactCandidateCspVerifiedFileCount:report.localContentSecurityPolicy?actual.length:0});
 }
 async function cachesComplete(target){
   const inventories=await target.evaluate(async ids=>{const out=[];for(const name of await caches.keys()){const id=ids.find(id=>name.startsWith('colossus-wake-release-'+id));if(!id)continue;const cache=await caches.open(name),keys=await cache.keys();out.push({name,id,paths:keys.map(key=>new URL(key.url).pathname)});}return out;},[A.descriptor.buildId,B.descriptor.buildId]);
@@ -90,6 +92,8 @@ async function cachesComplete(target){
 async function updateTo(release){await panel();await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());await until(page,async id=>{const s=await(await import('/src/offline.js')).refreshOfflineStatus();return s.canApplyUpdate&&s.updateBuildId===id;},release.descriptor.buildId);const before=await page.evaluate(()=>JSON.stringify(window.__colossus.snapshot()));await page.locator('#offline-apply').tap();await loaded(page,release);assert.equal(await rawSave(),before,'Paused Save and update must save the exact caller snapshot');return JSON.parse(before);}
 
 try{
+  if(process.env.MESHY_PILOT==='1')report.localContentSecurityPolicy=await readPilotContentSecurityPolicy(process.env.GAME_TEST_URL,path.resolve(fileURLToPath(new URL('..',import.meta.url))));
+  server=await createDeliveryServer({A,B},{contentSecurityPolicy:report.localContentSecurityPolicy?.header});
   report.releases.A.artifactSha256=(await verifyRuntime(A.root)).artifactSha256;report.releases.B.artifactSha256=(await verifyRuntime(B.root)).artifactSha256;
   browser=await chromium.launch(deliveryBrowserOptions());report.browser=browser.version();report.graphics=await browserGraphicsInfo(browser);
   context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:1,isMobile:true,hasTouch:true});
@@ -172,7 +176,7 @@ try{
 }catch(error){report.failure={phase,message:error.stack};process.exitCode=1;if(page&&!page.isClosed())await page.screenshot({path:path.join(output,'failure.png'),timeout:10000}).catch(()=>{});}
 finally{
   report.finishedAt=new Date().toISOString();await write();
-  const cleanup=[];for(const[name,callback]of [['context',()=>context?.close()],['browser',()=>browser?.close()],['loopback-server',()=>server.close()]]){try{await callback();cleanup.push({name,ok:true});}catch(error){cleanup.push({name,ok:false,message:error.message});report.passed=false;process.exitCode=1;}}
+  const cleanup=[];for(const[name,callback]of [['context',()=>context?.close()],['browser',()=>browser?.close()],['loopback-server',()=>server?.close()]]){try{await callback();cleanup.push({name,ok:true});}catch(error){cleanup.push({name,ok:false,message:error.message});report.passed=false;process.exitCode=1;}}
   report.cleanup=cleanup;await write();
 }
 console.log(JSON.stringify({passed:report.passed,checks:report.checks.length,failure:report.failure,report:path.join(output,'results.json')},null,2));

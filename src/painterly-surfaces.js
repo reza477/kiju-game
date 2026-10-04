@@ -106,8 +106,10 @@ export function paintGround(material, {weights, detail}) {
         // seamless sample shapes their edges; there is no stacked noise field.
         float earth=clamp(1.0-habitat.r-habitat.g,0.0,1.0);
         float middle=texture2D(uBrushGrain,vPaintPoint.xz*.011+vec2(.17,.51)).r;
-        float brokenEarth=smoothstep(.525,.600,middle)*(.22+earth*.48);
-        vec3 meadow=vec3(.103,.138,.067),earthColour=vec3(.127,.096,.058);
+        // Broader, closer-toned transitions avoid the flat camouflage islands
+        // identified in the gameplay review without adding another noise layer.
+        float brokenEarth=smoothstep(.490,.650,middle)*(.18+earth*.42);
+        vec3 meadow=vec3(.103,.138,.067),earthColour=vec3(.115,.105,.064);
         vec3 openGround=mix(meadow,earthColour,clamp(earth*.68+brokenEarth,0.0,1.0));
         openGround=mix(openGround,vec3(.133,.139,.113),habitat.g*.78);
         vec3 pilotColour=mix(authoredGround,openGround,.66);
@@ -133,7 +135,7 @@ export function paintGround(material, {weights, detail}) {
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65);
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v5-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v6-meshy-pilot';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {

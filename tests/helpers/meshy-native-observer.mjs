@@ -3,7 +3,9 @@
 export function installMeshyObserver({quality, fixture, gpuTiming}) {
   localStorage.setItem('colossus-quality-v1',quality);
   localStorage.setItem('colossus-camera-mode','steady');
-  localStorage.setItem('colossus-wake-save-v1',fixture);
+  // A fresh isolated context receives the fixture once. Reload must retain the
+  // save written by actual controls instead of silently reinstalling the fixture.
+  if(localStorage.getItem('colossus-wake-save-v1')===null)localStorage.setItem('colossus-wake-save-v1',fixture);
   const nativeRAF=requestAnimationFrame.bind(window),api={lastFrame:null,startups:[]};
   window.__meshyProbe=api;
   let route=null,goal=null,gl=null,ext=null,renderer=null,query=null;
