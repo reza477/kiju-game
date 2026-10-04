@@ -9,6 +9,7 @@ import { createBridgeAbutments } from './bridge-study.js';
 import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
 import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
+import { packValleyDetail } from './valley-ground-detail.js';
 import { bindMeshyPilot } from './meshy-pilot.js';
 import { bindGroundDressing } from './ground-dressing.js';
 
@@ -267,7 +268,7 @@ function groundTexture(data, size, colour = false, repeat = false) {
   texture.magFilter = T.LinearFilter; texture.anisotropy = 4; texture.needsUpdate = true;
   return texture;
 }
-function groundDetail() {
+function groundDetail(valley = false) {
   const size = 256, data = new Uint8Array(size * size * 4);
   const periodic = (u, v, cells) => {
     const x = u * cells, z = v * cells, ix = Math.floor(x), iz = Math.floor(z), tx = smooth(0, 1, x - ix), tz = smooth(0, 1, z - iz);
@@ -283,7 +284,9 @@ function groundDetail() {
     const c = Math.round(Math.max(0, Math.min(1, value)) * 255), i = (z * size + x) * 4;
     data[i] = data[i + 1] = data[i + 2] = c; data[i + 3] = 255;
   }
-  return groundTexture(data, size, false, true);
+  const texture=groundTexture(valley?packValleyDetail(data,size):data,size,false,true);
+  if(valley){texture.name='Packed valley turf and soil detail';texture.userData.valleyDetail=true;}
+  return texture;
 }
 function ruinFootprint(x, z) {
   let footprint = 0;
@@ -494,7 +497,7 @@ function createGround() {
   // Area-weighted normals follow the exact visible triangles. Reuse the cached
   // grid for the colour field instead of re-evaluating geology a million times.
   geometry.computeVertexNormals();
-  const surface=groundAlbedo(), detail=groundDetail();
+  const surface=groundAlbedo(), detail=groundDetail(true);
   const material=new T.MeshStandardMaterial({color:0xffffff,map:surface.colour,roughness:.94});
   paintGround(material,{weights:surface.weights,detail});
   const ground=new T.Mesh(geometry,material);ground.name='Continuous sculpted terrain';

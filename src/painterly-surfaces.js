@@ -84,13 +84,14 @@ export function paintGround(material, {weights, detail}) {
     shader.uniforms.uGroundColour = {value:patch?.colour??null};
     shader.uniforms.uGroundRelief = {value:patch?.relief??null};
     shader.uniforms.uGroundPatchReady = {value:patch?1:0};
+    shader.uniforms.uValleyDetailReady = {value:detail.userData.valleyDetail?1:0};
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vPaintPoint;attribute float groundMoisture;varying float vPaintWet;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaintPoint=position;vPaintWet=groundMoisture;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       varying vec3 vPaintPoint;varying float vPaintWet;
       uniform sampler2D uHabitat,uBrushGrain;
-      uniform sampler2D uGroundColour,uGroundRelief;uniform float uGroundPatchReady;
+      uniform sampler2D uGroundColour,uGroundRelief;uniform float uGroundPatchReady,uValleyDetailReady;
       ${pilotMaskGLSL}
       ${pilotWoodlandGLSL}
     `).replace('#include <map_fragment>', `#include <map_fragment>
@@ -100,8 +101,11 @@ export function paintGround(material, {weights, detail}) {
       float pilotGround=pilotSurfaceMask(vPaintPoint.xz);
       float pilotWetToe=smoothstep(.12,.90,vPaintWet);
       vec2 groundSlope=vec2(0.0);float groundCavity=1.0,groundRoughness=mix(.95,.72,pilotWetToe);
-      // Retain the established broad material outside the authored patch.
-      float grain=texture2D(uBrushGrain,vPaintPoint.xz*.37+vec2(.31,.72)).r;
+      // Reuse this existing sample for the packed valley detail; no extra fetch.
+      float valleyRegion=1.0-smoothstep(170.0,205.0,max(abs(vPaintPoint.x),abs(vPaintPoint.z)));
+      vec4 valleyBrush=texture2D(uBrushGrain,vPaintPoint.xz*mix(.37,.0625,valleyRegion>0.0?uValleyDetailReady:0.0)+vec2(.31,.72));
+      float grain=valleyBrush.r;
+      float valleyDetail=valleyRegion*(1.0-pilotGround)*(1.0-vPaintWet*.90)*(1.0-habitat.g*.70)*uValleyDetailReady;
       float bedding=vPaintPoint.y*.24+vPaintPoint.x*.037+vPaintPoint.z*.018;
       float strata=mix(.93,1.05,smoothstep(.13,.83,fract(bedding)));
       // Habitat edges and bank patches are authored into the world albedo.
@@ -109,6 +113,12 @@ export function paintGround(material, {weights, detail}) {
       diffuseColor.rgb*=.977+(grain-.5)*.025;
       diffuseColor.rgb*=mix(1.0,strata,habitat.g*.45);
       diffuseColor.rgb*=mix(1.0,.78,vPaintWet);
+      // Habitat colours still locate meadow, litter, mineral and wet ground.
+      // Only the small turf blades and soil aggregates vary within those masses.
+      float turfStroke=smoothstep(.48,.75,valleyBrush.a),soilCrease=1.0-smoothstep(.29,.47,valleyBrush.a);
+      vec3 strokeTint=mix(vec3(1.09,1.07,1.01),vec3(1.12,1.16,1.045),habitat.r);
+      diffuseColor.rgb*=mix(vec3(1.0),mix(vec3(1.0-soilCrease*.16),strokeTint,turfStroke),valleyDetail);
+      groundSlope=(valleyBrush.gb*2.0-1.0)*valleyDetail;
       if(pilotGround>0.0) {
         // Replace the weak broad pilot tint with metre-scale meadow/earth
         // boundaries and litter attached to actual canopies. One existing
@@ -143,7 +153,7 @@ export function paintGround(material, {weights, detail}) {
           vec4 patchColour=texture2D(uGroundColour,patchUV);
           vec3 patchRelief=texture2D(uGroundRelief,patchUV).rgb;
           diffuseColor.rgb=mix(diffuseColor.rgb,patchColour.rgb,pilotGround);
-          groundRoughness=patchColour.a;groundSlope=(patchRelief.rg*2.0-1.0)*pilotGround;
+          groundRoughness=patchColour.a;groundSlope+=(patchRelief.rg*2.0-1.0)*pilotGround;
           groundCavity=mix(1.0,patchRelief.b,pilotGround);
         }
       }
@@ -153,12 +163,12 @@ export function paintGround(material, {weights, detail}) {
     `).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
       // Add a small world-oriented optical slope to the real mesh normal.
       // No displaced silhouette, parallax or extra geometry is introduced.
-      if(pilotGround>0.0&&uGroundPatchReady>0.5)normal=normalize(normal+mat3(viewMatrix)*vec3(-groundSlope.x,0.0,-groundSlope.y)*.68);
+      if(valleyDetail>0.0||(pilotGround>0.0&&uGroundPatchReady>0.5))normal=normalize(normal+mat3(viewMatrix)*vec3(-groundSlope.x,0.0,-groundSlope.y)*.68);
     `).replace('#include <aomap_fragment>', `#include <aomap_fragment>
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65)*groundCavity;
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v7-authored-ground';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v8-packed-valley-ground';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {

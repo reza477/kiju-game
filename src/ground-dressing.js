@@ -1,13 +1,15 @@
 import * as T from '../vendor/three.module.js';
 import { getMaterial } from './materials.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { renderedTerrainHeight, terrainNormal, protectedResource, shoreDistance, bankWidth } from './terrain.js';
+import { partitionStaticInstances } from './spatial-instances.js';
+import { renderedTerrainHeight, terrainNormal, protectedResource, shoreDistance, bankWidth, roadZ } from './terrain.js';
 
 // Small visual assemblies belong to old scenery records. They add no resource,
 // picking proxy, collision, save ID, simulation tick or random-stream consumer.
-export const DRESSING_AREA=Object.freeze({minX:-65,maxX:32,minZ:-140,maxZ:-90});
+export const DRESSING_AREA=Object.freeze({minX:-180,maxX:180,minZ:-180,maxZ:180});
 const TAU=Math.PI*2;
 const inArea=(x,z)=>x>=DRESSING_AREA.minX&&x<=DRESSING_AREA.maxX&&z>=DRESSING_AREA.minZ&&z<=DRESSING_AREA.maxZ;
+const inPilot=(x,z)=>x>=-65&&x<=32&&z>=-140&&z<=-90;
 const seedFor=text=>{let seed=2166136261;for(const ch of text)seed=Math.imul(seed^ch.charCodeAt(0),16777619);return seed>>>0;};
 const random=seed=>()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 const up=new T.Vector3(0,1,0);
@@ -36,7 +38,11 @@ export function rosetteGeometry(){
     const rows=[[0,.018,0],[.36,h*.78,w],[.76,h,w*.67],[1,h*.58,0]];
     const points=rows.map(([t,y,width])=>[-1,0,1].map(side=>[dx*reach*t+sx*width*side,y+(side===0?.026:0)*Math.sin(t*Math.PI),dz*reach*t+sz*width*side]));
     const emit=(row,side)=>{p.push(...points[row][side]);uv.push(side*.5,row/3);const shade=.59+row*.075+(leaf%3)*.025;c.push(shade*.77,shade,shade*.59);};
-    for(let row=0;row<3;row++)for(let side=0;side<2;side++)for(const [r,s]of[[row,side],[row,side+1],[row+1,side],[row,side+1],[row+1,side+1],[row+1,side]])emit(r,s);
+    for(let row=0;row<3;row++)for(let side=0;side<2;side++){
+      // The root and tip collapse to points. Emit only their real triangles.
+      if(row>0)for(const[r,s]of[[row,side],[row,side+1],[row+1,side]])emit(r,s);
+      if(row<2)for(const[r,s]of[[row,side+1],[row+1,side+1],[row+1,side]])emit(r,s);
+    }
   }
   return finish(p,uv,c,'Rooted woodland sorrel leaves');
 }
@@ -73,14 +79,31 @@ export function bindGroundDressing({group,Instances,records}){
   const chips=new Instances(group,shingleGeometry(),getMaterial('rock',0xa1a293,{vertexColors:true,roughness:1}),false);
   const wood=new Instances(group,fallenWoodGeometry(),getMaterial('bark',0x8e8770,{roughness:1}),true);
   const batches=[['woodland-leaves',leaves],['bank-shingle',chips],['fallen-wood',wood]],owners=[];
-  const acceptable=(x,z)=>inArea(x,z)&&!protectedResource(x,z,2)&&renderedTerrainHeight(x,z)>-.35&&terrainNormal(x,z).y>.90;
+  const acceptable=(x,z)=>inArea(x,z)&&!protectedResource(x,z,2)&&Math.abs(z-roadZ(x))>7&&Math.hypot(x+30,z-40)>24&&renderedTerrainHeight(x,z)>-.35&&terrainNormal(x,z).y>.90;
+  const cells=new Map(),selected=new Set();
+  // One tree and one rock owner per 48-m cell, with a fixed total ceiling.
+  // Ranking has its own hash and never consumes world-generation randomness.
+  // Existing pilot assemblies stay selected; the added distribution reaches
+  // ordinary new-game views and the rest of the playable valley.
   for(const record of records){
     if(!inArea(record.x,record.z)||!['tree','rock'].includes(record.kind))continue;
+    if(inPilot(record.x,record.z)){selected.add(record);continue;}
+    if(!acceptable(record.x,record.z))continue;
+    const key=Math.floor(record.x/48)+','+Math.floor(record.z/48)+':'+record.kind;
+    const prior=cells.get(key);if(!prior||seedFor(record.id)<seedFor(prior.id))cells.set(key,record);
+  }
+  const ranked=[...cells.values()].sort((a,b)=>{
+    const near=r=>Math.hypot(r.x+30,r.z-40)<80?0:1;
+    return near(a)-near(b)||seedFor(a.id)-seedFor(b.id);
+  });
+  for(const record of ranked.slice(0,56))selected.add(record);
+  for(const record of records){
+    if(!selected.has(record))continue;
     const rand=random(seedFor(record.id)),starts=batches.map(([,batch])=>batch.items.length),tree=record.kind==='tree';
     const wet=shoreDistance(record.x,record.z)<bankWidth(record.x,record.z)+5;
     // Patches are anchored to existing canopies/rock toes. Their unequal, biased
     // distribution leaves readable ground between them, not a uniform carpet.
-    const count=tree?22:wet?10:5,axis=rand()*TAU;
+    const count=inPilot(record.x,record.z)?(tree?22:wet?10:5):(tree?14:wet?9:6),axis=rand()*TAU;
     for(let i=0;i<count;i++){
       const a=axis+(rand()-.5)*3.7,radius=(tree?1.0:0.4)+Math.sqrt(rand())*(tree?3.2:1.45);
       const x=record.x+Math.cos(a)*radius,z=record.z+Math.sin(a)*radius;
@@ -104,7 +127,32 @@ export function bindGroundDressing({group,Instances,records}){
     batches.forEach(([kind,batch],i)=>{const first=starts[i],count=batch.items.length-first;if(count){const ref={batch,first,count};record.parts.push(ref);refs.push({kind,name:'Ground dressing '+kind,first,count});}});
     if(refs.length)owners.push({id:record.id,kind:record.kind,x:record.x,z:record.z,batches:refs});
   }
-  const meshes=[];
-  for(const [kind,batch]of batches){const mesh=batch.finish('Ground dressing '+kind);if(mesh){mesh.userData.groundDressing=kind;mesh.userData.noBatch=true;meshes.push(mesh);}else batch.geometry.dispose();}
-  return {meshes,stats:{area:DRESSING_AREA,owners,instances:meshes.reduce((n,m)=>n+m.count,0),batches:meshes.map(m=>({name:m.name,kind:m.userData.groundDressing,instances:m.count,trianglesPerInstance:(m.geometry.index?.count??m.geometry.attributes.position.count)/3}))}};
+  const meshes=[],renderMeshes=[];
+  for(const [kind,batch]of batches){
+    const mesh=batch.finish('Ground dressing '+kind);
+    if(!mesh){batch.geometry.dispose();continue;}
+    mesh.userData.groundDressing=kind;mesh.userData.noBatch=true;
+    // Wind batches may already be partitioned by Instances.finish. Static
+    // objects need the same off-screen culling, while keeping saved addresses.
+    if(!mesh.spatialChunks){mesh.removeFromParent();group.add(partitionStaticInstances(mesh,batch.items,{cellSize:64,padding:1}));}
+    for(const chunk of mesh.spatialChunks){
+      chunk.userData.groundDressing=kind;chunk.userData.noBatch=true;
+      chunk.name=mesh.name+' cell '+chunk.userData.spatialCell;renderMeshes.push(chunk);
+    }
+    meshes.push(mesh);
+  }
+  // Report actual drawable ranges, not canonical storage that is off-scene.
+  // The production record.parts keep their original per-batch indices.
+  for(const owner of owners){
+    owner.batches=owner.batches.flatMap(ref=>{
+      const source=batches.find(([kind])=>kind===ref.kind)[1].mesh,ranges=[];
+      for(let i=ref.first;i<ref.first+ref.count;i++){
+        const slot=source.spatialSlots[i],last=ranges.at(-1);
+        if(last?.name===slot.mesh.name&&last.first+last.count===slot.index)last.count++;
+        else ranges.push({kind:ref.kind,name:slot.mesh.name,first:slot.index,count:1});
+      }
+      return ranges;
+    });
+  }
+  return {meshes,stats:{area:DRESSING_AREA,extraOwnerCap:56,owners,instances:meshes.reduce((n,m)=>n+m.count,0),batches:renderMeshes.map(m=>({name:m.name,kind:m.userData.groundDressing,instances:m.count,trianglesPerInstance:(m.geometry.index?.count??m.geometry.attributes.position.count)/3}))}};
 }
