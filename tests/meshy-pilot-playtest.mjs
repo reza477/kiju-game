@@ -115,6 +115,7 @@ if(mode.startsWith('paired-')){
   }
   async function resourceDestination(id,visit){
     const node=await page.evaluate(id=>window.__colossus.state.nodes.find(n=>n.id===id),id);assert.ok(node);
+    if(visit.profile.mobile&&!await page.locator('#destinations-toggle').isVisible())await tap('[data-mobile-panel="map"]');
     if(!await page.locator('#destinations').isVisible())await tap('#destinations-toggle');
     const button=page.locator('#destinations button').filter({hasText:node.name});
     await button.evaluate(button=>button.addEventListener('click',()=>{const s=window.__colossus.state;window.__meshyProbe.resourceClick={x:s.x,z:s.z,time:s.time};},{capture:true,once:true}));
@@ -125,6 +126,7 @@ if(mode.startsWith('paired-')){
     const direction=distance>.01?[(observed.boundary.x-node.x)/distance,(observed.boundary.z-node.z)/distance]:[0,1];
     const expected={x:node.x+direction[0]*22,z:node.z+direction[1]*22};
     assert.deepEqual(observed.target,expected,'Resource travel must preserve the existing 22 m stand-off');
+    if(visit.profile.mobile)await tap('.right-stack [data-close-panel]');
     await until(()=>window.__colossus.state.target===null,undefined,90000);
     const arrival=await snapshot();assert.ok(Math.hypot(arrival.state.x-node.x,arrival.state.z-node.z)<23,'Native resource arrival missed its existing gathering radius');
     assert.equal(await page.evaluate(()=>window.__colossus.state.gathering),node.id);
