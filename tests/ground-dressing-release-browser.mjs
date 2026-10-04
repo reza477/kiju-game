@@ -160,7 +160,19 @@ try{
     assert.ok(artModule,'Candidate inventory must include the requested interruption target.');
     server.select('B');fault={kind:'interrupt',path:artModule.url};server.inject(fault);
     const before=await rawSave(),time=await page.evaluate(()=>performance.timeOrigin),index=server.requests.length;
-    const result=await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());
+    const updateStartedAt=new Date().toISOString(),updateBegan=Date.now();
+    const updateAttempt=await page.evaluate(async()=>{
+      const began=performance.now(),transitions=[];
+      const workerState=worker=>worker?{scriptURL:worker.scriptURL,state:worker.state}:null;
+      const registrationState=async()=>{const reg=await navigator.serviceWorker.getRegistration('/');return{scope:reg?.scope||null,updateViaCache:reg?.updateViaCache||null,active:workerState(reg?.active),waiting:workerState(reg?.waiting),installing:workerState(reg?.installing),controller:workerState(navigator.serviceWorker.controller)};};
+      const registrationBefore=await registrationState();
+      const result=await(await import('/src/offline.js')).checkForUpdate({onStatus:status=>transitions.push({elapsedMs:performance.now()-began,status})});
+      return{result,browserElapsedMs:performance.now()-began,transitions,registrationBefore,registrationAfter:await registrationState()};
+    });
+    const result=updateAttempt.result;
+    // Keep the underlying update outcome even when the intended fault is never
+    // reached. This observes the normal operation; it does not retry or extend it.
+    report.observations.push({phase,updateAttempt:{startedAt:updateStartedAt,finishedAt:new Date().toISOString(),wallElapsedMs:Date.now()-updateBegan,...updateAttempt},requestsDuringAttempt:server.requests.slice(index)});await write();
     assert.ok(server.requests.slice(index).some(r=>r.injected&&r.path===fault.path),'Art-module interruption was not exercised');assert.equal(result.canApplyUpdate,false);assert.equal(await rawSave(),before);assert.equal(await page.evaluate(()=>performance.timeOrigin),time);await installed(page,A);
     report.observations.push({phase,status:result});
   });
