@@ -102,8 +102,12 @@ export function paintGround(material, {weights, detail}) {
       float pilotWetToe=smoothstep(.12,.90,vPaintWet);
       vec2 groundSlope=vec2(0.0);float groundCavity=1.0,groundRoughness=mix(.95,.72,pilotWetToe);
       // Reuse this existing sample for the packed valley detail; no extra fetch.
-      float valleyRegion=1.0-smoothstep(170.0,205.0,max(abs(vPaintPoint.x),abs(vPaintPoint.z)));
-      vec4 valleyBrush=texture2D(uBrushGrain,vPaintPoint.xz*mix(.37,.0625,valleyRegion>0.0?uValleyDetailReady:0.0)+vec2(.31,.72));
+      float valleyRadius=max(abs(vPaintPoint.x),abs(vPaintPoint.z));
+      float valleyRegion=1.0-smoothstep(170.0,185.0,valleyRadius);
+      // Fade the added relief before continuously returning to the historical
+      // grain frequency. Outside205 m both old coordinates and R bytes match.
+      float valleyFrequency=(1.0-smoothstep(185.0,205.0,valleyRadius))*uValleyDetailReady;
+      vec4 valleyBrush=texture2D(uBrushGrain,vPaintPoint.xz*mix(.37,.0625,valleyFrequency)+vec2(.31,.72));
       float grain=valleyBrush.r;
       float valleyDetail=valleyRegion*(1.0-pilotGround)*(1.0-vPaintWet*.90)*(1.0-habitat.g*.70)*uValleyDetailReady;
       float bedding=vPaintPoint.y*.24+vPaintPoint.x*.037+vPaintPoint.z*.018;
@@ -115,9 +119,9 @@ export function paintGround(material, {weights, detail}) {
       diffuseColor.rgb*=mix(1.0,.78,vPaintWet);
       // Habitat colours still locate meadow, litter, mineral and wet ground.
       // Only the small turf blades and soil aggregates vary within those masses.
-      float turfStroke=smoothstep(.48,.75,valleyBrush.a),soilCrease=1.0-smoothstep(.29,.47,valleyBrush.a);
-      vec3 strokeTint=mix(vec3(1.09,1.07,1.01),vec3(1.12,1.16,1.045),habitat.r);
-      diffuseColor.rgb*=mix(vec3(1.0),mix(vec3(1.0-soilCrease*.16),strokeTint,turfStroke),valleyDetail);
+      float turfStroke=smoothstep(.49,.70,valleyBrush.a),soilCrease=1.0-smoothstep(.37,.47,valleyBrush.a);
+      vec3 strokeTint=mix(vec3(1.14,1.12,1.035),vec3(1.17,1.22,1.07),habitat.r);
+      diffuseColor.rgb*=mix(vec3(1.0),mix(vec3(1.0-soilCrease*.18),strokeTint,turfStroke),valleyDetail);
       groundSlope=(valleyBrush.gb*2.0-1.0)*valleyDetail;
       if(pilotGround>0.0) {
         // Replace the weak broad pilot tint with metre-scale meadow/earth
@@ -168,7 +172,7 @@ export function paintGround(material, {weights, detail}) {
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65)*groundCavity;
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v8-packed-valley-ground';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v9-colony-valley-ground';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {

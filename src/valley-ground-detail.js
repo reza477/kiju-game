@@ -20,15 +20,22 @@ export function packValleyDetail(source,size){
       data[i]=Math.round(data[i]+(tone-data[i])*t);
     }
   }
-  // Organic root-centred sprays with clear soil between their unequal blades.
-  // A fixed seed and wrapping strokes make one seamless, non-directional tile.
-  for(let clump=0;clump<190;clump++){
-    const x=random()*metres,z=random()*metres,angle=random()*Math.PI*2;
-    const blades=3+Math.floor(random()*5),root=.10+random()*.15;
-    stroke(x,z,root*1.4,root,angle,78,.40);
-    for(let blade=0;blade<blades;blade++){
-      const a=angle+(random()-.5)*2.8,length=.17+random()*.34,reach=length*.55;
-      stroke(x+Math.cos(a)*reach,z+Math.sin(a)*reach,.035+random()*.027,length,a+Math.PI/2,174+random()*37,.80);
+  // Unequal colonies create metre-scale negative space from actual blade
+  // forms. There are no broad coloured circles beneath them. Their roots and
+  // tapering tips break the contour, instead of evenly dusting every pixel.
+  for(let colony=0;colony<10;colony++){
+    const cx=random()*metres,cz=random()*metres,axis=random()*Math.PI*2;
+    const spread=.85+random()*1.05,stretch=.43+random()*.44,clumps=12+Math.floor(random()*13);
+    for(let clump=0;clump<clumps;clump++){
+      const theta=random()*Math.PI*2,radius=Math.sqrt(random())*spread;
+      const along=Math.cos(theta)*radius,across=Math.sin(theta)*radius*stretch;
+      const x=cx+Math.cos(axis)*along-Math.sin(axis)*across,z=cz+Math.sin(axis)*along+Math.cos(axis)*across;
+      const angle=axis+(random()-.5)*3.3,blades=3+Math.floor(random()*5),root=.12+random()*.19;
+      stroke(x,z,root*1.4,root,angle,77,.54);
+      for(let blade=0;blade<blades;blade++){
+        const a=angle+(random()-.5)*2.8,length=.19+random()*.40,reach=length*.55;
+        stroke(x+Math.cos(a)*reach,z+Math.sin(a)*reach,.041+random()*.031,length,a+Math.PI/2,176+random()*37,.82);
+      }
     }
   }
   // Small embedded clods break the intervening soil without pale pebble dots.

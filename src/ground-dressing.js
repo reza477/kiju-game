@@ -74,11 +74,37 @@ export function fallenWoodGeometry(){
   geometry.computeBoundingBox();geometry.computeBoundingSphere();geometry.name='Splintered fallen woodland limb';return geometry;
 }
 
+// The remains of a low masonry pier: unequal courses, chipped bevels and a few
+// fallen blocks. This is one small visual assembly, never a building or cover.
+export function masonryRemnantGeometry(){
+  const p=[],uv=[],c=[];
+  function block(x,y,z,w,h,d,turn,seed){
+    const rand=random(seed),bevel=Math.min(w,d)*.12;
+    const rim=[[-w/2+bevel,-d/2],[w/2-bevel,-d/2],[w/2,-d/2+bevel],[w/2,d/2-bevel],[w/2-bevel,d/2],[-w/2+bevel,d/2],[-w/2,d/2-bevel],[-w/2,-d/2+bevel]];
+    const cs=Math.cos(turn),sn=Math.sin(turn),top=rim.map(([a,b])=>[a*.9,h-.045-rand()*.08,b*.9]);
+    const low=rim.map(([a,b])=>[a,0,b]),shoulder=rim.map(([a,b],i)=>[a,top[i][1]-.06,b]);
+    function tri(a,b,d,shade){for(const v of[a,d,b]){const wx=x+v[0]*cs-v[2]*sn,wz=z+v[0]*sn+v[2]*cs,wy=y+v[1];p.push(wx,wy,wz);uv.push((v[0]+v[2])*.52,wy*.52);const moss=Math.max(0,1-wy/.65)*.23;c.push(shade*(1-moss*.9),shade*(1-moss*.35),shade*(.94-moss));}}
+    for(let i=0;i<8;i++){
+      const j=(i+1)%8,shade=.77+(i%3)*.037;
+      tri(low[i],low[j],shoulder[i],shade);tri(low[j],shoulder[j],shoulder[i],shade);
+      tri(shoulder[i],shoulder[j],top[i],shade+.045);tri(shoulder[j],top[j],top[i],shade+.045);
+      tri([0,h-.1,0],top[i],top[j],.86);tri([0,0,0],low[j],low[i],.64);
+    }
+  }
+  block(-.47,0,-.10,1.23,.53,.92,.08,921);
+  block(-.50,.48,-.12,1.02,.57,.76,-.035,1921);
+  block(-.39,.99,-.13,.80,.46,.65,.055,2921);
+  block(.60,-.04,.12,.89,.41,.75,.40,3921);
+  block(.12,-.055,.69,.57,.28,.47,-.61,4921);
+  return finish(p,uv,c,'Chipped mossy masonry remnant');
+}
+
 export function bindGroundDressing({group,Instances,records}){
   const leaves=new Instances(group,rosetteGeometry(),getMaterial('foliage',0xffffff,{vertexColors:true,side:T.DoubleSide,roughness:.96}),false,'grass');
   const chips=new Instances(group,shingleGeometry(),getMaterial('rock',0xa1a293,{vertexColors:true,roughness:1}),false);
   const wood=new Instances(group,fallenWoodGeometry(),getMaterial('bark',0x8e8770,{roughness:1}),true);
-  const batches=[['woodland-leaves',leaves],['bank-shingle',chips],['fallen-wood',wood]],owners=[];
+  const masonry=new Instances(group,masonryRemnantGeometry(),getMaterial('stone',0xb1b5a0,{vertexColors:true,roughness:1}),true);
+  const batches=[['woodland-leaves',leaves],['bank-shingle',chips],['fallen-wood',wood],['masonry-remnant',masonry]],owners=[];
   const acceptable=(x,z)=>inArea(x,z)&&!protectedResource(x,z,2)&&Math.abs(z-roadZ(x))>7&&Math.hypot(x+30,z-40)>24&&renderedTerrainHeight(x,z)>-.35&&terrainNormal(x,z).y>.90;
   const cells=new Map(),selected=new Set();
   // One tree and one rock owner per 48-m cell, with a fixed total ceiling.
@@ -97,6 +123,12 @@ export function bindGroundDressing({group,Instances,records}){
     return near(a)-near(b)||seedFor(a.id)-seedFor(b.id);
   });
   for(const record of ranked.slice(0,56))selected.add(record);
+  // Sparse old-world fragments are subordinate to the established rocks. Keep
+  // their own silhouette distinct; do not replace or move the original rock.
+  const remnants=new Set([...selected].filter(r=>r.kind==='rock'&&acceptable(r.x,r.z)).sort((a,b)=>{
+    const near=r=>Math.hypot(r.x+30,r.z-40)<95?0:1;
+    return near(a)-near(b)||seedFor(a.id+':stone')-seedFor(b.id+':stone');
+  }).slice(0,13));
   for(const record of records){
     if(!selected.has(record))continue;
     const rand=random(seedFor(record.id)),starts=batches.map(([,batch])=>batch.items.length),tree=record.kind==='tree';
@@ -122,6 +154,13 @@ export function bindGroundDressing({group,Instances,records}){
     if(tree){
       const a=axis+.8,x=record.x+Math.cos(a)*2.5,z=record.z+Math.sin(a)*2.5;
       if(acceptable(x,z))wood.add(x,renderedTerrainHeight(x,z)-.065,z,.78+rand()*.42,.82,.85,0xffffff,a+.6,surfaceRotation(x,z,a+.6));
+    }
+    if(remnants.has(record)){
+      const x=record.x+Math.cos(axis)*1.55,z=record.z+Math.sin(axis)*1.55;
+      if(acceptable(x,z)){
+        const size=.85+(seedFor(record.id+':scale')%31)/100;
+        masonry.add(x,renderedTerrainHeight(x,z)-.09,z,size,size*(.86+(seedFor(record.id)%25)/100),size,0xffffff,axis+.4,surfaceRotation(x,z,axis+.4));
+      }
     }
     const refs=[];
     batches.forEach(([kind,batch],i)=>{const first=starts[i],count=batch.items.length-first;if(count){const ref={batch,first,count};record.parts.push(ref);refs.push({kind,name:'Ground dressing '+kind,first,count});}});
