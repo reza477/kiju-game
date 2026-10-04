@@ -10,6 +10,7 @@ import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
 import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
 import { bindMeshyPilot } from './meshy-pilot.js';
+import { bindGroundDressing } from './ground-dressing.js';
 
 // Local scenery mixes the existing generated world with a bounded imported kit.
 const TAU = Math.PI * 2;
@@ -1042,6 +1043,7 @@ export function createLandscape() {
   const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,selectionHeightAt:selectionSceneryHeight,ecologyAt,isClearing});
   const groundTransitions=composeGroundTransitions(grass,records,looseGrassCount);
   const pilot=bindMeshyPilot({group,Instances,records,trees,rocks});
+  const dressing=bindGroundDressing({group,Instances,records});
   const canopyMeshes = trees.finish(),distantCanopyMeshes=distantTrees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
@@ -1052,6 +1054,7 @@ export function createLandscape() {
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
   stats.meshyPilot=pilot.stats;
+  stats.groundDressing=dressing.stats;
   stats.drainage=valleyDrainageDiagnostics();
   stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;

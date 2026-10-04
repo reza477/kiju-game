@@ -1,6 +1,7 @@
 // Project-authored painterly surfaces. Linear-light shader colors; no external
 // assets, mutable material cache, added passes or simulated terrain displacement.
 import {getMaterial} from './materials.js';
+import {groundPatchMaps} from './ground-patch.js';
 
 // A soft, metre-space boundary keeps this material pilot inside the selected
 // riverbank/woodland rectangle. Outside it the established surfaces are exact.
@@ -73,15 +74,23 @@ export function getRuinMaterial(kind, color) {
   return material;
 }
 export function paintGround(material, {weights, detail}) {
+  const patch=groundPatchMaps();
+  // Enumerable texture handles keep the shared atlas visible to the existing
+  // resource inventory. Scene/material disposal never owns these page maps.
+  if(patch){material.groundColourMap=patch.colour;material.groundReliefMap=patch.relief;}
   material.onBeforeCompile = shader => {
     shader.uniforms.uHabitat = {value:weights};
     shader.uniforms.uBrushGrain = {value:detail};
+    shader.uniforms.uGroundColour = {value:patch?.colour??null};
+    shader.uniforms.uGroundRelief = {value:patch?.relief??null};
+    shader.uniforms.uGroundPatchReady = {value:patch?1:0};
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vPaintPoint;attribute float groundMoisture;varying float vPaintWet;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaintPoint=position;vPaintWet=groundMoisture;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
       varying vec3 vPaintPoint;varying float vPaintWet;
       uniform sampler2D uHabitat,uBrushGrain;
+      uniform sampler2D uGroundColour,uGroundRelief;uniform float uGroundPatchReady;
       ${pilotMaskGLSL}
       ${pilotWoodlandGLSL}
     `).replace('#include <map_fragment>', `#include <map_fragment>
@@ -90,8 +99,8 @@ export function paintGround(material, {weights, detail}) {
       vec3 authoredGround=diffuseColor.rgb;
       float pilotGround=pilotSurfaceMask(vPaintPoint.xz);
       float pilotWetToe=smoothstep(.12,.90,vPaintWet);
-      // Fine grain supports the broad authored habitat masses.
-      // No photographic grass, artificial pebble relief or fine repeated stamps.
+      vec2 groundSlope=vec2(0.0);float groundCavity=1.0,groundRoughness=mix(.95,.72,pilotWetToe);
+      // Retain the established broad material outside the authored patch.
       float grain=texture2D(uBrushGrain,vPaintPoint.xz*.37+vec2(.31,.72)).r;
       float bedding=vPaintPoint.y*.24+vPaintPoint.x*.037+vPaintPoint.z*.018;
       float strata=mix(.93,1.05,smoothstep(.13,.83,fract(bedding)));
@@ -127,15 +136,29 @@ export function paintGround(material, {weights, detail}) {
         pilotColour=mix(pilotColour,vec3(.032,.047,.034),pilotWetToe*.78);
         pilotColour*=.998+(grain-.53)*.010;
         diffuseColor.rgb=mix(diffuseColor.rgb,pilotColour,pilotGround);
+        if(uGroundPatchReady>0.5){
+          // One authored, non-repeating material covers this limited reach.
+          // The physical terrain and bank field remain the source of geometry.
+          vec2 patchUV=(vPaintPoint.xz-vec2(-65.0,-140.0))/vec2(97.0,50.0);
+          vec4 patchColour=texture2D(uGroundColour,patchUV);
+          vec3 patchRelief=texture2D(uGroundRelief,patchUV).rgb;
+          diffuseColor.rgb=mix(diffuseColor.rgb,patchColour.rgb,pilotGround);
+          groundRoughness=patchColour.a;groundSlope=(patchRelief.rg*2.0-1.0)*pilotGround;
+          groundCavity=mix(1.0,patchRelief.b,pilotGround);
+        }
       }
     `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
       roughnessFactor=mix(.94,.67,vPaintWet);
-      roughnessFactor=mix(roughnessFactor,mix(.95,.72,pilotWetToe),pilotGround);
+      roughnessFactor=mix(roughnessFactor,uGroundPatchReady>0.5?groundRoughness:mix(.95,.72,pilotWetToe),pilotGround);
+    `).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      // Add a small world-oriented optical slope to the real mesh normal.
+      // No displaced silhouette, parallax or extra geometry is introduced.
+      if(pilotGround>0.0&&uGroundPatchReady>0.5)normal=normalize(normal+mat3(viewMatrix)*vec3(-groundSlope.x,0.0,-groundSlope.y)*.68);
     `).replace('#include <aomap_fragment>', `#include <aomap_fragment>
-      reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65);
+      reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65)*groundCavity;
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v6-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v7-authored-ground';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {
