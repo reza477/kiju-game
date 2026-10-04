@@ -124,7 +124,7 @@ test('independent imported owners share immutable masters but have separate geom
 
 test('all three actual embedded GLBs load once with matte materials and independent instance ownership', async () => {
   const originalFetch = globalThis.fetch, originalSelf = globalThis.self, originalBitmap = globalThis.createImageBitmap;
-  const local = new Set(['rock', 'pine', 'broadleaf'].map(kind => new URL('../assets/scenery/meshy-pilot/' + kind + '.glb', import.meta.url).href));
+  const local = new Set(['rock', 'pine', 'broadleaf', 'pine-lods', 'broadleaf-lods'].map(kind => new URL('../assets/scenery/meshy-pilot/' + kind + '.glb', import.meta.url).href));
   const requests = [], images = [], owners = [];
   try {
     globalThis.self = globalThis;
@@ -134,7 +134,7 @@ test('all three actual embedded GLBs load once with matte materials and independ
     globalThis.fetch = async (input, options) => {
       const url = new URL(typeof input === 'string' ? input : input.url || input.href);
       if (url.protocol === 'file:') {
-        assert.ok(local.has(url.href), 'Only the three bounded local masters may load');
+        assert.ok(local.has(url.href), 'Only the three local masters and two derived geometry files may load');
         requests.push(url.href); return new Response(await readFile(url), {headers: {'Content-Type': 'model/gltf-binary'}});
       }
       assert.equal(url.protocol, 'blob:', 'Imported assets must not contact an external service'); return originalFetch(input, options);
@@ -147,7 +147,11 @@ test('all three actual embedded GLBs load once with matte materials and independ
     assert.equal(status.state, 'ready'); assert.equal(status.error, null);
     assert.deepEqual(status.assets.map(asset => asset.kind).sort(), ['broadleaf', 'pine', 'rock']);
     assert.deepEqual(requests.slice().sort(), [...local].sort());
-    assert.equal(status.bytes, status.assets.reduce((sum, asset) => sum + asset.bytes, 0));
+    assert.equal(status.bytes, status.assets.reduce((sum, asset) => sum + asset.bytes, 0) + status.treeLodBytes);
+    assert.ok(status.treeLodBytes > 0 && status.treeLodBytes < 1250000, 'Shared geometry-only LOD download remains bounded');
+    for (const asset of status.assets.filter(asset => asset.kind !== 'rock')) {
+      assert.ok(asset.lods.near.triangles < 7000); assert.ok(asset.lods.far.triangles < 7000);
+    }
     assert.equal(images.length, 6, 'Each prepared master retains only its embedded base and normal images');
     for (const asset of status.assets) {assert.equal(asset.textures.length, 2); assert.ok(asset.triangles > 0); assert.ok(asset.vertices > 0);}
     const first = fixture(undefined, module.bindMeshyPilot), second = fixture(undefined, module.bindMeshyPilot); owners.push(first, second);
@@ -164,7 +168,7 @@ test('all three actual embedded GLBs load once with matte materials and independ
       for (const attribute of Object.values(mesh.geometry.attributes)) for (const value of attribute.array) assert.ok(Number.isFinite(value));
       assert.ok(mesh.geometry.boundingSphere.radius > 0);
     }
-    assert.equal(module.loadMeshyPilot(), firstLoad); await module.loadMeshyPilot(); assert.equal(requests.length, 3);
+    assert.equal(module.loadMeshyPilot(), firstLoad); await module.loadMeshyPilot(); assert.equal(requests.length, 5);
     for (const image of images) assert.equal(image.closed, 0, 'Prepared shared image data must remain usable for the page lifetime');
   } finally {
     for (const owner of owners) disposeGroup(owner.group);

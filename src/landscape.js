@@ -10,7 +10,7 @@ import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
 import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
 import { packValleyDetail } from './valley-ground-detail.js';
-import { bindMeshyPilot } from './meshy-pilot.js';
+import { bindMeshyPilot, bindMeshyTreeCoverage } from './meshy-pilot.js';
 import { bindGroundDressing } from './ground-dressing.js';
 import { createGroundCoverVolume } from './ground-cover-volume.js';
 
@@ -401,7 +401,10 @@ class Instances {
     mesh.computeBoundingSphere(); if (this.wind) animateVegetation(mesh, this.items, this.wind);
     // Keep stable original indices for saved destruction; partition only the
     // render storage so off-screen vegetation and its shadow work can be culled.
-    this.group.add(this.wind && this.items.length >= 256 ? partitionStaticInstances(mesh,this.items) : mesh);
+    // Imported crowns carry one instance per tree instead of many tiny pieces.
+    // Keep the existing spatial culling useful for those smaller, denser batches.
+    const partitionThreshold = this.geometry.userData.meshyTreeLod ? 32 : 256;
+    this.group.add(this.wind && this.items.length >= partitionThreshold ? partitionStaticInstances(mesh,this.items) : mesh);
     this.mesh = mesh; return mesh;
   }
 }
@@ -436,7 +439,11 @@ function treeBatches(group,distant=false) {
     wood: new Instances(group, new T.CylinderGeometry(.75, 1, 1, 6, 1, true), getMaterial('bark', 0xffffff), true, 'wood'),
     leaves: new Instances(group, branchSprayGeometry(false,distant), foliage, !distant, 'foliage'),
     needles: new Instances(group, branchSprayGeometry(true,distant), needles, !distant, 'foliage'),
-    finish() { const prefix=distant?'Distant ':'';return [this.wood.finish(prefix+'Tree trunks and branches'), this.leaves.finish(prefix+'Broadleaf canopies'), this.needles.finish(prefix+'Pine boughs')].filter(Boolean); }
+    finish(records = []) {
+      const imported = bindMeshyTreeCoverage({group, Instances, trees: this, records}); this.coverage = imported.stats;
+      const prefix=distant?'Distant ':'';
+      return [...imported.meshes, this.wood.finish(prefix+'Tree trunks and branches'), this.leaves.finish(prefix+'Broadleaf canopies'), this.needles.finish(prefix+'Pine boughs')].filter(Boolean);
+    }
   };
 }
 function addTree(batch, rand, x, y, z, scale = 1, pine = false) {
@@ -1048,7 +1055,7 @@ export function createLandscape() {
   const groundTransitions=composeGroundTransitions(grass,records,looseGrassCount);
   const pilot=bindMeshyPilot({group,Instances,records,trees,rocks});
   const dressing=bindGroundDressing({group,Instances,records});
-  const canopyMeshes = trees.finish(),distantCanopyMeshes=distantTrees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
+  const canopyMeshes = trees.finish(records),distantCanopyMeshes=distantTrees.finish(records); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
   const meadowDetail=createMeadowDetail(group);
@@ -1060,6 +1067,7 @@ export function createLandscape() {
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
   stats.meshyPilot=pilot.stats;
+  stats.meshyTreeCoverage={near:trees.coverage,distant:distantTrees.coverage};
   stats.groundDressing=dressing.stats;
   stats.groundCoverVolume=groundCover.stats;
   stats.drainage=valleyDrainageDiagnostics();

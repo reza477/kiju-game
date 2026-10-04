@@ -2,7 +2,9 @@
 
 ## Current state
 
-**Configured but blocked. The permanent address is https://colossus-wake-playtest.vercel.app, currently serving only a protected empty setup page. No playable game has been published.**
+**4 October 2026 recheck:** the source repository is now public, following the owner's later source-visibility decision. The September setup descriptions of a private repository below are historical, not its current visibility. The private hosted origin still redirects anonymous requests for `/`, `/release.json` and `/src/main.js` to authentication. This proves protection of those checked routes, not an authenticated playable release. `handoff-playtest.mjs` and `vercel-delivery.mjs` still require a private repository; that mismatch remains unresolved. This tree-asset task does not change repository visibility, weaken those guards or waive release readiness. Current credentials, included-usage balances and an exact hosted game build were not verified.
+
+**Configured but blocked. The permanent address is https://colossus-wake-playtest.vercel.app and is authentication-protected. Its last authenticated setup verification showed an empty setup page; no current playable game deployment is verified.**
 
 The designated branch is `codex/playtest` in private `reza477/kiju-game`. The existing `ci.yml` is extended into one check/build/stage/promote workflow; `main` remains the default branch. The previous iPhone pass is preserved in `2a77d13`; repository maintenance from `origin/main` is merged in `ba8d457` without rewriting history.
 

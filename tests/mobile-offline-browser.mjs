@@ -22,6 +22,18 @@ assert.equal(descriptor.app,'colossus-wake');assert.match(release.buildId,/^[a-f
 // deadlines are unchanged; this records actual manifest/cache bytes and rigs.
 const requireCarrierAssets=process.env.CARRIER_ASSETS_REQUIRED==='1';
 const carrierEvidence={enabled:requireCarrierAssets,manifest:[],phases:[]};
+const requireMeshyTrees=process.env.MESHY_TREES_REQUIRED==='1';
+const treeEvidence={enabled:requireMeshyTrees,manifest:[],phases:[]};
+if(requireMeshyTrees){
+ const sourceRoot=fileURLToPath(new URL('..',import.meta.url));
+ for(const url of ['/assets/scenery/meshy-pilot/pine.glb','/assets/scenery/meshy-pilot/broadleaf.glb','/assets/scenery/meshy-pilot/pine-lods.glb','/assets/scenery/meshy-pilot/broadleaf-lods.glb','/src/meshy-pilot.js','/src/landscape.js']){
+  const row=descriptor.files.find(file=>file.url===url);assert.ok(row,'Release omitted Meshy tree input '+url);
+  const source=await fs.readFile(path.join(sourceRoot,url.slice(1))),emitted=await fs.readFile(path.join(release.output,url.slice(1)));
+  assert.deepEqual(emitted,source,'Frozen release tree input differs from source '+url);
+  assert.equal(row.sha256,createHash('sha256').update(source).digest('hex'));
+  treeEvidence.manifest.push({...row});
+ }
+}
 if(requireCarrierAssets){
  const sourceRoot=fileURLToPath(new URL('..',import.meta.url));
  for(const url of ['/assets/carriers/meshy/cyborg.glb','/assets/carriers/meshy/flesh.glb']){
@@ -101,6 +113,33 @@ async function verifyCarrierAssets(phase,{offline=false}={}){
  }
  checks.push(phase+': both GLBs match source and manifest byte hashes in the installed cache; both actual imported rigs are ready with valid scene-owned meshes');
 }
+async function verifyMeshyTrees(phase){
+ if(!requireMeshyTrees)return;
+ const actual=await page.evaluate(async expected=>{
+  const status=(await import('/src/meshy-pilot.js')).meshyPilotStatus(),scene=window.__colossus.scene,coverage=structuredClone(scene.landscape.stats.meshyTreeCoverage),meshes=[];
+  scene.scene.traverse(mesh=>{if(mesh.userData.meshyTreeCoverage)meshes.push({name:mesh.name,kind:mesh.userData.meshyTreeCoverage,count:mesh.count,finite:mesh.matrixWorld.elements.every(Number.isFinite)});});
+  const completeCaches=[];
+  for(const name of await caches.keys()){
+   if(name!=='colossus-wake-release-'+expected.build&&!name.startsWith('colossus-wake-release-'+expected.build+'-repair-'))continue;
+   const cache=await caches.open(name),marker=await cache.match('/__colossus_cache_complete__');
+   if(!marker||(await marker.json()).buildId!==expected.build)continue;
+   const entries=[];
+   for(const file of expected.files){
+    const response=await cache.match(file.url);if(!response){entries.push({url:file.url,missing:true});continue;}
+    const bytes=await response.arrayBuffer(),hash=await crypto.subtle.digest('SHA-256',bytes);
+    entries.push({url:file.url,bytes:bytes.byteLength,sha256:Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join(''),type:response.headers.get('content-type')});
+   }
+   completeCaches.push({name,entries});
+  }
+  return{status,coverage,meshes,completeCaches};
+ },{build:release.buildId,files:treeEvidence.manifest});
+ assert.equal(actual.status.state,'ready');assert.equal(actual.coverage.near.state,'ready');assert.equal(actual.coverage.distant.state,'ready');
+ assert.ok(actual.coverage.near.count>300&&actual.coverage.distant.count>500,'World Meshy tree coverage is incomplete');
+ assert.ok(actual.meshes.length>0&&actual.meshes.every(mesh=>mesh.count>0&&mesh.finite));
+ assert.ok(actual.completeCaches.length>0,'No installed exact-build tree cache');
+ for(const cache of actual.completeCaches)for(const file of treeEvidence.manifest){const cached=cache.entries.find(row=>row.url===file.url);assert.ok(cached&&!cached.missing,'Cached Meshy tree input missing: '+file.url);for(const key of ['bytes','sha256','type'])assert.equal(cached[key],file[key],phase+': tree cache '+key);}
+ treeEvidence.phases.push({phase,...actual});checks.push(phase+': original Meshy atlases, derived LODs and tree runtime match the installed cache; near, distant and scene-owned imports are ready');
+}
 try{
  await page.goto(`${base}/?test=1`);
  // Finish the production cold-title install/reload before starting a save, so
@@ -118,6 +157,7 @@ try{
  const ready=await page.evaluate(async()=>({...await (await import('/src/offline.js')).refreshOfflineStatus(),runtimeBuild:(await import('/src/build-info.js')).BUILD_ID}));
  assert.equal(ready.installedBuildId,release.buildId);assert.equal(ready.runtimeBuild,release.buildId);assert.equal(typeof ready.needsReopen,'boolean');checks.push('Automatic/manual offline preparation verifies the complete runtime and matching build identity');
  await verifyCarrierAssets('installation-ready');
+ await verifyMeshyTrees('installation-ready');
  assert.equal((await page.evaluate(async()=>await (await fetch('/health')).json())).testNetworkOnly,true);checks.push('Health endpoint remains network-only');
  await page.screenshot({path:`${out}/installation-ready.png`});
  await page.close();await new Promise(resolve=>server.close(resolve));await context.setOffline(true);
@@ -125,6 +165,7 @@ try{
  assert.ok(await page.evaluate(()=>!!navigator.serviceWorker.controller));await page.locator('#continue').tap();await page.waitForTimeout(1000);
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);assert.ok(await page.evaluate(()=>window.__colossus.state.time)>=saved.time);checks.push('With server stopped and network offline, reopened game resumes the saved expedition');
  await verifyCarrierAssets('server-stopped-offline-reopen',{offline:true});
+ await verifyMeshyTrees('server-stopped-offline-reopen');
  const position=await page.evaluate(()=>({x:window.__colossus.state.x,z:window.__colossus.state.z}));
  const session=await context.newCDPSession(page),pad=await page.locator('[data-move="up"]').boundingBox();
  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:0,x:pad.x+22,y:pad.y+22}]});await page.waitForTimeout(1200);await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
@@ -146,6 +187,7 @@ try{
  await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus,{},{timeout:90000});await page.locator('#continue').tap();
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);checks.push('Explicit full-cache repair restores the game without deleting its save');
  await verifyCarrierAssets('after-explicit-cache-repair');
+ await verifyMeshyTrees('after-explicit-cache-repair');
  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);checks.push('No browser runtime errors or third-party requests');
- await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote,localBlobRequests},null,2));
-}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
+ await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote,localBlobRequests},null,2));
+}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}

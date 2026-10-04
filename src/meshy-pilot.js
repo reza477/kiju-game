@@ -5,10 +5,11 @@ import {mergeGeometries} from '../vendor/BufferGeometryUtils.js';
 // A bounded local kit. Add a tree only after its permitted Meshy export has been
 // downloaded, inspected, and recorded. There is no Meshy/CDN request at runtime.
 const files = Object.freeze({rock: '../assets/scenery/meshy-pilot/rock.glb', pine: '../assets/scenery/meshy-pilot/pine.glb', broadleaf: '../assets/scenery/meshy-pilot/broadleaf.glb'});
+const treeLodFiles = Object.freeze({pine: '../assets/scenery/meshy-pilot/pine-lods.glb', broadleaf: '../assets/scenery/meshy-pilot/broadleaf-lods.glb'});
 export const MESHY_PILOT_AREA = Object.freeze({minX: -65, maxX: 32, minZ: -140, maxZ: -90});
 const masters = new Map();
 let loading;
-const status = {state: 'idle', milliseconds: 0, bytes: 0, assets: [], error: null};
+const status = {state: 'idle', milliseconds: 0, bytes: 0, treeLodBytes: 0, assets: [], error: null};
 
 export function meshyPilotStatus() {
   return {...status, assets: status.assets.map(asset => ({...asset, bounds: {...asset.bounds}, textures: asset.textures.map(texture => ({...texture}))}))};
@@ -173,6 +174,37 @@ export function loadMeshyPilot() {
         const master = normalizeMaster(gltf, kind, bytes.byteLength);
         masters.set(kind, master); status.bytes += bytes.byteLength; status.assets.push(master.inventory);
       }
+      // These local geometry-only files are reproducible reductions of the same
+      // Meshy meshes. Every tree continues to share its original painted atlas.
+      for (const [kind, relative] of Object.entries(treeLodFiles)) {
+        const response = await fetch(new URL(relative, import.meta.url));
+        if (!response.ok) throw new Error('Local ' + kind + ' LOD returned HTTP ' + response.status);
+        const bytes = await response.arrayBuffer(); readBinaryDocument(bytes);
+        const gltf = await loader.parseAsync(bytes, ''), master = masters.get(kind), lods = {};
+        try {
+          for (const level of ['near', 'far']) {
+            const mesh = gltf.scene.getObjectByName(kind + '-' + level);
+            if (!mesh?.isMesh || mesh.isSkinnedMesh || gltf.animations.length) throw new Error('Missing static ' + kind + ' ' + level + ' LOD');
+            const geometry = mesh.geometry.clone();
+            lods[level] = geometry;
+            for (const name of ['position', 'normal', 'uv']) {
+              const attribute = geometry.attributes[name];
+              if (!attribute) throw new Error('Tree LOD missing ' + name);
+              for (const value of attribute.array) if (!Number.isFinite(value)) throw new Error('Non-finite tree LOD attribute');
+            }
+            const count = geometry.attributes.position.count;
+            if (!geometry.index || geometry.index.count % 3 || geometry.index.count > 21000) throw new Error('Tree LOD exceeds its bounded triangle budget');
+            for (const index of geometry.index.array) if (index >= count) throw new Error('Invalid tree LOD index');
+            geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+            for (const edge of ['min', 'max']) if (geometry.boundingBox[edge].distanceTo(master.geometry.boundingBox[edge]) > .0001) throw new Error('Tree LOD changed the original root/extent');
+            geometry.name = 'Meshy ' + kind + ' ' + level + ' master';
+            geometry.userData = {shared: true, meshyPilot: kind, meshyTreeLod: level};
+          }
+          master.lods = lods; master.inventory.lods = Object.fromEntries(Object.entries(lods).map(([level, geometry]) => [level, {triangles: geometry.index.count / 3, vertices: geometry.attributes.position.count}]));
+          status.bytes += bytes.byteLength; status.treeLodBytes += bytes.byteLength;
+        } catch (error) {for (const geometry of Object.values(lods)) geometry.dispose(); throw error;}
+        finally {releaseResources(gltf.scene);}
+      }
       status.state = 'ready';
       status.milliseconds = performance.now() - start;
       return meshyPilotStatus();
@@ -180,12 +212,80 @@ export function loadMeshyPilot() {
       status.state = 'failed'; status.error = String(error?.message || error);
       for (const master of masters.values()) {
         master.geometry.dispose(); master.material.dispose();
+        for (const geometry of Object.values(master.lods || {})) geometry.dispose();
         releaseTextures(new Set(Object.values(master.material).filter(value => value?.isTexture)));
       }
       masters.clear(); throw error;
     } finally {status.milliseconds = performance.now() - start;}
   })();
   return loading;
+}
+
+// Convert only standing addTree roots. Rootless shrubs, cut logs and attached
+// ground dressing retain their exact shapes, matrices and logical ownership.
+export function bindMeshyTreeCoverage({group, Instances, trees, records = [], assets = masters}) {
+  const stats = {state: 'not-loaded', roots: [], count: 0, triangles: 0, level: trees.distant ? 'far' : 'near'};
+  // CPU-only construction fixtures may deliberately omit asset preloading.
+  // Ordinary game boot awaits the mandatory complete library above.
+  if (!assets.has('pine') || !assets.has('broadleaf')) return {meshes: [], stats};
+  const roots = new Map(), removals = new Map(), object = new T.Object3D(), sourceRoots = new Map();
+  for (const batch of [trees.wood, trees.leaves, trees.needles]) {
+    batch.geometry.computeBoundingBox(); const indices = new Map(); sourceRoots.set(batch, indices);
+    for (let index = 0; index < batch.items.length; index++) {
+      const item = batch.items[index], root = item.windRoot;
+      if (!root) continue;
+      const key = root.join(',');
+      if (!roots.has(key)) roots.set(key, {root, kind: 'broadleaf', bounds: new T.Box3(), owners: new Set()});
+      const tree = roots.get(key); if (batch === trees.needles) tree.kind = 'pine';
+      tree.bounds.union(batch.geometry.boundingBox.clone().applyMatrix4(itemMatrix(item, object)));
+      if (!removals.has(batch)) removals.set(batch, new Set()); removals.get(batch).add(index); indices.set(index, tree);
+    }
+  }
+  for (const record of records) for (const ref of record.parts) {
+    const indices = sourceRoots.get(ref.batch); if (!indices) continue;
+    for (let index = ref.first; index < ref.first + ref.count; index++) indices.get(index)?.owners.add(record);
+  }
+  const batches = new Map(), replacements = [];
+  for (const {root, kind, bounds, owners} of roots.values()) {
+    const master = assets.get(kind), level = stats.level, source = master.lods?.[level];
+    if (!source) throw new Error('Meshy ' + kind + ' ' + level + ' LOD is not loaded');
+    if (!batches.has(kind)) {
+      const geometry = source.clone(); geometry.userData.shared = false;
+      batches.set(kind, new Instances(group, geometry, master.material, !trees.distant, 'foliage'));
+    }
+    const batch = batches.get(kind), box = master.geometry.boundingBox, first = batch.items.length;
+    const halfX = Math.max(Math.abs(bounds.min.x - root[0]), Math.abs(bounds.max.x - root[0]));
+    const halfZ = Math.max(Math.abs(bounds.min.z - root[2]), Math.abs(bounds.max.z - root[2]));
+    const fitX = halfX / Math.max(Math.abs(box.min.x), Math.abs(box.max.x)), fitZ = halfZ / Math.max(Math.abs(box.min.z), Math.abs(box.max.z));
+    const narrow = Math.min(fitX, fitZ);
+    // Vary the source crown's orientation without consuming world randomness
+    // or moving a root. Fit the rotated display inside the same root-centred
+    // maximum envelope; never stretch a rounded crown into a long ribbon.
+    const seed = Math.imul(Math.round(root[0] * 1000), 73856093) ^ Math.imul(Math.round(root[2] * 1000), 19349663);
+    const yaw = (seed >>> 0) / 4294967296 * Math.PI * 2;
+    let sx = Math.min(fitX, narrow * 1.35), sz = Math.min(fitZ, narrow * 1.35);
+    const rotated = box.clone().applyMatrix4(new T.Matrix4().makeRotationY(yaw).scale(new T.Vector3(sx, 1, sz)));
+    const shrink = Math.min(1, halfX / Math.max(Math.abs(rotated.min.x), Math.abs(rotated.max.x)), halfZ / Math.max(Math.abs(rotated.min.z), Math.abs(rotated.max.z)));
+    sx *= shrink; sz *= shrink;
+    batch.items.push({x: root[0], y: root[1], z: root[2], sx, sy: Math.min(bounds.max.y - root[1], Math.min(sx, sz) * 2.25), sz, colour: 0xffffff, yaw,
+      windRoot: root.slice(), windFlex: [.66, .008], windMotion: [.73, 2.4]});
+    for (const record of owners) replacements.push({record, part: {batch, first, count: 1}});
+    stats.roots.push({kind, root: root.slice(), owners: [...owners].map(record => record.id)});
+    stats.count++; stats.triangles += source.index.count / 3;
+  }
+  compactBatches(records, removals);
+  for (const {record, part} of replacements) record.parts.push(part);
+  const meshes = [];
+  for (const [kind, batch] of batches) {
+    const mesh = batch.finish('Meshy ' + stats.level + (kind === 'pine' ? ' Pine boughs' : ' Broadleaf canopies'));
+    // Instances.finish can spatially partition large batches. Tag both the
+    // canonical source and its chunks without changing saved-instance indices.
+    for (const part of [mesh, ...(mesh.spatialChunks || [])]) {
+      part.userData.meshyTreeCoverage = kind; part.userData.meshyPilot = kind;
+    }
+    meshes.push(mesh);
+  }
+  stats.state = 'ready'; return {meshes, stats};
 }
 
 function inPilot(record) {return record.x >= MESHY_PILOT_AREA.minX && record.x <= MESHY_PILOT_AREA.maxX && record.z >= MESHY_PILOT_AREA.minZ && record.z <= MESHY_PILOT_AREA.maxZ;}
