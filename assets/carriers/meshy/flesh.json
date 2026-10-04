@@ -1,0 +1,20 @@
+{
+  "source": "Owner-provided Meshy monster",
+  "sourceModelId": "01a10538-3429-7029-a1d3-b698a4b77ecd",
+  "rigTaskId": "01a105a5-baa0-70b3-8cbf-6df6a3f26a2d",
+  "rigWorkflow": "Meshy Smart Rig; 66 weighted joints. Quadruped Dog attempt failed before this successful separate Smart Rig.",
+  "exportFormat": "glTF binary with embedded PBR textures",
+  "sourceSha256": "5f823b59397e904850d42076986960df2eeeca497e0bde2f030a2629f5b8b4af",
+  "sourceBytes": 50621224,
+  "productionSha256": "9fe649cf030e1d37fca4dc68dbaf8a2d58d84e5bdbc7fa21a3ea49c920b2b826",
+  "productionBytes": 8888324,
+  "textureProcessing": "Original embedded textures resized to maximum1024px using existing local scripts/carrier-glb.py; all geometry, skeleton, inverse binds, weights and nonimage buffer views preserved byte-for-byte.",
+  "repackReport": "artifacts/carrier-assets/monster-smart-rig-inspection-1024.json",
+  "animations": "No exported Meshy animation clips. src/meshy-monster.js applies an explicit local procedural quadruped pose to cloned bones.",
+  "geometry": {
+    "triangles": 42998,
+    "joints": 66
+  },
+  "publication": "No asset or project publication performed for this import.",
+  "ownership": "Existing asset supplied by the owner in their Meshy account. No independent transfer-of-rights or third-party clearance claim."
+}

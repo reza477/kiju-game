@@ -1,4 +1,6 @@
 import * as T from '../vendor/three.module.js';
+import {disposeMeshyCarrier} from './meshy-carriers.js';
+import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
 import {distance,FACTIONS,weaponStatus,attackDelay} from './simulation.js';
 import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,loadDaylightEnvironment,setWindowLighting} from './materials.js';
 import {makeCity,animateCity,slotPosition,setCityRings} from './carriers.js';
@@ -97,7 +99,7 @@ function impactAnchor(source,target,start,melee){
     else for(const y of[4,6,8])aims.push(target.rig.localToWorld(new T.Vector3(0,y,0)));
     let nearest=null;
     for(const aim of aims){ray.set(start,aim.clone().sub(start).normalize());const hit=ray.intersectObject(target.root,true).find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}const m=h.object.material;return m&&!Array.isArray(m)&&m.visible&&!(m.transparent&&m.opacity<.2)&&!h.object.userData.enemy&&h.object.userData.slot===undefined;});if(hit&&(!nearest||hit.distance<nearest.distance))nearest=hit;}
-    if(nearest)return {object:nearest.object,local:nearest.object.worldToLocal(nearest.point.clone()),point:nearest.point};
+    if(nearest)return captureImpactAnchor(nearest);
   }
   const origin=start.clone(),centre=target.root.getWorldPosition(new T.Vector3()),heading=centre.clone().sub(source.root.position);heading.y=0;heading.normalize();
   const right=new T.Vector3(heading.z,0,-heading.x),width=target.faction==='kaiju'?1.4:6;
@@ -108,7 +110,7 @@ function impactAnchor(source,target,start,melee){
     const aim=target.root.localToWorld(new T.Vector3(0,height,0));if(melee){aim.addScaledVector(right,lateral);origin.y=aim.y;}
     ray.set(origin,aim.clone().sub(origin).normalize());
     const hit=ray.intersectObject(target.root,true).find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}const m=h.object.material;return m&&!Array.isArray(m)&&m.visible&&!(m.transparent&&m.opacity<.2)&&!h.object.userData.enemy&&h.object.userData.slot===undefined;});
-    if(hit&&(!closest||hit.point.distanceToSquared(start)<closest.point.distanceToSquared(start)))closest={object:hit.object,local:hit.object.worldToLocal(hit.point.clone()),point:hit.point};
+    if(hit&&(!closest||hit.point.distanceToSquared(start)<closest.point.distanceToSquared(start)))closest=captureImpactAnchor(hit);
   }
   return closest;
 }
@@ -117,7 +119,7 @@ function refreshImpactAnchor(fx){
   // A kiting hull can turn around during wind-up. Reacquire its near surface
   // before contact instead of chasing an anchor that rotated to the far side.
   if(!fx.arrived&&Math.abs(Math.atan2(Math.sin(fx.target.heading-fx.anchorHeading),Math.cos(fx.target.heading-fx.anchorHeading)))>.1){const next=impactAnchor(fx.actor,fx.target,fx.start,fx.kind==='impact');if(next){fx.anchor=next;fx.anchorHeading=fx.target.heading;}}
-  fx.end.copy(fx.anchor.object.localToWorld(fx.anchor.local.clone()));
+  resolveImpactAnchor(fx.anchor,fx.end);
 }
 
 export class GameScene {
@@ -168,8 +170,9 @@ export class GameScene {
     // Drop every borrowed site mesh before its owner is disposed. Keep the same
     // bounded array so context/quality preparation always sees current objects.
     this.movementMaterials.length=this.landscape.movementMaterials.length;
-    if(this.city){this.city.root.removeFromParent();disposeGroup(this.city.root);}
-    for(const city of this.enemyCities){city.root.removeFromParent();disposeGroup(city.root);}
+    const disposeCity=city=>{if(city.meshyCarrier){city.meshyCarrier.controller?.dispose();disposeMeshyCarrier(city.meshyCarrier.instance);}city.root.removeFromParent();disposeGroup(city.root);};
+    if(this.city)disposeCity(this.city);
+    for(const city of this.enemyCities)disposeCity(city);
     for(const site of this.labels){site.removeFromParent();disposeGroup(site);}
     for(const fx of this.fx){fx.object.removeFromParent();disposeGroup(fx.object);}this.fx=[];
     this.city=makeCity(s.faction,false,s.rings??1,s.variant);this.scene.add(this.city.root);this.state=s;this.preview=!!options.preview;this.previewDistricts=previewBuildings();
@@ -191,9 +194,6 @@ export class GameScene {
       });
     }
     for(const name of movementRuinShapes.keys())if(movementRuins.has(name))this.movementMaterials.push(movementRuins.get(name));
-    // Stable cached materials avoid another submission on Continue. A changed
-    // resource set still invalidates the key; no per-frame identity allocation.
-    this.movementMaterialKey=this.movementMaterials.map(mesh=>mesh.material.uuid).join(':');
     for(const e of s.enemies){
       const city=makeCity(e.faction,true,2,e.variant);const sample=previewBuildings();sample[2]={type:'cannon',level:1,remaining:0};
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
@@ -201,6 +201,20 @@ export class GameScene {
       const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,proxyHeight,e.faction==='kaiju'?34:e.variant==='drill'?52:32),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?proxyHeight/2:20,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
       this.scene.add(city.root);this.enemyCities.push(city);
     }
+    // Include one real skinned mesh per shared material. Compiling a static
+    // stand-in would omit the skinning program used by these moving bodies.
+    const bodyMaterials=new Map();
+    for(const actor of [this.city,...this.enemyCities])for(const mesh of actor.meshyCarrier?.renderMeshes??[]){
+      const key=mesh.material.uuid;
+      if(!bodyMaterials.has(key))bodyMaterials.set(key,mesh);
+    }
+    // Changing the selected carrier changes actor traversal order, not the
+    // shared material/program set. Keep these representatives canonical so a
+    // cyborg→flesh switch does not repeat already-completed shader preparation.
+    for(const key of [...bodyMaterials.keys()].sort())this.movementMaterials.push(bodyMaterials.get(key));
+    // Stable cached materials avoid another submission on Continue. A changed
+    // resource set still invalidates the key; no per-frame identity allocation.
+    this.movementMaterialKey=this.movementMaterials.map(mesh=>mesh.material.uuid).join(':');
     this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
     this.setLighting(this.light);
   }

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {homedir} from 'node:os';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
 import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
 const require=createRequire(import.meta.url);
@@ -15,6 +17,22 @@ const release=output?{output}:await buildMobileRelease({writeSourceBuildInfo:fal
 const descriptor=JSON.parse(await fs.readFile(path.join(release.output,'release.json'),'utf8'));
 release.buildId=descriptor.buildId;
 assert.equal(descriptor.app,'colossus-wake');assert.match(release.buildId,/^[a-f0-9]{20}$/);
+// Opt-in coverage for the carrier asset pass. Existing delivery scenarios and
+// deadlines are unchanged; this records actual manifest/cache bytes and rigs.
+const requireCarrierAssets=process.env.CARRIER_ASSETS_REQUIRED==='1';
+const carrierEvidence={enabled:requireCarrierAssets,manifest:[],phases:[]};
+if(requireCarrierAssets){
+ const sourceRoot=fileURLToPath(new URL('..',import.meta.url));
+ for(const url of ['/assets/carriers/meshy/cyborg.glb','/assets/carriers/meshy/flesh.glb']){
+  const row=descriptor.files.find(file=>file.url===url);assert.ok(row,'Release manifest omitted '+url);assert.equal(row.type,'model/gltf-binary');
+  const source=await fs.readFile(path.join(sourceRoot,url.slice(1))),emitted=await fs.readFile(path.join(release.output,url.slice(1)));
+  assert.deepEqual(emitted,source,'Frozen release has different carrier bytes: '+url);assert.equal(row.bytes,source.length);
+  assert.equal(row.sha256,createHash('sha256').update(source).digest('hex'),'Release descriptor has wrong carrier hash: '+url);
+  carrierEvidence.manifest.push({...row});
+ }
+ carrierEvidence.requiredModules=['/src/impact-anchor.js','/src/meshy-carriers.js','/src/meshy-cyborg.js','/src/meshy-monster.js','/src/meshy-monster-city.js'];
+ for(const url of carrierEvidence.requiredModules)assert.ok(descriptor.files.some(file=>file.url===url&&file.bytes>0),'Release manifest omitted carrier module '+url);
+}
 const files=new Map(descriptor.files.map(file=>[file.url,file.type]));files.set('/sw.js','text/javascript');files.set('/release.json','application/json');
 const requests=[];
 const server=http.createServer(async(req,res)=>{
@@ -48,6 +66,40 @@ async function waitForPageBoolean(target,predicate,argument,timeout=120000){
  }
  throw new Error('Timed out waiting for the verified offline game state.');
 }
+async function verifyCarrierAssets(phase,{offline=false}={}){
+ if(!requireCarrierAssets)return;
+ const actual=await page.evaluate(async expected=>{
+  const status=(await import('/src/meshy-carriers.js')).meshyCarriersStatus(),g=window.__colossus.scene;
+  const actors=[g.city,...g.enemyCities].filter(actor=>actor.meshyCarrier).map(actor=>({kind:actor.meshyCarrier.kind,
+   meshes:actor.meshyCarrier.renderMeshes.map(mesh=>({skinned:mesh.isSkinnedMesh===true,bones:mesh.skeleton?.bones.length??0,
+    inScene:g.scene.getObjectByProperty('uuid',mesh.uuid)===mesh,finite:mesh.matrixWorld.elements.every(Number.isFinite)}))}));
+  const completeCaches=[];
+  for(const name of await caches.keys()){
+   if(name!=='colossus-wake-release-'+expected&&!name.startsWith('colossus-wake-release-'+expected+'-repair-'))continue;
+   const cache=await caches.open(name),marker=await cache.match('/__colossus_cache_complete__');if(!marker)continue;
+   const descriptor=await marker.json();if(descriptor.buildId!==expected)continue;
+   const glbs=[];
+   for(const url of ['/assets/carriers/meshy/cyborg.glb','/assets/carriers/meshy/flesh.glb']){
+    const response=await cache.match(url);if(!response){glbs.push({url,missing:true});continue;}
+    const bytes=await response.arrayBuffer(),digest=await crypto.subtle.digest('SHA-256',bytes);
+    glbs.push({url,bytes:bytes.byteLength,sha256:[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join(''),type:response.headers.get('content-type')});
+   }
+   completeCaches.push({name,buildId:descriptor.buildId,glbs});
+  }
+  return{online:navigator.onLine,status,actors,completeCaches};
+ },release.buildId);
+ carrierEvidence.phases.push({phase,checkedAt:new Date().toISOString(),...actual});
+ if(offline)assert.equal(actual.online,false,'Carrier reopen check must run with browser networking offline');
+ assert.equal(actual.status.state,'ready');assert.deepEqual(actual.status.assets.map(asset=>asset.kind).sort(),['cyborg','flesh']);
+ assert.ok(actual.status.assets.every(asset=>asset.state==='ready'&&asset.error===null),'Imported carrier failed and used a fallback');
+ assert.deepEqual([...new Set(actual.actors.map(actor=>actor.kind))].sort(),['cyborg','flesh'],'Both actual imported carrier identities are required');
+ assert.ok(actual.actors.every(actor=>actor.meshes.length===1&&actor.meshes.every(mesh=>mesh.skinned&&mesh.inScene&&mesh.finite&&mesh.bones===(actor.kind==='cyborg'?28:66))),'Imported rig missing or invalid');
+ assert.ok(actual.completeCaches.length>0,'No complete cache exists for the actual release build');
+ for(const cache of actual.completeCaches){
+  assert.equal(cache.glbs.length,2);for(const expected of carrierEvidence.manifest){const cached=cache.glbs.find(file=>file.url===expected.url);assert.ok(cached&&!cached.missing,'Cached carrier missing: '+expected.url);for(const key of ['bytes','sha256','type'])assert.equal(cached[key],expected[key],phase+': cached carrier '+key+' mismatch');}
+ }
+ checks.push(phase+': both GLBs match source and manifest byte hashes in the installed cache; both actual imported rigs are ready with valid scene-owned meshes');
+}
 try{
  await page.goto(`${base}/?test=1`);
  // Finish the production cold-title install/reload before starting a save, so
@@ -64,12 +116,14 @@ try{
  await page.evaluate(()=>navigator.serviceWorker.ready);
  const ready=await page.evaluate(async()=>({...await (await import('/src/offline.js')).refreshOfflineStatus(),runtimeBuild:(await import('/src/build-info.js')).BUILD_ID}));
  assert.equal(ready.installedBuildId,release.buildId);assert.equal(ready.runtimeBuild,release.buildId);assert.equal(typeof ready.needsReopen,'boolean');checks.push('Automatic/manual offline preparation verifies the complete runtime and matching build identity');
+ await verifyCarrierAssets('installation-ready');
  assert.equal((await page.evaluate(async()=>await (await fetch('/health')).json())).testNetworkOnly,true);checks.push('Health endpoint remains network-only');
  await page.screenshot({path:`${out}/installation-ready.png`});
  await page.close();await new Promise(resolve=>server.close(resolve));await context.setOffline(true);
  page=await context.newPage();observe(page);await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus,{},{timeout:90000});
  assert.ok(await page.evaluate(()=>!!navigator.serviceWorker.controller));await page.locator('#continue').tap();await page.waitForTimeout(1000);
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);assert.ok(await page.evaluate(()=>window.__colossus.state.time)>=saved.time);checks.push('With server stopped and network offline, reopened game resumes the saved expedition');
+ await verifyCarrierAssets('server-stopped-offline-reopen',{offline:true});
  const position=await page.evaluate(()=>({x:window.__colossus.state.x,z:window.__colossus.state.z}));
  const session=await context.newCDPSession(page),pad=await page.locator('[data-move="up"]').boundingBox();
  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:0,x:pad.x+22,y:pad.y+22}]});await page.waitForTimeout(1200);await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
@@ -90,6 +144,7 @@ try{
  assert.ok(context.serviceWorkers().every(worker=>new URL(worker.url()).pathname==='/sw.js'&&!new URL(worker.url()).search));
  await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus,{},{timeout:90000});await page.locator('#continue').tap();
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);checks.push('Explicit full-cache repair restores the game without deleting its save');
+ await verifyCarrierAssets('after-explicit-cache-repair');
  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);checks.push('No browser runtime errors or third-party requests');
- await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote},null,2));
-}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
+ await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,...(requireCarrierAssets?{carrierEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote},null,2));
+}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,...(requireCarrierAssets?{carrierEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}

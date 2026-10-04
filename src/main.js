@@ -11,6 +11,7 @@ import {selectionIntent} from './selection-intent.js';
 import {createMarkerLayoutCache,placeMarker} from './marker-layout.js';
 import {loadMeshyPilot} from './meshy-pilot.js';
 import {loadGroundPatch} from './ground-patch.js';
+import {loadMeshyCarriers} from './meshy-carriers.js';
 
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=createGame(),started=false,view='city',selectedSlot=null,selectedBuilding=null,selection=null,scene,keys=new Set(),touch=new Set(),previous=performance.now(),uiElapsed=0,saveElapsed=0,toastTimer,resultShown=false,priorPause=false,uiSignature='';
@@ -131,6 +132,6 @@ subscribeOfflineStatus(status=>{const label=$('title-update-status');if(label)la
 $('playtest-open').addEventListener('click',()=>playtest.open());
 document.querySelectorAll('[data-mobile-panel]').forEach(button=>button.addEventListener('click',()=>{const panel=button.dataset.mobilePanel;setMobilePanel(document.body.dataset.mobilePanel===panel?'':panel);}));
 $('mobile-menu').addEventListener('click',menu);document.querySelectorAll('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>setMobilePanel()));
-try{await Promise.all([loadMeshyPilot(),loadGroundPatch()]);scene=new GameScene($('world'),select);try{const mode=localStorage.getItem('colossus-camera-mode');if(['steady','cinematic'].includes(mode))scene.setCameraMode(mode);}catch{}cameraLabel();$('quality').textContent='Detail: '+scene.quality;chooseFaction('kaiju');$('loading').classList.add('hidden');$('continue').classList.toggle('hidden',!cachedSave);requestAnimationFrame(frame);
+try{await Promise.all([loadMeshyPilot(),loadGroundPatch(),loadMeshyCarriers().catch(error=>console.error('Local carrier assets could not load; original carrier visuals retained.',error))]);scene=new GameScene($('world'),select);try{const mode=localStorage.getItem('colossus-camera-mode');if(['steady','cinematic'].includes(mode))scene.setCameraMode(mode);}catch{}cameraLabel();$('quality').textContent='Detail: '+scene.quality;chooseFaction('kaiju');$('loading').classList.add('hidden');$('continue').classList.toggle('hidden',!cachedSave);requestAnimationFrame(frame);
  if(new URLSearchParams(location.search).has('test'))window.__colossus={get state(){return state;},get scene(){return scene;},get audio(){return audio;},advance(seconds){for(let t=0;t<seconds;t+=.1)tick(state,.1);renderUI();},refreshMarkers(){updateMarkers();},snapshot(){return JSON.parse(serialize(state));}};
 }catch(error){$('loading').classList.add('hidden');$('error').classList.remove('hidden');$('error').textContent=`The 3D renderer could not start. Open this game in an updated Safari, Chrome or Edge browser with hardware acceleration enabled. Details: ${error.message}`;console.error(error);}

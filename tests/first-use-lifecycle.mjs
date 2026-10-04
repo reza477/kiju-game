@@ -23,6 +23,7 @@ async function source(){
 await fs.mkdir(out,{recursive:true});
 await assert.rejects(fs.access(path.join(out,'report.json')),'Do not overwrite prior lifecycle evidence.');
 const report={startedAt:new Date().toISOString(),sourceStart:await source(),command:{executable:process.execPath,args:process.argv.slice(1),environment:{GAME_TEST_URL:base.href,OUTPUT_DIR:out,HEADLESS:process.env.HEADLESS??'1'}},
+  testSource:{file:'tests/first-use-lifecycle.mjs',sha256:hash(await fs.readFile(fileURLToPath(import.meta.url)))},
   method:'Fresh isolated Chrome storage. Real Begin, movement/destruction, save, title/Continue, quality and carrier UI transitions. Native production frames remain active. Pause through UI for immutable-state assertions. A forced WebGL context loss/restore is functional recovery testing, not ordinary-user timing. A separate touch/DPR2 session exercises portrait-to-landscape-to-portrait through real viewport resize events, retaining its existing Performance preference. Resize and first-touch callback/RAF windows are diagnostic observations, separate from the final paired benchmark.',
   limitations:'Windows Chrome only; phone viewport/touch emulation is not physical Apple or Safari evidence. No installation/update certification. Renderer properties and shader source are inspected outside diagnostic timing. Targeted GL link-status checks run only after restored-context validation or completed touch windows, with query wall cost recorded; none run ahead of the first post-resize touch window. Callback wall duration and native RAF gaps are not pure CPU or display/photon latency. Resize observations include 24 paused native frames for lifecycle validation; subsequent first-touch routes do not represent immediate input during an orientation event or ordinary cold startup. Driver/OS caches and preceding lifecycle work are uncontrolled.',
   snapshots:[],resizeDiagnostics:[],checks:[],errors:[],warnings:[],remote:[],failedRequests:[],passed:false};
@@ -30,6 +31,7 @@ let browser,page,context;
 function installObserver({quality}){
   localStorage.setItem('colossus-quality-v1',quality);
   const observer=window.__lifecycle={frames:0,continueSnapshots:[],saveSnapshots:[],contextEvents:[],worldDisposals:[],siteDisposals:[],siteMaterialDisposals:[],watchedSiteObjects:new WeakSet(),resizeEvents:[],resizeCalls:[],measurement:null,lastFrame:null};
+  observer.carrierDisposals=[];observer.carrierSharedDisposals=[];observer.watchedCarrierSkeletons=new WeakSet();observer.watchedCarrierShared=new WeakSet();
   const objectIds=new WeakMap();let nextObjectId=1;
   observer.objectIdentity=object=>{if(!objectIds.has(object))objectIds.set(object,nextObjectId++);return objectIds.get(object);};
   const raf=requestAnimationFrame.bind(window);
@@ -119,15 +121,54 @@ try{
           vertexSource:p.vertexShader?gl.getShaderSource(p.vertexShader):null,fragmentSource:p.fragmentShader?gl.getShaderSource(p.fragmentShader):null};
       };
       const persistentCount=g.landscape.movementMaterials.length;
+      // The original ten targets keep their original site/world ownership.
+      // Imported actors append two borrowed representatives, but own skeletons
+      // rather than their cached geometry/material/texture masters. Observe both
+      // visible bodies and the cyborg's off-scene pose evaluator.
+      const observer=window.__lifecycle;
+      const carrierActors=[g.city,...g.enemyCities].filter(actor=>actor.meshyCarrier).map(actor=>{
+        const adapter=actor.meshyCarrier;
+        const instances=[['render',adapter.instance],['pose',adapter.poseInstance]].filter(([,instance])=>instance).map(([role,instance])=>{
+          const meshes=[];
+          instance.body.traverse(mesh=>{
+            if(!mesh.isSkinnedMesh)return;
+            const skeleton=mesh.skeleton;
+            if(!observer.watchedCarrierSkeletons.has(skeleton)){
+              observer.watchedCarrierSkeletons.add(skeleton);
+              const dispose=skeleton.dispose;
+              skeleton.dispose=function(...args){
+                observer.carrierDisposals.push({skeleton:skeleton.uuid,actor:actor.root.uuid,kind:adapter.kind,role,frame:observer.frames,
+                  borrowedAtDisposal:g.movementMaterials.slice(persistentCount).map(m=>m.uuid)});
+                return dispose.apply(this,args);
+              };
+            }
+            const materials=[mesh.material].flat(),textures=[...new Set(materials.flatMap(material=>Object.values(material).filter(value=>value?.isTexture)))];
+            for(const [type,resource]of [['geometry',mesh.geometry],...materials.map(m=>['material',m]),...textures.map(t=>['texture',t])]){
+              if(observer.watchedCarrierShared.has(resource))continue;
+              observer.watchedCarrierShared.add(resource);
+              resource.addEventListener('dispose',()=>observer.carrierSharedDisposals.push({type,id:resource.uuid,kind:adapter.kind,frame:observer.frames}));
+            }
+            const resource=value=>({id:value.uuid,shared:value.userData.shared===true,kind:value.userData.meshyCarrier});
+            meshes.push({mesh:mesh.uuid,geometry:resource(mesh.geometry),materials:materials.map(resource),textures:textures.map(resource).sort((a,b)=>a.id.localeCompare(b.id)),
+              skeleton:skeleton.uuid,bones:skeleton.bones.map(bone=>bone.uuid),inverses:skeleton.boneInverses.map(matrix=>observer.objectIdentity(matrix)),
+              boneCount:skeleton.bones.length,bonesOwned:skeleton.bones.every(bone=>instance.body.getObjectByProperty('uuid',bone.uuid)===bone),
+              finiteInverses:skeleton.boneInverses.every(matrix=>matrix.elements.every(Number.isFinite)),inScene:g.scene.getObjectByProperty('uuid',mesh.uuid)===mesh,
+              actualRenderMesh:adapter.renderMeshes.includes(mesh)});
+          });
+          return{role,root:instance.root.uuid,body:instance.body.uuid,mixer:observer.objectIdentity(instance.mixer),meshes};
+        });
+        return{actor:actor.root.uuid,kind:adapter.kind,instances,renderMeshes:adapter.renderMeshes.map(mesh=>mesh.uuid)};
+      });
       const prepared=g.movementMaterials.map((mesh,index)=>{
         const owner=index<persistentCount?null:g.labels.find(site=>site.getObjectByProperty('uuid',mesh.uuid)===mesh);
+        const carrierOwner=carrierActors.find(actor=>actor.renderMeshes.includes(mesh.uuid));
         if(owner)for(const [object,kind]of [[mesh,'mesh'],[mesh.geometry,'geometry'],[mesh.material,'material']])if(!window.__lifecycle.watchedSiteObjects.has(object)){
           window.__lifecycle.watchedSiteObjects.add(object);const id=object.uuid,ownerId=owner.uuid;
           object.addEventListener('dispose',()=>window.__lifecycle[kind==='material'?'siteMaterialDisposals':'siteDisposals'].push({kind,id,owner:ownerId,frame:window.__lifecycle.frames,
             borrowedAtDisposal:g.movementMaterials.slice(persistentCount).map(m=>m.uuid)}));
         }
         return{mesh:mesh.uuid,name:mesh.name,geometry:mesh.geometry.uuid,material:describe(mesh.material),count:mesh.count,capacity:mesh.instanceMatrix?.count??null,visible:mesh.visible,
-          owner:owner?.uuid??null,inScene:g.scene.getObjectByProperty('uuid',mesh.uuid)===mesh,isInstancedMesh:!!mesh.isInstancedMesh,
+          owner:owner?.uuid??null,carrierOwner:carrierOwner?.actor??null,carrierKind:carrierOwner?.kind??null,inScene:g.scene.getObjectByProperty('uuid',mesh.uuid)===mesh,isInstancedMesh:!!mesh.isInstancedMesh,isSkinnedMesh:!!mesh.isSkinnedMesh,
           shaderShape:{attributes:Object.keys(mesh.geometry.attributes).sort(),morphAttributes:Object.keys(mesh.geometry.morphAttributes).sort(),instancingColor:!!mesh.instanceColor},
           programs:r.properties.has(mesh.material)?[...(r.properties.get(mesh.material).programs?.values()??[])].map(p=>program(p,verifyLinks)):[]};
       });
@@ -147,6 +188,7 @@ try{
       return{label,frame:window.__lifecycle.frames,world:g.world.uuid,worldGeometry:[...geometries].sort(),worldMaterials:[...materials.values()].sort((a,b)=>a.uuid.localeCompare(b.uuid)),prepared,
         persistentWorldMeshes:g.landscape.movementMaterials.map(mesh=>({mesh:mesh.uuid,name:mesh.name})),preparationArray:window.__lifecycle.objectIdentity(g.movementMaterials),
         siteMetals,siteDisposals:[...window.__lifecycle.siteDisposals],siteMaterialDisposals:[...window.__lifecycle.siteMaterialDisposals],verifyLinks,
+        carrierActors,carrierDisposals:[...observer.carrierDisposals],carrierSharedDisposals:[...observer.carrierSharedDisposals],
         preparation:{...g.movementPreparation.status},render:{...r.info.render},memory:{...r.info.memory},programs:(r.info.programs??[]).map(p=>program(p)),
         quality:g.quality,qualityPreference:localStorage.getItem('colossus-quality-v1'),light:g.light,buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],renderDpr:r.getPixelRatio(),shadowEnabled:r.shadowMap.enabled,
         viewport:[innerWidth,innerHeight],deviceDpr:devicePixelRatio,cameraProjection:{aspect:g.camera.aspect,matrix:g.camera.projectionMatrix.toArray()},
@@ -163,11 +205,11 @@ try{
     for(const m of value.siteMetals){m.material.shaderHookSha256=hash(m.material.shaderHook);delete m.material.shaderHook;}
     value.programs.forEach(program);report.snapshots.push(value);
     assert.equal(value.contextLost,false,label);assert.equal(value.preparation.error,null,label);
-    const persistentCount=value.persistentWorldMeshes.length,borrowed=value.prepared.slice(persistentCount);
+    const persistentCount=value.persistentWorldMeshes.length,originalTargets=value.prepared.slice(0,10),borrowed=originalTargets.slice(persistentCount),carrierTargets=value.prepared.slice(10);
     assert.equal(persistentCount,5,'Exactly two original pools and three imported pilot representatives');
     assert.deepEqual(value.persistentWorldMeshes.slice(0,2).map(m=>m.name),['Crushed tree stumps','Crushed fallen boughs']);
     assert.deepEqual(value.persistentWorldMeshes.slice(2).map(m=>m.name).sort(),['Meshy pilot Broadleaf canopies','Meshy pilot Pine boughs','Meshy pilot riverbank rocks'].sort());
-    assert.equal(value.prepared.length,10);assert.equal(borrowed.length,5);assert.equal(borrowed[0].name,'Resource site metal');
+    assert.equal(originalTargets.length,10);assert.equal(borrowed.length,5);assert.equal(borrowed[0].name,'Resource site metal');
     assert.deepEqual(borrowed.map(m=>m.material.name),['metal ffffff','rock ffffff painterly ruin','brick ffffff painterly ruin','stone bbb9a4 painterly ruin','pavement 90917e painterly ruin']);
     assert.deepEqual(borrowed.map(m=>m.isInstancedMesh),[true,true,true,false,false]);
     assert.deepEqual(borrowed.slice(1).map(m=>m.material.cacheKey),['painterly-ruin-stone-v3:world-metric-scenery-v3:painterly-bank-rock-v2','painterly-ruin-stone-v3:world-metric-scenery-v3','painterly-ruin-stone-v3','painterly-ruin-stone-v3']);
@@ -175,7 +217,32 @@ try{
     assert.ok(value.prepared.slice(2,persistentCount).every(m=>!m.owner&&m.inScene&&m.material.shared&&m.isInstancedMesh),label+': imported representatives must remain owned by the persistent world');
     assert.equal(value.preparationConfiguration.materialKey,value.prepared.map(m=>m.material.uuid).join(':'));
     assert.deepEqual(value.prepared.slice(0,persistentCount).map(m=>({mesh:m.mesh,name:m.name})),value.persistentWorldMeshes,'Preparation must use every exact persistent landscape representative');
-    assert.equal(new Set(value.prepared.map(m=>m.mesh)).size,10,label+': duplicate preparation resource');
+    assert.equal(new Set(originalTargets.map(m=>m.mesh)).size,10,label+': duplicate original preparation resource');
+    assert.equal(carrierTargets.length,2,'Exactly one current skinned representative for each imported carrier master');
+    assert.deepEqual(carrierTargets.map(m=>m.carrierKind).sort(),['cyborg','flesh']);
+    assert.equal(new Set(value.prepared.map(m=>m.mesh)).size,12,label+': duplicate preparation resource');
+    assert.ok(carrierTargets.every(m=>m.carrierOwner&&!m.owner&&m.inScene&&m.isSkinnedMesh&&!m.isInstancedMesh&&m.material.shared),label+': skinned representative lacks a current actor or shared master');
+    const expectedActors=value.sourceState.enemies.filter(enemy=>enemy.faction==='kaiju').length+(value.city.faction==='kaiju'?1:0);
+    assert.equal(value.carrierActors.length,expectedActors,label+': missing imported player or enemy actor');
+    const skeletons=[],bones=[],inverses=[],mixers=[];
+    for(const actor of value.carrierActors){
+      assert.deepEqual(actor.instances.map(instance=>instance.role),actor.kind==='cyborg'?['render','pose']:['render']);
+      const representative=carrierTargets.find(m=>m.carrierKind===actor.kind);
+      const canonical=value.carrierActors.flatMap(a=>a.instances).flatMap(instance=>instance.meshes).find(m=>m.mesh===representative.mesh);
+      for(const instance of actor.instances){
+        mixers.push(instance.mixer);assert.equal(instance.meshes.length,1,'Inspected carrier export must have its one actual skinned mesh');
+        for(const mesh of instance.meshes){
+          skeletons.push(mesh.skeleton);bones.push(...mesh.bones);inverses.push(...mesh.inverses);
+          assert.equal(mesh.boneCount,actor.kind==='cyborg'?28:66);assert.equal(mesh.inverses.length,mesh.boneCount);assert.ok(mesh.bonesOwned&&mesh.finiteInverses,'Incomplete or externally owned rig');
+          assert.equal(mesh.inScene,instance.role==='render');assert.equal(mesh.actualRenderMesh,instance.role==='render');
+          assert.equal(mesh.geometry.id,representative.geometry);assert.deepEqual(mesh.materials.map(m=>m.id),[representative.material.uuid]);assert.deepEqual(mesh.textures,canonical.textures);
+          assert.ok([mesh.geometry,...mesh.materials,...mesh.textures].every(resource=>resource.shared&&resource.kind===actor.kind),'Actor did not borrow its inspected shared master');
+          assert.equal(value.carrierDisposals.filter(event=>event.skeleton===mesh.skeleton).length,0,'Current actor retains a disposed skeleton');
+        }
+      }
+    }
+    for(const [name,ids]of [['skeleton',skeletons],['bone',bones],['bind inverse',inverses],['mixer',mixers]])assert.equal(new Set(ids).size,ids.length,label+': actors or pose evaluators share a mutable '+name);
+    assert.deepEqual(value.carrierSharedDisposals,[],'Replacing an actor disposed shared carrier masters');
     assert.ok(value.prepared.every(m=>m.programs.length>0),label+': every targeted material needs prepared programs');
     assert.ok(value.prepared.every(m=>m.capacity===null||m.count>=0&&m.count<=m.capacity),label+': invalid prepared instance count');
     const ironNodes=value.sourceState.nodes.filter(n=>n.kind==='iron').map(n=>n.id).sort();assert.deepEqual(value.siteMetals.map(m=>m.node).sort(),ironNodes,label+': missing or extra metal-bearing resource sites');
@@ -190,16 +257,19 @@ try{
   }
   const initial=await snap('title-initial');
   const stablePools=s=>s.prepared.slice(0,s.persistentWorldMeshes.length).map(m=>({mesh:m.mesh,geometry:m.geometry,material:m.material.uuid}));
+  const carrierMasters=s=>s.prepared.slice(10).map(m=>({kind:m.carrierKind,geometry:m.geometry,material:m.material,shaderShape:m.shaderShape,
+    textures:s.carrierActors.flatMap(actor=>actor.instances).flatMap(instance=>instance.meshes).find(mesh=>mesh.mesh===m.mesh).textures})).sort((a,b)=>a.kind.localeCompare(b.kind));
   function preservedWorld(s,reference=initial){
     assert.equal(s.world,reference.world);assert.deepEqual(s.worldGeometry,reference.worldGeometry);assert.deepEqual(s.worldMaterials,reference.worldMaterials);
     assert.deepEqual(stablePools(s),stablePools(reference));assert.deepEqual(s.worldDisposals,[],'setGame disposed a material still owned by the persistent world');
     assert.equal(s.preparationArray,reference.preparationArray,'Preparation replaced its bounded current-resource list');
-    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length).map(m=>m.material),reference.prepared.slice(reference.persistentWorldMeshes.length).map(m=>m.material),'Unchanged borrowed site materials were recreated or mutated');
-    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length).map(m=>m.shaderShape),reference.prepared.slice(reference.persistentWorldMeshes.length).map(m=>m.shaderShape),'Rebuilt site representative shader shapes changed');
+    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length,10).map(m=>m.material),reference.prepared.slice(reference.persistentWorldMeshes.length,10).map(m=>m.material),'Unchanged borrowed site materials were recreated or mutated');
+    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length,10).map(m=>m.shaderShape),reference.prepared.slice(reference.persistentWorldMeshes.length,10).map(m=>m.shaderShape),'Rebuilt site representative shader shapes changed');
+    assert.deepEqual(carrierMasters(s),carrierMasters(reference),'Replacing an actor recreated or mutated its shared geometry/material/texture master');
   }
   function replacedSite(before,after){
     assert.equal(before.persistentWorldMeshes.length,after.persistentWorldMeshes.length);
-    for(let i=before.persistentWorldMeshes.length;i<before.prepared.length;i++){
+    for(let i=before.persistentWorldMeshes.length;i<10;i++){
       const old=before.prepared[i],current=after.prepared[i];
       assert.notEqual(current.mesh,old.mesh,'setGame retained a previous site mesh');assert.notEqual(current.geometry,old.geometry,'setGame retained disposed site geometry');
       assert.deepEqual(current.material,old.material,'Rebuilt sites lost shared material compatibility');
@@ -210,6 +280,18 @@ try{
       assert.ok(after.prepared.slice(after.persistentWorldMeshes.length).every(m=>m.mesh!==old.mesh&&m.geometry!==old.geometry),'Current preparation list retained old owned references');
     }
     assert.ok(after.siteMetals.every(m=>m.mesh!==before.prepared[before.persistentWorldMeshes.length].mesh&&m.geometry!==before.prepared[before.persistentWorldMeshes.length].geometry),'Current site list retained old owned references');
+    const currentInstances=after.carrierActors.flatMap(actor=>actor.instances),currentMeshes=currentInstances.flatMap(instance=>instance.meshes);
+    for(const actor of before.carrierActors)for(const instance of actor.instances){
+      assert.ok(currentInstances.every(current=>current.root!==instance.root&&current.body!==instance.body&&current.mixer!==instance.mixer),'setGame retained a previous actor or pose evaluator');
+      for(const mesh of instance.meshes){
+        const events=after.carrierDisposals.filter(event=>event.skeleton===mesh.skeleton);
+        assert.equal(events.length,1,'Previous '+actor.kind+' '+instance.role+' skeleton was not disposed exactly once');
+        assert.deepEqual(events[0].borrowedAtDisposal,[],'Borrowed carrier references must be dropped before any actor is disposed');
+        assert.ok(currentMeshes.every(current=>current.mesh!==mesh.mesh&&current.skeleton!==mesh.skeleton),'Current actors retained old mutable mesh/skeleton ownership');
+        assert.ok(after.prepared.every(current=>current.mesh!==mesh.mesh),'Preparation retained an old carrier mesh');
+      }
+    }
+    assert.deepEqual(after.carrierSharedDisposals,[],'Actor teardown disposed cached geometry/material/texture masters');
   }
   async function selectAndBegin(faction,variant,previous){
     await page.locator(`[data-faction="${faction}"]`).click();await page.locator(`[data-variant="${variant}"]`).click();await page.locator('#begin').click();
@@ -240,7 +322,10 @@ try{
   }
   report.checks.push('Actual quality UI transitions invalidate preparation once per changed configuration and preserve paused state, pixels per buffer, and world ownership.');
   async function title(){await page.locator('#menu').click();await page.locator('[data-dialog-action="title"]').click();await page.locator('#continue').waitFor({state:'visible'});await frames();}
-  const steadyPoolPrograms=s=>s.prepared.map(m=>m.programs.map(p=>({id:p.id,key:p.cacheKey})).sort((a,b)=>a.id-b.id));
+  // The two actor representatives may come from different owners after a title
+  // choice. Compare programs by carrier kind, while keeping the original ten in
+  // their strict order. Preparation attempt assertions below remain unchanged.
+  const steadyPoolPrograms=s=>[...s.prepared.slice(0,10),...s.prepared.slice(10).sort((a,b)=>a.carrierKind.localeCompare(b.carrierKind))].map(m=>m.programs.map(p=>({id:p.id,key:p.cacheKey})).sort((a,b)=>a.id-b.id));
   const stable=await snap('same-configuration-start');
   let previous=stable;
   for(let i=1;i<=3;i++){
@@ -252,14 +337,14 @@ try{
     assert.deepEqual(resumed,{...saved,paused:false,speed:1},'Continue changed saved progress beyond established pause/speed normalization');
     assert.deepEqual(resumed.worldDamage,saved.worldDamage);await pause();await frames();const after=await snap('continue-cycle-'+i);preservedWorld(after);replacedSite(atTitle,after);
     assert.equal(after.preparation.attempts,stable.preparation.attempts);assert.deepEqual(steadyPoolPrograms(after),steadyPoolPrograms(stable));
-    previous=after;report.checks.push(`Title/Continue ${i}: exact resumed save at click boundary; two world-pool and three imported-mesh identities and all ten compatible material/program identities remain stable; all five borrowed site meshes/geometries are dropped before disposal, released once and rebound to their current owners.`);
+    previous=after;report.checks.push(`Title/Continue ${i}: exact resumed save at click boundary; two world-pool and three imported-mesh identities and all ten original compatible material/program identities remain stable; all five borrowed site meshes/geometries are dropped before disposal, released once and rebound to their current owners. Both additional skinned representatives borrow unchanged masters; old actor and off-scene pose skeletons are disposed exactly once after references are dropped, and replacement actors own distinct bones, inverse matrices and mixers.`);
   }
-  for(const [faction,variant]of [['kaiju','cyborg'],['crawler','drill']]){
+  for(const [faction,variant]of [['kaiju','cyborg'],['kaiju','flesh'],['crawler','drill']]){
     await title();const before=await snap('before-carrier-'+variant);replacedSite(previous,before);const after=await selectAndBegin(faction,variant,before);
     assert.equal(after.preparation.attempts,before.preparation.attempts);assert.deepEqual(steadyPoolPrograms(after),steadyPoolPrograms(stable));
     previous=after;
   }
-  report.checks.push('Actual cyborg/drill title choices preserve the exact two world pools and all ten shared material/program identities; the five borrowed meshes belong to rebuilt current sites, all old references are dropped before disposal and old owned geometries are disposed once.');
+  report.checks.push('Actual cyborg/flesh/drill title choices preserve the exact two world pools and all ten original shared material/program identities; the five borrowed meshes belong to rebuilt current sites, all old references are dropped before disposal and old owned geometries are disposed once. The two carrier representatives retain shared geometry/material/texture masters and compatible programs, with separately owned current skeletons and pose evaluators.');
   await page.locator('#save').click();await frames();const beforeLoss=await snap('before-context-loss');
   await page.evaluate(()=>window.__colossus.scene.renderer.forceContextLoss());
   await page.waitForFunction(()=>window.__colossus.scene.renderer.getContext().isContextLost()&&window.__lifecycle.contextEvents.some(e=>e.event==='webglcontextlost'));

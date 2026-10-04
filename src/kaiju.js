@@ -848,7 +848,7 @@ function organicLeg(rig, limbs, side, m, frame) {
   limbs.push({ obj: leg, lower, foot: footJoint,skin,knee,ankle,solePoints,soleCentre,side,phase:side>0?0:Math.PI,leg:true });
 }
 
-function createFleshKaiju(frame, rig, limbs) {
+function createFleshKaiju(frame, rig, limbs, hideBody = false, hideHarness = false) {
   const m = {
     skin: fleshMaterial(0xa99782,.80),
     warm: fleshMaterial(0xb39b81,.82),
@@ -862,14 +862,28 @@ function createFleshKaiju(frame, rig, limbs) {
     pupil: material('bone', 0x171c13, { roughness: .35 })
   };
   frame.userData.kaijuVariant = 'flesh';
+  const bodyStart = frame.children.length, limbStart = limbs.length;
   organicTorso(frame, m); organicHead(frame, m);
   for (const side of [-1, 1]) { organicLeg(rig, limbs, side, m,frame); organicArm(rig, limbs, side, m,frame); }
-  backpackHarness(frame, m);
+  if (hideBody) hideLegacyBody(frame, limbs, bodyStart, limbStart);
+  if(!hideHarness)backpackHarness(frame, m);
+}
+
+function hideLegacyBody(frame, limbs, bodyStart, limbStart) {
+  // Keep original transforms for the physical contact/weapon solver. Hidden
+  // geometry never participates in visual surface raycasts or static batching.
+  for (const object of [...frame.children.slice(bodyStart), ...limbs.slice(limbStart).map(limb => limb.obj)]) {
+    object.visible = false; object.userData.noBatch = true; object.userData.legacyCarrierBody = true;
+    // Pinned Three r185 treats false as a stop for this raycast subtree.
+    // Keep its physical marker transforms; skip only the replaced body, not
+    // the separately added harness, weapons or intentional picking proxies.
+    object.raycast = () => false;
+  }
 }
 
 /** Two anatomical carriers share the movement rig and physical castle harness. */
-export function createHumanoidKaiju(frame, rig, limbs, variant = 'cyborg') {
-  if (variant === 'flesh') { createFleshKaiju(frame, rig, limbs); return; }
+export function createHumanoidKaiju(frame, rig, limbs, variant = 'cyborg', {hideBody = false,hideHarness = false} = {}) {
+  if (variant === 'flesh') { createFleshKaiju(frame, rig, limbs, hideBody,hideHarness); return; }
   const m = {
     armour: material('metal', 0x4f3b66, { roughness: .49, metalness: .43 }),
     light: material('metal', 0x766286, { roughness: .50, metalness: .36 }),
@@ -881,8 +895,10 @@ export function createHumanoidKaiju(frame, rig, limbs, variant = 'cyborg') {
     eye: material('glass', 0xc9df97, { emissive: 0xb9d975, emissiveIntensity: .65, roughness: .22 }),
     cable: material('fabric', 0x37363c, { roughness: .84 })
   };
+  const bodyStart = frame.children.length, limbStart = limbs.length;
   torso(frame, m); head(frame, m);
   for (const side of [-1, 1]) { createLeg(rig, limbs, side, m); createArm(rig, limbs, side, m); }
+  if (hideBody) hideLegacyBody(frame, limbs, bodyStart, limbStart);
   backpackHarness(frame, m);
 }
 

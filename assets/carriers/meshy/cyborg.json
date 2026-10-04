@@ -1,0 +1,26 @@
+{
+  "kind": "cyborg",
+  "source": "Meshy owner-existing robot",
+  "sourceTaskId": "01a1051c-3688-7257-80cf-29d708786264",
+  "sourceFile": "artifacts/carrier-assets/originals/robot-casual-all-animations.glb",
+  "sourceSha256": "5fe121649dc802830c0d430350a2fce2ab4c0326bd810d8ab25600ca15281cad",
+  "runtimeFile": "cyborg.glb",
+  "runtimeSha256": "8ee26b0649eba35e51db39ba16a34cb365ef57a3370406060cf71f95cfb9aac3",
+  "runtimeBytes": 3965716,
+  "derivative": "Embedded image maps resized to1024 with scripts/carrier-glb.py; nonimage bytes and metadata preserved",
+  "textureReport": "artifacts/carrier-assets/robot-casual-inspection-1024.json",
+  "clips": [
+    "Running",
+    "Walking",
+    "Casual_Walk",
+    "walking_2_inplace"
+  ],
+  "selectedClip": "Casual_Walk",
+  "joints": 28,
+  "triangles": 2566,
+  "materials": 1,
+  "images": 3,
+  "generationCreditsSpentForRobot": 0,
+  "published": false,
+  "copiedUtc": "2026-10-04T07:05:17.0159226Z"
+}

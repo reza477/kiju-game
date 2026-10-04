@@ -13,6 +13,8 @@ import {normalizeVariant,variantFootprint} from './variants.js';
 import {createCrawlerDrill,createVerticalEnvelopes} from './carrier-variants.js';
 import {createCrawlerBody,dressCrawlerUndercroft,createAirshipHull,dressEnvelopeCradle,createPropellerBlades} from './carrier-craft.js';
 import {createStandardCrawlerChassis,createStandardCrawlerWheel} from './crawler-study.js';
+import {meshyCyborgReady,createMeshyCyborg,animateMeshyCyborg} from './meshy-cyborg.js';
+import {meshyMonsterReady,createMeshyMonsterCity,animateMeshyMonsterCity} from './meshy-monster-city.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -115,7 +117,9 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   const deckY=faction==='airship'?18:faction==='crawler'?10:KAIJU_DECK_Y,limbs=[],spinners=[],scale=faction==='kaiju'?KAIJU_SCALE:1,footprintScale=variantFootprint(faction,variant);
   root.scale.setScalar(scale);rig.scale.set(footprintScale.x,1,footprintScale.z);let variantParts={};
   if(faction==='kaiju'){
-    createHumanoidKaiju(frame,rig,limbs,variant);
+    const imported=variant==='cyborg'?meshyCyborgReady():meshyMonsterReady();
+    createHumanoidKaiju(frame,rig,limbs,variant,{hideBody:imported,hideHarness:imported&&variant==='flesh'});
+    if(imported)variantParts.meshyCarrier=variant==='cyborg'?createMeshyCyborg(rig,{cityScale:scale}):createMeshyMonsterCity(rig);
   }else{
     variantParts=faction==='crawler'?crawler(frame,rig,spinners,variant):airship(frame,rig,spinners,variant);
     const edge=m('stone',faction==='airship'?0xcdbb93:0x9eaaa3),metal=m('metal',0x45595c);
@@ -142,12 +146,13 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   const layout=faction==='kaiju'?'tower':'deck';
   const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,variant,footprintScale,drill:variantParts.drill??null,drillTip:variantParts.tip??null,drillHinge:variantParts.hinge??null,drillShaft:variantParts.shaft??null,drillPistons:variantParts.pistons??[],envelopes:variantParts.envelopes??[],enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
   city.groundSupports=variantParts.groundSupports?.map(p=>p.multiply(new T.Vector3(footprintScale.x,1,footprintScale.z)));
+  city.meshyCarrier=variantParts.meshyCarrier??null;
   city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
 export function animateCity(city,time,moving,populationCount=28){
-  if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);}
+  if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);animateMeshyCyborg(city,time,moving);animateMeshyMonsterCity(city,time,moving);}
   else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
   const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;
   for(const spinner of city.spinners){

@@ -1,0 +1,93 @@
+# Meshy carrier integration — local work, 4 October 2026
+
+## Scope and preserved work
+
+This pass reuses the owner's two existing Meshy assets for the cyborg and flesh carriers. The owner expressly requested the monster to walk on four legs with its city on its back. This supersedes the earlier humanoid flesh-body silhouette only. Both Gothic cities still add every district above the preceding storey, preserve construction order and district IDs, and keep their original foundations, weapon anchors and gameplay envelope. The cyborg castle alone retains half-height storeys. The tank and airship variants are unchanged in this implementation.
+
+The actual checkout is `C:\Users\user\.codex\worktrees\painterly-phase1\Kiju Game`, on `codex/meshy-resource-assets-20261003`. The checkpoint `codex/checkpoint-before-carrier-assets-20261003` preserves baseline `383fb6277041e49e2d71b1918ab1ee5e1e50ba14`. Its runtime equals `f1c2541e7e430e1f6fdfbe00fbd2bf7245bf36a0`, fingerprint `dee57c47ba1f50d5f9c4c217b7802fd788721ff9b36aa259aecde4752654a760`.
+
+The completed ground/material pass and its recorded **7.7/10 failed gate after four rounds** remain closed. The primary Documents checkout and Website project were not modified. This pass does not alter simulation, navigation, collision, picking identities, economy, controls, world placement, saves or combat-event timing.
+
+## Imported assets and animation
+
+- **Cyborg:** owner's task `01a1051c-3688-7257-80cf-29d708786264`; 28-joint GLB, 2,566 triangles. The downloaded animation collection contains Running, Walking, Casual_Walk and walking_2_inplace. The game uses the owner's Casual_Walk clip. It removes source translation from a cloned pose, blends its loop seam and adjusts feet to the existing rendered terrain. A separate pose-evaluation skeleton prevents stale IK corrections from accumulating; it adds no render draw.
+- **Flesh monster:** owner's source `01a10538-3429-7029-a1d3-b698a4b77ecd`. The refreshed asset did not contain the expected climbing animation. Meshy's Quadruped Dog marker attempt failed. Its included Smart Rig succeeded as task `01a105a5-baa0-70b3-8cbf-6df6a3f26a2d`, exporting 66 weighted joints and 42,998 triangles. This export has **no animation clips**. A local procedural four-legged gait moves those Meshy bones; it is not a downloaded Meshy walking or climbing clip.
+- A fitted saddle follows four real skinned surface points on the monster. Braces support the unchanged castle foundation and unchanged body-gun positions. Contact effects remain attached to the deforming skin using triangle barycentric coordinates.
+- The monster's visible strike uses its shoulder chain and an actual skinned claw vertex to reach the existing strike marker at the existing impact time. The robot similarly reaches with its real skinned palm. These are visual adaptations around unchanged game events.
+
+Original downloads are preserved under ignored `artifacts/carrier-assets/originals/`. Reproducible texture-only derivatives use the existing Python runtime, Pillow and `scripts/carrier-glb.py`; no Blender or new software was installed. Geometry, weights, bind matrices, joints and non-image buffer data are preserved. Each production body uses three 1024-pixel embedded image maps. Production assets total **12,854,040 bytes**: cyborg 3,965,716; monster 8,888,324. Their six decoded RGBA maps with mipmaps are approximately 32 MiB; this is an estimate, not a measured GPU-memory total.
+
+Masters, textures and immutable geometry are shared; each actor owns its skeleton/pose. Hidden legacy body meshes are excluded from ray traversal while intentional invisible selection proxies remain active. Exact skinned bounds are refreshed once per changed pose; their conservative sphere is derived from the exact box rather than performing a second full vertex scan. Failure to load an imported asset retains the original carrier visuals and records the error.
+
+## Meshy account and unfinished requested assets
+
+The live account was `rezarhnm` PRO with **1,091 existing credits**. Included rigging/export consumed zero generation credits; the observed balance stayed at 1,091. No purchase, billing change, asset publication or project upload occurred.
+
+The requested standard tank, drill tank, tree-sized mushroom, oil-field and mineral-hill masters have **not been generated or integrated**. The combined proposed cap of 240 existing credits is awaiting the owner's answer. It supersedes the earlier 120-credit resource-only question. No paid generation was submitted. Mineral colour variants and processing must fit the same approved cap; no unbounded retries are authorized.
+
+Oil/mineral collection rules remain unspecified. The pending clarification separates visual deposits from new resource gameplay. No oil currency, mining rates, spending rules or save schema were invented.
+
+## Validation status
+
+The first frozen candidate is local build `1c3433b10d45cd468514`, full runtime/assets/dependencies fingerprint `b52740e429f376f0152b6a156cb6251ffd8d153c1c5da9e66172b20f15af8404`.
+
+- Full Node suite: **302/302 passed**, no skips; exact execution/log in `artifacts/carrier-assets/final-checks/`.
+- Texture-conversion suite: **9/9 passed**; exact execution/log in the same directory.
+- Final CPU parity: **50 checks passed**, with **42 exact baseline saves** loaded through the existing save key and deserializer. All six carrier variants preserve 3,960 simulation samples, construction, weapon and legacy strike transforms. The monster's four support attachments remain on their skin triangles through 85 sampled movement/strike poses. `identity-final-1/report.json` records the stable source fingerprint, empty page/network errors, and explicit cleanup. This CPU fixture does not establish rendered frame rate.
+- The monster's production-contact tests cover six existing target variants at the unchanged 0.7-second impact boundary. These facing/contact fixtures and foundation-clearance checks are bounded evidence, not a claim that every possible camera/attack pose is perfect.
+
+Final visual reviews, matched runtime timing, captures and browser evidence are recorded below when completed. Earlier failed attempts and the CPU-contended preliminary baseline timing remain preserved; they are not relabelled clean measurements.
+
+## Independent review and second attempt
+
+Round 1 is recorded verbatim in `art-reviews/2026-10-04-carriers-round-01.md`: **6.8/10, FAILED**. The independent reviewer took fresh normal-HUD views, travel, stops and battle screenshots. Main findings were the monster's exposed rear scaffold, noisy cyborg metal, dark indistinct monster anatomy and limited quadruped visibility beneath the default City HUD. No runtime errors were captured. The initial suspected robot hover was explicitly unconfirmed.
+
+The subsequent full-visible-boot CPU audit disproved whole-boot floating: each boot's minimum was approximately 0.003 m above the rendered ground. It confirmed toe-biased stopped support, which the original minimum-only test could miss. A 0.4-simulation-second transition now settles into grounded moments from the unchanged Casual_Walk clip. The ordinary distance-driven walk returns fully on restarting. On the measured Grove/Foundry routes at 15/30/60 Hz, worst front/rear boot clearance at Foundry improves from 1.07–1.51 m to 0.26–0.27 m; Grove improves from up to 2.18 m to 0.10 m. These nonzero bevel/slope clearances are not claimed as perfectly flat soles.
+
+The second attempt also reduces imported normal and metal reflection response and remaps roughness above a matte floor. Original colour/texture images remain untouched. The monster gets broader contact pads, rectangular structural spars and two continuous padded load-cradle sides tied to its moving skin supports. This creates no empty castle floor or district. The original master geometry, body fit, castle foundation and all weapon positions remain unchanged.
+
+Seventeen bounded CPU body-fit/posture trials were rejected. Increasing vertical scale introduced foundation intersections during attacks; a one-unit rear shift introduced a 0.487 m flesh-target contact miss, and larger shifts also exceeded the existing rear envelope. Hip rotations did not produce a useful support gain without contact misses. Rejected experiments live outside production in `artifacts/carrier-assets/`; they are not hidden passes. The high rear-mounted load remains an aesthetic limitation under these preserved anchors.
+
+Second frozen build: `d169d49f877406fb918a`. Full Node suite: **303/303 passed**, no skips, recorded in `artifacts/carrier-assets/attempt2-checks/`. The earlier loader material-value expectation failed after the intentional material treatment; only its approved material expectation/name changed, while geometry, colour, skin, animation and resource-ownership assertions remain. That failed output is retained in `attempt2-support-tests.log`.
+
+The second frozen runtime/assets/dependencies fingerprint is `cc3c77b539e31cd8ef8e530285571b45f24619fa14b69ae82d3e97c17e7e25e2`. The full CPU parity repeats **50/50 checks and all 42 original saves**, with unchanged simulation trace/anchors and attached saddle supports (`identity-final-2`). The existing renderer matrix passes **all 54 cases across all six carrier variants**, including native district/ground selection and six save/resume cycles. Its page errors, shader errors, failed and remote requests are empty. The matrix uses a bounded functional frame driver with native timestamps; it is not a performance benchmark. Actual source hashes remain stable before/after; its wrapper is `artifacts/carrier-assets/executions/carrier-matrix-final-2.json`.
+
+## Third attempt and demonstrated technical repair
+
+Round 2 independently scored **7.1/10, FAILED**. Its calmer material response and stopped robot stance improved, but the reviewer identified a flat saddle apron and the remaining high-pedestal silhouette. No new confirmed visual or runtime defect was reported. The review is preserved verbatim in `art-reviews/2026-10-04-carriers-round-02.md`.
+
+The third attempt replaces the flat aprons with closed, bowed padding, raised solid straps, edge shading and brass buckles. Each side still uses one draw. Its moving lower edge follows the same real skin supports. It does not change the monster's fit, castle foundation or weapon anchors.
+
+Expanded existing lifecycle coverage demonstrated a separate graphics-preparation bug: switching from the cyborg to flesh changed the order of the same two shared skin materials and increased preparation attempts from 7 to 8. The failing unchanged-driver run is preserved as `lifecycle-order-diagnostic-2`, exit 1. The repair sorts only the new skin representatives by stable material identity; the original world/site representatives and functional assertions stay intact. The expanded driver then passes all nine groups: the same cyborg-to-flesh transition remains at 7 attempts, while genuine context recovery correctly increments it to 8. Thirty-nine former actor/pose skeletons are disposed once each; shared masters are never disposed during those scene replacements.
+
+The third frozen local build is `b6a8412898dbb7f20164`, fingerprint `bc58c990126624fb6b776e7ce7199d2e7862c6fcfeaf113c3bb078aa6f62fa50`. Its complete Node suite passes **303/303** with no skips. CPU identity passes **50 checks**, including all **42 baseline saves**. Expanded browser lifecycle passes **9 groups**, including touch and rotation in phone emulation. No page errors, failed requests or remote requests were recorded; two D3D shader precision warnings are retained. These are functional checks, not physical-device or frame-rate certification.
+
+## Fourth and final builder attempt
+
+Round 3 independently scored **7.2/10, FAILED**. Its new padding and straps visibly improved the saddle, but the critic found no justified additional decorative layer. The dominant limitations remain the protected high rear mount/long gun booms, the dense imported colour textures, and the ordinary City framing. The critic's own eight fresh images and motion inspection are distinct from the technical evidence.
+
+A separate read-only code review identified a real presentation defect: the animated ordinary-mesh saddle apron used a static local impact point. A new regression test demonstrated the detached surface point (two existing tests passed, the new third test failed). The final repair explicitly marks that deforming surface and reuses the existing triangle/barycentric attachment path. Static impacts, damage events and picking identities are unchanged. This repair adds no new geometry, material or draw call.
+
+Final frozen local build: `7c8ef006f1fbe3aa41ed`. Final runtime/assets/dependencies fingerprint: `6ac806e4bff7b94951cdd36ab8dc14b09cbec7772cc3daa24960da1042d9fffd`. The full Node suite passes **304/304**, with no skips, after the last runtime edit (`artifacts/carrier-assets/attempt4-checks/`). The complete local package contains 128 files, 126 precached entries and 50,160,448 descriptor bytes. This is a local build; installation/offline checks and final browser evidence are reported separately.
+
+Final-source CPU identity repeats **50 passing checks and all 42 baseline saves**. The expanded lifecycle repeats **9 passing groups**. The renderer matrix passes **54/54 cases**, and the existing interaction/save suite passes **13/13 groups**. Sixteen original candidate PNGs pass the exact baseline fixture/browser/profile/camera comparisons; ten before/after images are selected for the small handoff. Their full reports are `identity-final-4`, `lifecycle-final-4`, `carrier-matrix-final-4`, `browser-smoke-final-4-continued`, and `captures-final-4-continued`, under `artifacts/carrier-assets/`. The matching execution wrappers retain full source inventories and timestamps.
+
+The initial final-source smoke launch failed before gameplay because its wrapper passed a URL ending in `/` to a driver that appends `/?test=1`, yielding `//?test=1` and an observed HTTP 404. Only the wrapper's URL was corrected. The failed `browser-smoke-final-4` output remains; the successful continuation uses a new evidence path and unchanged runtime/assertions. Earlier passing phases were not unnecessarily repeated.
+
+## Final independent visual result and exploratory play
+
+Round 4 scores **7.2/10, FAILED**. The four independently written reviews record **6.8 → 7.1 → 7.2 → 7.2**. No further art rounds are authorized for this update. The final critic took eleven fresh normal-HUD views, inspected both carriers in travel and arrival, and won an actual flesh-carrier battle. It did not isolate an impact on the apron. The protected high saddle/weapon booms, busy source textures and default framing remain the leading art limitations.
+
+The critic also observed a concrete visible defect: after a flesh victory, Save & return to title followed by a fresh cyborg expedition retained the prior defeated-rival selection panel. The relevant selection/menu routines are byte-identical to the baseline; the empty cached signature can prevent clearing existing panel HTML. That code was not changed in this bounded carrier pass. The independent review records the observation honestly; it is not a zero-error acceptance. Baseline runtime reproduction is reported separately when completed.
+
+The builder completed a separate **356.179-second (5 min 56 sec)** Computer Use session, `2026-10-04T09:02:57.403Z` through `2026-10-04T09:08:53.582Z`, in task-owned origin `http://127.0.0.1:4219/`. Nineteen action records and eight original supplementary JPEGs are in `artifacts/carrier-assets/exploration-final-4/`. The session continued a saved flesh expedition at Sunken Grove, added and upgraded a fourth storey, crossed the river to Old Earth Foundry, inspected World/City/Titan/Streets views, paused/resumed, saved/reloaded/Continued, then started a separate cyborg expedition. It travelled to Pilgrim's Rest, issued a visible-ground destination and short W/A/S/D taps, engaged Saffron Voyager, approached, used Titan rush, observed close combat, withdrew, repaired and saved. No page warnings/errors were captured. The source was unchanged; native simulation time was never accelerated or advanced by a test API. Exact impact alignment, physical audio output and device performance were not established by this visual session.
+
+An actual rollback check reopens a UI-written candidate save in the old baseline browser build. Its two checks pass: the saved state is exact at Continue apart from the established pause/speed normalization; all three saved scenery-destruction IDs remain applied, with 170 corresponding static instances hidden and 24 debris instances visible. This uses a fresh isolated browser context and preserves the original saved bytes (`rollback-final-4`). It is separate from the 42 baseline-to-candidate CPU save checks.
+
+At this implementation checkpoint, isolated committed-release/offline verification and the quiet matched performance comparison are still pending. Later reporting updates must identify their actual outcomes rather than treating this checkpoint as a release.
+
+## Release and evidence boundaries
+
+No push or deployment is authorized for this incomplete pass. Existing failed visual/release gates remain in place and `delivery/readiness.json` is not changed. Local browser tests do not establish physical iPhone/iPad, Safari, thermal, battery or long-session results. The earlier failed update and unrestricted multiple-active-save checks remain separate and unresolved unless an explicit new report demonstrates a repair.
+
+The flat review handoff contains five matched before/after pairs at their original dimensions and ten readable text files. Raw downloads, additional captures, video, diagnostic experiments and full timing streams stay outside that folder. The handoff records the full final local commit, tested source fingerprints, exact commands/times/exit codes where recorded, and missing evidence explicitly.
