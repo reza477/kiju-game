@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-04T14:09:06.4231271Z",
+  "updatedAt": "2026-10-04T19:04:46.8194072Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
   "workRequestsSinceCleanup": 1,
@@ -9,7 +9,8 @@
       "request": "Use the newer remeshed and rigged humanoid/monster, add efficient ground cover and broken old roads.",
       "baselineCommit": "32e7d003645bdb8aece23745b434d1c5025033a7",
       "evidenceRoot": "artifacts/rig-ground-refresh",
-      "status": "in progress"
+      "status": "implementation and final verification complete; art gate failed 7.9 after four rounds; local only",
+      "implementationCommit": "16397221305ed3450e701e3c5012abcdd0615fdb"
     }
   ],
   "retainedGroups": [
