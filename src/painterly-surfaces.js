@@ -205,14 +205,6 @@ export function paintRiver(material, time, ripple, windGLSL) {
         diffuseColor.rgb*=.97+(brush-.5)*.075;
         float contact=smoothstep(.965,1.05,edgeDistance);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.035,.073,.062),contact*.72);
-        // Sparse elongated current marks; calm negative space carries the water.
-        if(pilotWater<1.0) {
-          vec2 flowUV=vec2(acrossRiver*.21,alongRiver*.032-uRiverTime*.022);
-          float flow=texture2D(uRiverBrush,flowUV).r;
-          float broken=texture2D(uRiverBrush,flowUV*vec2(.37,2.8)+vec2(.43,.17)).r;
-          float streak=smoothstep(.625,.685,flow)*smoothstep(.55,.67,broken);
-          diffuseColor.rgb+=vec3(.080,.105,.095)*streak*(1.0-contact)*.36;
-        }
         // In this reach, depth carries the colour and moving normals carry
         // the current. Replace the painted cloudy streaks rather than adding
         // more opacity/reflection layers to them. The supplied physical bank
@@ -229,39 +221,50 @@ export function paintRiver(material, time, ripple, windGLSL) {
         float wetContact=(1.0-smoothstep(.04,.57,bankMetres))*(.43+shelfPatch*.57);
         channelColour=mix(channelColour,vec3(.021,.041,.029),wetContact*.62);
         diffuseColor.rgb=mix(diffuseColor.rgb,channelColour,pilotWater);
+        // Two drifting, differently stretched fields break the wave fronts into
+        // current-sized patches. The old fine ground grain vanished under mip
+        // filtering at City zoom; these metre-scale patches remain readable.
+        vec2 flowUV=vec2(acrossRiver*.037,alongRiver*.021-uRiverTime*.027);
+        float flowA=texture2D(uRiverBrush,flowUV).r;
+        float flowB=texture2D(uRiverBrush,flowUV*vec2(.73,1.37)+vec2(.31+uRiverTime*.003,.69-uRiverTime*.009)).r;
+        // Broad phase bends vary both crest spacing and orientation. Fine
+        // texture alone produced evenly spaced transverse rows at City zoom.
+        float phaseBend=sin(alongRiver*.21+acrossRiver*.36-uRiverTime*.45)*2.7
+          +sin(alongRiver*.09-acrossRiver*.41-uRiverTime*.19)*1.6;
+        float currentPhase=alongRiver*1.26+acrossRiver*.47+phaseBend+flowA*8.0-uRiverTime*1.55;
+        float secondaryPhase=alongRiver*1.77-acrossRiver*.82-phaseBend*.61+flowB*9.0-uRiverTime*2.15;
+        float crossPhase=alongRiver*.56+acrossRiver*1.12-phaseBend*.36+(flowA+flowB)*5.0-uRiverTime*1.13;
+        // Suppress unresolved crests in distant/world views instead of allowing
+        // animated one-pixel sparkle. This also retains a quiet open channel.
+        vec3 waveVisibility=1.0-smoothstep(vec3(.8),vec3(2.5),vec3(fwidth(currentPhase),fwidth(secondaryPhase),fwidth(crossPhase)));
+        float bankDamping=1.0-smoothstep(.78,1.02,edgeDistance)*.64;
+        float currentMark=smoothstep(.88,.998,sin(secondaryPhase))*smoothstep(.53,.66,flowA)*waveVisibility.y;
+        diffuseColor.rgb+=vec3(.080,.102,.090)*currentMark*bankDamping*.10;
       `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-        roughnessFactor=clamp(.43+shallows*.10+(vRiverWind.z-.5)*.018,.40,.56);
-        roughnessFactor=mix(roughnessFactor,.56+pilotShallows*.09,pilotWater);
+        // A rough bank and smoother moving channel retain broad reflections.
+        // Previously .56-.65 roughness plus a 60% reflection reduction made
+        // the pilot water respond like opaque blue soil.
+        roughnessFactor=clamp(.245+shallows*.15+(flowB-.53)*.09,.22,.42);
       `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-        vec2 slope=vec2(0.0);
-        if(pilotWater<1.0) {
-          float crosswind=dot(vRiverWind.xy,across);
-          vec2 flowNormal=vec2(acrossRiver*.22-crosswind*.025,alongRiver*.071-uRiverTime*.057);
-          float ripple=texture2D(uRiverBrush,flowNormal).r-.53;
-          float longRipple=texture2D(uRiverBrush,flowNormal*vec2(.63,1.13)+vec2(.31,.69)).r-.53;
-          slope=across*ripple*(.048+vRiverWind.z*.021)+tangent*longRipple*.030;
-        }
-        // Restrained metre-scale ripples follow the actual channel tangent.
-        // The existing clock and vertex motion remain untouched; there is no
-        // additional animation loop or water simulation, and no new texture.
-        if(pilotWater>0.0) {
-          // The existing bank brush breaks the coherent bands seen looking
-          // toward the sun. Keep both ordinary ripple clocks unchanged.
-          float currentPhase=alongRiver*.92+acrossRiver*.18+brush*3.4-uRiverTime*.72;
-          float crossPhase=alongRiver*1.87-acrossRiver*.29+brush*4.1-uRiverTime*1.03;
-          float shoreDamping=1.0-pilotShallows*.44;
-          vec2 currentSlope=tangent*cos(currentPhase)*(.020+vRiverWind.z*.006)
-            +across*cos(crossPhase)*.010;
-          slope=mix(slope,currentSlope*shoreDamping,pilotWater);
-        }
+        // The channel's own tangent steers the ripples around its existing
+        // bends. Crossing, irregular fronts tilt the optical normal enough to
+        // carry visible reflections; they do not displace collision geometry.
+        vec2 slope=tangent*(cos(currentPhase)*.098*waveVisibility.x+cos(secondaryPhase)*.039*waveVisibility.y)
+          +across*cos(crossPhase)*.082*waveVisibility.z;
+        slope*=bankDamping*(.82+vRiverWind.z*.26)*(.78+.22*sin(alongRiver*.17-acrossRiver*.28-uRiverTime*.21));
         normal=normalize(mat3(viewMatrix)*vec3(-slope.x,1.0,-slope.y));
+      `).replace('#include <lights_physical_fragment>',`#include <lights_physical_fragment>
+        // Water's air interface reflects about two percent head-on (IOR 1.333),
+        // rather than the Standard material's four-percent generic dielectric.
+        // Preserve its normal Fresnel growth at grazing angles.
+        material.specularColor=vec3(.0204);
+        material.specularColorBlended=material.specularColor;
       `).replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-        // Both direct sunlight and the sky contributed to the white striped
-        // channel at the reviewed sun-facing angle. Limit only this reach's
-        // specular contribution; ordinary diffuse light and shadows remain.
-        reflectedLight.directSpecular*=1.0-pilotWater*.60;
-        reflectedLight.indirectSpecular*=1.0-pilotWater*.60;
+        // Keep the real sun, HDR sky and shadow response. No opaque reflection
+        // overlay, emissive foam, refraction target or extra scene pass.
+        reflectedLight.directSpecular*=.65;
+        reflectedLight.indirectSpecular*=.78;
       `);
   };
-  material.customProgramCacheKey=()=> 'painterly-channel-v4-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-channel-v7-water-reflectance';
 }
