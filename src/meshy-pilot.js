@@ -101,17 +101,32 @@ function normalizeMaster(gltf, kind, bytes) {
   if (!geometry) throw new Error(kind + ' mesh attributes cannot be merged');
   const source = [...materials][0]; material = source.clone();
   if (!material.isMeshStandardMaterial || material.transparent || material.opacity < 1) throw new Error(kind + ' requires an opaque PBR material');
+  for (const key of ['map', 'normalMap']) {
+    const image = material[key]?.image;
+    if (!image || ![image.width, image.height].every(value => Number.isFinite(value) && value > 0)) throw new Error(kind + ' requires decoded base and normal maps');
+  }
   material.name = 'Meshy pilot ' + kind;
   material.metalness = 0; material.roughness = Math.max(.88, material.roughness);
   material.normalScale.setScalar(.34);
   material.userData = {...material.userData, shared: true, meshyPilot: kind};
-  if (kind === 'rock') paintImportedRock(material);
+  if (kind === 'rock') {
+    paintImportedRock(material);
+    material.normalScale.setScalar(.22);
+    material.color.multiply(new T.Color().setRGB(.98, 1.05, .90));
+  }
   else {
     // The delivered pine ORM has a median roughness of .639. Multiplying it
     // by the scalar would still produce glossy bark/crowns. Keep the painted
     // atlas and restrained normal detail, with a genuinely matte surface.
     material.roughnessMap = null; material.metalnessMap = null;
     material.roughness = .92;
+    if (kind === 'pine') {
+      // The first gameplay review found the imported pine too granular and
+      // reflective beside the broadleaf. Quiet only this imported material.
+      material.normalScale.setScalar(.12); material.roughness = .96;
+      material.envMapIntensity = .5;
+      material.color.multiply(new T.Color().setRGB(.86, .92, .74));
+    }
   }
   geometry.computeBoundingBox();
   const originalBounds = geometry.boundingBox.clone(), size = originalBounds.getSize(new T.Vector3());

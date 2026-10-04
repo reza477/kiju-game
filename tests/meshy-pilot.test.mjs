@@ -154,10 +154,13 @@ test('all three actual embedded GLBs load once with matte materials and independ
     for (const [index, mesh] of first.pilot.meshes.entries()) {
       const other = second.pilot.meshes[index], material = mesh.material, kind = mesh.userData.meshyPilot;
       assert.notEqual(mesh.geometry, other.geometry); assert.notEqual(mesh.instanceMatrix, other.instanceMatrix); assert.equal(material, other.material);
-      assert.equal(material.metalness, 0); assert.equal(material.roughness, kind === 'rock' ? .90 : .92);
+      assert.equal(material.metalness, 0); assert.equal(material.roughness, kind === 'rock' ? .90 : kind === 'pine' ? .96 : .92);
       assert.equal(material.roughnessMap, null); assert.equal(material.metalnessMap, null);
       assert.equal(material.map.colorSpace, T.SRGBColorSpace); assert.equal(material.normalMap.colorSpace, T.NoColorSpace);
-      assert.deepEqual(material.normalScale.toArray(), [.34, .34]); assert.equal(material.transparent, false);
+      const normalScale = kind === 'rock' ? .22 : kind === 'pine' ? .12 : .34;
+      assert.deepEqual(material.normalScale.toArray(), [normalScale, normalScale]); assert.equal(material.transparent, false);
+      assert.equal(material.envMapIntensity, kind === 'pine' ? .5 : 1);
+      assert.deepEqual(material.color.toArray(), kind === 'pine' ? [.86, .92, .74] : kind === 'rock' ? [.98, 1.05, .90] : [1, 1, 1]);
       for (const attribute of Object.values(mesh.geometry.attributes)) for (const value of attribute.array) assert.ok(Number.isFinite(value));
       assert.ok(mesh.geometry.boundingSphere.radius > 0);
     }
@@ -211,5 +214,54 @@ test('rejected imports release source and normalized resources and close shared 
     if (originalSelf === undefined) delete globalThis.self; else globalThis.self = originalSelf;
     if (originalBitmap === undefined) delete globalThis.createImageBitmap; else globalThis.createImageBitmap = originalBitmap;
     T.BufferGeometry.prototype.dispose = geometryDispose; T.Material.prototype.dispose = materialDispose; T.Texture.prototype.dispose = textureDispose;
+  }
+});
+
+test('an embedded decode failure rejects once, revokes every URL and closes successful sibling/prior images', async () => {
+  const old = {fetch: globalThis.fetch, self: globalThis.self, bitmap: globalThis.createImageBitmap, error: console.error, create: URL.createObjectURL, revoke: URL.revokeObjectURL};
+  const originalDispose = [T.BufferGeometry.prototype.dispose, T.Material.prototype.dispose, T.Texture.prototype.dispose];
+  const disposals = new Map();
+  const wrap = original => function() {disposals.set(this, (disposals.get(this) || 0) + 1); return original.call(this);};
+  T.BufferGeometry.prototype.dispose = wrap(originalDispose[0]); T.Material.prototype.dispose = wrap(originalDispose[1]); T.Texture.prototype.dispose = wrap(originalDispose[2]);
+  try {
+    globalThis.self = globalThis;
+    // Either texture of the first asset may fail. The later failure also proves
+    // that the previously normalized master is released, not left in the cache.
+    for (const failedDecode of [1, 2, 3]) {
+      const created = [], revoked = [], images = [], requests = []; let decodes = 0, errors = 0;
+      disposals.clear();
+      URL.createObjectURL = function(...args) {const url = old.create.apply(this, args); created.push(url); return url;};
+      URL.revokeObjectURL = function(url) {revoked.push(url); return old.revoke.call(this, url);};
+      console.error = () => errors++;
+      globalThis.createImageBitmap = async () => {
+        if (++decodes === failedDecode) throw Error('Injected embedded image decode failure');
+        const image = {width: 1024, height: 1024, closed: 0, close() {this.closed++;}}; images.push(image); return image;
+      };
+      globalThis.fetch = async (input, options) => {
+        const url = new URL(typeof input === 'string' ? input : input.url || input.href);
+        if (url.protocol === 'file:') {
+          const allowed = ['rock', 'pine', 'broadleaf'].map(kind => new URL('../assets/scenery/meshy-pilot/' + kind + '.glb', import.meta.url).href);
+          assert.ok(allowed.includes(url.href), 'Only local embedded pilot assets may be fetched'); requests.push(url.href);
+          return new Response(await readFile(url));
+        }
+        assert.equal(url.protocol, 'blob:'); return old.fetch(input, options);
+      };
+      const module = await import('../src/meshy-pilot.js?decode-failure=' + failedDecode), first = module.loadMeshyPilot();
+      await assert.rejects(first, /decoded base and normal maps/);
+      assert.equal(module.loadMeshyPilot(), first); await assert.rejects(module.loadMeshyPilot(), /decoded base and normal maps/);
+      assert.equal(module.meshyPilotStatus().state, 'failed'); assert.match(module.meshyPilotStatus().error, /decoded base and normal maps/);
+      assert.equal(requests.length, Math.ceil(failedDecode / 2), 'No later asset or duplicate load should run after a failure');
+      assert.equal(decodes, requests.length * 2); assert.equal(errors, 1);
+      assert.equal(created.length, decodes); assert.deepEqual([...revoked].sort(), [...created].sort(), 'Every success/failure object URL must be revoked exactly once');
+      assert.equal(images.length, decodes - 1); for (const image of images) assert.equal(image.closed, 1, 'Successful sibling or prior master image remained open');
+      assert.ok([...disposals.keys()].some(value => value.isBufferGeometry)); assert.ok([...disposals.keys()].some(value => value.isMaterial)); assert.ok([...disposals.keys()].some(value => value.isTexture));
+      for (const count of disposals.values()) assert.equal(count, 1, 'A failed load disposed a resource more than once');
+    }
+  } finally {
+    globalThis.fetch = old.fetch;
+    if (old.self === undefined) delete globalThis.self; else globalThis.self = old.self;
+    if (old.bitmap === undefined) delete globalThis.createImageBitmap; else globalThis.createImageBitmap = old.bitmap;
+    console.error = old.error; URL.createObjectURL = old.create; URL.revokeObjectURL = old.revoke;
+    [T.BufferGeometry.prototype.dispose, T.Material.prototype.dispose, T.Texture.prototype.dispose] = originalDispose;
   }
 });

@@ -51,10 +51,19 @@ test('pinned local glTF loader uses the game Three instance and preserves binary
   assert.equal(dependency.version, '0.185.1'); assert.equal(T.REVISION, '185');
   for (const [file, upstream] of addonSources) {
     const original = await readFile(path.join(ROOT, 'node_modules/three/examples/jsm', upstream), 'utf8');
-    const expected = original.replace("} from 'three';", "} from './three.module.js';")
+    let expected = original.replace("} from 'three';", "} from './three.module.js';")
       .replace("from '../utils/BufferGeometryUtils.js'", "from './BufferGeometryUtils.js'")
       .replace("from '../utils/SkeletonUtils.js'", "from './SkeletonUtils.js'");
-    assert.equal((await readFile(path.join(ROOT, 'vendor', file), 'utf8')).replaceAll('\r\n', '\n'), expected.replaceAll('\r\n', '\n'), file + ' differs from pinned upstream beyond local import paths');
+    expected = expected.replaceAll('\r\n', '\n');
+    // Exactly two local upstream-error cleanup lines: revoke failed embedded
+    // image URLs, and mark successful revocation so a later error cannot repeat it.
+    if (file === 'GLTFLoader.js') {
+      const warning = "\t\t\tconsole.error( 'THREE.GLTFLoader: Couldn\\'t load texture', sourceURI );";
+      expected = expected
+        .replace('URL.revokeObjectURL( sourceURI );', 'URL.revokeObjectURL( sourceURI );\n\t\t\t\tisObjectURL = false;')
+        .replace(warning, '\t\t\tif ( isObjectURL === true ) URL.revokeObjectURL( sourceURI );\n' + warning);
+    }
+    assert.equal((await readFile(path.join(ROOT, 'vendor', file), 'utf8')).replaceAll('\r\n', '\n'), expected, file + ' differs from pinned upstream beyond local imports and the two documented URL-cleanup lines');
   }
   const requested = [], manager = new T.LoadingManager();
   manager.setURLModifier(url => {requested.push(url); throw new Error('Fixture must not request an external resource');});

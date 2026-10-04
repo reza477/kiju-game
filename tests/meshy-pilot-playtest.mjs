@@ -118,8 +118,11 @@ if(mode.startsWith('paired-')){
     for(let tries=0;tries<20;tries++){
       const current=(await snapshot()).environment.camera,dx=Math.max(-70,Math.min(70,(current.yaw-target.yaw)/.006)),dy=Math.max(-45,Math.min(45,(target.pitch-current.pitch)/.004));
       if(Math.abs(dx)<.3&&Math.abs(dy)<.3)break;
-      if(visit.profile.mobile){await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});for(let n=1;n<=8;n++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+dx*n/8,y:point.y+dy*n/8,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
-      else{await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+dx,point.y+dy,{steps:8});await page.mouse.up();}
+      // Cross the production six-pixel drag threshold first, then correct in
+      // the same held gesture. Tiny corrective gestures otherwise become picks
+      // and can neither converge nor safely frame a playing screenshot.
+      if(visit.profile.mobile){await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...point,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+8,y:point.y,id:1}]});for(let n=1;n<=8;n++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:point.x+8+(dx-8)*n/8,y:point.y+dy*n/8,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
+      else{await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+8,point.y);await page.mouse.move(point.x+dx,point.y+dy,{steps:8});await page.mouse.up();}
     }
     const before=(await snapshot()).environment.camera;
     if(Math.abs(before.zoom-target.zoom)>.02){
@@ -128,8 +131,8 @@ if(mode.startsWith('paired-')){
     }
     await until(()=>{const s=window.__colossus.scene;return Math.abs(s.camera.position.distanceTo(s.cameraAim))>0;});
     const actual=(await snapshot()).environment.camera;
-    for(const key of ['yaw','pitch','zoom'])assert.ok(Math.abs(actual[key]-target[key])<.012,'Native camera '+key+' failed');
     visit.cameraInput={target,actual,point,method:visit.profile.mobile?'Native single-touch canvas drag; normal City zoom':'Native canvas mouse drag and wheel'};
+    for(const key of ['yaw','pitch','zoom'])assert.ok(Math.abs(actual[key]-target[key])<.012,'Native camera '+key+' failed: '+JSON.stringify({target,actual}));
   }
   try{
     const health=await(await fetch(new URL('/health',base))).json();assert.equal(health.app,'colossus-wake-local');assert.equal(health.rootId,sha(root.replaceAll('\\','/').toLowerCase()));report.server={url:base.href,health};

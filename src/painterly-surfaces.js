@@ -12,6 +12,26 @@ const pilotMaskGLSL=`
   }
 `;
 
+// Static litter beds follow the six pre-existing pilot trees, not new scatter
+// or simulated shadows. Their root positions come from the unchanged seeded
+// landscape records. Forest floor remains after a tree is crushed.
+const pilotWoodlandGLSL=`
+  float pilotRootDistance(vec2 point,vec2 root,vec2 inverseSpread,float lean) {
+    vec2 offset=point-root;offset.x+=offset.y*lean;
+    offset*=inverseSpread;return dot(offset,offset);
+  }
+  float pilotWoodlandDistance(vec2 point) {
+    // tree:49 / tree:146 share an existing small east-bank canopy group.
+    float floorDistance=pilotRootDistance(point,vec2(2.3642589105293155,-119.47577563114464),vec2(.167,.208),.16);
+    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(3.730055456981063,-116.97929303627461),vec2(.172,.192),-.19));
+    // tree:1124, tree:477, tree:791 and tree:200 retain their original roots.
+    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(24.627368431538343,-117.10031807888299),vec2(.137,.169),.12));
+    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(-51.35322615969926,-116.31229785270989),vec2(.185,.208),-.22));
+    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(-42.17492421157658,-103.26209894847125),vec2(.152,.196),.24));
+    return min(floorDistance,pilotRootDistance(point,vec2(-62.42828615941107,-130.5583181558177),vec2(.208,.244),-.16));
+  }
+`;
+
 // A bounded page-lifetime family: immutable variants of existing shared maps.
 // The source cache owns maps; resource scenes borrow these shared materials.
 const ruinMaterials=new Map();
@@ -63,11 +83,13 @@ export function paintGround(material, {weights, detail}) {
       varying vec3 vPaintPoint;varying float vPaintWet;
       uniform sampler2D uHabitat,uBrushGrain;
       ${pilotMaskGLSL}
+      ${pilotWoodlandGLSL}
     `).replace('#include <map_fragment>', `#include <map_fragment>
       float cavity=clamp(diffuseColor.a,.52,1.0);diffuseColor.a=opacity;
       vec4 habitat=texture2D(uHabitat,vec2(vPaintPoint.x+600.0,600.0-vPaintPoint.z)/1200.0);
       vec3 authoredGround=diffuseColor.rgb;
       float pilotGround=pilotSurfaceMask(vPaintPoint.xz);
+      float pilotWetToe=smoothstep(.12,.90,vPaintWet);
       // Fine grain supports the broad authored habitat masses.
       // No photographic grass, artificial pebble relief or fine repeated stamps.
       float grain=texture2D(uBrushGrain,vPaintPoint.xz*.37+vec2(.31,.72)).r;
@@ -79,32 +101,39 @@ export function paintGround(material, {weights, detail}) {
       diffuseColor.rgb*=mix(1.0,strata,habitat.g*.45);
       diffuseColor.rgb*=mix(1.0,.78,vPaintWet);
       if(pilotGround>0.0) {
-        // Habitat already encodes grass/stone coverage; the remaining weight
-        // is earth and woodland floor. Preserve those authored masses instead
-        // of placing another high-contrast noise layer over their boundaries.
+        // Replace the weak broad pilot tint with metre-scale meadow/earth
+        // boundaries and litter attached to actual canopies. One existing
+        // seamless sample shapes their edges; there is no stacked noise field.
         float earth=clamp(1.0-habitat.r-habitat.g,0.0,1.0);
-        float middle=texture2D(uBrushGrain,vPaintPoint.xz*.004+vec2(.17,.51)).r;
-        float exposed=smoothstep(.42,.62,middle);
-        vec3 meadow=mix(vec3(.108,.142,.075),vec3(.137,.149,.088),exposed*.28);
-        vec3 woodland=mix(vec3(.067,.061,.043),vec3(.112,.085,.056),exposed);
-        vec3 mineral=vec3(.139,.147,.124);
-        vec3 habitatColour=meadow*habitat.r+mineral*habitat.g+woodland*earth;
-        vec3 pilotColour=mix(authoredGround,habitatColour,.48);
-        // Existing seamless detail provides only pigment grain. No extra maps,
-        // relief, geological stripes, or geometry are introduced in the pilot.
-        pilotColour*=.995+(grain-.53)*.030;
-        float wetToe=smoothstep(.12,.90,vPaintWet);
-        pilotColour=mix(pilotColour,vec3(.036,.051,.038),wetToe*.62);
+        float middle=texture2D(uBrushGrain,vPaintPoint.xz*.011+vec2(.17,.51)).r;
+        float brokenEarth=smoothstep(.525,.600,middle)*(.22+earth*.48);
+        vec3 meadow=vec3(.103,.138,.067),earthColour=vec3(.127,.096,.058);
+        vec3 openGround=mix(meadow,earthColour,clamp(earth*.68+brokenEarth,0.0,1.0));
+        openGround=mix(openGround,vec3(.133,.139,.113),habitat.g*.78);
+        vec3 pilotColour=mix(authoredGround,openGround,.66);
+        float floorDistance=pilotWoodlandDistance(vPaintPoint.xz);
+        float litter=1.0-smoothstep(.33,.94,floorDistance+(middle-.53)*1.25);
+        float rootContact=1.0-smoothstep(.010,.075,floorDistance);
+        vec3 forestFloor=mix(vec3(.049,.047,.030),vec3(.074,.061,.037),smoothstep(.47,.58,middle));
+        pilotColour=mix(pilotColour,forestFloor,litter*.82);
+        pilotColour*=1.0-rootContact*.20;
+        // The existing physical moisture field locates the bank. This soft,
+        // broken silt shoulder meets a darker wet toe without a painted outline.
+        pilotWetToe=smoothstep(.12,.78,vPaintWet+(middle-.53)*.36);
+        float dampShoulder=smoothstep(.025,.38,vPaintWet)*(1.0-pilotWetToe);
+        pilotColour=mix(pilotColour,vec3(.094,.091,.058),dampShoulder*.47);
+        pilotColour=mix(pilotColour,vec3(.032,.047,.034),pilotWetToe*.78);
+        pilotColour*=.998+(grain-.53)*.010;
         diffuseColor.rgb=mix(diffuseColor.rgb,pilotColour,pilotGround);
       }
     `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
       roughnessFactor=mix(.94,.67,vPaintWet);
-      roughnessFactor=mix(roughnessFactor,mix(.95,.72,smoothstep(.12,.90,vPaintWet)),pilotGround);
+      roughnessFactor=mix(roughnessFactor,mix(.95,.72,pilotWetToe),pilotGround);
     `).replace('#include <aomap_fragment>', `#include <aomap_fragment>
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65);
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v4-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v5-meshy-pilot';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {
@@ -149,10 +178,17 @@ export function paintRiver(material, time, ripple, windGLSL) {
         // the current. Replace the painted cloudy streaks rather than adding
         // more opacity/reflection layers to them. The supplied physical bank
         // field controls every shallow/contact transition.
-        float pilotShallows=(1.0-smoothstep(.04,.34,1.0-edgeDistance))*(.70+insideBend*.30);
-        vec3 channelColour=mix(vec3(.012,.049,.058),vec3(.050,.096,.075),pilotShallows);
-        float wetContact=smoothstep(.89,1.015,edgeDistance)*smoothstep(.47,.60,brush);
-        channelColour=mix(channelColour,vec3(.023,.047,.035),wetContact*.45);
+        // Metre-space bank reach distinguishes a narrow outer bank from the
+        // broader inside-bend silt shelf. Existing brush data breaks its edge;
+        // this changes colour/roughness only, never the channel's actual extent.
+        float bankMetres=max(0.0,(1.0-edgeDistance)*vRiverField.y);
+        float shelfPatch=smoothstep(.47,.59,brush);
+        float shallowReach=1.65+insideBend*2.80+(brush-.53)*2.2;
+        float pilotShallows=1.0-smoothstep(.22,shallowReach,bankMetres);
+        vec3 bedColour=mix(vec3(.039,.079,.069),vec3(.077,.103,.061),insideBend*.62+shelfPatch*.38);
+        vec3 channelColour=mix(vec3(.012,.049,.058),bedColour,pilotShallows);
+        float wetContact=(1.0-smoothstep(.04,.57,bankMetres))*(.43+shelfPatch*.57);
+        channelColour=mix(channelColour,vec3(.021,.041,.029),wetContact*.62);
         diffuseColor.rgb=mix(diffuseColor.rgb,channelColour,pilotWater);
       `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
         roughnessFactor=clamp(.43+shallows*.10+(vRiverWind.z-.5)*.018,.40,.56);
@@ -184,5 +220,5 @@ export function paintRiver(material, time, ripple, windGLSL) {
         reflectedLight.indirectSpecular*=1.0-pilotWater*.28;
       `);
   };
-  material.customProgramCacheKey=()=> 'painterly-channel-v2-meshy-pilot';
+  material.customProgramCacheKey=()=> 'painterly-channel-v3-meshy-pilot';
 }

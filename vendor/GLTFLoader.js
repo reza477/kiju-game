@@ -3352,6 +3352,7 @@ class GLTFParser {
 			if ( isObjectURL === true ) {
 
 				URL.revokeObjectURL( sourceURI );
+				isObjectURL = false;
 
 			}
 
@@ -3363,6 +3364,7 @@ class GLTFParser {
 
 		} ).catch( function ( error ) {
 
+			if ( isObjectURL === true ) URL.revokeObjectURL( sourceURI );
 			console.error( 'THREE.GLTFLoader: Couldn\'t load texture', sourceURI );
 			throw error;
 
