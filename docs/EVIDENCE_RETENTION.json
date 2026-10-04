@@ -1,0 +1,45 @@
+{
+  "updatedAt": "2026-10-04T14:09:06.4231271Z",
+  "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
+  "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
+  "workRequestsSinceCleanup": 0,
+  "retainedGroups": [
+    {
+      "group": "meshy-tree-coverage",
+      "finalCommit": "cab53c7404ef4507a6239ffe6815d91ac1dcbe88"
+    },
+    {
+      "group": "ground-cover-volume",
+      "finalCommit": "8972f9ed72b91dc45ec9712d0271c5688a8aa42b"
+    },
+    {
+      "group": "water-polish",
+      "finalCommit": "3193014c0ac7fd6c3ebc8cbe970938918974c8d2"
+    },
+    {
+      "group": "carrier-assets",
+      "implementationCommit": "d6b1510568879d078e6dfe1b62145c5943f29c6c",
+      "reportCommit": "a9311775bd909979055199d9a94bdd5fa78541bb"
+    }
+  ],
+  "lastCleanup": {
+    "date": "2026-10-04",
+    "removedFiles": 6780,
+    "removedBytes": 7893017168,
+    "errors": 0,
+    "retainedFilesHashVerified": 3488,
+    "retainedBytesHashVerified": 2048546682,
+    "protectedMixedFilesExistenceAndSizeVerified": 2039,
+    "latestReviewFiles": 20,
+    "latestReviewBytes": 44029500,
+    "ledger": "artifacts/evidence-retention/cleanup-applied-20261004.json",
+    "verification": "artifacts/evidence-retention/after-verification-20261004.json"
+  },
+  "protected": "Game source, working/source assets, saves, Git history, source checkpoints, original Meshy masters, operational maintenance/delivery state, unfinished work, small tracked art conclusions and existing release blockers.",
+  "limits": [
+    "Old source-containing archives and operational releases retained where redundancy/inactivity was not established.",
+    "Protected mixed files outside the retained groups have existence/size evidence, not a before/after content-hash claim.",
+    "No gameplay, browser, benchmark or art-review rerun for this housekeeping task. No publication or deployment.",
+    "Runtime remains the previously tested cab53c7404ef4507a6239ffe6815d91ac1dcbe88 content; later housekeeping commit changes instructions, cleanup tooling and this ledger only."
+  ]
+}

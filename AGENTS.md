@@ -1,3 +1,11 @@
+# Standing Meshy permission and evidence retention
+
+Owner update, 4 October 2026: Reza authorizes using the available Meshy account credits for this project's authorized asset work without asking for permission again. This standing permission supersedes earlier per-use credit approval requirements. It does not authorize buying credits, paid upgrades, billing changes, publishing assets, or expanding the approved task. Use Meshy directly when it suits the authorized asset work; preserve private generation/export settings.
+
+Keep detailed evidence for the latest four evidence-producing owner work requests. Count a request and its follow-up corrections/review rounds as one work group, not one group per tool call, retry, packaging step or instruction-only message. After every four new work requests, delete evidence belonging to older groups; the owner has already authorized that cleanup. Check the retention inventory before producing another large evidence set. The initial cleanup retains Meshy tree coverage, ground-cover volume, water polish and Meshy carrier assets.
+
+This retention limit supersedes the instruction below to preserve raw evidence indefinitely. It covers screenshots, recordings, diagnostic/test outputs and duplicate review packages, including old copies in this game's registered worktrees. Preserve the current four groups' original evidence unchanged. Never delete game source, working assets, Meshy originals, saves, source checkpoints, Git history, operational delivery/maintenance state, unfinished work, or another project. Keep small tracked review conclusions and release blockers: evidence cleanup does not turn a failed review into a pass. Before removal, verify every resolved path is strictly beneath a named Kiju Game artifacts root, reject reparse points, and record the removed paths, counts and bytes in a small cleanup ledger. If ownership is uncertain, retain the item until classified. No game tests or art review are needed for evidence-only cleanup.
+
 # Visual development review gate
 
 ## Gothic construction rule
