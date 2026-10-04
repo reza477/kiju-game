@@ -12,6 +12,7 @@ import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.j
 import { packValleyDetail } from './valley-ground-detail.js';
 import { bindMeshyPilot } from './meshy-pilot.js';
 import { bindGroundDressing } from './ground-dressing.js';
+import { createGroundCoverVolume } from './ground-cover-volume.js';
 
 // Local scenery mixes the existing generated world with a bounded imported kit.
 const TAU = Math.PI * 2;
@@ -1051,6 +1052,8 @@ export function createLandscape() {
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
   const meadowDetail=createMeadowDetail(group);
+  const groundCover=createGroundCoverVolume({timeUniform:vegetationTime,existingRecords:records});
+  group.add(groundCover.group);
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
@@ -1058,6 +1061,7 @@ export function createLandscape() {
   stats.groundTransitions=groundTransitions;
   stats.meshyPilot=pilot.stats;
   stats.groundDressing=dressing.stats;
+  stats.groundCoverVolume=groundCover.stats;
   stats.drainage=valleyDrainageDiagnostics();
   stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
@@ -1075,6 +1079,7 @@ export function createLandscape() {
       if (flowerMesh) flowerMesh.visible = !low;
       if (fernMesh) fernMesh.visible = !low;
       if (meadowDetail) meadowDetail.visible = !low;
+      groundCover.setQuality(quality);
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
       pilot.treeMeshes.forEach(mesh => { mesh.castShadow = !low; });
       distantCanopyMeshes.forEach(mesh=>{mesh.castShadow=false;});
