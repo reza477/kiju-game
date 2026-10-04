@@ -15,11 +15,17 @@ await fs.mkdir(output,{recursive:true});
 const A=await readFrozenRelease(process.env.GAME_RELEASE_DIR),B=await readFrozenRelease(process.env.GAME_NEXT_RELEASE_DIR);
 assert.notEqual(A.descriptor.buildId,B.descriptor.buildId);
 assert.notEqual(A.descriptor.gitCommit,'local');assert.notEqual(B.descriptor.gitCommit,'local');
+const pilotDamageIds=JSON.parse(process.env.PILOT_DAMAGE_IDS||'[]');
+assert.ok(Array.isArray(pilotDamageIds)&&pilotDamageIds.every(id=>typeof id==='string'&&id.length>0),'PILOT_DAMAGE_IDS must be a JSON array of existing scenery IDs.');
+assert.equal(new Set(pilotDamageIds).size,pilotDamageIds.length,'Pilot damage IDs must be unique.');
+const interruptedAssetPath=process.env.INTERRUPT_ASSET_PATH||'/src/painterly-vegetation.js';
+assert.ok(B.descriptor.files.some(file=>file.url===interruptedAssetPath),'INTERRUPT_ASSET_PATH must name an actual versioned candidate file.');
 const server=await createDeliveryServer({A,B}),saveKey='colossus-wake-save-v1';
-const report={startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['GAME_RELEASE_DIR','GAME_NEXT_RELEASE_DIR','OUTPUT_DIR','PLAYWRIGHT_CHANNEL','PLAYTEST_GRAPHICS_BACKEND'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]]))},
+const report={startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['GAME_RELEASE_DIR','GAME_NEXT_RELEASE_DIR','OUTPUT_DIR','PLAYWRIGHT_CHANNEL','PLAYTEST_GRAPHICS_BACKEND','PILOT_DAMAGE_IDS','INTERRUPT_ASSET_PATH'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]]))},
+  pilot:{additionalOldSaveDamageIds:pilotDamageIds,interruptedAssetPath},
   protocol:'Scoped single-gameplay-writer compatibility: actual frozen baseline A and art candidate B, same isolated loopback origin; an old A title/preview client remains open, native RAF, UI Save/Continue/update, real stopped-server offline, rollback. This is not unrestricted multiple-active-game save safety.',
   fixtures:['Rich old save is prepared through the baseline production simulation build/upgrade/tick functions, with accelerated fixture time and a position at the existing forest to gather. No resource grants, costs, rates, geometry, random seeds or rules are changed.',
-    'Eight existing tree/rock damage IDs are restored through production landscape reset. This tests serialized damage reconstruction, not a claim of input-driven crushing.',
+    'Eight existing tree/rock damage IDs plus any explicitly recorded PILOT_DAMAGE_IDS are restored through production landscape reset. This tests serialized damage reconstruction, not a claim of input-driven crushing.',
     'Test-owned browser context only. Windows desktop Chromium touch emulation is not physical iPhone/iPad or Safari evidence. Ordinary Playwright tabs prove multiple-client byte pinning; they do not establish native background-tab or lock/resume behavior.',
     'Unrestricted multiple-active-game save preservation FAILED in preserved prior runs. Unchanged main.js autosaves paused started sessions every 30 seconds and saves on pagehide/beforeunload. Original release-browser/results.json reproduced replacement by a slightly NEWER second A snapshot during an interrupted update, before B activation. The subsequent synchronized-fixture attempt in release-browser-verified/results.json failed when an offline A session wrote a later snapshot and the primary caller saved its own older paused snapshot during update. This run isolates one active gameplay save writer: the old peer remains on the real title/preview without Continue, and the current gameplay page closes before offline reopening. No production save handler is disabled or changed.'],
   gates:{scope:'Single active gameplay writer plus a separate old title/preview client',unrestrictedMultipleSessionSaveSafety:'FAILED — competing A-session save replacement reproduced in preserved runs; unresolved',overallReleaseReadiness:'BLOCKED — unrestricted multi-session save gate and independent art gate have failed'},
@@ -61,6 +67,12 @@ async function identity(target,expected){
   for(let i=0;i<20;i++)if(expected.buildings[i]?.remaining>0)assert.ok(current.buildings[i].remaining<=expected.buildings[i].remaining&&current.buildings[i].remaining>Math.max(0,expected.buildings[i].remaining-5));
   const damage=await target.evaluate(()=>{const{scene,state}=window.__colossus;scene.update(state,0,null);const anchors=new Set(scene.landscape.crushables.map(r=>r.id));let hidden=0;scene.landscape.group.traverse(mesh=>{if(mesh.isInstancedMesh)for(let i=0;i<mesh.count;i++)if(mesh.instanceMatrix.array[i*16+13]===-5000)hidden++;});return{ids:state.worldDamage.expedition.slice(),allValid:state.worldDamage.expedition.every(id=>anchors.has(id)),destroyedCount:scene.landscape.stats.destroyedCount,hidden};});
   assert.equal(damage.allValid,true);assert.equal(damage.destroyedCount,expected.worldDamage.expedition.length);assert.ok(damage.hidden>=damage.destroyedCount);
+  for(const id of pilotDamageIds)assert.ok(damage.ids.includes(id),'Saved pilot scenery damage lost: '+id);
+  if(pilotDamageIds.length){
+    const pilot=await target.evaluate(async()=>{const stats=window.__colossus.scene.landscape.stats.meshyPilot;if(!stats)return null;return{stats,status:(await import('/src/meshy-pilot.js')).meshyPilotStatus(),meshes:window.__colossus.scene.landscape.group.children.filter(mesh=>mesh.userData.meshyPilot).map(mesh=>({name:mesh.name,kind:mesh.userData.meshyPilot,instances:mesh.count,hidden:Array.from({length:mesh.count},(_,index)=>mesh.instanceMatrix.array[index*16+13]===-5000).filter(Boolean).length}))};});
+    if(pilot){assert.equal(pilot.status.state,'ready');assert.equal(pilot.status.error,null);for(const id of pilotDamageIds)assert.ok(pilot.stats.records.some(record=>record.id===id),'Saved pilot ID has no imported replacement: '+id);}
+    report.observations.push({phase,pilotDamage:pilot,note:'Logical IDs and aggregate hidden imported parts are recorded. This does not substitute for the separate exact per-ID visual binding audit.'});
+  }
   report.observations.push({phase,time:current.time,resources:current.resources,buildings:current.buildings,towerOrder:current.towerOrder,damage});
   return current;
 }
@@ -89,7 +101,7 @@ try{
   });
   await check('A creates a valid rich cyborg save with vertical construction, upgrade, gathered resources and saved damage',async()=>{
     await page.locator('[data-faction="kaiju"]').tap();await page.locator('[data-variant="cyborg"]').tap();await page.locator('#begin').tap();
-    report.fixture=await page.evaluate(async()=>{
+    report.fixture=await page.evaluate(async pilotIds=>{
       const sim=await import('/src/simulation.js'),vertical=await import('/src/vertical-city.js'),{state:s,scene}=window.__colossus;
       s.paused=false;const first=vertical.nextVerticalSlot(s.buildings,s.rings),cannon=sim.build(s,'cannon',first);
       if(!cannon.ok)throw Error(cannon.message);for(let i=0;i<40;i++)sim.tick(s,.25);
@@ -97,9 +109,10 @@ try{
       const forest=s.nodes.find(node=>node.id==='forest'),start={x:s.x,z:s.z};s.x=forest.x;s.z=forest.z;s.target=null;for(let i=0;i<20;i++)sim.tick(s,.25);s.x=start.x;s.z=start.z;s.gathering=null;
       const second=vertical.nextVerticalSlot(s.buildings,s.rings),farm=sim.build(s,'farm',second);if(!farm.ok)throw Error(farm.message);
       const records=scene.landscape.crushables,trees=records.filter(r=>r.kind==='tree'),rocks=records.filter(r=>r.kind==='rock');
-      s.worldDamage.expedition=[...trees.slice(0,4),...rocks.slice(0,4)].map(r=>r.id);s.worldDamage.battle=[trees.at(-1).id,rocks.at(-1).id];s.paused=true;scene.update(s,0,null);window.__colossus.advance(0);
+      for(const id of pilotIds)if(!records.some(record=>record.id===id&&['tree','rock'].includes(record.kind)))throw Error('Pilot damage fixture ID is not existing baseline scenery: '+id);
+      s.worldDamage.expedition=[...new Set([...trees.slice(0,4),...rocks.slice(0,4)].map(r=>r.id).concat(pilotIds))];s.worldDamage.battle=[trees.at(-1).id,rocks.at(-1).id];s.paused=true;scene.update(s,0,null);window.__colossus.advance(0);
       return{first,second,cannon,upgrade,farm,damage:s.worldDamage,layout:vertical.createVerticalLayout(s.buildings,s.towerOrder,s.variant)};
-    });
+    },pilotDamageIds);
     oldSave=await save();assert.ok(oldSave.stats.gathered>0);assert.equal(oldSave.buildings[11].level,2);assert.equal(oldSave.towerOrder.at(-1),report.fixture.second);assert.equal(report.fixture.layout.heightScale,.5);assert.ok(oldSave.buildings[report.fixture.second].remaining>0);await identity(page,oldSave);
     await fs.writeFile(path.join(output,'isolated-old-save.json'),JSON.stringify(oldSave,null,2)+'\n');
   });
@@ -110,9 +123,9 @@ try{
     await page.bringToFront();oldSave=await save();await panel();
     report.observations.push({phase,oldPeerTitlePreviewOnly:true,activeGameplayWriters:1,reason:'Isolate update compatibility while retaining the original failed two-active-game save evidence.'});
   });
-  await check('Interrupted B art-module download cannot replace complete A or alter its save',async()=>{
-    const artModule=B.descriptor.files.find(file=>file.url==='/src/painterly-vegetation.js');
-    assert.ok(artModule,'Candidate inventory must include the migrated crown/cover module.');
+  await check('Interrupted B '+(process.env.INTERRUPT_ASSET_PATH?'pilot asset':'art-module')+' download cannot replace complete A or alter its save',async()=>{
+    const artModule=B.descriptor.files.find(file=>file.url===interruptedAssetPath);
+    assert.ok(artModule,'Candidate inventory must include the requested interruption target.');
     server.select('B');fault={kind:'interrupt',path:artModule.url};server.inject(fault);
     const before=await rawSave(),time=await page.evaluate(()=>performance.timeOrigin),index=server.requests.length;
     const result=await page.evaluate(async()=> (await import('/src/offline.js')).checkForUpdate());

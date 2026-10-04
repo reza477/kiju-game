@@ -7,11 +7,14 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
 import {verifyRuntime} from '../scripts/delivery-lib.mjs';
+import {stripOnlyMeshyBootPreload} from './helpers/meshy-release-main.mjs';
 
 const output = path.resolve(process.env.OUTPUT_DIR || 'artifacts/painterly/release-final');
 const git = (root, ...args) => execFileSync('git', args, {cwd:root, encoding:'utf8', maxBuffer:32*1024*1024}).trim();
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const meshyPilot=process.env.MESHY_PILOT==='1';
 const report = {startedAt:new Date().toISOString(), command:{executable:process.execPath,args:process.argv.slice(1),environment:{}}, releases:{}, checks:[], passed:false};
+for(const key of ['MESHY_PILOT','BASELINE_COMMIT','CANDIDATE_COMMIT','OUTPUT_DIR'])if(process.env[key]!==undefined)report.command.environment[key]=process.env[key];
 await fs.mkdir(output,{recursive:true});
 try {
   const roots = {};
@@ -37,15 +40,32 @@ try {
     const rendererModules=shipped.filter(file=>/three(?:\.module|\.core)?(?:\.min)?\.js$/.test(file));
     assert.deepEqual(rendererModules.sort(),['/vendor/three.core.js','/vendor/three.module.js']);
     report.releases[label]={...build,source,artifactSha256:verified.artifactSha256,files:verified.records,descriptor:verified.release};
+    if(meshyPilot&&label==='B'){
+      const modules=['/src/meshy-pilot.js','/vendor/GLTFLoader.js','/vendor/BufferGeometryUtils.js','/vendor/SkeletonUtils.js'];
+      for(const url of modules){const file=verified.release.files.find(record=>record.url===url);assert.ok(file,'Local pilot dependency missing: '+url);assert.equal(file.sha256,source.hashes[url.slice(1)],'Shipped pilot dependency differs from exact source: '+url);}
+      const models=[];
+      for(const kind of ['rock','pine','broadleaf']){
+        const url='/assets/scenery/meshy-pilot/'+kind+'.glb',file=verified.release.files.find(record=>record.url===url);assert.ok(file,'Required local pilot model missing: '+url);assert.equal(file.type,'model/gltf-binary');assert.ok(file.bytes>28);assert.equal(file.sha256,source.hashes[url.slice(1)],'Packaged GLB differs from frozen source: '+url);models.push(file);
+      }
+      report.pilotInventory={modules,models,modelBytes:models.reduce((sum,file)=>sum+file.bytes,0)};
+      report.checks.push('B: all three exact frozen pilot GLBs, glTF MIME, local loader dependencies and original pinned Three pair are in the offline inventory.');
+    }
     report.checks.push(label+': isolated clean detached checkout; exact inventory hashes; generated build-info confined to output; authoring excluded; single pinned renderer module pair.');
   }
   assert.notEqual(roots.A,roots.B,'A and B must have distinct isolated checkouts.');
   assert.notEqual(report.releases.A.buildId,report.releases.B.buildId,'Actual A and B releases must differ.');
   const a=report.releases.A.source.hashes,b=report.releases.B.source.hashes;
   const protectedFiles=['src/simulation.js','src/terrain.js','src/city-layout.js','src/vertical-city.js','src/variants.js','src/weapon-layout.js','src/main.js','src/offline.js','src/release-fetch-worker.js','src/save-transfer.js'];
-  for(const file of protectedFiles){assert.ok(a[file]&&b[file],'Missing protected module '+file);assert.equal(a[file],b[file],file+' changed during visual-only migration.');}
+  for(const file of protectedFiles){
+    assert.ok(a[file]&&b[file],'Missing protected module '+file);
+    if(meshyPilot&&file==='src/main.js'){
+      const before=await fs.readFile(path.join(roots.A,file)),after=await fs.readFile(path.join(roots.B,file)),stripped=stripOnlyMeshyBootPreload(after);
+      assert.deepEqual(stripped,before,'Protected main.js changed beyond the exact import and immediate boot preload.');
+      report.protectedMain={baselineSha256:hash(before),candidateSha256:hash(after),candidateAfterTwoExactRemovalsSha256:hash(stripped),byteIdenticalAfterExactRemovals:true,exception:"One import {loadMeshyPilot} from './meshy-pilot.js'; line and await loadMeshyPilot(); immediately before existing GameScene construction. No normalization or other exemptions."};
+    }else assert.equal(a[file],b[file],file+' changed during visual-only migration.');
+  }
   for(const file of ['pwa/service-worker.js','pwa/manifest.webmanifest'])assert.equal(hash(await fs.readFile(path.join(roots.A,file))),hash(await fs.readFile(path.join(roots.B,file))),file+' changed during visual migration.');
-  report.checks.push('Simulation, terrain, construction/layout, variant/weapon rules, controls, saves, updater, worker and app manifest bytes are preserved.');
+  report.checks.push('Simulation, terrain, construction/layout, variant/weapon rules, saves, updater, worker and app manifest bytes are preserved. '+(meshyPilot?'Main controls/save/boot bytes match after exactly two approved asset-preload additions are removed.':'Main controls and boot bytes are preserved.'));
   report.changedRuntime=report.releases.B.descriptor.files.filter(file=>report.releases.A.descriptor.files.find(old=>old.url===file.url)?.sha256!==file.sha256).map(file=>({url:file.url,bytes:file.bytes,sha256:file.sha256}));
   report.byteDelta=report.releases.B.totalBytes-report.releases.A.totalBytes;
   report.passed=true;

@@ -9,8 +9,9 @@ import { createBridgeAbutments } from './bridge-study.js';
 import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
 import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
+import { bindMeshyPilot } from './meshy-pilot.js';
 
-// All scenery is generated locally. Instancing keeps the many small details cheap.
+// Local scenery mixes the existing generated world with a bounded imported kit.
 const TAU = Math.PI * 2;
 const UP = new T.Vector3(0, 1, 0);
 const RESOURCE_CLEARINGS = RESOURCE_CENTRES;
@@ -384,7 +385,7 @@ class Instances {
       if (item.rotation) TEMP.quaternion.copy(item.rotation); else TEMP.rotation.set(0, item.yaw, 0);
       TEMP.updateMatrix(); mesh.setMatrixAt(i, TEMP.matrix); mesh.setColorAt(i, colour.setHex(item.colour));
     });
-    if(this.material.name.startsWith('rock ')) {
+    if(this.material.name.startsWith('rock ')||this.material.userData.meshyPilot==='rock') {
       // Match the physical bank field. Instanced attributes follow spatial
       // partitioning and saved-destruction slots with the rest of the geometry.
       const wet=this.items.map(item=>{const x=item.x+this.group.position.x,z=item.z+this.group.position.z,line=-3+(bankWidth(x,z)+3)*.61;return 1-smooth(line-.3,line+3.2,shoreDistance(x,z));});
@@ -1040,6 +1041,7 @@ export function createLandscape() {
   const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
   const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,selectionHeightAt:selectionSceneryHeight,ecologyAt,isClearing});
   const groundTransitions=composeGroundTransitions(grass,records,looseGrassCount);
+  const pilot=bindMeshyPilot({group,Instances,records,trees,rocks});
   const canopyMeshes = trees.finish(),distantCanopyMeshes=distantTrees.finish(); rocks.finish('Valley boulders and river pebbles'); shrubs.finish('Meadow shrubs');
   const grasses = grass.finish('Meadow grass and river reeds'), flowerMesh = flowers.finish('Small wildflowers');
   const fernMesh=ferns.finish('Forest-edge ferns and saxifrage');
@@ -1049,6 +1051,7 @@ export function createLandscape() {
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
+  stats.meshyPilot=pilot.stats;
   stats.drainage=valleyDrainageDiagnostics();
   stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
@@ -1059,7 +1062,7 @@ export function createLandscape() {
     update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
     interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
     resetInteractions: options => interactions.resetInteractions(options),
-    movementMaterials: interactions.movementMaterials,
+    movementMaterials: [...interactions.movementMaterials,...pilot.meshes],
     setQuality(quality) {
       const low = quality === 'retro' || quality === 'low';
       if (grasses) grasses.visible = !low;
@@ -1067,6 +1070,7 @@ export function createLandscape() {
       if (fernMesh) fernMesh.visible = !low;
       if (meadowDetail) meadowDetail.visible = !low;
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
+      pilot.treeMeshes.forEach(mesh => { mesh.castShadow = !low; });
       distantCanopyMeshes.forEach(mesh=>{mesh.castShadow=false;});
       life.setQuality(quality);
     }

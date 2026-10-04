@@ -16,7 +16,7 @@ assert.ok(['127.0.0.1','localhost'].includes(base.hostname),'Local game required
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
 async function source(){
-  const paths=new Set([...git('ls-files','src','assets','vendor','index.html','package.json','package-lock.json').split('\n'),...git('ls-files','--others','--exclude-standard','src').split('\n')]);
+  const paths=new Set([...git('ls-files','src','assets','vendor','index.html','package.json','package-lock.json').split('\n'),...git('ls-files','--others','--exclude-standard','src','assets','vendor').split('\n')]);
   const hashes={};for(const file of [...paths].filter(Boolean).sort())hashes[file]=hash(await fs.readFile(path.join(root,file)));
   return{commit:git('rev-parse','HEAD'),hashes,fingerprint:hash(JSON.stringify(hashes))};
 }
@@ -118,12 +118,13 @@ try{
         return{id:p.id,name:p.name,usedTimes:p.usedTimes,cacheKey:p.cacheKey,runnable:p.diagnostics?.runnable??null,linkStatus,linkQueryWallMs,
           vertexSource:p.vertexShader?gl.getShaderSource(p.vertexShader):null,fragmentSource:p.fragmentShader?gl.getShaderSource(p.fragmentShader):null};
       };
+      const persistentCount=g.landscape.movementMaterials.length;
       const prepared=g.movementMaterials.map((mesh,index)=>{
-        const owner=index<2?null:g.labels.find(site=>site.getObjectByProperty('uuid',mesh.uuid)===mesh);
+        const owner=index<persistentCount?null:g.labels.find(site=>site.getObjectByProperty('uuid',mesh.uuid)===mesh);
         if(owner)for(const [object,kind]of [[mesh,'mesh'],[mesh.geometry,'geometry'],[mesh.material,'material']])if(!window.__lifecycle.watchedSiteObjects.has(object)){
           window.__lifecycle.watchedSiteObjects.add(object);const id=object.uuid,ownerId=owner.uuid;
           object.addEventListener('dispose',()=>window.__lifecycle[kind==='material'?'siteMaterialDisposals':'siteDisposals'].push({kind,id,owner:ownerId,frame:window.__lifecycle.frames,
-            borrowedAtDisposal:g.movementMaterials.slice(2).map(m=>m.uuid)}));
+            borrowedAtDisposal:g.movementMaterials.slice(persistentCount).map(m=>m.uuid)}));
         }
         return{mesh:mesh.uuid,name:mesh.name,geometry:mesh.geometry.uuid,material:describe(mesh.material),count:mesh.count,capacity:mesh.instanceMatrix?.count??null,visible:mesh.visible,
           owner:owner?.uuid??null,inScene:g.scene.getObjectByProperty('uuid',mesh.uuid)===mesh,isInstancedMesh:!!mesh.isInstancedMesh,
@@ -141,15 +142,15 @@ try{
         siteMetals.push({site:site.uuid,node,mesh:metal.uuid,geometry:metal.geometry.uuid,material:describe(metal.material),
           isInstancedMesh:metal.isInstancedMesh===true,inScene:g.scene.getObjectByProperty('uuid',metal.uuid)===metal,
           shaderShape:{attributes:Object.keys(metal.geometry.attributes).sort(),morphAttributes:Object.keys(metal.geometry.morphAttributes).sort(),instancingColor:!!metal.instanceColor},
-          sameMaterialAsRepresentative:metal.material===g.movementMaterials[2]?.material});
+          sameMaterialAsRepresentative:metal.material===g.movementMaterials[persistentCount]?.material});
       }
       return{label,frame:window.__lifecycle.frames,world:g.world.uuid,worldGeometry:[...geometries].sort(),worldMaterials:[...materials.values()].sort((a,b)=>a.uuid.localeCompare(b.uuid)),prepared,
-        persistentPoolMeshes:g.landscape.movementMaterials.map(mesh=>({mesh:mesh.uuid,name:mesh.name})),preparationArray:window.__lifecycle.objectIdentity(g.movementMaterials),
+        persistentWorldMeshes:g.landscape.movementMaterials.map(mesh=>({mesh:mesh.uuid,name:mesh.name})),preparationArray:window.__lifecycle.objectIdentity(g.movementMaterials),
         siteMetals,siteDisposals:[...window.__lifecycle.siteDisposals],siteMaterialDisposals:[...window.__lifecycle.siteMaterialDisposals],verifyLinks,
         preparation:{...g.movementPreparation.status},render:{...r.info.render},memory:{...r.info.memory},programs:(r.info.programs??[]).map(p=>program(p)),
         quality:g.quality,qualityPreference:localStorage.getItem('colossus-quality-v1'),light:g.light,buffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],renderDpr:r.getPixelRatio(),shadowEnabled:r.shadowMap.enabled,
         viewport:[innerWidth,innerHeight],deviceDpr:devicePixelRatio,cameraProjection:{aspect:g.camera.aspect,matrix:g.camera.projectionMatrix.toArray()},
-        preparationConfiguration:{quality:g.quality,light:g.light,environment:g.scene.environment?.uuid??null,materialKey:g.movementMaterialKey,siteMetalMaterial:g.movementMaterials[2]?.material.uuid??null,presentationEnabled:g.presentation.enabled,target:g.presentation.enabled?window.__lifecycle.objectIdentity(g.presentation.target):null},
+        preparationConfiguration:{quality:g.quality,light:g.light,environment:g.scene.environment?.uuid??null,materialKey:g.movementMaterialKey,siteMetalMaterial:g.movementMaterials[persistentCount]?.material.uuid??null,presentationEnabled:g.presentation.enabled,target:g.presentation.enabled?window.__lifecycle.objectIdentity(g.presentation.target):null},
         presentationTarget:{id:window.__lifecycle.objectIdentity(g.presentation.target),width:g.presentation.target.width,height:g.presentation.target.height,texture:g.presentation.target.texture.uuid,depthTexture:g.presentation.target.depthTexture?.uuid??null},invalidMatrices,
         sourceState:window.__colossus.snapshot(),savedRaw:localStorage.getItem('colossus-wake-save-v1'),worldDisposals:[...window.__lifecycle.worldDisposals],contextLost:gl.isContextLost(),contextEvents:[...window.__lifecycle.contextEvents],
         surfaces:g.surfaceDiagnostics(),city:{id:g.city.root.uuid,faction:g.city.faction,variant:g.city.variant},sites:g.labels.map(x=>({id:x.uuid,name:x.name}))};
@@ -162,21 +163,25 @@ try{
     for(const m of value.siteMetals){m.material.shaderHookSha256=hash(m.material.shaderHook);delete m.material.shaderHook;}
     value.programs.forEach(program);report.snapshots.push(value);
     assert.equal(value.contextLost,false,label);assert.equal(value.preparation.error,null,label);
-    assert.equal(value.persistentPoolMeshes.length,2);assert.deepEqual(value.persistentPoolMeshes.map(m=>m.name),['Crushed tree stumps','Crushed fallen boughs']);
-    assert.equal(value.prepared.length,7);assert.deepEqual(value.prepared.slice(0,3).map(m=>m.name),['Crushed tree stumps','Crushed fallen boughs','Resource site metal']);
-    assert.deepEqual(value.prepared.slice(2).map(m=>m.material.name),['metal ffffff','rock ffffff painterly ruin','brick ffffff painterly ruin','stone bbb9a4 painterly ruin','pavement 90917e painterly ruin']);
-    assert.deepEqual(value.prepared.slice(2).map(m=>m.isInstancedMesh),[true,true,true,false,false]);
-    assert.deepEqual(value.prepared.slice(3).map(m=>m.material.cacheKey),['painterly-ruin-stone-v3:world-metric-scenery-v3:painterly-bank-rock-v2','painterly-ruin-stone-v3:world-metric-scenery-v3','painterly-ruin-stone-v3','painterly-ruin-stone-v3']);
-    assert.ok(value.prepared.slice(2).every(m=>m.owner&&m.inScene&&m.material.shared),label+': every borrowed mesh must have a current owner and shared material');
+    const persistentCount=value.persistentWorldMeshes.length,borrowed=value.prepared.slice(persistentCount);
+    assert.equal(persistentCount,5,'Exactly two original pools and three imported pilot representatives');
+    assert.deepEqual(value.persistentWorldMeshes.slice(0,2).map(m=>m.name),['Crushed tree stumps','Crushed fallen boughs']);
+    assert.deepEqual(value.persistentWorldMeshes.slice(2).map(m=>m.name).sort(),['Meshy pilot Broadleaf canopies','Meshy pilot Pine boughs','Meshy pilot riverbank rocks'].sort());
+    assert.equal(value.prepared.length,10);assert.equal(borrowed.length,5);assert.equal(borrowed[0].name,'Resource site metal');
+    assert.deepEqual(borrowed.map(m=>m.material.name),['metal ffffff','rock ffffff painterly ruin','brick ffffff painterly ruin','stone bbb9a4 painterly ruin','pavement 90917e painterly ruin']);
+    assert.deepEqual(borrowed.map(m=>m.isInstancedMesh),[true,true,true,false,false]);
+    assert.deepEqual(borrowed.slice(1).map(m=>m.material.cacheKey),['painterly-ruin-stone-v3:world-metric-scenery-v3:painterly-bank-rock-v2','painterly-ruin-stone-v3:world-metric-scenery-v3','painterly-ruin-stone-v3','painterly-ruin-stone-v3']);
+    assert.ok(borrowed.every(m=>m.owner&&m.inScene&&m.material.shared),label+': every borrowed mesh must have a current owner and shared material');
+    assert.ok(value.prepared.slice(2,persistentCount).every(m=>!m.owner&&m.inScene&&m.material.shared&&m.isInstancedMesh),label+': imported representatives must remain owned by the persistent world');
     assert.equal(value.preparationConfiguration.materialKey,value.prepared.map(m=>m.material.uuid).join(':'));
-    assert.deepEqual(value.prepared.slice(0,2).map(m=>({mesh:m.mesh,name:m.name})),value.persistentPoolMeshes,'Preparation must use the exact two persistent landscape pools');
-    assert.equal(new Set(value.prepared.map(m=>m.mesh)).size,7,label+': duplicate preparation resource');
+    assert.deepEqual(value.prepared.slice(0,persistentCount).map(m=>({mesh:m.mesh,name:m.name})),value.persistentWorldMeshes,'Preparation must use every exact persistent landscape representative');
+    assert.equal(new Set(value.prepared.map(m=>m.mesh)).size,10,label+': duplicate preparation resource');
     assert.ok(value.prepared.every(m=>m.programs.length>0),label+': every targeted material needs prepared programs');
     assert.ok(value.prepared.every(m=>m.capacity===null||m.count>=0&&m.count<=m.capacity),label+': invalid prepared instance count');
     const ironNodes=value.sourceState.nodes.filter(n=>n.kind==='iron').map(n=>n.id).sort();assert.deepEqual(value.siteMetals.map(m=>m.node).sort(),ironNodes,label+': missing or extra metal-bearing resource sites');
-    assert.ok(value.siteMetals.length>0);assert.equal(value.prepared[2].mesh,value.siteMetals[0].mesh,'Preparation must borrow the first currently owned Resource site metal mesh');
-    assert.equal(value.prepared[2].geometry,value.siteMetals[0].geometry);assert.deepEqual(value.prepared[2].material,value.siteMetals[0].material);
-    for(const metal of value.siteMetals){assert.equal(metal.isInstancedMesh,true);assert.equal(metal.inScene,true,'Stale site mesh in preparation');assert.equal(metal.sameMaterialAsRepresentative,true);assert.equal(metal.material.shared,true);assert.deepEqual(metal.material,value.prepared[2].material);assert.deepEqual(metal.shaderShape,value.siteMetals[0].shaderShape,'Metal sites require different program configurations');}
+    assert.ok(value.siteMetals.length>0);assert.equal(borrowed[0].mesh,value.siteMetals[0].mesh,'Preparation must borrow the first currently owned Resource site metal mesh');
+    assert.equal(borrowed[0].geometry,value.siteMetals[0].geometry);assert.deepEqual(borrowed[0].material,value.siteMetals[0].material);
+    for(const metal of value.siteMetals){assert.equal(metal.isInstancedMesh,true);assert.equal(metal.inScene,true,'Stale site mesh in preparation');assert.equal(metal.sameMaterialAsRepresentative,true);assert.equal(metal.material.shared,true);assert.deepEqual(metal.material,borrowed[0].material);assert.deepEqual(metal.shaderShape,value.siteMetals[0].shaderShape,'Metal sites require different program configurations');}
     assert.deepEqual(value.siteMaterialDisposals,[],'Replacing a site disposed the shared material used by current sites/preparation');
     assert.ok(value.programs.every(p=>p.runnable!==false),label+': invalid shader program');assert.deepEqual(value.invalidMatrices,[]);
     if(verifyLinks)assert.ok(value.prepared.every(m=>m.programs.every(p=>p.linkStatus===true)),label+': targeted program is not linked; queried outside diagnostic timing');
@@ -184,16 +189,17 @@ try{
     return value;
   }
   const initial=await snap('title-initial');
-  const stablePools=s=>s.prepared.slice(0,2).map(m=>({mesh:m.mesh,geometry:m.geometry,material:m.material.uuid}));
+  const stablePools=s=>s.prepared.slice(0,s.persistentWorldMeshes.length).map(m=>({mesh:m.mesh,geometry:m.geometry,material:m.material.uuid}));
   function preservedWorld(s,reference=initial){
     assert.equal(s.world,reference.world);assert.deepEqual(s.worldGeometry,reference.worldGeometry);assert.deepEqual(s.worldMaterials,reference.worldMaterials);
     assert.deepEqual(stablePools(s),stablePools(reference));assert.deepEqual(s.worldDisposals,[],'setGame disposed a material still owned by the persistent world');
     assert.equal(s.preparationArray,reference.preparationArray,'Preparation replaced its bounded current-resource list');
-    assert.deepEqual(s.prepared.slice(2).map(m=>m.material),reference.prepared.slice(2).map(m=>m.material),'Unchanged borrowed site materials were recreated or mutated');
-    assert.deepEqual(s.prepared.slice(2).map(m=>m.shaderShape),reference.prepared.slice(2).map(m=>m.shaderShape),'Rebuilt site representative shader shapes changed');
+    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length).map(m=>m.material),reference.prepared.slice(reference.persistentWorldMeshes.length).map(m=>m.material),'Unchanged borrowed site materials were recreated or mutated');
+    assert.deepEqual(s.prepared.slice(s.persistentWorldMeshes.length).map(m=>m.shaderShape),reference.prepared.slice(reference.persistentWorldMeshes.length).map(m=>m.shaderShape),'Rebuilt site representative shader shapes changed');
   }
   function replacedSite(before,after){
-    for(let i=2;i<7;i++){
+    assert.equal(before.persistentWorldMeshes.length,after.persistentWorldMeshes.length);
+    for(let i=before.persistentWorldMeshes.length;i<before.prepared.length;i++){
       const old=before.prepared[i],current=after.prepared[i];
       assert.notEqual(current.mesh,old.mesh,'setGame retained a previous site mesh');assert.notEqual(current.geometry,old.geometry,'setGame retained disposed site geometry');
       assert.deepEqual(current.material,old.material,'Rebuilt sites lost shared material compatibility');
@@ -201,9 +207,9 @@ try{
         const events=after.siteDisposals.filter(e=>e.kind===kind&&e.id===id);assert.equal(events.length,1,'Previous site-owned '+kind+' was not disposed exactly once');
         assert.deepEqual(events[0].borrowedAtDisposal,[],'Borrowed references must be dropped before any owner disposes a targeted resource');
       }
-      assert.ok(after.prepared.slice(2).every(m=>m.mesh!==old.mesh&&m.geometry!==old.geometry),'Current preparation list retained old owned references');
+      assert.ok(after.prepared.slice(after.persistentWorldMeshes.length).every(m=>m.mesh!==old.mesh&&m.geometry!==old.geometry),'Current preparation list retained old owned references');
     }
-    assert.ok(after.siteMetals.every(m=>m.mesh!==before.prepared[2].mesh&&m.geometry!==before.prepared[2].geometry),'Current site list retained old owned references');
+    assert.ok(after.siteMetals.every(m=>m.mesh!==before.prepared[before.persistentWorldMeshes.length].mesh&&m.geometry!==before.prepared[before.persistentWorldMeshes.length].geometry),'Current site list retained old owned references');
   }
   async function selectAndBegin(faction,variant,previous){
     await page.locator(`[data-faction="${faction}"]`).click();await page.locator(`[data-variant="${variant}"]`).click();await page.locator('#begin').click();
@@ -246,14 +252,14 @@ try{
     assert.deepEqual(resumed,{...saved,paused:false,speed:1},'Continue changed saved progress beyond established pause/speed normalization');
     assert.deepEqual(resumed.worldDamage,saved.worldDamage);await pause();await frames();const after=await snap('continue-cycle-'+i);preservedWorld(after);replacedSite(atTitle,after);
     assert.equal(after.preparation.attempts,stable.preparation.attempts);assert.deepEqual(steadyPoolPrograms(after),steadyPoolPrograms(stable));
-    previous=after;report.checks.push(`Title/Continue ${i}: exact resumed save at click boundary; two world-pool identities and all seven compatible material/program identities remain stable; all five borrowed site meshes/geometries are dropped before disposal, released once and rebound to their current owners.`);
+    previous=after;report.checks.push(`Title/Continue ${i}: exact resumed save at click boundary; two world-pool and three imported-mesh identities and all ten compatible material/program identities remain stable; all five borrowed site meshes/geometries are dropped before disposal, released once and rebound to their current owners.`);
   }
   for(const [faction,variant]of [['kaiju','cyborg'],['crawler','drill']]){
     await title();const before=await snap('before-carrier-'+variant);replacedSite(previous,before);const after=await selectAndBegin(faction,variant,before);
     assert.equal(after.preparation.attempts,before.preparation.attempts);assert.deepEqual(steadyPoolPrograms(after),steadyPoolPrograms(stable));
     previous=after;
   }
-  report.checks.push('Actual cyborg/drill title choices preserve the exact two world pools and all seven shared material/program identities; the five borrowed meshes belong to rebuilt current sites, all old references are dropped before disposal and old owned geometries are disposed once.');
+  report.checks.push('Actual cyborg/drill title choices preserve the exact two world pools and all ten shared material/program identities; the five borrowed meshes belong to rebuilt current sites, all old references are dropped before disposal and old owned geometries are disposed once.');
   await page.locator('#save').click();await frames();const beforeLoss=await snap('before-context-loss');
   await page.evaluate(()=>window.__colossus.scene.renderer.forceContextLoss());
   await page.waitForFunction(()=>window.__colossus.scene.renderer.getContext().isContextLost()&&window.__lifecycle.contextEvents.some(e=>e.event==='webglcontextlost'));

@@ -10,9 +10,11 @@ let playwright;try{playwright=require('playwright');}catch{playwright=require(pa
 const browser=await playwright.chromium.launch({headless:true,channel:'chrome',args:['--enable-unsafe-swiftshader','--mute-audio']});
 const context=await browser.newContext({viewport:{width:1440,height:960}});
 const page=await context.newPage(),errors=[],remote=[],checks=[];
-page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(!r.url().startsWith(base))remote.push(r.url());});
+page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{const url=new URL(r.url());if(url.origin!==new URL(base).origin&&url.protocol!=='blob:')remote.push(r.url());});
 try{
  await page.goto(`${base}/?test=1`);await page.waitForFunction(()=>!!window.__colossus);await page.waitForTimeout(1500);
+ const pilot=await page.evaluate(async()=>({assets:(await import('/src/meshy-pilot.js')).meshyPilotStatus(),world:window.__colossus.scene.landscape.stats.meshyPilot}));
+ assert.equal(pilot.assets.state,'ready');assert.equal(pilot.assets.error,null);assert.deepEqual(pilot.assets.assets.map(asset=>asset.kind).sort(),['broadleaf','pine','rock']);assert.deepEqual(pilot.world.masters.slice().sort(),['broadleaf','pine','rock']);assert.ok(pilot.world.instances>0);
  await page.screenshot({path:`${out}/title-kaiju.png`});checks.push('Kaiju title renders');
  await page.locator('[data-faction="crawler"]').click();await page.waitForTimeout(500);await page.screenshot({path:`${out}/title-crawler.png`});
  await page.locator('[data-faction="airship"]').click();await page.waitForTimeout(500);await page.screenshot({path:`${out}/title-airship.png`});checks.push('All city types preview');
