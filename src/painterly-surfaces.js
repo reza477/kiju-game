@@ -120,7 +120,7 @@ export function paintGround(material, {weights, detail}) {
       // Habitat colours still locate meadow, litter, mineral and wet ground.
       // Only the small turf blades and soil aggregates vary within those masses.
       float turfStroke=smoothstep(.49,.70,valleyBrush.a),soilCrease=1.0-smoothstep(.37,.47,valleyBrush.a);
-      vec3 strokeTint=mix(vec3(1.14,1.12,1.035),vec3(1.17,1.22,1.07),habitat.r);
+      vec3 strokeTint=mix(vec3(1.065,1.05,.96),vec3(.98,1.11,.87),habitat.r);
       diffuseColor.rgb*=mix(vec3(1.0),mix(vec3(1.0-soilCrease*.18),strokeTint,turfStroke),valleyDetail);
       groundSlope=(valleyBrush.gb*2.0-1.0)*valleyDetail;
       if(pilotGround>0.0) {
@@ -172,7 +172,7 @@ export function paintGround(material, {weights, detail}) {
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65)*groundCavity;
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v9-colony-valley-ground';
+  material.customProgramCacheKey=()=> 'painterly-habitat-v10-olive-valley-ground';
 }
 
 export function paintRiver(material, time, ripple, windGLSL) {

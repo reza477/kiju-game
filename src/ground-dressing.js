@@ -125,10 +125,13 @@ export function bindGroundDressing({group,Instances,records}){
   for(const record of ranked.slice(0,56))selected.add(record);
   // Sparse old-world fragments are subordinate to the established rocks. Keep
   // their own silhouette distinct; do not replace or move the original rock.
-  const remnants=new Set([...selected].filter(r=>r.kind==='rock'&&acceptable(r.x,r.z)).sort((a,b)=>{
+  const remnantCandidates=[...selected].filter(r=>r.kind==='rock'&&acceptable(r.x,r.z)).sort((a,b)=>{
     const near=r=>Math.hypot(r.x+30,r.z-40)<95?0:1;
     return near(a)-near(b)||seedFor(a.id+':stone')-seedFor(b.id+':stone');
-  }).slice(0,13));
+  });
+  // Include the richer bank as well as ordinary travel, retaining the same
+  // small global ceiling. These are parts of old rocks, never new landmarks.
+  const remnants=new Set([...remnantCandidates.filter(r=>inPilot(r.x,r.z)).slice(0,4),...remnantCandidates.filter(r=>!inPilot(r.x,r.z)).slice(0,9)]);
   for(const record of records){
     if(!selected.has(record))continue;
     const rand=random(seedFor(record.id)),starts=batches.map(([,batch])=>batch.items.length),tree=record.kind==='tree';
@@ -159,7 +162,7 @@ export function bindGroundDressing({group,Instances,records}){
       const x=record.x+Math.cos(axis)*1.55,z=record.z+Math.sin(axis)*1.55;
       if(acceptable(x,z)){
         const size=.85+(seedFor(record.id+':scale')%31)/100;
-        masonry.add(x,renderedTerrainHeight(x,z)-.09,z,size,size*(.86+(seedFor(record.id)%25)/100),size,0xffffff,axis+.4,surfaceRotation(x,z,axis+.4));
+        masonry.add(x,renderedTerrainHeight(x,z)-.09,z,size,size*(1.03+(seedFor(record.id)%25)/100),size,0xffffff,axis+.4,surfaceRotation(x,z,axis+.4));
       }
     }
     const refs=[];
