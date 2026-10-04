@@ -225,7 +225,7 @@ test('both real iron sites use the same compatible metric metal program without 
   }finally{for(const site of sites){scene.remove(site);disposeGroup(site);}}
 });
 
-test('production site replacement keeps one live borrowed metal batch and reuses shared preparation across Continue',()=>{
+test('production site replacement keeps five bounded current borrowed shaders and reuses preparation across Continue',()=>{
   // Exercise the production setGame method without a GPU. Only construction of
   // the renderer and unrelated lighting/camera services is replaced; real sites,
   // city construction, resource disposal, and the selection loop still run.
@@ -235,37 +235,56 @@ test('production site replacement keeps one live borrowed metal batch and reuses
     cinematic:{reset(){}},cameraPrevious:new T.Vector3(),focus:new T.Vector3(),light:'day',setLighting(){}});
   const borrowed=scene.movementMaterials,preparation=createMovementPreparation(renderer,borrowed),camera=new T.PerspectiveCamera();
   const state=()=>{const value=createGame('crawler','standard');value.enemies=[];return value;};
-  const key=()=>`performance:day:final-environment:${scene.movementMaterials[2]?.material.uuid??'none'}`;
+  const key=()=>`performance:day:final-environment:${scene.movementMaterialKey}`;
+  const expectedNames=['metal ffffff','rock ffffff painterly ruin','brick ffffff painterly ruin','stone bbb9a4 painterly ruin','pavement 90917e painterly ruin'];
+  const expectedKeys=['neutral-plate-reflectance-v1:world-metric-scenery-v3','painterly-ruin-stone-v3:world-metric-scenery-v3:painterly-bank-rock-v2','painterly-ruin-stone-v3:world-metric-scenery-v3','painterly-ruin-stone-v3','painterly-ruin-stone-v3'];
+  const owner=mesh=>scene.labels.find(site=>site.getObjectByProperty('uuid',mesh.uuid)===mesh);
   const clean=()=>{for(const owner of [scene.city?.root,...scene.enemyCities.map(city=>city.root),...scene.labels]){owner?.removeFromParent();if(owner)disposeGroup(owner);}};
   try{
     scene.setGame(state());
     assert.equal(scene.movementMaterials,borrowed,'The preparation helper must retain the same bounded array.');
-    assert.equal(borrowed.length,3);assert.deepEqual(borrowed.slice(0,2),landscape.movementMaterials);
-    const first=borrowed[2],firstSite=scene.labels.find(site=>site.getObjectByName('Resource site metal')===first);
-    assert.ok(firstSite&&first.parent===firstSite,'The representative remains owned by its real site.');
-    const material=first.material,initialKey=key();
-    assert.equal(preparation.prepare(scene.scene,camera,null,initialKey),true);assert.equal(calls.length,3);
-    let oldMeshDisposals=0,oldGeometryDisposals=0,sharedMaterialDisposals=0;
-    const dropCheck=()=>{oldMeshDisposals++;assert.equal(borrowed.length,2,'Drop the borrowed site mesh before its owner releases resources.');assert.ok(!borrowed.includes(first));};
-    const geometryCheck=()=>oldGeometryDisposals++,materialCheck=()=>sharedMaterialDisposals++;
-    first.addEventListener('dispose',dropCheck);first.geometry.addEventListener('dispose',geometryCheck);material.addEventListener('dispose',materialCheck);
+    assert.equal(borrowed.length,7);assert.deepEqual(borrowed.slice(0,2),landscape.movementMaterials);
+    const first=borrowed.slice(2),materials=first.map(mesh=>mesh.material),initialKey=key();
+    assert.equal(new Set(borrowed).size,7,'Borrow one mesh per traced shape, not every matching site or material.');
+    assert.deepEqual(materials.map(m=>m.name),expectedNames);assert.deepEqual(materials.map(m=>m.customProgramCacheKey()),expectedKeys);
+    assert.deepEqual(first.map(m=>!!m.isInstancedMesh),[true,true,true,false,false],'Real shader shapes must match all four first-use traces.');
+    assert.ok(first.every(mesh=>owner(mesh)&&mesh.parent===owner(mesh)),'Every representative remains owned by its real batched site.');
+    assert.equal(first[0],scene.labels.map(site=>site.getObjectByName('Resource site metal')).find(Boolean),'The original metal representative remains at index 2.');
+    assert.ok(materials.every(m=>m.userData.shared));
+    const before=scene.labels.map(siteIdentity),parents=first.map(m=>m.parent),hooks=materials.map(m=>[m.onBeforeCompile,m.customProgramCacheKey]);
+    assert.equal(preparation.prepare(scene.scene,camera,null,initialKey),true);assert.equal(calls.length,7);assert.deepEqual(calls.map(c=>c.object),borrowed);
+    assert.deepEqual(scene.labels.map(siteIdentity),before,'Preparation must preserve every shape, transform, picking field, instance colour and material setting.');
+    assert.deepEqual(first.map(m=>m.parent),parents);assert.deepEqual(materials.map(m=>[m.onBeforeCompile,m.customProgramCacheKey]),hooks);
+    const watched=[];let sharedMaterialDisposals=0;
+    const materialCheck=()=>sharedMaterialDisposals++;
+    for(const material of materials)material.addEventListener('dispose',materialCheck);
+    for(const mesh of first){
+      const counts={mesh:0,geometry:0};
+      const dropCheck=kind=>()=>{counts[kind]++;assert.equal(borrowed.length,2,'Drop all five borrowed meshes before any owner releases resources.');assert.ok(first.every(old=>!borrowed.includes(old)));};
+      const meshCheck=dropCheck('mesh'),geometryCheck=dropCheck('geometry');
+      mesh.addEventListener('dispose',meshCheck);mesh.geometry.addEventListener('dispose',geometryCheck);watched.push({mesh,counts,meshCheck,geometryCheck});
+    }
     try{
       scene.setGame(state());
-      const current=borrowed[2];
-      assert.equal(scene.movementMaterials,borrowed);assert.equal(borrowed.length,3);assert.deepEqual(borrowed.slice(0,2),landscape.movementMaterials);
-      assert.notEqual(current,first);assert.ok(!borrowed.includes(first));assert.equal(current.material,material);
-      assert.ok(scene.labels.some(site=>site.getObjectByName('Resource site metal')===current&&current.parent===site));
-      assert.equal(oldMeshDisposals,1);assert.equal(oldGeometryDisposals,1);assert.equal(sharedMaterialDisposals,0);
+      const current=borrowed.slice(2);
+      assert.equal(scene.movementMaterials,borrowed);assert.equal(borrowed.length,7);assert.deepEqual(borrowed.slice(0,2),landscape.movementMaterials);
+      assert.ok(current.every((mesh,i)=>mesh!==first[i]&&mesh.geometry!==first[i].geometry&&mesh.material===materials[i]));
+      assert.ok(first.every(mesh=>!borrowed.includes(mesh)));assert.ok(current.every(mesh=>owner(mesh)&&mesh.parent===owner(mesh)));
+      for(const {mesh,counts}of watched){assert.equal(counts.mesh,mesh.isInstancedMesh?1:0);assert.equal(counts.geometry,1);}
+      assert.equal(sharedMaterialDisposals,0);
       assert.equal(key(),initialKey,'A new site UUID must not cause unnecessary same-program preparation.');
-      assert.equal(preparation.prepare(scene.scene,camera,null,key()),false);assert.equal(calls.length,3);
+      assert.equal(preparation.prepare(scene.scene,camera,null,key()),false);assert.equal(calls.length,7);
       const target={name:'High-quality presentation target'},qualityKey=key().replace('performance:','high:');
-      assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),true);assert.equal(calls.length,6);
-      assert.equal(calls.at(-1).object,current);assert.equal(calls.at(-1).target,target);
-      setLost(true);preparation.invalidate();assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),false);assert.equal(calls.length,6);
-      setLost(false);assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),true);assert.equal(calls.length,9);
-      assert.equal(calls.at(-1).object,current,'Restoration must prepare the current live site rather than a disposed batch.');
-      assert.ok(calls.slice(3).every(call=>call.object!==first));
-      assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),false);assert.equal(calls.length,9);
-    }finally{first.removeEventListener('dispose',dropCheck);first.geometry.removeEventListener('dispose',geometryCheck);material.removeEventListener('dispose',materialCheck);}
+      assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),true);assert.equal(calls.length,14);
+      assert.deepEqual(calls.slice(-5).map(c=>c.object),current);assert.ok(calls.slice(-7).every(c=>c.target===target));
+      setLost(true);preparation.invalidate();assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),false);assert.equal(calls.length,14);
+      setLost(false);assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),true);assert.equal(calls.length,21);
+      assert.deepEqual(calls.slice(-5).map(c=>c.object),current,'Restoration must prepare all current live site meshes rather than disposed batches.');
+      assert.ok(calls.slice(7).every(call=>!first.includes(call.object)));
+      assert.equal(preparation.prepare(scene.scene,camera,target,qualityKey),false);assert.equal(calls.length,21);
+    }finally{
+      for(const {mesh,meshCheck,geometryCheck}of watched){mesh.removeEventListener('dispose',meshCheck);mesh.geometry.removeEventListener('dispose',geometryCheck);}
+      for(const material of materials)material.removeEventListener('dispose',materialCheck);
+    }
   }finally{clean();}
 });

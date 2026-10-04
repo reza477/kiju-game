@@ -19,6 +19,16 @@ import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQual
 import {createMovementPreparation} from './movement-preparation.js';
 export {makeCity,slotPosition};
 
+// The four additional programs traced during the first portrait movement.
+// Borrow only these actual site meshes after batching, retaining their shader
+// shape. This fixed list never prepares an entire resource site or world.
+const movementRuinShapes=new Map([
+  ['rock ffffff painterly ruin',true],
+  ['brick ffffff painterly ruin',true],
+  ['stone bbb9a4 painterly ruin',false],
+  ['pavement 90917e painterly ruin',false]
+]);
+
 const previewBuildings=()=>{
   const plots=Array(20).fill(null);
   for(const [i,type,level] of [[0,'housing',2],[1,'foundry',1],[3,'housing',2],[4,'armor',1],[5,'sawmill',1],[6,'housing',1],[7,'keep',2],[8,'housing',2],[9,'cannon',1],[10,'farm',1],[11,'housing',2],[12,'housing',1],[13,'farm',2],[14,'housing',1],[16,'housing',2],[18,'cannon',1]])plots[i]={type,level,remaining:0};
@@ -155,7 +165,7 @@ export class GameScene {
   setGame(s,options={}){
     this.cityLighting.reset();
     for(const light of this.impactLights)light.intensity=0;
-    // Drop the borrowed site mesh before its owner is disposed. Keep the same
+    // Drop every borrowed site mesh before its owner is disposed. Keep the same
     // bounded array so context/quality preparation always sees current objects.
     this.movementMaterials.length=this.landscape.movementMaterials.length;
     if(this.city){this.city.root.removeFromParent();disposeGroup(this.city.root);}
@@ -168,13 +178,22 @@ export class GameScene {
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
     this.enemyCities=[];this.labels=[];this.pickables=[];
+    const movementRuins=new Map();
     for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);
       // Portrait first-use tracing identified this shared instanced metal
       // program after the final environment replaced the loading environment.
       // One existing representative covers both iron sites; no clone or draw.
       const metal=site.getObjectByName('Resource site metal');
       if(this.movementMaterials.length===this.landscape.movementMaterials.length&&metal?.isInstancedMesh)this.movementMaterials.push(metal);
+      site.traverse(mesh=>{
+        const name=mesh.material?.name;
+        if(mesh.isMesh&&movementRuinShapes.has(name)&&!movementRuins.has(name)&&!!mesh.isInstancedMesh===movementRuinShapes.get(name))movementRuins.set(name,mesh);
+      });
     }
+    for(const name of movementRuinShapes.keys())if(movementRuins.has(name))this.movementMaterials.push(movementRuins.get(name));
+    // Stable cached materials avoid another submission on Continue. A changed
+    // resource set still invalidates the key; no per-frame identity allocation.
+    this.movementMaterialKey=this.movementMaterials.map(mesh=>mesh.material.uuid).join(':');
     for(const e of s.enemies){
       const city=makeCity(e.faction,true,2,e.variant);const sample=previewBuildings();sample[2]={type:'cannon',level:1,remaining:0};
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
@@ -399,9 +418,9 @@ export class GameScene {
     }
     this.updateCamera(s,dt,desiredZoom,battle);
     this.presentation.render(this.scene);
-    // Submit only the traced debris and site-metal shaders using the real output
+    // Submit only the seven bounded traced debris/site shaders using the real output
     // target and lights, after a normal frame. No draw, simulation or camera
     // warmup, asynchronous transition, readiness wait, or extra resource copies.
-    if(this.environmentReady||this.environmentError)this.movementPreparation.prepare(this.scene,this.camera,this.presentation.enabled?this.presentation.target:null,`${this.quality}:${this.light}:${this.scene.environment?.uuid}:${this.movementMaterials[2]?.material.uuid??'none'}`);
+    if(this.environmentReady||this.environmentError)this.movementPreparation.prepare(this.scene,this.camera,this.presentation.enabled?this.presentation.target:null,`${this.quality}:${this.light}:${this.scene.environment?.uuid}:${this.movementMaterialKey}`);
   }
 }
