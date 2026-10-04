@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
 import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
+import {classifyCarrierRequest} from './carrier-request-origin.mjs';
 const require=createRequire(import.meta.url);
 let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 // This test owns its server so it can prove offline reopening with that server
@@ -47,8 +48,8 @@ const base=`http://127.0.0.1:${server.address().port}`,out=process.env.OUTPUT_DI
 const browser=await playwright.chromium.launch({channel:'chrome',...deliveryBrowserOptions()});
 const graphics=await browserGraphicsInfo(browser);
 const context=await browser.newContext({viewport:{width:1366,height:1024},hasTouch:true,isMobile:true,deviceScaleFactor:1});
-let page=await context.newPage();const errors=[],checks=[],remote=[],failedRequests=[];
-const observe=page=>{page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push({message:m.text(),location:m.location()});});page.on('request',r=>{if(!r.url().startsWith(base))remote.push(r.url());});page.on('requestfailed',r=>failedRequests.push({url:r.url(),failure:r.failure()}));};observe(page);
+let page=await context.newPage();const errors=[],checks=[],remote=[],failedRequests=[],localBlobRequests=[];
+const observe=page=>{page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push({message:m.text(),location:m.location()});});page.on('request',r=>{const kind=classifyCarrierRequest(r.url(),base);if(kind==='external')remote.push(r.url());else if(kind==='same-origin-blob')localBlobRequests.push(r.url());});page.on('requestfailed',r=>failedRequests.push({url:r.url(),failure:r.failure()}));};observe(page);
 // Await the evaluated Boolean in Node. An async waitForFunction predicate can
 // otherwise be accepted as a truthy Promise by the pinned browser-test runtime.
 async function waitForPageBoolean(target,predicate,argument,timeout=120000){
@@ -146,5 +147,5 @@ try{
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);checks.push('Explicit full-cache repair restores the game without deleting its save');
  await verifyCarrierAssets('after-explicit-cache-repair');
  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);checks.push('No browser runtime errors or third-party requests');
- await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,...(requireCarrierAssets?{carrierEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote},null,2));
-}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,...(requireCarrierAssets?{carrierEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
+ await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote,localBlobRequests},null,2));
+}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
