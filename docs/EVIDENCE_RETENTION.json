@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-10-04T19:04:46.8194072Z",
+  "updatedAt": "2026-10-06T02:02:31.143Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
-  "workRequestsSinceCleanup": 1,
+  "workRequestsSinceCleanup": 2,
   "newGroupsSinceCleanup": [
     {
       "group": "rig-ground-refresh",
@@ -11,6 +11,15 @@
       "evidenceRoot": "artifacts/rig-ground-refresh",
       "status": "implementation and final verification complete; art gate failed 7.9 after four rounds; local only",
       "implementationCommit": "16397221305ed3450e701e3c5012abcdd0615fdb"
+    },
+    {
+      "group": "flesh-saddle",
+      "request": "Compact saddle city around the flesh quadruped torso and flanks.",
+      "baselineCommit": "ef5a6b5a68b5646a04e54ca55a4593570189292a",
+      "implementationCommit": "660847ca5313bea01b9fc8c449f8d9f9d3fdb69c",
+      "evidenceRoot": "artifacts/flesh-saddle",
+      "reportingFolder": "artifacts/recent-work-handoff-2026-10-05",
+      "status": "local candidate checkpoint; unit336, desktop7/portrait7 and five captures passed; paired timing failed browser-mode equality; final offline not run; art8.0 FAIL after four rounds; cannon geometry decision pending; no publication"
     }
   ],
   "retainedGroups": [
