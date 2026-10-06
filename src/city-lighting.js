@@ -35,7 +35,7 @@ export class CityLighting {
 
   assign(slot,city){
     const floor=city?.layout==='tower'?(city.inspectedFloor??-1):-1;
-    const verticalSignature=city?.verticalLayout?.signature??null;
+    const verticalSignature=(city?.saddleLayout??city?.verticalLayout)?.signature??null;
     if(slot.city===city&&slot.rings===(city?.rings??-1)&&slot.floor===floor&&slot.verticalSignature===verticalSignature)return;
     slot.city=city;slot.rings=city?.rings??-1;slot.floor=floor;slot.verticalSignature=verticalSignature;slot.rig.removeFromParent();
     if(!city)return;
@@ -67,6 +67,15 @@ export class CityLighting {
       // simply halving its old anchor would place it through that slab.
       slot.search.position.set(0,compact?1.30:3.5,city.verticalLayout?KAIJU_CENTER.z+4.02:-5.49);slot.targetMarker.position.set(0,42.5-city.deckY,-2.75);
       this.direction.copy(slot.targetMarker.position).sub(slot.search.position).normalize();slot.search.quaternion.setFromUnitVectors(this.up,this.direction);
+    }else if(city.saddleLayout){
+      const wards=city.saddleLayout.floors.filter(f=>!f.underConstruction);
+      slot.rig.visible=wards.length>0;
+      if(!wards.length)return;
+      for(let i=0;i<2;i++){
+        const ward=wards[Math.min(i,wards.length-1)],p=ward.path[i%ward.path.length];
+        slot.lamps[i].group.position.set(p.x,ward.y+ward.surfaceOffset,p.z);
+        delete slot.lamps[i].group.userData.towerTier;
+      }
     }else if(circular){
       const radius=kaijuRingRadius(city.rings??1),sectors=(city.rings??1)>1?13:6,a=Math.PI+Math.PI/sectors;
       slot.lamps[1].group.position.set(Math.sin(a)*(radius-.37),0,KAIJU_CENTER.z+Math.cos(a)*(radius-.37));
@@ -83,7 +92,7 @@ export class CityLighting {
     // when its own storey is inspected, so the fitting must leave with it.
     if(tower){slot.search.userData.towerTier=0;slot.search.userData.inspectionShell=true;}
     else{delete slot.search.userData.towerTier;delete slot.search.userData.inspectionShell;}
-    slot.search.visible=circular&&!(tower&&floor===0);slot.rig.updateWorldMatrix(true,true);
+    slot.search.visible=circular&&!city.saddleLayout&&!(tower&&floor===0);slot.rig.updateWorldMatrix(true,true);
   }
 
   update(player,activeEnemy,preset){

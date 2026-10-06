@@ -65,7 +65,8 @@ export function createBattery(faction,level=1,facing=0,slot=null){
 
 export function addCarrierWeapons(city){
   const weapons=[];
-  const coords=city.faction==='kaiju'?[[-5.1,42.8,1.9],[5.1,42.8,1.9]]:city.faction==='crawler'?[[-5.2,6.1,10.3],[5.2,6.1,10.3]]:[[-8.6,17.5,-5],[8.6,17.5,5]];
+  // Base-gun meshes only: simulation range, damage and timing use actor centres.
+  const coords=city.layout==='saddle'?[[-6.1,29.7,-2.4],[6.1,29.7,-2.4]]:city.faction==='kaiju'?[[-5.1,42.8,1.9],[5.1,42.8,1.9]]:city.faction==='crawler'?[[-5.2,6.1,10.3],[5.2,6.1,10.3]]:[[-8.6,17.5,-5],[8.6,17.5,5]];
   for(const point of coords){
     const group=createBattery(city.faction,1,0);group.position.set(...point);if(city.faction==='kaiju')group.scale.setScalar(1.22);
     city.rig.add(group);group.weapon.base=true;batchStatic(group);weapons.push(group.weapon);
@@ -83,7 +84,7 @@ export function animateWeapons(city,target,time){
       const delta=normalizeAngle(bearing-weapon.facing),limit=weapon.base?Math.PI:batteryArc(city.faction)/2;
       desired=weapon.facing+T.MathUtils.clamp(delta,-limit,limit);
     }
-    if(city.faction==='kaiju'&&!weapon.base){
+    if(city.faction==='kaiju'&&city.layout!=='saddle'&&!weapon.base){
       const prior=weapon.aimClearance;
       if(!prior||prior.rings!==city.rings||prior.layout!==city.verticalLayout?.signature||prior.desired!==desired){
         weapon.aimClearance={rings:city.rings,layout:city.verticalLayout?.signature,desired,physical:nearestCastleYaw({rings:city.rings,layout:city.verticalLayout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};

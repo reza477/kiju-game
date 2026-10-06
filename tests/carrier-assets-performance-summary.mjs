@@ -36,7 +36,7 @@ export function compareRuns(before,after){
   }
   return{baseline:{commit:before.sourceStart.commit,runtime:before.productionSourceStart?.fingerprint??before.sourceStart.fingerprint,sourceFinish:before.sourceFinish.fingerprint,startedAt:before.startedAt,finishedAt:before.finishedAt},
     candidate:{commit:after.sourceStart.commit,runtime:after.sourceStart.fingerprint,sourceFinish:after.sourceFinish.fingerprint,startedAt:after.startedAt,finishedAt:after.finishedAt},
-    method:'Matched initial saves, native City camera/HUD, three closed routes with first traversal and warmed repeat. One sequential A/B set, six carrier/profile visits per build. Pooled frame distributions below are descriptive; per-route first/warm observations remain separate. No median-of-three or statistical-significance claim.',
+    method:`Matched initial saves, native City camera/HUD, three closed routes with first traversal and warmed repeat. One sequential A/B set, ${before.visits.length} carrier/profile visits per build. Pooled frame distributions below are descriptive; per-route first/warm observations remain separate. No median-of-three or statistical-significance claim.`,
     limitations:after.limitations,comparisons,matchedNativeStateDeltas:after.pairs,passed:true};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

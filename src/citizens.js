@@ -246,12 +246,13 @@ function towerCirculate(citizens,time,count,rings,verticalLayout){
 /** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
 export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[],verticalLayout}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
- if(layout==='tower'&&verticalLayout)citizens.group.position.y=citizens.deckY+(verticalLayout.floors[0]?.surfaceOffset??.109*(verticalLayout.heightScale??1));
+ const supportedWards=layout==='tower'||layout==='saddle';
+ if(supportedWards&&verticalLayout)citizens.group.position.y=citizens.deckY+(verticalLayout.floors[0]?.surfaceOffset??.109*(verticalLayout.heightScale??1));
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
  const occupiedFloors=verticalLayout?.floors.filter(f=>!f.underConstruction);
- const count=layout==='tower'&&occupiedFloors?.length===0?0:Math.min(limit,requested);
+ const count=supportedWards&&occupiedFloors?.length===0?0:Math.min(limit,requested);
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
- const ringRoutes=layout==='tower'?towerCirculate(citizens,time,count,rings,verticalLayout):circular?circulate(citizens,time,count,rings):null;
+ const ringRoutes=supportedWards?towerCirculate(citizens,time,count,rings,verticalLayout):circular?circulate(citizens,time,count,rings):null;
  const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles,groupInverse,stationMatrix,rootInverse,bodyInverse,leftTarget,rightTarget,stationPoint}=citizens.scratch;
  const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
  const stations=activityStations.filter(s=>s.foot?.parent&&(!occupiedFloors||occupiedFloors.some(f=>f.slot===s.slot))&&(!Number.isFinite(visibleFloor)||s.tier===visibleFloor)).slice(0,Math.min(3,count));

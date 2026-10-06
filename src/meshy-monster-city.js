@@ -40,54 +40,66 @@ function cradleGeometry(side){
 }
 
 function createSaddle(rig,meshes){
-  const group=new T.Group();group.name='Monster castle load saddle';
+  const group=new T.Group();group.name='Monster low saddle load cradle';
+  const rearFrame=new T.Group();rearFrame.name='Supports for occupied rear wards';rearFrame.userData.noBatch=true;group.add(rearFrame);let rearLoaded=true;
   const iron=getMaterial('metal',0x454849),brass=getMaterial('gold',0x8c8060),leather=getMaterial('fabric',0x453c36);
   rig.add(group);let hierarchy=rig;while(hierarchy.parent)hierarchy=hierarchy.parent;hierarchy.updateMatrixWorld(true);
   const paddedLeather=getMaterial('fabric',0x594a3c,{vertexColors:true});
   const supports=[],aprons=[],ray=new T.Raycaster(),origin=new T.Vector3(),down=new T.Vector3(0,-1,0);
   // Pads are anchored to inspected skin triangles, so crouching and breathing
   // cannot leave the castle's load-bearing feet suspended above the back.
+  const saddleHeight=z=>28.7+(z+8.5)/7*5.2;
   for(const side of [-1,1]){
-    box(group,.92,.78,11.4,iron,side*3.9,32.0,-12);
+    beam(group,[side*3.9,saddleHeight(-6.8),-6.8],[side*3.9,saddleHeight(-10.7),-10.7],.15,iron);
+    beam(rearFrame,[side*3.9,saddleHeight(-10.7),-10.7],[side*3.9,saddleHeight(-17.1),-17.1],.15,iron);
     const sideSupports=[];
     for(const z of [-8.5,-15.5]){
       origin.set(side*2,40,z<-12?-16:-12);rig.localToWorld(origin);down.set(0,-1,0).transformDirection(rig.matrixWorld);ray.set(origin,down);
       const hit=ray.intersectObjects(meshes,false)[0];
       if(!hit)throw new Error('Monster saddle has no supporting skin surface');
-      const pad=box(group,2.5,.60,3.1,leather),brace=box(group,.76,1,.54,iron),diagonal=box(group,.46,1,.32,iron);
+      const parent=z<-12?rearFrame:group;
+      const pad=box(parent,2.5,.60,3.1,leather),brace=box(parent,.35,1,.40,iron),diagonal=box(parent,.24,1,.24,iron);
       for(const part of [pad,brace,diagonal])part.userData.noBatch=true;
-      const support={anchor:captureImpactAnchor(hit),pad,brace,diagonal,top:new T.Vector3(side*3.9,32,z),cross:new T.Vector3(side*3.9,31.9,z+(z<-12?5:-5))};
+      const crossZ=z<-12?-10.7:-6.8,support={side,z,sampleX:side<0?(z<-12?-.85:-1.70):2,sampleZ:side<0?(z<-12?-14.9:-8.6):z,anchor:captureImpactAnchor(hit),pad,brace,diagonal,top:new T.Vector3(side*3.9,saddleHeight(z),z),cross:new T.Vector3(side*3.9,saddleHeight(crossZ)-.1,crossZ)};
       supports.push(support);sideSupports.push(support);
-      box(group,1.1,.68,.65,brass,side*3.9,31.95,z);
+      box(parent,.50,.27,.46,brass,side*3.9,saddleHeight(z)-.05,z);
     }
     // A broad padded load cradle visually joins the fixed foundation to its
     // four skin-supported feet. It is harness, with no windows/empty storeys.
     const {geometry,parameters}=cradleGeometry(side);
     const apron=new T.Mesh(geometry,paddedLeather);apron.name='Padded saddle load cradle';apron.userData.noBatch=true;apron.userData.deformingImpactSurface=true;apron.castShadow=true;apron.receiveShadow=true;apron.frustumCulled=false;group.add(apron);
     aprons.push({mesh:apron,parameters,side,supports:sideSupports});
-    for(const u of [.23,.77]){const z=-8.5-7*u;for(const y of [30.95,31.65])box(group,.20,.16,.85,brass,side*4.45,y,z);for(const dz of [-.425,.425])box(group,.20,.70,.16,brass,side*4.45,31.3,z+dz);}
-    for(const z of [-9.3,-11.1,-12.9,-14.7])box(group,.22,.23,.23,brass,side*4.42,32.02,z);
-    // The original weapon positions remain authoritative. A cantilever from
-    // the castle cradle gives those unchanged guns a visible physical mount.
+    // Low forward brackets carry the rendered base guns beside the neck.
+    // Their simulation still fires from the unchanged actor-centre event.
     const spar=(a,b,width,depth)=>{const p=box(group,width,1,depth,iron),v=new T.Vector3(...b).sub(new T.Vector3(...a));p.position.set(...a).addScaledVector(v,.5);p.scale.y=v.length();p.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());return p;};
-    spar([side*3.9,32,-8.5],[side*5.1,42.35,1.9],.72,.92);
-    spar([side*3.9,32,-15.5],[side*5.1,42.35,1.9],.38,.48);
-    spar([side*3.9,38.2,-6.8],[side*5.1,42.35,1.9],.38,.48);
-    box(group,3.15,.55,3.15,iron,side*5.1,42.40,1.9);
-    box(group,1.05,1.05,.38,brass,side*3.9,34,-6.8);
+    spar([side*3.9,saddleHeight(-6.8),-6.8],[side*6.1,29.25,-2.4],.42,.50);
+    spar([side*3.9,saddleHeight(-8.5)-1.6,-8.5],[side*6.1,29.25,-2.4],.28,.34);
+    box(group,3.15,.55,3.15,iron,side*6.1,29.30,-2.4);
   }
-  for(const z of [-8.5,-15.5])beam(group,[-3.9,32.1,z],[3.9,32.1,z],.34,iron);
-  batchStatic(group);
+  for(const z of [-8.5,-15.5])beam(z<-12?rearFrame:group,[-3.9,saddleHeight(z)+.1,z],[3.9,saddleHeight(z)+.1,z],.15,iron);
+  batchStatic(rearFrame);batchStatic(group);
   const point=new T.Vector3(),top=new T.Vector3(),bottom=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0);
   const fit=(beam,a,b)=>{direction.subVectors(b,a);beam.position.copy(a).addScaledVector(direction,.5);beam.scale.y=direction.length();beam.quaternion.setFromUnitVectors(up,direction.normalize());};
-  return {group,supports,update(){
+  return {group,supports,rearFrame,setLoad(layout){rearLoaded=!!layout?.rearLoaded;rearFrame.visible=rearLoaded;},fitToPose(){
+    // Sample after the first real pose/terrain update, not in the imported bind
+    // pose. Starting the controller early would cache feet at the wrong origin.
+    rig.updateWorldMatrix(true,true);
+    for(const support of supports){
+      origin.set(support.sampleX,40,support.sampleZ);rig.localToWorld(origin);down.set(0,-1,0).transformDirection(rig.matrixWorld);ray.set(origin,down);
+      const hit=ray.intersectObjects(meshes,false)[0];
+      if(!hit)throw new Error('Posed monster saddle has no supporting skin surface');
+      support.anchor=captureImpactAnchor(hit);
+    }
+  },update(){
     for(const support of supports){group.worldToLocal(resolveImpactAnchor(support.anchor,point));point.y+=.18;support.pad.position.copy(point);fit(support.brace,point,support.top);fit(support.diagonal,point,support.cross);}
     for(const apron of aprons){
       const geometry=apron.mesh.geometry,position=geometry.attributes.position;
       for(let i=0;i<apron.parameters.length;i++){
-        const {u,v,depth}=apron.parameters[i],s=apron.supports;
-        top.lerpVectors(s[0].top,s[1].top,u);top.x+=apron.side*.25;top.y-=.55;
-        bottom.lerpVectors(s[0].pad.position,s[1].pad.position,u);bottom.x+=apron.side*1.12;bottom.y+=.35;
+        const {u,v,depth}=apron.parameters[i],s=apron.supports,span=rearLoaded?u:u*.25;
+        // A short draped pad follows the animal, independently of the fixed
+        // cargo rails. The old full-height wall concealed its waist.
+        top.lerpVectors(s[0].pad.position,s[1].pad.position,span);top.x+=apron.side*.6;top.y+=.6;
+        bottom.lerpVectors(s[0].pad.position,s[1].pad.position,span);bottom.x+=apron.side*2;bottom.y-=.55;
         point.lerpVectors(top,bottom,v);point.x+=apron.side*(depth+.42*Math.sin(Math.PI*u)*Math.sin(Math.PI*v));
         position.setXYZ(i,point.x,point.y,point.z);
       }
@@ -122,5 +134,6 @@ export function animateMeshyMonsterCity(city,time,moving){
     strikeHand:active?city.strikeHand.getWorldPosition(new T.Vector3()):null,strikeWeight:weight});
   adapter.metrics.visibleStrikeError=status?.strikeError??null;
   adapter.metrics.unreachableStrike=weight>.999&&status?.strikeError>.025;
+  if(!adapter.saddleFitted){adapter.saddle.fitToPose();adapter.saddleFitted=true;}
   adapter.saddle.update();
 }

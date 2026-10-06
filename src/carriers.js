@@ -5,6 +5,7 @@ import {createHumanoidKaiju,animateFleshAnatomy} from './kaiju.js';
 import {createCastleBackpack,kaijuSlotPosition} from './castle.js';
 import {createVerticalLayout} from './vertical-city.js';
 import {createVerticalCastle} from './vertical-castle.js';
+import {createSaddleLayout,createSaddleFoundation} from './saddle-city.js';
 import {KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {createCitizens,animateCitizens} from './citizens.js';
 import {addCarrierWeapons} from './armaments.js';
@@ -103,6 +104,16 @@ function airship(frame,rig,spinners,variant){
 
 export function setCityRings(city,rings,buildings,order){
   if(city.faction!=='kaiju')return;
+  if(city.layout==='saddle'){
+    const layout=createSaddleLayout(buildings??Array(20).fill(null),order);
+    if(city.rings===rings&&city.saddleLayout?.signature===layout.signature)return;
+    if(city.foundation){city.foundation.removeFromParent();disposeGroup(city.foundation);}
+    city.saddleLayout=layout;city.verticalLayout=null;city.slotPositions=layout.positions;
+    city.meshyCarrier?.saddle?.setLoad(layout);
+    // Keep the established body support/strike pose while replacing its cargo.
+    city.poseLoadLayout=buildings?createVerticalLayout(buildings,order,city.variant):null;
+    city.foundation=createSaddleFoundation(city.deckY,city.enemy,layout);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;return;
+  }
   const layout=buildings?createVerticalLayout(buildings,order,city.variant):null;
   if(city.rings===rings&&city.verticalLayout?.signature===layout?.signature)return;
   if(city.foundation){city.foundation.removeFromParent();disposeGroup(city.foundation);}
@@ -143,7 +154,7 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   const hitGroup=new T.Group();hitGroup.position.y=deckY;rig.add(hitGroup);
   const slots=[],slotPositions=Array.from({length:20},(_,i)=>slotPosition(i,faction)),hitMaterial=new T.MeshBasicMaterial({visible:false});
   for(let i=0;i<20;i++){const p=slotPositions[i];const hit=new T.Mesh(new T.BoxGeometry(2.8,1,3.4),hitMaterial);hit.position.set(p.x,p.y+.5,p.z);hit.userData.slot=i;hit.userData.noBatch=true;hitGroup.add(hit);slots.push(hit);}
-  const layout=faction==='kaiju'?'tower':'deck';
+  const layout=faction==='kaiju'?(variant==='flesh'?'saddle':'tower'):'deck';
   const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,variant,footprintScale,drill:variantParts.drill??null,drillTip:variantParts.tip??null,drillHinge:variantParts.hinge??null,drillShaft:variantParts.shaft??null,drillPistons:variantParts.pistons??[],envelopes:variantParts.envelopes??[],enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
   city.groundSupports=variantParts.groundSupports?.map(p=>p.multiply(new T.Vector3(footprintScale.x,1,footprintScale.z)));
   city.meshyCarrier=variantParts.meshyCarrier??null;
@@ -163,7 +174,7 @@ export function animateCity(city,time,moving,populationCount=28){
     }else if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   }
   if(city.drillHinge)animateDrillContact(city,time);
-  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.saddleLayout??city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}
@@ -227,8 +238,8 @@ function animateTitan(city,time,moving){
   const living=city.variant==='flesh';
   // Occupied masonry drives the carried weight. Capacity reinforcement is not
   // a load, and the compact castle contributes its actual half-height volume.
-  const heightScale=city.verticalLayout?.heightScale??1;
-  const masonry=(city.verticalLayout?.floors??[]).reduce((height,f)=>height+(f.underConstruction?(f.upgrading?f.height-.8*heightScale:0):f.height),0);
+  const poseLayout=city.poseLoadLayout??city.verticalLayout,heightScale=poseLayout?.heightScale??1;
+  const masonry=(poseLayout?.floors??[]).reduce((height,f)=>height+(f.underConstruction?(f.upgrading?f.height-.8*heightScale:0):f.height),0);
   const load=T.MathUtils.clamp(masonry/76,0,1),freePose=1-(strike?.weight??0);
   const supportedLoad=((living?.025:.005)+load*(living?.045:.020)+Math.sin(time*.93)*.003*(1-load*.5))*freePose;
   const weightCatch=walking?Math.pow(.5+.5*Math.cos(phase*2),6)*(living?.33:.16)*(1+load*.45)*freePose:0;

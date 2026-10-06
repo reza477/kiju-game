@@ -1,7 +1,7 @@
 // Visual carrier identities remain separate from the three combat factions.
 export const CARRIER_VARIANTS=Object.freeze({
   cyborg:Object.freeze({faction:'kaiju',name:'Ironbound Titan',label:'Cyborg titan',description:'An armored, augmented giant carrying a vertical Gothic citadel.'}),
-  flesh:Object.freeze({faction:'kaiju',name:'Bloodroot Titan',label:'Flesh titan',description:'A living giant of muscle and bone, burdened with a towering castle.'}),
+  flesh:Object.freeze({faction:'kaiju',name:'Bloodroot Titan',label:'Flesh titan',description:'A four-legged colossus carrying a compact Gothic saddle city around its back and flanks.'}),
   standard:Object.freeze({faction:'crawler',name:'Crown Crawler',label:'Armored crawler',description:'The original broad tracked city, built in brick, iron and brass.'}),
   drill:Object.freeze({faction:'crawler',name:'Bastion Borer',label:'Drill crawler',description:'A long rectangular city with a giant rotating spiral drill at its prow.'}),
   horizontal:Object.freeze({faction:'airship',name:'Saffron Voyager',label:'Horizontal airship',description:'A domed city suspended between four long horizontal envelopes.'}),

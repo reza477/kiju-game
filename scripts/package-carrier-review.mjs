@@ -58,7 +58,7 @@ for(const [title,name]of mappings){const pair=[];
   for(const key of ['x','z','angle','paused','worldDamage'])assert.deepEqual(a.visit.capture.state[key],b.visit.capture.state[key],name+' state '+key);
   for(const key of ['view','mode'])assert.equal(a.visit.capture.environment.camera[key],b.visit.capture.environment.camera[key]);
   const cameraDelta={};for(const key of ['yaw','pitch','zoom','fov']){cameraDelta[key]=b.visit.capture.environment.camera[key]-a.visit.capture.environment.camera[key];assert.ok(Math.abs(cameraDelta[key])<.012,'Camera mismatch: '+key);}
-  matches.push({name,cameraDelta,nativeTimeDelta:b.visit.capture.state.time-a.visit.capture.state.time,nativePopulationDelta:b.visit.capture.state.population-a.visit.capture.state.population,note:'Identical original fixture and normal camera controls. Native time/population and settled camera pose are observed, never replaced.'});
+  matches.push({name,cameraDelta,cameraAimDelta:b.visit.capture.environment.camera.aim.map((n,i)=>n-a.visit.capture.environment.camera.aim[i]),nativeTimeDelta:b.visit.capture.state.time-a.visit.capture.state.time,nativePopulationDelta:b.visit.capture.state.population-a.visit.capture.state.population,note:config.cameraNote??'Identical original fixture and normal camera controls. Native time/population and settled camera pose are observed, never replaced.'});
 }
 assert.equal(new Set(photos.map(photo=>photo.original)).size,10);assert.equal(new Set(photos.map(photo=>photo.sha256)).size,10,'Ten distinct original images required.');
 const changed=git('diff','--no-renames','--name-status',baseline,final).toString().trim().split('\n').filter(Boolean).map(line=>{const[status,file]=line.split('\t');return{status,file};});

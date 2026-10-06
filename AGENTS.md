@@ -10,6 +10,8 @@ This retention limit supersedes the instruction below to preserve raw evidence i
 
 ## Gothic construction rule
 
+Owner revision, 4 October 2026: the flesh quadruped is now a compact saddle city, with districts around its torso, waist and flanks and a low top load. It must not build a tall vertical tower. This supersedes the flesh-specific vertical rule below. Keep district IDs, construction order, saved progress, capacity, costs, upgrade benefits and movement/combat statistics. The cyborg still follows the half-height vertical castle rule. Treat any combat firing-geometry change separately from this presentation revision unless explicitly authorized.
+
 For both flesh and cyborg kaijus, **every newly constructed district is a new storey directly above the previous top**, on the same backpack footprint. District upgrades increase their storey's height and lift all storeys above it. Never return to several districts placed side by side on prebuilt castle floors. Tank and airship cities continue to build horizontally. Preserve construction order and district IDs across saves. Harness reinforcement only increases supported capacity; it does not create empty floors. This is the owner's explicit clarification of vertical growth.
 
 The owner subsequently requested **half-height for the cyborg's castle backpack only**. Keep the robot, its body weapons and the castle's horizontal footprint unchanged. The cyborg castle uses half-height storeys and crown relative to its attachment deck; the flesh castle retains full height. Continue to add every new district above the preceding one, including in existing saves. Fit the compact interiors and castle cannon mounts to their actual clearance, while retaining natural-sized residents.

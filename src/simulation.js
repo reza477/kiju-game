@@ -68,12 +68,12 @@ export function setBatteryFacing(s,slot,angle){
 }
 export function build(s,type,slot) {
  const b=BUILDINGS[type];if(s.mode!=='expedition'||!b||type==='keep'||!Number.isInteger(slot)||slot<0||slot>=20||s.buildings[slot])return {ok:false,message:'Choose an empty district on the city deck.'};
- if(!slotUnlocked(s,slot))return {ok:false,message:'Reinforce the harness to support more storeys.'};
+ if(!slotUnlocked(s,slot))return {ok:false,message:s.variant==='flesh'?'Reinforce the harness to support more saddle districts.':'Reinforce the harness to support more storeys.'};
  if(!pay(s,b.cost))return {ok:false,message:'More wood or iron is needed.'};
  const order=s.faction==='kaiju'?verticalOrder(s.buildings,s.towerOrder):null;
  s.buildings[slot]={type,level:1,remaining:b.time,...(type==='cannon'?{facing:s.faction==='kaiju'?Math.PI:defaultFacing(s.faction,slot)}:{})};
  if(order)s.towerOrder=[...order,slot];
- note(s,`${b.name} construction started${order?` on storey ${order.length+1}`:''}.`);return {ok:true};
+ note(s,`${b.name} construction started${order?` ${s.variant==='flesh'?'in saddle ward':'on storey'} ${order.length+1}`:''}.`);return {ok:true};
 }
 export function upgradeCost(b){return {wood:30*b.level,iron:35*b.level};}
 export function upgrade(s,slot){const b=s.buildings[slot];if(s.mode!=='expedition'||!b||b.remaining>0||b.level>=3)return {ok:false,message:'This district cannot be upgraded yet.'};
@@ -133,7 +133,7 @@ function tickBattle(s,dt,input){const b=s.battle;if(b.result)return;b.time+=dt;r
 export function tick(s,dt,input={x:0,z:0}){
  if(s.paused)return;dt=clamp(dt,0,.25)*s.speed;s.time+=dt;s.day=1+Math.floor(s.time/90);
  if(s.mode==='battle'){tickBattle(s,dt,input);return;}
- if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,'Harness reinforced. Build up to 20 storeys, one district above another.');}}
+ if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,s.variant==='flesh'?'Harness reinforced. Fit up to 20 compact districts around the saddle.':'Harness reinforced. Build up to 20 storeys, one district above another.');}}
  for(const b of s.buildings){if(!b||b.remaining<=0)continue;b.remaining=Math.max(0,b.remaining-dt);if(b.remaining===0){if(b.upgrading){b.level++;delete b.upgrading;}s.stats.built++;if(b.type==='armor')s.hp=Math.min(maxHull(s),s.hp+120);if(b.type==='keep')s.hp=Math.min(maxHull(s),s.hp+80);note(s,`${BUILDINGS[b.type].name} is ready.`);}}
  s.resources.food=Math.max(0,s.resources.food+income(s).food*dt);s.starving=s.resources.food<=0;
  if(s.starving)s.population=Math.max(8,s.population-.08*dt);else if(s.population<capacity(s))s.population=Math.min(capacity(s),s.population+.055*dt);
