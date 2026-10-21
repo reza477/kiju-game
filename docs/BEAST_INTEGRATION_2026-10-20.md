@@ -5,6 +5,16 @@ Owner request, 20 October 2026 (Pacific): rig and integrate the new private Mesh
 This is an explicit new review-cycle authorization for the existing remake work group. Previous scores and evidence stay unchanged. The normal four-round maximum, 8.5 overall requirement and zero concrete visual/runtime errors still apply. `delivery/readiness.json` remains false during implementation and review.
 
 
+## Final review result, 21 October 2026
+
+Independent round 04 is **8.1/10, FAIL** on implementation `844cef276125957a7542d8c89d6c7889b511554d`, runtime `db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a`. All four allowed rounds are complete (7.6, 8.0, 8.1, 8.1), so automatic iteration has stopped. The critic's original findings are preserved verbatim in `art-reviews/BEAST_INTEGRATION_ROUND_04.md`. The finish improves material coherence, but the starting city still reads as a tall scaffold and city/environment finish remains uneven. These quality deficits are separate from the concrete animated-body self-crossing defect. The current required suite remains **432/433 pass, 1 fail**; no detector or score was weakened.
+
+The critic captured five fresh matched AFTER views plus full-city day/night movement and loaded drill/cyborg combat. Those browser runs passed their source/response identity checks without page or request errors; this does not clear the geometric failure. Existing nonfatal shader precision warnings remain recorded. The new world details and native quadruped are integrated locally, with the latest game systems and save identities retained. Upper platform heights remain unchanged while the owner's refit answer is pending.
+
+The final native performance recording ran 17:14:49.869–17:16:48.870 UTC, exit 0. Desktop high detail recorded 32.89 Hz mean RAF cadence and 33.2 ms p95 interval; phone portrait emulation recorded 39.22 Hz and 32.6 ms. The prior corresponding samples were 31.19 Hz/42.6 ms and 37.17 Hz/32.8 ms. These are bounded descriptive recordings on the same recorded hardware/browser/profiles, not proof of a controlled speedup, sustained performance, GPU execution time or physical-phone performance. The final report and limitations are in `artifacts/beast-integration/native-full-saddle-performance-round04-v1-01/`. The active isolated build passed as `3f85aa240e9dc7887e67` without changing source build metadata.
+
+Release readiness remains false: **Configured but blocked**. No push, hosted publication or owner exception occurred. Physical-phone/Safari checks and actual scoped hosted-game publishing/A-to-B verification remain absent. The reporting handoff uses existing original evidence only; historical pending-review statements below describe earlier checkpoints.
+
 ## Final-round builder checkpoint, 21 October 2026
 
 The locally integrated final candidate is runtime `db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a`. Six source files add a flesh-only muted iron/aged-brass finish and reduce corrective allocation overhead. The existing texture assets and beast GLB remain unchanged. All mount coordinates, construction IDs/order, capacities, game rules, the current harness and the other five carrier variants are preserved. The upper-platform height refit has not been applied while the owner's answer is pending.
