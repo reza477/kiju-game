@@ -31,7 +31,9 @@ Evidence selections accept a path string or {"path":"...","commit":"..."}.
 A commit selection reads that exact Git version; otherwise the existing file is
 read. Review contents are reproduced verbatim. No absent result implies a pass.
 Capture source hashes must match selected commits, with explicit LF/CRLF-only
-reconciliation allowed for text. Every other mismatch blocks packaging. Pairing
+reconciliation allowed for text, including mixed endings. Reconciliation requires
+available original bytes with the exact recorded hash; their CRLF-to-LF bytes must
+equal the committed CRLF-to-LF bytes. Every other mismatch blocks packaging. Pairing
 requires the same fixture, profile, lighting, HUD and camera controls. Missing
 screenshots cannot produce a compliant 20-file package and block output.
 `;
@@ -65,28 +67,64 @@ function inventory(commit){
   return{commit,hashes,buffers,fingerprint:sha(JSON.stringify(hashes))};
 }
 const sources={BEFORE:inventory(baseline),AFTER:inventory(final)};
-function matchesCommitted(hash,file,source,where){
+// Remove only CR immediately before LF. Do not decode UTF-8, strip a BOM,
+// normalize bare CR or otherwise change any content byte.
+function canonicalLf(bytes){
+  const result=Buffer.allocUnsafe(bytes.length);let length=0;
+  for(let i=0;i<bytes.length;i++)if(bytes[i]!==13||bytes[i+1]!==10)result[length++]=bytes[i];
+  return result.subarray(0,length);
+}
+function lineEndings(bytes){
+  let crlf=0,lfOnly=0,bareCr=0;
+  for(let i=0;i<bytes.length;i++){
+    if(bytes[i]===13){if(bytes[i+1]===10)crlf++;else bareCr++;}
+    else if(bytes[i]===10&&bytes[i-1]!==13)lfOnly++;
+  }
+  return{crlf,lfOnly,bareCr};
+}
+async function matchesCommitted(hash,file,source,where,{originalBytes,originalPath,originalRoots=[]}={}){
   assert.ok(source.buffers.has(file),where+': file is not in selected committed inventory: '+file);
+  assert.match(hash,/^[a-f0-9]{64}$/,where+': invalid source hash: '+file);
+  if(originalBytes)assert.equal(sha(originalBytes),hash,where+': original bytes do not match recorded hash: '+file);
   if(hash===source.hashes[file])return;
-  const bytes=source.buffers.get(file);
-  if(textPath(file)&&!bytes.includes(0)){
-    const lf=bytes.toString('utf8').replace(/\r\n/g,'\n'),variants=[Buffer.from(lf),Buffer.from(lf.replace(/\n/g,'\r\n'))];
-    if(variants.some(bytes=>sha(bytes)===hash)){
-      sourceReconciliations.push({where,file,recordedSha256:hash,committedSha256:source.hashes[file],difference:'LF/CRLF line endings only'});return;
+  const committed=source.buffers.get(file),attemptedOriginals=[];
+  if(textPath(file)&&!committed.includes(0)){
+    if(!originalBytes){
+      for(const originalRoot of new Set(originalRoots.filter(value=>typeof value==='string'&&path.isAbsolute(value)))){
+        const candidate=path.resolve(originalRoot,file),relative=path.relative(originalRoot,candidate);
+        assert.ok(relative&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative),'Source path escapes its recorded root: '+file);
+        let bytes;
+        try{bytes=await fs.readFile(candidate);}catch(error){
+          if(!['ENOENT','ENOTDIR'].includes(error.code))throw error;
+          attemptedOriginals.push({path:candidate,error:error.code});continue;
+        }
+        const actual=sha(bytes);attemptedOriginals.push({path:candidate,sha256:actual});
+        if(actual===hash){originalBytes=bytes;originalPath=candidate;break;}
+      }
+    }
+    if(originalBytes&&!originalBytes.includes(0)){
+      assert.equal(sha(originalBytes),hash,where+': original bytes do not match recorded hash: '+file);
+      const recordedCanonical=canonicalLf(originalBytes),committedCanonical=canonicalLf(committed);
+      if(recordedCanonical.equals(committedCanonical)){
+        sourceReconciliations.push({where,file,recordedSha256:hash,committedSha256:source.hashes[file],verifiedOriginalPath:originalPath,verifiedOriginalBytes:originalBytes.length,committedBytes:committed.length,canonicalLfSha256:sha(recordedCanonical),recordedLineEndings:lineEndings(originalBytes),committedLineEndings:lineEndings(committed),difference:'LF/CRLF line endings only, including mixed endings; all other bytes preserved'});return;
+      }
     }
   }
-  throw new Error(where+': content does not match selected commit: '+file);
+  throw new Error(where+': content does not match selected commit: '+file+(attemptedOriginals.length?'\nOriginal-byte verification: '+pretty(attemptedOriginals):''));
 }
-function validateSnapshot(snapshot,label,where){
+async function validateSnapshot(snapshot,label,where){
   const expected=sources[label];assert.ok(snapshot?.hashes&&snapshot?.fingerprint,where+': missing full source identity');
   assert.equal(sha(JSON.stringify(snapshot.hashes)),snapshot.fingerprint,where+': internally inconsistent source fingerprint');
   assert.deepEqual(Object.keys(snapshot.hashes).sort(),Object.keys(expected.hashes).sort(),where+': inventory differs from commit');
-  for(const[file,hash]of Object.entries(snapshot.hashes))matchesCommitted(hash,file,expected,where);
+  for(const[file,hash]of Object.entries(snapshot.hashes))await matchesCommitted(hash,file,expected,where,{originalRoots:[snapshot.root,root]});
   return{recordedCommit:snapshot.commit??'NOT RECORDED',selectedCommit:expected.commit,recordedFingerprint:snapshot.fingerprint,committedFingerprint:expected.fingerprint,status:snapshot.status??'NOT RECORDED'};
 }
 // Packaging/instruction changes outside the capture's runtime inventory are
 // disclosed below. Runtime edits after the selected final commit are rejected.
-for(const[file]of sources.AFTER.buffers)matchesCommitted(sha(await fs.readFile(path.join(root,file))),file,sources.AFTER,'Current working runtime');
+for(const[file]of sources.AFTER.buffers){
+  const originalPath=path.join(root,file),originalBytes=await fs.readFile(originalPath);
+  await matchesCommitted(sha(originalBytes),file,sources.AFTER,'Current working runtime',{originalBytes,originalPath});
+}
 assert.equal(git('ls-files','--others','--exclude-standard','--','src','assets','vendor').toString().trim(),'','Uncommitted runtime additions must be resolved before packaging.');
 
 async function readSelection(selection,{required=false}={}){
@@ -138,7 +176,7 @@ for(const[label,folder]of[['BEFORE',before],['AFTER',after]]){
   const item=await readSelection(config[label==='BEFORE'?'beforeReport':'afterReport']||path.join(folder,'report.json'),{required:true}),r=item.value;
   assert.ok(r,'Capture report must be JSON');assert.equal(r.protocol,'art-remake-v1');assert.equal(r.mode,'capture');assert.equal(r.passed,true);
   assert.equal(r.visits.length,5,'Need exactly the five matched views, not intermediate captures');
-  const start=validateSnapshot(r.sourceStart,label,label+' capture start'),finish=validateSnapshot(r.sourceFinish,label,label+' capture finish');
+  const start=await validateSnapshot(r.sourceStart,label,label+' capture start'),finish=await validateSnapshot(r.sourceFinish,label,label+' capture finish');
   assert.equal(start.recordedFingerprint,finish.recordedFingerprint,'Source changed during captures');
   reports[label]={...item,folder,identity:start};
 }
