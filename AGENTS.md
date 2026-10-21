@@ -1,3 +1,7 @@
+# Design source of truth
+
+Owner clarification, 20 October 2026: always use the most recent version of the game as the design baseline. Verify the latest actual implementation and subsequent owner instructions before making design decisions. Older prototype chats, briefs and rules must not restore a superseded design. At this clarification, flesh uses the low saddle city and cyborg uses the half-height vertical castle. Preserve the latest systems and saves while changing presentation unless the owner requests a design change. This precedence rule does not reset review-round limits or release blockers.
+
 # Standing Meshy permission and evidence retention
 
 Owner update, 4 October 2026: Reza authorizes using the available Meshy account credits for this project's authorized asset work without asking for permission again. This standing permission supersedes earlier per-use credit approval requirements. It does not authorize buying credits, paid upgrades, billing changes, publishing assets, or expanding the approved task. Use Meshy directly when it suits the authorized asset work; preserve private generation/export settings.
