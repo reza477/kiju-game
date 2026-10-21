@@ -3,7 +3,7 @@ import {getMaterial,box,cylinder,beam,batchStatic} from './materials.js';
 import {SADDLE_DECK_Y,SADDLE_DISTRICT_SIZE,saddleDistrictHeight} from './saddle-layout.js';
 export {createSaddleLayout} from './saddle-layout.js';
 
-function palette(enemy=false){return {wall:getMaterial('stone',0x9ca699),trim:getMaterial('plaster',0xc1bda4),roof:getMaterial('roof',0x454e58),dark:getMaterial('metal',0x303a3b),iron:getMaterial('metal',0x586363),wood:getMaterial('wood',0x77614c),leather:getMaterial('fabric',0x645443),cloth:getMaterial('fabric',enemy?0x74404a:0x513549),glass:getMaterial('glass',0x6c8588),light:getMaterial('window',0xc5c0a1),brass:getMaterial('gold',0x9d8960),paving:getMaterial('pavement',0xa8a899),soil:getMaterial('soil',0x4e4437),leaves:getMaterial('foliage',0x60794b)};}
+function palette(enemy=false){return {wall:getMaterial('stone',0x9ca699),trim:getMaterial('plaster',0xc1bda4),roof:getMaterial('roof',0x454e58),dark:getMaterial('metal',0x303a3b),iron:getMaterial('metal',0x586363),wood:getMaterial('wood',0x77614c),leather:getMaterial('fabric',0x645443,{sheen:.08,roughness:.88,metalness:0}),cloth:getMaterial('fabric',enemy?0x74404a:0x513549),glass:getMaterial('glass',0x6c8588),light:getMaterial('window',0xc5c0a1),brass:getMaterial('gold',0x9d8960),paving:getMaterial('pavement',0xa8a899),soil:getMaterial('soil',0x4e4437),leaves:getMaterial('foliage',0x60794b)};}
 function prism(group,points,depth,material,x=0,y=0,z=0){
  const shape=new T.Shape(points.map(p=>new T.Vector2(...p))),geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false});geometry.translate(0,0,-depth/2);
  const mesh=new T.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;
@@ -15,6 +15,30 @@ function window(group,x,y,z,p,lit=false){
  box(group,.035,.69,.04,p.dark,x,y+.38,z+.084);box(group,.37,.045,.04,p.dark,x,y+.33,z+.084);
 }
 function strap(group,points,material,r=.09){for(let i=1;i<points.length;i++)beam(group,points[i-1],points[i],r,material);}
+
+function pannierFrame(layout,deckY,material){
+ const group=new T.Group();group.name='Occupied pannier load frame';group.userData.noBatch=true;
+ const links=[];
+ // Forged ties join occupied deck rims within their existing envelope.
+ // Steep upper gaps remain open for lower cannons and resident circulation.
+ const station=(mount,end=0)=>[mount.x+mount.side*(mount.zone==='lower-pannier'?1.86:1.78),deckY+mount.y-.26,mount.z+end*1.69];
+ const link=(a,b,kind,slots,width=.20)=>{
+  const direction=new T.Vector3(...b).sub(new T.Vector3(...a)),length=direction.length(),w=width,d=.06,c=.015;
+  const shape=new T.Shape([[-w/2+c,-d/2],[w/2-c,-d/2],[w/2,-d/2+c],[w/2,d/2-c],[w/2-c,d/2],[-w/2+c,d/2],[-w/2,d/2-c],[-w/2,-d/2+c]].map(p=>new T.Vector2(...p)));
+  const geometry=new T.ExtrudeGeometry(shape,{depth:length,bevelEnabled:false,steps:1});geometry.translate(0,0,-length/2);geometry.rotateX(-Math.PI/2);
+  const mesh=new T.Mesh(geometry,material);mesh.position.set(...a).addScaledVector(direction,.5);mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.normalize());mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
+  links.push({kind,slots:[...slots],a:[...a],b:[...b],width:w,depth:d});
+ };
+ const occupied=new Map((layout?.floors??[]).map(f=>{const m=layout.positions[f.slot];return[`${m.side}:${m.zone}:${m.row}`,{slot:f.slot,mount:m}];}));
+ for(const side of[-1,1]){
+  for(const zone of['upper-pannier','lower-pannier'])for(let row=0;row<3;row++){
+   if(zone==='upper-pannier'&&row>0)continue;
+   const front=occupied.get(`${side}:${zone}:${row}`),rear=occupied.get(`${side}:${zone}:${row+1}`);
+   if(front&&rear)link(station(front.mount,-1),station(rear.mount,1),'underdeck-joist',[front.slot,rear.slot],zone==='lower-pannier'?.06:.20);
+  }
+ }
+ group.userData.pannierLinks=links;return batchStatic(group);
+}
 
 export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout){
  const group=new T.Group();group.name='Flesh colossus saddle and flank pannier decks';const p=palette(enemy);
@@ -41,6 +65,7 @@ export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout){
    strap(g,[[1.1,-.31,-1.63],[1.1,-1.18,-.2],[1.1,-.31,1.55]],p.iron,.065);
   }
  }
+ const frame=pannierFrame(layout,deckY,p.iron);if(frame.userData.pannierLinks.length)group.add(frame);
  group.userData.saddleCity=true;group.userData.layoutSignature=layout?.signature;group.userData.buildableSlots=layout?.floors.length??0;group.userData.surfaceLevels=(layout?.floors??[]).map(f=>deckY+f.y+f.surfaceOffset);
  return batchStatic(group);
 }
@@ -64,9 +89,11 @@ export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown'}={})
   roof(room,2.30,1.93,roofRise,p.roof,wallH+.02,-.12);box(room,.08,.08,1.94,p.iron,0,wallH+roofRise+.02,-.12);
   pointed(room,.69,1.64,p.trim,0,.06,front+.015);pointed(room,.52,1.51,p.wood,0,.075,front+.066);box(room,.06,.78,.027,p.brass,.13,.65,front+.11);
   for(const side of[-1,1]){
-   window(room,side*.76,.53,front+.025,p,side<0&&type==='keep');
+   const frontLit=side<0&&(type==='keep'||type==='sawmill')||side>0&&type==='housing';
+   window(room,side*.76,.53,front+.025,p,frontLit);
    for(const z of[-.84,.68]){box(room,.16,wallH+.12,.18,p.trim,side*.99,(wallH+.12)/2,z);}
-   const face=new T.Group();face.position.set(side*1.04,0,-.12);face.rotation.y=side*Math.PI/2;window(face,0,.57,0,p,false);room.add(face);
+   const sideLit=side<0&&type==='housing'||side>0&&type==='foundry';
+   const face=new T.Group();face.position.set(side*1.04,0,-.12);face.rotation.y=side*Math.PI/2;window(face,0,.57,0,p,sideLit);room.add(face);
   }
   if(type==='keep'){
    const flag=prism(room,[[-.22,0],[-.22,-.54],[0,-.70],[.22,-.54],[.22,0]],.025,p.cloth,0,wallH+.07,front+.14);flag.name='Saddle chapter pennant';

@@ -10,6 +10,27 @@ export const meshyMonsterReady=()=>meshyCarriersStatus().assets.find(asset=>asse
 export const MONSTER_BODY_FIT=Object.freeze({x:-.325,y:-1.8,z:-12,scaleX:16,scaleY:21,scaleZ:16,strikeAdvance:3.3});
 const ease=(a,b,value)=>{const t=T.MathUtils.clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);};
 
+// A closed compressed bolster replaces each box, inside precisely the same
+// 2.5 x .60 x 3.1 envelope. The shallow inset seam is part of the mesh, not a
+// floating trim strip; pad anchors and their contact depth remain unchanged.
+function bolsterGeometry(){
+  const profiles=[[-.30,.20,.75],[-.23,0,.83],[.12,0,.94],[.19,.035,.62],[.22,.025,.90],[.30,.22,1]],positions=[],uv=[],colors=[],indices=[],arcSegments=4,radius=.27;
+  for(const [y,inset,shade]of profiles)for(let corner=0;corner<4;corner++)for(let step=0;step<=arcSegments;step++){
+    const angle=(corner+step/arcSegments)*Math.PI/2,rx=1.25-inset,rz=1.55-inset,r=Math.min(radius,rx,rz),sx=corner===0||corner===3?1:-1,sz=corner<2?1:-1;
+    const x=sx*(rx-r)+Math.cos(angle)*r,z=sz*(rz-r)+Math.sin(angle)*r;
+    positions.push(x,y,z);uv.push(x/2.5+.5,z/3.1+.5);colors.push(shade,shade,shade);
+  }
+  const ring=4*(arcSegments+1);
+  for(let layer=0;layer<profiles.length-1;layer++)for(let i=0;i<ring;i++){
+    const a=layer*ring+i,b=layer*ring+(i+1)%ring,c=a+ring,d=b+ring;indices.push(a,c,b,b,c,d);
+  }
+  for(const [layer,top]of[[0,false],[profiles.length-1,true]]){
+    const centre=positions.length/3,[y,,shade]=profiles[layer];positions.push(0,y,0);uv.push(.5,.5);colors.push(shade,shade,shade);
+    for(let i=0;i<ring;i++){const a=layer*ring+i,b=layer*ring+(i+1)%ring;indices.push(...(top?[centre,b,a]:[centre,a,b]));}
+  }
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setAttribute('color',new T.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();return geometry;
+}
+
 // Closed, bowed padding plus two raised leather bands, in one draw per side.
 // Parameter coordinates are reused each frame; the lower edge follows the skin.
 function cradleGeometry(side){
@@ -43,9 +64,9 @@ function cradleGeometry(side){
 function createSaddle(rig,meshes){
   const group=new T.Group();group.name='Monster low saddle load cradle';
   const rearFrame=new T.Group();rearFrame.name='Supports for occupied rear wards';rearFrame.userData.noBatch=true;group.add(rearFrame);let rearLoaded=true;
-  const iron=getMaterial('metal',0x454849),brass=getMaterial('gold',0x8c8060),leather=getMaterial('fabric',0x453c36);
+  const iron=getMaterial('metal',0x454849),brass=getMaterial('gold',0x8c8060),leather=getMaterial('fabric',0x453c36,{vertexColors:true,sheen:.08,roughness:.88,metalness:0});
   rig.add(group);let hierarchy=rig;while(hierarchy.parent)hierarchy=hierarchy.parent;hierarchy.updateMatrixWorld(true);
-  const paddedLeather=getMaterial('fabric',0x594a3c,{vertexColors:true});
+  const paddedLeather=getMaterial('fabric',0x594a3c,{vertexColors:true,sheen:.08,roughness:.88,metalness:0});
   const supports=[],aprons=[],ray=new T.Raycaster(),origin=new T.Vector3(),down=new T.Vector3(0,-1,0);
   // Pads are anchored to inspected skin triangles, so crouching and breathing
   // cannot leave the castle's load-bearing feet suspended above the back.
@@ -59,7 +80,8 @@ function createSaddle(rig,meshes){
       const hit=ray.intersectObjects(meshes,false)[0];
       if(!hit)throw new Error('Monster saddle has no supporting skin surface');
       const parent=z<-12?rearFrame:group;
-      const pad=box(parent,2.5,.60,3.1,leather),brace=box(parent,.35,1,.40,iron),diagonal=box(parent,.24,1,.24,iron);
+      const pad=new T.Mesh(bolsterGeometry(),leather);pad.name='Compressed saddle bolster';pad.castShadow=pad.receiveShadow=true;parent.add(pad);
+      const brace=box(parent,.35,1,.40,iron),diagonal=box(parent,.24,1,.24,iron);
       for(const part of [pad,brace,diagonal])part.userData.noBatch=true;
       const crossZ=z<-12?-10.7:-6.8,support={side,z,sampleX:side<0?(z<-12?-.85:-1.70):2,sampleZ:side<0?(z<-12?-14.9:-8.6):z,anchor:captureImpactAnchor(hit),pad,brace,diagonal,top:new T.Vector3(side*3.9,saddleHeight(z),z),cross:new T.Vector3(side*3.9,saddleHeight(crossZ)-.1,crossZ)};
       supports.push(support);sideSupports.push(support);

@@ -1,15 +1,19 @@
 {
   "eligible": false,
-  "reason": "The owner authorized a new beast-integration review cycle. Round 1 failed at 7.6/10. The V13 candidate replaces the leg-following girdles with torso contours, corrects presentation elbow bends and passes all 388 tests plus dense body/harness checks across six opponents. Independent round 2 is pending: technical success does not clear the visual gate. Three review rounds remain in this cycle. Private playtest delivery remains Configured but blocked. Do not push or deploy until the visual and technical gates pass and the private delivery prerequisites are verified.",
-  "candidateRuntimeFingerprint": "e0e770dc6632c03e7c66b2312475bea6cd669a7d03141d58702a42a80ef9ca6e",
-  "candidateBuild": "7220a6a5891358c2afd5",
-  "candidateTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json",
-  "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_01.md",
+  "reason": "The owner authorized a new beast-integration review cycle. Round 1 failed at 7.6/10 and round 2 failed at 8.0/10 against the unchanged 8.5 gate. Round 2 confirmed the old strap loops/sheets were resolved and identified zero new definite visual/runtime errors in bounded coverage, but anatomy and presentation quality remain below the gate. The repaired saddle candidate passed all 390 tests, including resident, cannon and posed body clearance; its build passed with only generated build metadata changing. Native builder verification and improved anatomy remain in progress. Rejected anatomy pilots have not replaced V13. Two review rounds remain. Private playtest delivery remains Configured but blocked. Do not push or deploy until the visual and technical gates pass and the private delivery prerequisites are verified.",
+  "candidateRuntimeFingerprint": "c660c8e679d7e77867d17ad7396758df4d6b2c5fa5897f05b604a3f177e65529",
+  "candidateBuild": "fa5047fd9894a183645a",
+  "candidateTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-frame-round03.json",
+  "candidateBuildEvidence": "artifacts/beast-integration/checks/build-v13-frame-round03.json",
+  "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_02.md",
   "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",
-  "reviewedImplementation": "6c7ee9b2ec3bb44aaefbc2ec3ea9bd86e9d60f5c plus uncommitted V10c implementation; fingerprint identifies reviewed files",
-  "reviewedRuntimeFingerprint": "d6162e4da0516b0ed13adb07d77bc1fd2f71b9dd91cd826acf6d121e41d864f9",
-  "reviewedBuild": "b4b465fc38d6b73ea472",
-  "beastIntegrationRounds": [7.6],
+  "reviewedImplementation": "4832146fc0b4e1d7de459f9474fa7a53c1f239f2",
+  "reviewedRuntimeFingerprint": "e0e770dc6632c03e7c66b2312475bea6cd669a7d03141d58702a42a80ef9ca6e",
+  "reviewedBuild": "7220a6a5891358c2afd5",
+  "beastIntegrationRounds": [
+    7.6,
+    8
+  ],
   "visualRounds": [
     6.2,
     6.7,
@@ -21,5 +25,6 @@
     "reason": "The visual release gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. Frozen source d55644881550aa3d4aaa2dd5873492f13435754f, build af7991973d3ec6fc31ad, passes the complete Linux functional gate in Actions run 36382922486: 226/226 unit tests, 12/12 game groups, 8/8 transport and 3/3 startup regressions, synthetic credential confinement and all 111 exact runtime files. Matching Windows game checks pass 12/12 with the same A/B build IDs and artifact hash. Production runtime is unchanged since bf24be2. The Actions run stops at release eligibility and publication is skipped. Obtain a passing art review or explicit art-only owner exception for private playtesting before enabling release; preserve all functional, privacy and included-only usage checks. Generic private hosting is verified, but no playable game is hosted. Actual scoped CI publishing, hosted game A-to-B, desktop WebKit and physical Apple-device checks remain unexercised.",
     "evidence": "art-reviews/iphone-pass1-04.md",
     "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
-  }
+  },
+  "reviewedTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json"
 }
