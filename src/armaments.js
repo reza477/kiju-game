@@ -1,3 +1,4 @@
+import {applyFleshSaddleFinish} from './flesh-saddle-finish.js';
 import * as T from '../vendor/three.module.js';
 import {getMaterial as m,box,cylinder,sphere,cone,beam,batchStatic} from './materials.js';
 import {batteryArc,normalizeAngle} from './weapon-layout.js';
@@ -11,7 +12,7 @@ function armoredCheek(parent,x,material){
   const plate=new T.Mesh(geometry,material);plate.rotation.y=Math.PI/2;plate.position.set(x,0,-.15);plate.castShadow=plate.receiveShadow=true;plate.name='Faceted trunnion armor';parent.add(plate);
 }
 
-export function createBattery(faction,level=1,facing=0,slot=null){
+export function createBattery(faction,level=1,facing=0,slot=null,finish=null){
   const group=new T.Group(),turret=new T.Group(),recoil=new T.Group();group.name=faction==='airship'?'Missile battery':'Rotating cannon emplacement';
   const metal=m('metal',faction==='airship'?0x327d87:faction==='kaiju'?0x665075:0x486776),trim=m('gold',0xd3ad68),dark=m('metal',0x202f37),stone=m('stone',0x9a9f97);
   cylinder(group,1.19,1.31,.28,stone,0,.22,0,28);cylinder(group,.84,.97,.25,dark,0,.46,0,24);
@@ -60,7 +61,7 @@ export function createBattery(faction,level=1,facing=0,slot=null){
   const arrow=cone(turret,.23,.65,m('gold',0xf3d396),0,-.28,1.2,3);arrow.rotation.x=Math.PI/2;
   const indicator=new T.Mesh(new T.SphereGeometry(.13,10,8),new T.MeshBasicMaterial({color:0xbcc8bc}));indicator.position.set(0,.94,-.7);turret.add(indicator);
   const weapon={group,turret,recoil,muzzles,indicator,facing,slot,level,missile,base:false,firedAt:-100};
-  group.weapon=weapon;return group;
+  group.weapon=weapon;if(faction==='kaiju'&&finish==='flesh-saddle')applyFleshSaddleFinish(group,'battery');return group;
 }
 
 export function addCarrierWeapons(city){
@@ -68,7 +69,7 @@ export function addCarrierWeapons(city){
   // Base-gun meshes only: simulation range, damage and timing use actor centres.
   const coords=city.layout==='saddle'?[[-6.1,29.7,-2.4],[6.1,29.7,-2.4]]:city.faction==='kaiju'?[[-5.1,42.8,1.9],[5.1,42.8,1.9]]:city.faction==='crawler'?[[-5.2,6.1,10.3],[5.2,6.1,10.3]]:[[-8.6,17.5,-5],[8.6,17.5,5]];
   for(const point of coords){
-    const group=createBattery(city.faction,1,0);group.position.set(...point);if(city.faction==='kaiju')group.scale.setScalar(1.22);
+    const group=createBattery(city.faction,1,0,null,city.layout==='saddle'?'flesh-saddle':null);group.position.set(...point);if(city.faction==='kaiju')group.scale.setScalar(1.22);
     city.rig.add(group);group.weapon.base=true;batchStatic(group);weapons.push(group.weapon);
   }
   city.baseWeapons=weapons;return weapons;

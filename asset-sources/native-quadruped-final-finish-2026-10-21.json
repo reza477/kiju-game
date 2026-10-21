@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "recordedOn": "2026-10-21",
+  "status": "Local final-round builder candidate; visual and technical gates remain failed",
+  "parentCommit": "fe9af50d12eaa45616fcae79af34e5a49f189b04",
+  "previousRuntime": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
+  "runtimeFingerprint": "db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a",
+  "assetSHA256": "85cb7024f72e23737a1a64981d763dfbc9204f0c6a5dc65fa413df55455035a3",
+  "originalIntegration": "asset-sources/native-quadruped-integration-2026-10-21.json",
+  "candidateManifest": "artifacts/beast-integration/native27-cpu-round04-v1/candidate-manifest.json",
+  "candidateManifestSHA256": "c7f93c82e2a4a222ae9bebe98f92444557fa8f56c903f99db3fcfffb1b6aaf4f",
+  "integrationRecord": "artifacts/beast-integration/integration-native-round04-v1-01/report.json",
+  "changes": [
+    "Flesh-only oxidized green cannon carriage, forged barrel, aged brass and iron support finish; existing textures and geometry retained",
+    "Reuse corrective scratch storage and preserve arithmetic order while eliminating temporary allocations",
+    "No mount-coordinate, construction-order, capacity, gameplay, harness, body-shape or other-carrier change"
+  ],
+  "materialEvidence": "artifacts/beast-integration/authoring/saddle-finish-v1/manifest.json",
+  "exactShapeEvidence": "artifacts/beast-integration/authoring/native-corrective-performance-v1/verification-01.json",
+  "exactShapeEvidenceSHA256": "af1d7c303863011b8232fcc9576bb75e2d749dd100e086fccfd794f06b4b7995",
+  "exactShapeComparisons": 843,
+  "checks": {
+    "fullSuite": "artifacts/beast-integration/native27-cpu-round04-v1/checks/full-suite-01.json",
+    "tests": 433,
+    "pass": 432,
+    "fail": 1,
+    "build": "artifacts/beast-integration/native27-cpu-round04-v1/checks/build-01.json",
+    "buildId": "3f85aa240e9dc7887e67"
+  },
+  "limitations": [
+    "Inherited bind intersections and genuine new animated haunch/knee intersections remain; the strict self-crossing test still fails",
+    "Starting-load scaffold height remains unchanged; the owner's upper-platform refit answer is pending",
+    "CPU-fixture improvement is modest and is not a browser or physical-phone performance claim",
+    "Final independent review and actual-browser cadence evidence are pending at this builder checkpoint",
+    "Rejected planar-slab harness candidate remains artifact-only because it expands the loop toward the limbs and adds cost"
+  ],
+  "published": false
+}

@@ -1,3 +1,4 @@
+import {applyFleshSaddleFinish} from './flesh-saddle-finish.js';
 import * as T from '../vendor/three.module.js';
 import {getMaterial,box,cylinder,beam,batchStatic} from './materials.js';
 import {SADDLE_DECK_Y,SADDLE_DISTRICT_SIZE,saddleDistrictHeight} from './saddle-layout.js';
@@ -53,7 +54,7 @@ function pannierFrame(layout,deckY,material,geometryOnly=false){
    }
   }
  }
- group.userData.pannierLinks=links;return geometryOnly?group:batchStatic(group);
+ group.userData.pannierLinks=links;if(!geometryOnly)applyFleshSaddleFinish(group);return geometryOnly?group:batchStatic(group);
 }
 
 export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout,{geometryOnly=false}={}){
@@ -83,7 +84,7 @@ export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout,{g
  }
  const frame=pannierFrame(layout,deckY,p.iron,geometryOnly);if(frame.userData.pannierLinks.length)group.add(frame);
  group.userData.saddleCity=true;group.userData.layoutSignature=layout?.signature;group.userData.buildableSlots=layout?.floors.length??0;group.userData.surfaceLevels=(layout?.floors??[]).map(f=>deckY+f.y+f.surfaceOffset);
- return geometryOnly?group:batchStatic(group);
+ if(!geometryOnly)applyFleshSaddleFinish(group);return geometryOnly?group:batchStatic(group);
 }
 
 export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geometryOnly=false}={}){
@@ -125,5 +126,5 @@ export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geom
  if(level>1)for(const side of[-1,1])box(room,.09,.09,1.79,p.brass,side*1.10,wallH-.10,-.12);
  if(level>2)for(const side of[-1,1]){const awning=box(room,.53,.055,.52,p.cloth,side*.76,1.62,1.0);awning.rotation.x=.16;beam(room,[side*.95,1.52,front],[side*.95,1.55,1.2],.025,p.iron);}
  Object.assign(g.userData,{saddleDistrict:{type,level,zone,height},naturalDoorHeight:1.51,footprint:{...SADDLE_DISTRICT_SIZE}});
- return g;
+ if(!geometryOnly)applyFleshSaddleFinish(g);return g;
 }

@@ -1,3 +1,4 @@
+import {applyFleshSaddleFinish} from './flesh-saddle-finish.js';
 import * as T from '../vendor/three.module.js';
 import {instantiateMeshyCarrier,meshyCarriersStatus} from './meshy-carriers.js';
 import {createMeshyMonsterPose} from './meshy-monster.js';
@@ -100,7 +101,7 @@ function createSaddle(rig,meshes){
     box(group,3.15,.55,3.15,iron,side*6.1,29.30,-2.4);
   }
   for(const z of [-8.5,-15.5])beam(z<-12?rearFrame:group,[-3.9,saddleHeight(z)+.1,z],[3.9,saddleHeight(z)+.1,z],.15,iron);
-  batchStatic(rearFrame);batchStatic(group);
+  applyFleshSaddleFinish(group);batchStatic(rearFrame);batchStatic(group);
   const point=new T.Vector3(),top=new T.Vector3(),bottom=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0);
   const fit=(beam,a,b)=>{direction.subVectors(b,a);beam.position.copy(a).addScaledVector(direction,.5);beam.scale.y=direction.length();beam.quaternion.setFromUnitVectors(up,direction.normalize());};
   return {group,supports,rearFrame,setLoad(layout){rearLoaded=!!layout?.rearLoaded;rearFrame.visible=rearLoaded;},fitToPose(){

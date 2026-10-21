@@ -5,7 +5,17 @@ Owner request, 20 October 2026 (Pacific): rig and integrate the new private Mesh
 This is an explicit new review-cycle authorization for the existing remake work group. Previous scores and evidence stay unchanged. The normal four-round maximum, 8.5 overall requirement and zero concrete visual/runtime errors still apply. `delivery/readiness.json` remains false during implementation and review.
 
 
-## Current native quadruped checkpoint, 21 October 2026
+## Final-round builder checkpoint, 21 October 2026
+
+The locally integrated final candidate is runtime `db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a`. Six source files add a flesh-only muted iron/aged-brass finish and reduce corrective allocation overhead. The existing texture assets and beast GLB remain unchanged. All mount coordinates, construction IDs/order, capacities, game rules, the current harness and the other five carrier variants are preserved. The upper-platform height refit has not been applied while the owner's answer is pending.
+
+The corrective module passed 843 exact comparisons covering gait, turning, stopping, pauses and all six strike targets. Position/normal buffers, bone matrices and non-timing diagnostics were identical to round 03. CPU fixture means improved modestly (15.55 to 14.01 ms across 834 advancing frames); this does not establish gameplay or physical-phone performance. Material profiles reuse the existing iron texture and preserve shader callbacks; added bump sampling still requires actual-browser checking. Exact source hashes and evidence are recorded in `asset-sources/native-quadruped-final-finish-2026-10-21.json`.
+
+The complete final-candidate suite ran 17:06:54.438–17:11:05.926 UTC on 21 October, exit 1: **433 tests, 432 pass, 1 fail**. The unchanged strict animated-body self-crossing check remains the sole failure. The isolated build passed at 17:08:26.061–17:08:27.665 UTC, build `3f85aa240e9dc7887e67`, 158 files/156 precache entries/121,059,397 bytes. All 410 frozen inputs remained exact. No passing geometry or art claim is made. Round 04 and native performance evidence are pending; release remains **Configured but blocked**.
+
+The artifact-only current-plane slab harness experiment cleared its two selected poses, but expanded the front loop downward by 8.43 rig units and measured 22.14 ms median CPU update cost. It was rejected and never replaced the active harness. Its original evidence is retained under `artifacts/beast-integration/native-harness-v10/`.
+
+## Reviewed native quadruped checkpoint, 21 October 2026
 
 The native 27 beast is now integrated locally, replacing the previously active V13. This is a concrete builder attempt for independent round 03, not an accepted release. The combined runtime fingerprint is `bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f`; the 35,350,336-byte production GLB SHA-256 is `85cb7024f72e23737a1a64981d763dfbc9204f0c6a5dc65fa413df55455035a3`. Exact source provenance and the 40-file integration record are in `asset-sources/native-quadruped-integration-2026-10-21.json`. Original exports, V13, authoring source and rejected trials remain preserved. Historical V13-active statements below describe earlier checkpoints.
 

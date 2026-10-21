@@ -49,7 +49,7 @@ function updateDistricts(city,buildings,rings=2,order){
     hit.userData.locked=city.faction==='kaiju'&&(!b||p.ring>rings);hit.rotation.y=p.rotation??0;hit.position.set(p.x,p.y+.5,p.z);
     if(hit.userData.locked)return;
     if(!b){const vacant=createVacantPlot(city.faction,i);vacant.position.set(p.x,p.y+.13,p.z);vacant.rotation.y=p.rotation??0;if(city.layout==='tower'){vacant.userData.noBatch=true;vacant.userData.towerTier=p.tier;batchStatic(vacant);}city.plots.add(vacant);hit.scale.y=.24;hit.position.y=p.y+.12;return;}
-    const district=b.type==='cannon'?createBattery(city.faction,b.level,facingOf(city.faction,i,b),i):city.saddleLayout?createSaddleDistrict(b.type,b.level,{enemy:city.enemy,zone:p.zone}):city.verticalLayout?createVerticalDistrict(b.type,b.level,p.height,city.verticalLayout.heightScale):createDistrict(b.type,b.level,city.faction);
+    const district=b.type==='cannon'?createBattery(city.faction,b.level,facingOf(city.faction,i,b),i,city.layout==='saddle'?'flesh-saddle':null):city.saddleLayout?createSaddleDistrict(b.type,b.level,{enemy:city.enemy,zone:p.zone}):city.verticalLayout?createVerticalDistrict(b.type,b.level,p.height,city.verticalLayout.heightScale):createDistrict(b.type,b.level,city.faction);
     if(b.type==='cannon'&&city.verticalLayout)district.scale.setScalar(city.verticalLayout.weaponScale);
     if(b.type==='cannon')city.batteries.push(district.weapon);else district.rotation.y=p.rotation??0;
     const bounds=new T.Box3().setFromObject(district);let h=Math.max(1,bounds.max.y);
