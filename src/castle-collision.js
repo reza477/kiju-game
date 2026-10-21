@@ -1,5 +1,6 @@
 import {KAIJU_DECK_Y,KAIJU_FLOOR_SPACING,kaijuSlotPosition,kaijuFloorCount,kaijuTowerTop} from './city-layout.js';
 import {verticalCastleSolids} from './vertical-castle.js';
+import {saddleCitySolids,saddleTrianglePaddingHit} from './saddle-collision.js';
 
 export const CANNON_MOUNT=Object.freeze({districtY:.18,turretY:.64,scaleX:1.08,scaleY:1.18,scaleZ:1.15,barrelY:.55,muzzleZ:2.13,doubleX:.34,barrelRadius:.34});
 export function cannonMountProfile(layout){
@@ -184,6 +185,7 @@ function spireTrim(solids,id,x,y,z,r,h){frustum(solids,id,x,z,r*1.04,r*.91,y-.11
 function steep(solids,id,r){const{x,y,z,w,d}=r,{vertices,faces}=steepRoofShape(r),v=vertices.map(p=>[p[0]+x,p[1]+y,p[2]+z]);addMesh(solids,id,v,[...faces,[0,1,2],[0,2,3]]);cornice(solids,id,x,y,z,w,d);for(const seam of steepRoofSeams(r))addCapsule(solids,`${id}:seam`,seam);}
 
 export function castleSolids(rings=2,layout){
+ if(layout?.kind==='saddle')return saddleCitySolids(layout);
  if(layout)return verticalCastleSolids(layout);
  const stage=Math.max(0,Math.min(2,Math.floor(rings)));if(cache.has(stage))return cache.get(stage);
  const m=castleMassing(stage),solids=[];
@@ -209,7 +211,7 @@ export function castleSolids(rings=2,layout){
 function span(a,b,min,max,pad=0){let lo=0,hi=1;for(let i=0;i<3;i++){const d=b[i]-a[i];if(Math.abs(d)<1e-10){if(a[i]<min[i]-pad||a[i]>max[i]+pad)return null;continue;}let x=(min[i]-pad-a[i])/d,y=(max[i]+pad-a[i])/d;if(x>y)[x,y]=[y,x];lo=Math.max(lo,x);hi=Math.min(hi,y);if(lo>hi)return null;}return [lo,hi];}
 function triangleHit(a,b,t){const d=b.map((v,i)=>v-a[i]),e=t[1].map((v,i)=>v-t[0][i]),f=t[2].map((v,i)=>v-t[0][i]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],p=cross(d,f),det=dot(e,p);if(Math.abs(det)<1e-10)return null;const q=a.map((v,i)=>v-t[0][i]),u=dot(q,p)/det;if(u<0||u>1)return null;const r=cross(q,e),v=dot(d,r)/det;if(v<0||u+v>1)return null;const h=dot(f,r)/det;return h>=0&&h<=1?h:null;}
 function capsuleHit(a,b,cap,pad){const d=b.map((v,i)=>v-a[i]),e=cap.b.map((v,i)=>v-cap.a[i]),r=a.map((v,i)=>v-cap.a[i]),dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2],A=dot(d,d),E=dot(e,e),B=dot(d,e),C=dot(d,r),F=dot(e,r),clamp=x=>Math.max(0,Math.min(1,x));let s=A*E-B*B>1e-12?clamp((B*F-C*E)/(A*E-B*B)):0,t=E>1e-12?(B*s+F)/E:0;if(t<0){t=0;s=clamp(-C/A);}else if(t>1){t=1;s=clamp((B-C)/A);}const q=r.map((v,i)=>v+d[i]*s-e[i]*t);return dot(q,q)<=(cap.r+pad)**2?s:null;}
-function segmentHit(solids,a,b,pad=0){let best=null;for(const s of solids){const interval=span(a,b,s.min,s.max,pad);if(!interval)continue;let t=interval[0];if(s.capsule){t=capsuleHit(a,b,s.capsule,pad);if(t===null)continue;}else if(s.triangles){let closest=null;for(const tri of s.triangles){const h=triangleHit(a,b,tri);if(h!==null&&(closest===null||h<closest))closest=h;}if(closest===null)continue;t=closest;}if(!best||t<best.t)best={id:s.id,t,point:a.map((v,i)=>v+(b[i]-v)*t)};}return best;}
+function segmentHit(solids,a,b,pad=0){let best=null;for(const s of solids){const interval=span(a,b,s.min,s.max,pad);if(!interval)continue;let t=interval[0];if(s.children){const hit=segmentHit(s.children,a,b,pad);if(hit&&(!best||hit.t<best.t))best=hit;continue;}if(s.capsule){t=capsuleHit(a,b,s.capsule,pad);if(t===null)continue;}else if(s.triangles){let closest=null;for(const tri of s.triangles){const direct=triangleHit(a,b,tri),h=direct??(s.paddedTriangles&&pad>0?saddleTrianglePaddingHit(a,b,tri,pad):null);if(h!==null&&(closest===null||h<closest))closest=h;}if(closest===null)continue;t=closest;}if(!best||t<best.t)best={id:s.id,t,point:a.map((v,i)=>v+(b[i]-v)*t)};}return best;}
 
 export function cannonMuzzleLocal(slot,level,yaw,barrel=0,layout){const p=layout?.positions[slot]??kaijuSlotPosition(slot),m=CANNON_MOUNT,profile=cannonMountProfile(layout),x=level>1?(barrel===0?-1:1)*m.doubleX*m.scaleX*profile.scale:0,z=m.muzzleZ*m.scaleZ*profile.scale,y=KAIJU_DECK_Y+p.y+profile.muzzleY,c=Math.cos(yaw),s=Math.sin(yaw);return {breech:{x:p.x+c*x,y,z:p.z-s*x},muzzle:{x:p.x+c*x+s*z,y,z:p.z-s*x+c*z}};}
 const xyz=p=>[p.x,p.y,p.z];

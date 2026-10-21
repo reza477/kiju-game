@@ -10,7 +10,7 @@ import {createMeshyMonsterPose, inspectMeshyMonsterRig, MONSTER_RIG} from '../sr
 // CPU-only parser; geometry, joints, weights and bind matrices remain exact.
 const candidates = ['../assets/carriers/meshy/flesh.glb'].map(path => new URL(path, import.meta.url));
 const source = candidates.find(path => fs.existsSync(path));
-const assetTest = (name, fn) => test(name, {skip: !source && 'The inspected local Meshy monster GLB is unavailable'}, fn);
+const assetTest = (name, fn) => test('legacy original54: '+name, {skip: !source && 'The inspected local Meshy monster GLB is unavailable'}, fn);
 const digest = value => createHash('sha256').update(Buffer.from(value.buffer, value.byteOffset, value.byteLength)).digest('hex');
 async function fixture(groundHeight = () => 0, options = {}) {
   const input = fs.readFileSync(source), jsonLength = input.readUInt32LE(12), document = JSON.parse(input.subarray(20, 20 + jsonLength));

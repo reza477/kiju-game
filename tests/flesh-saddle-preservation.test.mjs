@@ -209,8 +209,8 @@ test('saddle anchors initialize on the first placed terrain pose and remain atta
         for(const leg of adapter.controller.status().legs){assert.ok(Number.isFinite(leg.sampledSkinClearance));assert.ok(Math.hypot(leg.target[0]-x,leg.target[2]-z)<25,'First planted paw was cached at the construction origin');}
         const anchors=adapter.saddle.supports.map((support,i)=>{
           assert.notEqual(support.anchor,bindAnchors[i],'Initial bind-pose anchor was not replaced');assert.ok(support.anchor.surface,'Actual imported skin needs barycentric attachment');
-          const sampleX=support.side<0?(support.z<-12?-.85:-1.70):2,sampleZ=support.side<0?(support.z<-12?-14.9:-8.6):support.z;
-          near(support.sampleX,sampleX);near(support.sampleZ,sampleZ);
+          const sampleX=support.sampleX,sampleZ=support.sampleZ;
+          assert.ok(Number.isFinite(sampleX)&&Number.isFinite(sampleZ),'Native anatomical support declares actual finite sample coordinates');
           const origin=city.rig.localToWorld(new T.Vector3(sampleX,40,sampleZ)),down=new T.Vector3(0,-1,0).transformDirection(city.rig.matrixWorld),hit=new T.Raycaster(origin,down).intersectObjects(adapter.renderMeshes,false)[0];
           assert.ok(hit);assert.ok(resolveImpactAnchor(support.anchor).distanceTo(hit.point)<1e-6,'Anchor does not match the actual first posed skin surface');
           const pad=adapter.saddle.group.worldToLocal(resolveImpactAnchor(support.anchor));pad.y+=.18;assert.ok(pad.distanceTo(support.pad.position)<1e-6);

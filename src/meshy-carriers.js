@@ -98,7 +98,7 @@ function positionTrackInfo(track) {
 function prepareMaster(gltf, kind, bytes) {
   if (!gltf.scene?.isObject3D) throw new Error(kind + ' has no decoded scene');
   const objects = new Set(), bones = new Set(), geometries = new Set(), materials = new Set(), textures = new Set();
-  let meshes = 0, skinnedMeshes = 0, triangles = 0;
+  let meshes = 0, skinnedMeshes = 0, triangles = 0, nativeQuadruped = null;
   gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse(object => objects.add(object));
   gltf.scene.traverse(object => {
@@ -111,6 +111,13 @@ function prepareMaster(gltf, kind, bytes) {
     for (const attribute of Object.values(geometry.attributes)) for (const value of attribute.array) if (!Number.isFinite(value)) throw new Error(kind + ' has non-finite geometry');
     if (object.isSkinnedMesh) {
       skinnedMeshes++;
+      if(kind==='flesh'&&object.userData.nativeQuadruped){
+        const native=object.userData.nativeQuadruped;
+        if(nativeQuadruped||native.version!==1||typeof native.clipName!=='string'||!native.clipName||!native.fit||!Number.isFinite(native.strideDistance)||native.strideDistance<=0)throw new Error('Invalid native quadruped declaration');
+        const fit=native.fit;
+        if(!['x','y','z','scaleX','scaleY','scaleZ','strikeAdvance'].every(key=>Number.isFinite(fit[key]))||fit.scaleX<=0||fit.scaleX!==fit.scaleY||fit.scaleX!==fit.scaleZ||fit.strikeAdvance<0)throw new Error('Native quadruped requires a finite uniform fit');
+        nativeQuadruped=cloneData({version:native.version,clipName:native.clipName,strideDistance:native.strideDistance,fit});
+      }
       if (!object.skeleton?.bones.length || !geometry.attributes.skinIndex || !geometry.attributes.skinWeight || object.skeleton.bones.some(bone => !objects.has(bone))) throw new Error(kind + ' has an incomplete or external skeleton');
       // Bind-pose spheres are insufficient once limbs move. These few bounded
       // character meshes remain visible until an animation envelope is measured.
@@ -223,7 +230,7 @@ function prepareMaster(gltf, kind, bytes) {
   for (const resource of [...geometries, ...materials, ...textures]) resource.userData = {...resource.userData, shared: true, meshyCarrier: kind};
   for (const texture of textures) texture.anisotropy = Math.min(4, Math.max(1, texture.anisotropy));
   return {scene: gltf.scene, clips: gltf.animations || [], inventory: {kind, bytes, meshes, skinnedMeshes, triangles, bones: [...bones].map(bone => bone.name), materials: materials.size,
-    bounds: {min: bounds.min.toArray(), max: bounds.max.toArray()}, animations,
+    bounds: {min: bounds.min.toArray(), max: bounds.max.toArray()}, animations, ...(nativeQuadruped?{nativeQuadruped}:{}),
     textures: [...textures].map(texture => ({width: texture.image.width, height: texture.image.height, colorSpace: texture.colorSpace}))}};
 }
 

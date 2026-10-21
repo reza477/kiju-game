@@ -1,0 +1,498 @@
+{
+  "date": "2026-10-21",
+  "status": "Local builder candidate; technical and art acceptance failed/pending, not a release",
+  "originals": "asset-sources/meshy-quadruped-rig-2026-10-21/README.md",
+  "legacyPreserved": "asset-sources/legacy-titanhorn-v13/titanhorn-v13.glb",
+  "productionAsset": {
+    "path": "assets/beast-integration/titanhorn-rigged.glb",
+    "bytes": 35350336,
+    "sha256": "85cb7024f72e23737a1a64981d763dfbc9204f0c6a5dc65fa413df55455035a3",
+    "bones": 27,
+    "vertices": 68784,
+    "triangles": 100400,
+    "pbrResolution": 4096
+  },
+  "runtimeFingerprint": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
+  "integration": {
+    "startedAt": "2026-10-21T16:30:33.355Z",
+    "parentCommit": "1a4e019b0163cecb5fbb0fee1e812eb32b885aaa",
+    "candidateManifestSHA256": "5c1e01dc9c6d3806df5e3851cf69e9b076aeddb7adfbb98421db6cb839f23178",
+    "runtimeFingerprint": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
+    "scope": "Local builder checkpoint for independent review; not release acceptance",
+    "technicalAccepted": false,
+    "visualAccepted": false,
+    "published": false,
+    "files": [
+      {
+        "target": "assets/beast-integration/titanhorn-rigged.glb",
+        "beforeSHA256": "b61609b1cb0756759fe968e612ac15a70480d39998dd14a83e560357c4a3d762",
+        "afterSHA256": "85cb7024f72e23737a1a64981d763dfbc9204f0c6a5dc65fa413df55455035a3",
+        "bytes": 35350336
+      },
+      {
+        "target": "src/armaments.js",
+        "beforeSHA256": "ee7b1230eb7686ae7c760394bfe41d68b7bb0a1dcecc6390c2d55e6f0ca97637",
+        "afterSHA256": "d26d0a552126874f05d5c7993edd5f38321c7aed44ffe1ac8fc8c962122b8c13",
+        "bytes": 8008
+      },
+      {
+        "target": "src/carriers.js",
+        "beforeSHA256": "9a878e993f586e2f7ab0c9a72ec1c242037f8b06c0431599280dd6d2ecb89942",
+        "afterSHA256": "2d03267b7eaa6d5c1486afd13bcaeaa4655acff40e8e4082bc323f450e4dc920",
+        "bytes": 27751
+      },
+      {
+        "target": "src/castle-collision.js",
+        "beforeSHA256": "3c62d15565d48a41a36a5b7d8960d1d64a56938e0bb213c5ec8ae401ca0adb17",
+        "afterSHA256": "b120b76423d50177a6de4ac758f6a61d4750060c12abd45993adbf8d9bf7a527",
+        "bytes": 26140
+      },
+      {
+        "target": "src/flesh-body-envelope.js",
+        "beforeSHA256": null,
+        "afterSHA256": "1d4d61e88f69ef68c2e455b08669a52ce4eb14fb347f6dfdaea65d75b797da4a",
+        "bytes": 96253
+      },
+      {
+        "target": "src/main.js",
+        "beforeSHA256": "a3a897fb2364be23100ea0471e5de9bd6a14910efe619ac513fdafb3b32e7025",
+        "afterSHA256": "cc93a92e584a19d7b38e004d5a81de18bea7d8783640935741c27dcee5b6bdc8",
+        "bytes": 41443
+      },
+      {
+        "target": "src/meshy-carriers.js",
+        "beforeSHA256": "a4ec5e4fa4c3cb6ef2d11ed51988c4cfa6d7df55def0a9506372caaa10b1576e",
+        "afterSHA256": "9884ea1d845eb23837e127be8077083cd4ea6ed7ef5d37634ceb770179441512",
+        "bytes": 26939
+      },
+      {
+        "target": "src/meshy-monster-city.js",
+        "beforeSHA256": "ad1bca295ac991f5ccaf20f2ae12e3101c6e84b6b27126f2c889bdbe2faa2207",
+        "afterSHA256": "4c6252f2883e6f8c6a54c60f78ee607dcb9035258a25288bbee0326084d17652",
+        "bytes": 13511
+      },
+      {
+        "target": "src/meshy-monster.js",
+        "beforeSHA256": "e6093425ab26fa66aea7ceec48e18a571f5452e95bb960ee2ba7f58bb4d84701",
+        "afterSHA256": "ed393ed13a16989553aa836025315162bf87b89782f8debb4554889b66464631",
+        "bytes": 22511
+      },
+      {
+        "target": "src/monster-quadruped-pose.js",
+        "beforeSHA256": null,
+        "afterSHA256": "7a43165fa4487593bbabd8391f0308f1bd96cfd44deeccbfef621d82a40c863c",
+        "bytes": 31306
+      },
+      {
+        "target": "src/native-melee-anchor.js",
+        "beforeSHA256": null,
+        "afterSHA256": "06ed93eafbe7b222555c42bbbe9f95029f011840fc4da43a1a6d8aea01d90b69",
+        "bytes": 4158
+      },
+      {
+        "target": "src/native-skin-corrective.js",
+        "beforeSHA256": null,
+        "afterSHA256": "da3ff9d909ec7388dceb2b49e3c0b7826ff6c6221b5876981feca802d2197fc0",
+        "bytes": 8312
+      },
+      {
+        "target": "src/quadruped-city-pose.js",
+        "beforeSHA256": null,
+        "afterSHA256": "bd50bdb579cf02e45504082c3d358920f0bb8bd93378317eae91a1d24d0932af",
+        "bytes": 7218
+      },
+      {
+        "target": "src/saddle-city.js",
+        "beforeSHA256": "b580b0f6a5990c5eb0f3d1aad5c2fdcf5c39f79751d1439fb35c9f4e46c84775",
+        "afterSHA256": "26725e61b134c2b9b3cbec883156eafa5e7808a4519e85892831e74e9294662c",
+        "bytes": 10675
+      },
+      {
+        "target": "src/saddle-collision.js",
+        "beforeSHA256": null,
+        "afterSHA256": "c7b2ec9f1a8a2147869c26c7178e4c65220c59048c11ed1dacca717a26c84c0a",
+        "bytes": 4164
+      },
+      {
+        "target": "src/saddle-harness.js",
+        "beforeSHA256": "56f7ba259ae5e9cad3599f535c2182e6b8257396deb44200525251941a95255e",
+        "afterSHA256": "13a999d8a39dcbfc79d9e9449e4b925cb4d6c4b999ce2a2d477d928406eda760",
+        "bytes": 10893
+      },
+      {
+        "target": "src/saddle-layout.js",
+        "beforeSHA256": "748d4879b558eccc7a638c71e025027f0b6a7cec86699208e091804d27d9544a",
+        "afterSHA256": "b32dfb7ab59ad96829fb76a771be93012b4b1139bf0196509279d48f4c56f56d",
+        "bytes": 3088
+      },
+      {
+        "target": "src/scene.js",
+        "beforeSHA256": "39392a3d8ccfc302130d613af4553a2b27e893582eb1938680e22f16a843fd3d",
+        "afterSHA256": "b2cd8b1370966c55c6f6d99531cfdf997977a8181585581f27a0581f43410c82",
+        "bytes": 48703
+      },
+      {
+        "target": "src/weapon-layout.js",
+        "beforeSHA256": "eb82a57d9183fe91246461951e931871592093e059e883694b34fc1122eac61e",
+        "afterSHA256": "985b46a4cd1f795cc80c04416d8cb50dc845b6a22624b0529a6692d2c6c5b054",
+        "bytes": 4361
+      },
+      {
+        "target": "tests/authored-flesh-saddle.test.mjs",
+        "beforeSHA256": "251b2030565a8c18f0c844b625d9e4e2f42e2493b2a66908f1f65f5f9ddb0d66",
+        "afterSHA256": "8a6c4f06264f441ef609488188f098c10a9d51c375bde239c1f1be177ef634d9",
+        "bytes": 4177
+      },
+      {
+        "target": "tests/beast-integration-frame.test.mjs",
+        "beforeSHA256": "d7845d55f2cd0b60e740c5cc8a38661ea4f07afb7335e60f03f582bb24407fe2",
+        "afterSHA256": "1b1a2b968a1b441055b2fc50c170654b7ebf61a5a030c0382925e140ff9e59bd",
+        "bytes": 6545
+      },
+      {
+        "target": "tests/beast-integration-full-foundation.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "e422c849ec506826edd4bcd97f4c0dd955cd7374d283ef2a48e0b8ef8b80f63a",
+        "bytes": 10816
+      },
+      {
+        "target": "tests/beast-integration-harness.test.mjs",
+        "beforeSHA256": "44db90e5ad2a8b416301f6e352dc5a930d9e5d8c6d6ad4ff3bff38af4eb8b67b",
+        "afterSHA256": "f20ab2955c4e8a9a1b78d05fceba239ce23b08ceb62c99c1c23271fc7e39ecc7",
+        "bytes": 7474
+      },
+      {
+        "target": "tests/beast-integration-native-self.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "d764cf8395d243cbaf7cea581206eeae59671c22b94767e8303a27461333838f",
+        "bytes": 4055
+      },
+      {
+        "target": "tests/beast-integration-rig.test.mjs",
+        "beforeSHA256": "b41d76e8b9f1be414b872aff3560b8f40fbb054cfc5c79c7991457e2406a3360",
+        "afterSHA256": "196782a42c8c5ceca68b017aab4c433956221f57adb0dc266abe15db0e78d0f4",
+        "bytes": 13843
+      },
+      {
+        "target": "tests/beast-integration-systems.test.mjs",
+        "beforeSHA256": "c4cbda243529dc90820a5fee601eef557dab1e5a13dc1ba59d61f50f8425bf35",
+        "afterSHA256": "e88e90fbdc6d3fc60c171259f77e53a58e267c757cc47fa6836ceb19888cca16",
+        "bytes": 2115
+      },
+      {
+        "target": "tests/flesh-saddle-preservation.test.mjs",
+        "beforeSHA256": "311edb56c522051ff13547ddb5c64684ddb956bc8e6130b8c66011cea994433c",
+        "afterSHA256": "de720096621f5670f332ab35dfafffee74260415221531333a64f208e4c66678",
+        "bytes": 19617
+      },
+      {
+        "target": "tests/helpers/full-foundation-clearance.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "f036311913e3f6bc26a90760b0c6b58ac15b08cbdebe9cc1069241170502580c",
+        "bytes": 6603
+      },
+      {
+        "target": "tests/helpers/native-beast-contract.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "bde8e6b9c7cf9e392be0c8afdc02d6a8c67650032a73370c512ef830001ed7db",
+        "bytes": 10095
+      },
+      {
+        "target": "tests/helpers/native-beast-surface.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "ac48eca0b6c39e17b36e7b47bca88e366e6f46eec026760fa77db9559a53d60c",
+        "bytes": 8042
+      },
+      {
+        "target": "tests/helpers/native-scene-fixture.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "43c122ec52306c570af144dff855a465c6a31ec8c63ee464231a93c2d4411d0a",
+        "bytes": 10573
+      },
+      {
+        "target": "tests/helpers/native-self-intersection.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "e30d84959eb02e01f4e7625198273031be9545b959d3e92280d00817fa02f239",
+        "bytes": 4756
+      },
+      {
+        "target": "tests/legacy-monster-contact-pool.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "c3960902a651f1f738cf608489a4bec731c501dc67386aee98d66c41dd3a5d89",
+        "bytes": 2912
+      },
+      {
+        "target": "tests/meshy-monster-combat.test.mjs",
+        "beforeSHA256": "7467e581dee9187ad1710505765667104a3dc2e0791274696ce232351d484300",
+        "afterSHA256": "803110dd516472ce58aed0ccc47fe37bc6ebd191170781a67dda690fd2769e7c",
+        "bytes": 9292
+      },
+      {
+        "target": "tests/meshy-monster.test.mjs",
+        "beforeSHA256": "7ebe73b6ec7465a4647b4c71fd7fd1749b8f16ccb671bd2e2bafc9110a2ce336",
+        "afterSHA256": "abbfdc98494749c486e0181a591afb510507dd1895d8ac7e07d24481d7c6790b",
+        "bytes": 14355
+      },
+      {
+        "target": "tests/native-beast-surface.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "f7a4aa74274529c7cbde1f6682d5177d21914608ef2972d388843218980206cb",
+        "bytes": 3597
+      },
+      {
+        "target": "tests/native-scene-regression.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "3247643844b04724dc8492f52f80e0c63bd4cd64d87de14ebe8820be4ff254c8",
+        "bytes": 8724
+      },
+      {
+        "target": "tests/native-self-intersection.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "02df2b3505ae4b880b6597346caa565f2a0d69de269b88386c11b73c3d2fa67f",
+        "bytes": 1600
+      },
+      {
+        "target": "tests/saddle-weapons.test.mjs",
+        "beforeSHA256": null,
+        "afterSHA256": "88f803be0ba21a3848d3c9343b27436458e98d482ad82cc77ad2fbecf2c092bb",
+        "bytes": 15633
+      },
+      {
+        "target": "tests/variants.test.mjs",
+        "beforeSHA256": "c2cab2c01c34c295084c15dd01b203f79fb7ecbb2f03442707f8536be616e461",
+        "afterSHA256": "6f8edaccee11f9146b426ae6501d3da1f52895eb80ba9e48aaa6c3f409a449fe",
+        "bytes": 13093
+      }
+    ],
+    "finishedAt": "2026-10-21T16:30:33.813Z",
+    "exitCode": 0
+  },
+  "sourceStewardship": "Meshy originals, legacy asset, all authoring source, candidate checkpoints and rejected trials remain preserved. Source and working assets are not disposable evidence.",
+  "derivation": {
+    "nativeSource": "artifacts/beast-integration/native27-cpu-presentation-v2-body-v12b-saddlefit-v1/assets/beast-integration/titanhorn-rigged.glb",
+    "correctiveHandoff": "artifacts/beast-integration/authoring/native-skin-mush-v8c/HANDOFF.txt",
+    "compactEquivalent": "artifacts/beast-integration/authoring/native-skin-mush-v8c/equivalence-c4.json",
+    "combinedManifest": "artifacts/beast-integration/authoring/native-combined-v2/manifest.json",
+    "controllerMergeProof": "artifacts/beast-integration/authoring/native-combined-v1/controller-merge-proof.json",
+    "frameAndEnvelope": "artifacts/beast-integration/authoring/native-saddle-final-envelope-v1/manifest.json"
+  },
+  "preservation": "Source topology, UVs, weights, bones, inverse binds, original clip and PBR bytes retained. Actor-owned CPU positional/normal correction changes the rendered pose and exact raycast surface; no hidden legacy body or shader-only substitute.",
+  "knownDefects": [
+    "Genuine new hindquarter/knee self-intersections remain in representative motion beyond inherited source overlaps.",
+    "A posterior haunch crease remains visible in builder diagnostics.",
+    "Original bands clear sampled geometry, but front-band longitudinal deformation still needs independent visual assessment."
+  ],
+  "checks": {
+    "fullSuite": "artifacts/beast-integration/native27-cpu-combined-v2/checks/full-suite-01.json",
+    "testCount": 433,
+    "passed": 432,
+    "failed": 1,
+    "exitCode": 1,
+    "build": "artifacts/beast-integration/native27-cpu-combined-v2/checks/build-01.json",
+    "buildId": "d433bbc1ac5692facda6",
+    "buildExitCode": 0,
+    "performance": "artifacts/beast-integration/native-full-saddle-performance-combined-v2-01/report.json"
+  },
+  "runtimeFiles": [
+    {
+      "target": "assets/beast-integration/titanhorn-rigged.glb",
+      "sha256": "85cb7024f72e23737a1a64981d763dfbc9204f0c6a5dc65fa413df55455035a3",
+      "bytes": 35350336
+    },
+    {
+      "target": "src/armaments.js",
+      "sha256": "d26d0a552126874f05d5c7993edd5f38321c7aed44ffe1ac8fc8c962122b8c13",
+      "bytes": 8008
+    },
+    {
+      "target": "src/carriers.js",
+      "sha256": "2d03267b7eaa6d5c1486afd13bcaeaa4655acff40e8e4082bc323f450e4dc920",
+      "bytes": 27751
+    },
+    {
+      "target": "src/castle-collision.js",
+      "sha256": "b120b76423d50177a6de4ac758f6a61d4750060c12abd45993adbf8d9bf7a527",
+      "bytes": 26140
+    },
+    {
+      "target": "src/flesh-body-envelope.js",
+      "sha256": "1d4d61e88f69ef68c2e455b08669a52ce4eb14fb347f6dfdaea65d75b797da4a",
+      "bytes": 96253
+    },
+    {
+      "target": "src/main.js",
+      "sha256": "cc93a92e584a19d7b38e004d5a81de18bea7d8783640935741c27dcee5b6bdc8",
+      "bytes": 41443
+    },
+    {
+      "target": "src/meshy-carriers.js",
+      "sha256": "9884ea1d845eb23837e127be8077083cd4ea6ed7ef5d37634ceb770179441512",
+      "bytes": 26939
+    },
+    {
+      "target": "src/meshy-monster-city.js",
+      "sha256": "4c6252f2883e6f8c6a54c60f78ee607dcb9035258a25288bbee0326084d17652",
+      "bytes": 13511
+    },
+    {
+      "target": "src/meshy-monster.js",
+      "sha256": "ed393ed13a16989553aa836025315162bf87b89782f8debb4554889b66464631",
+      "bytes": 22511
+    },
+    {
+      "target": "src/monster-quadruped-pose.js",
+      "sha256": "7a43165fa4487593bbabd8391f0308f1bd96cfd44deeccbfef621d82a40c863c",
+      "bytes": 31306
+    },
+    {
+      "target": "src/native-melee-anchor.js",
+      "sha256": "06ed93eafbe7b222555c42bbbe9f95029f011840fc4da43a1a6d8aea01d90b69",
+      "bytes": 4158
+    },
+    {
+      "target": "src/native-skin-corrective.js",
+      "sha256": "da3ff9d909ec7388dceb2b49e3c0b7826ff6c6221b5876981feca802d2197fc0",
+      "bytes": 8312
+    },
+    {
+      "target": "src/quadruped-city-pose.js",
+      "sha256": "bd50bdb579cf02e45504082c3d358920f0bb8bd93378317eae91a1d24d0932af",
+      "bytes": 7218
+    },
+    {
+      "target": "src/saddle-city.js",
+      "sha256": "26725e61b134c2b9b3cbec883156eafa5e7808a4519e85892831e74e9294662c",
+      "bytes": 10675
+    },
+    {
+      "target": "src/saddle-collision.js",
+      "sha256": "c7b2ec9f1a8a2147869c26c7178e4c65220c59048c11ed1dacca717a26c84c0a",
+      "bytes": 4164
+    },
+    {
+      "target": "src/saddle-harness.js",
+      "sha256": "13a999d8a39dcbfc79d9e9449e4b925cb4d6c4b999ce2a2d477d928406eda760",
+      "bytes": 10893
+    },
+    {
+      "target": "src/saddle-layout.js",
+      "sha256": "b32dfb7ab59ad96829fb76a771be93012b4b1139bf0196509279d48f4c56f56d",
+      "bytes": 3088
+    },
+    {
+      "target": "src/scene.js",
+      "sha256": "b2cd8b1370966c55c6f6d99531cfdf997977a8181585581f27a0581f43410c82",
+      "bytes": 48703
+    },
+    {
+      "target": "src/weapon-layout.js",
+      "sha256": "985b46a4cd1f795cc80c04416d8cb50dc845b6a22624b0529a6692d2c6c5b054",
+      "bytes": 4361
+    },
+    {
+      "target": "tests/authored-flesh-saddle.test.mjs",
+      "sha256": "8a6c4f06264f441ef609488188f098c10a9d51c375bde239c1f1be177ef634d9",
+      "bytes": 4177
+    },
+    {
+      "target": "tests/beast-integration-frame.test.mjs",
+      "sha256": "1b1a2b968a1b441055b2fc50c170654b7ebf61a5a030c0382925e140ff9e59bd",
+      "bytes": 6545
+    },
+    {
+      "target": "tests/beast-integration-full-foundation.test.mjs",
+      "sha256": "e422c849ec506826edd4bcd97f4c0dd955cd7374d283ef2a48e0b8ef8b80f63a",
+      "bytes": 10816
+    },
+    {
+      "target": "tests/beast-integration-harness.test.mjs",
+      "sha256": "f20ab2955c4e8a9a1b78d05fceba239ce23b08ceb62c99c1c23271fc7e39ecc7",
+      "bytes": 7474
+    },
+    {
+      "target": "tests/beast-integration-native-self.test.mjs",
+      "sha256": "d764cf8395d243cbaf7cea581206eeae59671c22b94767e8303a27461333838f",
+      "bytes": 4055
+    },
+    {
+      "target": "tests/beast-integration-rig.test.mjs",
+      "sha256": "196782a42c8c5ceca68b017aab4c433956221f57adb0dc266abe15db0e78d0f4",
+      "bytes": 13843
+    },
+    {
+      "target": "tests/beast-integration-systems.test.mjs",
+      "sha256": "e88e90fbdc6d3fc60c171259f77e53a58e267c757cc47fa6836ceb19888cca16",
+      "bytes": 2115
+    },
+    {
+      "target": "tests/flesh-saddle-preservation.test.mjs",
+      "sha256": "de720096621f5670f332ab35dfafffee74260415221531333a64f208e4c66678",
+      "bytes": 19617
+    },
+    {
+      "target": "tests/helpers/full-foundation-clearance.mjs",
+      "sha256": "f036311913e3f6bc26a90760b0c6b58ac15b08cbdebe9cc1069241170502580c",
+      "bytes": 6603
+    },
+    {
+      "target": "tests/helpers/native-beast-contract.mjs",
+      "sha256": "bde8e6b9c7cf9e392be0c8afdc02d6a8c67650032a73370c512ef830001ed7db",
+      "bytes": 10095
+    },
+    {
+      "target": "tests/helpers/native-beast-surface.mjs",
+      "sha256": "ac48eca0b6c39e17b36e7b47bca88e366e6f46eec026760fa77db9559a53d60c",
+      "bytes": 8042
+    },
+    {
+      "target": "tests/helpers/native-scene-fixture.mjs",
+      "sha256": "43c122ec52306c570af144dff855a465c6a31ec8c63ee464231a93c2d4411d0a",
+      "bytes": 10573
+    },
+    {
+      "target": "tests/helpers/native-self-intersection.mjs",
+      "sha256": "e30d84959eb02e01f4e7625198273031be9545b959d3e92280d00817fa02f239",
+      "bytes": 4756
+    },
+    {
+      "target": "tests/legacy-monster-contact-pool.test.mjs",
+      "sha256": "c3960902a651f1f738cf608489a4bec731c501dc67386aee98d66c41dd3a5d89",
+      "bytes": 2912
+    },
+    {
+      "target": "tests/meshy-monster-combat.test.mjs",
+      "sha256": "803110dd516472ce58aed0ccc47fe37bc6ebd191170781a67dda690fd2769e7c",
+      "bytes": 9292
+    },
+    {
+      "target": "tests/meshy-monster.test.mjs",
+      "sha256": "abbfdc98494749c486e0181a591afb510507dd1895d8ac7e07d24481d7c6790b",
+      "bytes": 14355
+    },
+    {
+      "target": "tests/native-beast-surface.test.mjs",
+      "sha256": "f7a4aa74274529c7cbde1f6682d5177d21914608ef2972d388843218980206cb",
+      "bytes": 3597
+    },
+    {
+      "target": "tests/native-scene-regression.test.mjs",
+      "sha256": "3247643844b04724dc8492f52f80e0c63bd4cd64d87de14ebe8820be4ff254c8",
+      "bytes": 8724
+    },
+    {
+      "target": "tests/native-self-intersection.test.mjs",
+      "sha256": "02df2b3505ae4b880b6597346caa565f2a0d69de269b88386c11b73c3d2fa67f",
+      "bytes": 1600
+    },
+    {
+      "target": "tests/saddle-weapons.test.mjs",
+      "sha256": "88f803be0ba21a3848d3c9343b27436458e98d482ad82cc77ad2fbecf2c092bb",
+      "bytes": 15633
+    },
+    {
+      "target": "tests/variants.test.mjs",
+      "sha256": "6f8edaccee11f9146b426ae6501d3da1f52895eb80ba9e48aaa6c3f409a449fe",
+      "bytes": 13093
+    }
+  ]
+}

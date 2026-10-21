@@ -11,7 +11,7 @@ for(const mutualOnly of[false,true])test(mutualOnly?'front and rear girdles and 
  try{
   assets=await import('../src/meshy-carriers.js');await assets.loadMeshyCarriers(['flesh']);
   const {makeCity,animateCity,setCityRings}=await import('../src/carriers.js'),{placeCity,GameScene}=await import('../src/scene.js'),sim=await import('../src/simulation.js');
-  city=makeCity('kaiju',false,2,'flesh');const mesh=city.meshyCarrier.renderMeshes[0];assert.equal(mesh.userData.riggedBeast,true,'Use the new runtime skin');
+  city=makeCity('kaiju',false,2,'flesh');const mesh=city.meshyCarrier.renderMeshes[0];assert.equal(mesh.userData.nativeQuadruped?.version,1,'Use the actual native runtime skin');
   const state=sim.createGame('kaiju','flesh'),type=state.buildings.find(Boolean).type;setCityRings(city,2,Array.from({length:20},()=>({type,level:1,remaining:0})),[]);assert.equal(city.saddleLayout.floors.length,20);
   const harness=city.meshyCarrier.saddle.harness;assert.equal(harness.bands.length,2);assert.equal(GIRDLE_SECTIONS,128);assert.equal(GIRDLE_WIDTH_SAMPLES,3);let samples=0,comparisons=0,mutualPairs=0,mutualTriangleComparisons=0;
   const sourceFaces=new Map(city.meshyCarrier.renderMeshes.map(object=>{

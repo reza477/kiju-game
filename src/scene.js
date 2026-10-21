@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {disposeMeshyCarrier} from './meshy-carriers.js';
 import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
+import {nativeMeleeAnchor,nativeMeleeStart,nativeBodyImpactAnchor} from './native-melee-anchor.js';
 import {distance,FACTIONS,weaponStatus,attackDelay} from './simulation.js';
 import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,loadDaylightEnvironment,setWindowLighting} from './materials.js';
 import {makeCity,animateCity,slotPosition,setCityRings} from './carriers.js';
@@ -92,8 +93,13 @@ export function placeCity(city,x,z,angle){
   city.root.updateMatrixWorld(true);
 }
 
-function impactAnchor(source,target,start,melee){
+function impactAnchor(source,target,start,melee,arcHeight=3){
   target.root.updateMatrixWorld(true);
+  // p(t)=lerp(start,end,t)+Y*h*sin(pi*t) approaches its endpoint with
+  // derivative end-start-Y*pi*h. Cast from that terminal direction so a
+  // curved projectile does not enter the near skin before its chosen anchor.
+  // The actual muzzle, flight curve, contact time and damage remain unchanged.
+  if(!melee)start=start.clone().add(new T.Vector3(0,Math.PI*arcHeight,0));
   if(melee&&(target.drillTip||source.drillTip)){
     const ray=new T.Raycaster(),aims=[];
     if(target.drillTip){const tip=target.drillTip.getWorldPosition(new T.Vector3()),mount=target.drill.getWorldPosition(new T.Vector3());aims.push(tip.clone().lerp(mount,.09),tip.clone().lerp(mount,.2));}
@@ -103,6 +109,8 @@ function impactAnchor(source,target,start,melee){
     for(const aim of aims){ray.set(start,aim.clone().sub(start).normalize());const hit=ray.intersectObject(target.root,true).find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}const m=h.object.material;return m&&!Array.isArray(m)&&m.visible&&!(m.transparent&&m.opacity<.2)&&!h.object.userData.enemy&&h.object.userData.slot===undefined;});if(hit&&(!nearest||hit.distance<nearest.distance))nearest=hit;}
     if(nearest)return captureImpactAnchor(nearest);
   }
+  if(melee){const anatomical=nativeMeleeAnchor(source,target);if(anatomical)return anatomical;}
+  const nativeBody=nativeBodyImpactAnchor(target,start);if(nativeBody)return nativeBody;
   const origin=start.clone(),centre=target.root.getWorldPosition(new T.Vector3()),heading=centre.clone().sub(source.root.position);heading.y=0;heading.normalize();
   const right=new T.Vector3(heading.z,0,-heading.x),width=target.faction==='kaiju'?1.4:6;
   const lateral=T.MathUtils.clamp(start.clone().sub(source.root.position).dot(right),-width,width);
@@ -120,8 +128,34 @@ function impactAnchor(source,target,start,melee){
 function refreshImpactAnchor(fx){
   // A kiting hull can turn around during wind-up. Reacquire its near surface
   // before contact instead of chasing an anchor that rotated to the far side.
-  if(!fx.arrived&&Math.abs(Math.atan2(Math.sin(fx.target.heading-fx.anchorHeading),Math.cos(fx.target.heading-fx.anchorHeading)))>.1){const next=impactAnchor(fx.actor,fx.target,fx.start,fx.kind==='impact');if(next){fx.anchor=next;fx.anchorHeading=fx.target.heading;}}
+  if(!fx.arrived&&Math.abs(Math.atan2(Math.sin(fx.target.heading-fx.anchorHeading),Math.cos(fx.target.heading-fx.anchorHeading)))>.1){const next=impactAnchor(fx.actor,fx.target,fx.start,fx.kind==='impact',fx.missile?12:3);if(next){fx.anchor=next;fx.anchorHeading=fx.target.heading;}}
   resolveImpactAnchor(fx.anchor,fx.end);
+}
+
+// Both combatants must be posed before an incoming strike can use the new
+// quadruped's current material surface. Resolve only actors whose actual
+// anchor changed; the same clock never advances gait or simulation here.
+function settleNativeMeleeContacts(scene, state) {
+  const impacts = scene.fx.filter(fx => fx.kind === 'impact' && fx.anchor &&
+    (fx.actor.nativeQuadrupedPresentation || fx.target.nativeQuadrupedPresentation) &&
+    state.time >= fx.actor.strikeTime && state.time - fx.actor.strikeTime < (fx.actor.strikeDuration ?? 1.3));
+  let passes = 0, residual = 0;
+  for (; passes < 4 && impacts.length; passes++) {
+    const changed = new Set(); residual = 0;
+    for (const fx of impacts) {
+      refreshImpactAnchor(fx);
+      const delta = fx.actor.strikeTarget.distanceTo(fx.end); residual = Math.max(residual, delta);
+      if (delta > .000001) {fx.actor.strikeTarget.copy(fx.end); changed.add(fx.actor);}
+    }
+    if (!changed.size) break;
+    for (const actor of changed) {
+      const moving = actor === scene.city ? !state.battle.result && state.battle.command !== 'hold' : !state.battle.result;
+      animateCity(actor, state.time, moving, actor === scene.city ? state.population : 28);
+    }
+  }
+  residual = 0;
+  for (const fx of impacts) {refreshImpactAnchor(fx); residual = Math.max(residual, fx.actor.strikeTarget.distanceTo(fx.end));}
+  scene.nativeContactPose = {passes, residual, impacts: impacts.length};
 }
 
 export class GameScene {
@@ -330,9 +364,9 @@ export class GameScene {
     const born=this.state.time-Math.max(0,battle.time-event.time);
     if(event.kind!=='impact')this.cinematic.impulse(event.kind==='salvo'?.5:.26,fromEnemy?-1:1);
     for(const shot of weaponMuzzles(source,event.mounts||[],born,event.kind==='impact',event.base!==false)){
-      const melee=event.kind==='impact',anchor=impactAnchor(source,target,shot.point,melee);if(!anchor)continue;const end=anchor.point;
+      const melee=event.kind==='impact',start=melee?(nativeMeleeStart(source)??shot.point):shot.point,anchor=impactAnchor(source,target,start,melee,shot.missile?12:3);if(!anchor)continue;const end=anchor.point;
       if(melee){source.strikeTarget=end.clone();source.strikeContactTime=attackDelay(event.kind);source.strikeDuration=1.3;}
-      const start=shot.point,group=new T.Group(),material=new T.MeshBasicMaterial({color:fromEnemy?0xff8750:0xffd789,transparent:true,opacity:1});
+      const group=new T.Group(),material=new T.MeshBasicMaterial({color:fromEnemy?0xff8750:0xffd789,transparent:true,opacity:1});
       const object=new T.Mesh(shot.missile?new T.ConeGeometry(.27,1.15,10):new T.SphereGeometry(event.kind==='impact'?.45:.25,10,8),material);if(shot.missile)object.rotation.x=Math.PI/2;group.add(object);
       const trail=new T.Mesh(new T.ConeGeometry(.18,shot.missile?5:3.4,8),new T.MeshBasicMaterial({color:0xffd0a1,transparent:true,opacity:.8}));trail.rotation.x=Math.PI/2;trail.position.z=-1.3;group.add(trail);
       const burst=new T.Group();burst.visible=false;group.add(burst);
@@ -398,9 +432,10 @@ export class GameScene {
     if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35*(this.city.verticalLayout?.heightScale??1),p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.rig.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     if(this.destination.visible){const normal=terrainNormal(s.target.x,s.target.z);this.destination.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(normal.x,normal.y,normal.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     const selectedBattery=selectedSlot!==null&&s.buildings[selectedSlot]?.type==='cannon';this.coverage.visible=!battle&&!!selectedBattery;
-    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot],height=this.city.verticalLayout?cannonMountProfile(this.city.verticalLayout).muzzleY:1.8;this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+height,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
+    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot],layout=this.city.saddleLayout??this.city.verticalLayout,height=layout?cannonMountProfile(layout).muzzleY:1.8;this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+height,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
     for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
+    if(battle)settleNativeMeleeContacts(this,s);
     this.focus.lerp(focus,1-Math.exp(-dt*5));
     this.applyLighting(1-Math.exp(-dt*4));this.sun.position.copy(this.focus).add(this.sunOffset);this.sun.target.position.copy(this.focus);this.rim.position.set(this.focus.x+70,this.focus.y+35,this.focus.z-55);this.rim.target.position.copy(this.focus);
     this.cityLighting.update(this.city,battle?this.enemyCities.find(c=>c.id===s.battle.enemyId):null,this.lightingCurrent);

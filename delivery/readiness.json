@@ -1,10 +1,10 @@
 {
   "eligible": false,
-  "reason": "The owner authorized a new beast-integration review cycle. Round 1 failed at 7.6/10 and round 2 failed at 8.0/10 against the unchanged 8.5 gate. Round 2 confirmed the old strap loops/sheets were resolved and identified zero new definite visual/runtime errors in bounded coverage, but anatomy and presentation quality remain below the gate. The repaired saddle candidate passed all 390 tests, including resident, cannon and posed body clearance; its build passed with only generated build metadata changing. Native builder verification and improved anatomy remain in progress. Rejected anatomy pilots have not replaced V13. Two review rounds remain. Private playtest delivery remains Configured but blocked. Do not push or deploy until the visual and technical gates pass and the private delivery prerequisites are verified.",
-  "candidateRuntimeFingerprint": "c660c8e679d7e77867d17ad7396758df4d6b2c5fa5897f05b604a3f177e65529",
-  "candidateBuild": "fa5047fd9894a183645a",
-  "candidateTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-frame-round03.json",
-  "candidateBuildEvidence": "artifacts/beast-integration/checks/build-v13-frame-round03.json",
+  "reason": "Local native quadruped builder candidate integrated for round 03. Latest flesh low saddle city and cyborg half-height vertical castle are preserved. Full combined suite: 432/433 pass; strict connected-skin self-crossing test fails, including genuine new moving hindquarter intersections. Build succeeds. Rounds 01/02 remain failed at 7.6/8.0; round 03 pending and two rounds remain. No visual or technical acceptance is implied by local integration, native performance recording or build success. Private playtest delivery remains Configured but blocked. Do not push or deploy.",
+  "candidateRuntimeFingerprint": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
+  "candidateBuild": "d433bbc1ac5692facda6",
+  "candidateTechnicalEvidence": "artifacts/beast-integration/native27-cpu-combined-v2/checks/full-suite-01.json",
+  "candidateBuildEvidence": "artifacts/beast-integration/native27-cpu-combined-v2/checks/build-01.json",
   "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_02.md",
   "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",
   "reviewedImplementation": "4832146fc0b4e1d7de459f9474fa7a53c1f239f2",
@@ -26,5 +26,6 @@
     "evidence": "art-reviews/iphone-pass1-04.md",
     "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
   },
-  "reviewedTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json"
+  "reviewedTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json",
+  "candidatePerformanceEvidence": "artifacts/beast-integration/native-full-saddle-performance-combined-v2-01/report.json"
 }

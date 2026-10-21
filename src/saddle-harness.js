@@ -17,6 +17,13 @@ export const GIRDLE_STATIONS=Object.freeze([
   Object.freeze({intercept:35,slope:.8,z:-16,rear:true})
 ]);
 
+// Native27 candidate: true transverse girths wrap the actual torso below its load.
+// Origins select the connected torso section, not a remote leg/tail contour.
+export const NATIVE_GIRDLE_STATIONS=Object.freeze([
+ Object.freeze({origin:Object.freeze([0,15,-10]),normal:Object.freeze([0,0,1]),z:-10,rear:false}),
+ Object.freeze({origin:Object.freeze([0,15,-13]),normal:Object.freeze([0,0,1]),z:-13,rear:true})
+]);
+
 function beltGeometry(){
   const count=GIRDLE_SECTIONS,tracks=GIRDLE_WIDTH_SAMPLES,stride=tracks*2,positions=new Float32Array(count*stride*3),uv=[],indices=[];
   for(let i=0;i<count;i++)for(let layer=0;layer<2;layer++)for(let edge=0;edge<tracks;edge++)uv.push(i/count*14,edge/(tracks-1));
@@ -36,7 +43,7 @@ function beltGeometry(){
   return geometry;
 }
 
-export function createFleshHarness(rig,meshes){
+export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS}={}){
   const group=new T.Group();group.name='Skin-following saddle harness';group.userData.noBatch=true;rig.add(group);
   const leather=getMaterial('fabric',0x504134),edgeMaterial=getMaterial('gold',0x8d7856),iron=getMaterial('metal',0x454a45);
   const inverse=new T.Matrix4(),basis=new T.Matrix4(),relative=new T.Vector3();
@@ -45,7 +52,7 @@ export function createFleshHarness(rig,meshes){
   const vectors=count=>Array.from({length:count},()=>new T.Vector3());
   const vertexCaches=new Map();
   let fitted=false,rearLoaded=false;
-  const bands=GIRDLE_STATIONS.map((station,index)=>{
+  const bands=stations.map((station,index)=>{
     const mesh=new T.Mesh(beltGeometry(),leather);mesh.name=index?'Rear closed hip harness':'Front closed breast harness';
     Object.assign(mesh.userData,{noBatch:true,saddleGirdle:true,deformingImpactSurface:true,sections:GIRDLE_SECTIONS,widthSamples:GIRDLE_WIDTH_SAMPLES,width:GIRDLE_WIDTH,clearance:GIRDLE_CLEARANCE,thickness:GIRDLE_THICKNESS});
     mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;group.add(mesh);
@@ -60,8 +67,8 @@ export function createFleshHarness(rig,meshes){
       return{section,object:buckle};
     });
     return{...station,mesh,buckles,anchors:[],points:[],contours:[],strip:null,
-      origin:new T.Vector3(0,station.intercept+station.slope*station.z,station.z),
-      u:new T.Vector3(1,0,0),v:new T.Vector3(0,station.slope,1).normalize(),w:new T.Vector3(0,-1,station.slope).normalize(),
+      origin:station.origin?new T.Vector3(...station.origin):new T.Vector3(0,station.intercept+station.slope*station.z,station.z),
+      u:new T.Vector3(1,0,0),v:station.normal?new T.Vector3(...station.normal).cross(new T.Vector3(1,0,0)).normalize():new T.Vector3(0,station.slope,1).normalize(),w:station.normal?new T.Vector3(...station.normal).normalize():new T.Vector3(0,-1,station.slope).normalize(),
       envelope:createSupportingRing(GIRDLE_SECTIONS),depths:Array.from({length:GIRDLE_WIDTH_SAMPLES},()=>createContourDepth()),
       ringPoints:vectors(GIRDLE_SECTIONS),ringNormals:vectors(GIRDLE_SECTIONS),beltNormals:vectors(GIRDLE_SECTIONS*GIRDLE_WIDTH_SAMPLES)};
   });

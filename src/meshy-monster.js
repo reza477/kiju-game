@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {markMeshyCarrierPose} from './meshy-carriers.js';
 import {createMonsterDisplayPose} from './monster-display-rig.js';
+import {createMeshyQuadrupedPose} from './monster-quadruped-pose.js';
 
 // Inspected 54-joint Smart Rig exported from the owner's remeshed monster.
 // This asset has a valid skin but no exported clips. This adapter poses only
@@ -23,6 +24,12 @@ export function inspectMeshyMonsterRig(instance) {
   const bones = new Map(), allBones = new Map(), meshes = [];
   instance.body.traverse(object => {if (object.isBone) allBones.set(object.name, object); if (object.isSkinnedMesh) meshes.push(object);});
   for(let i=0;i<54;i++){const name='Bone_'+String(i).padStart(3,'0');if(allBones.has(name))bones.set(name,allBones.get(name));}
+  const nativeQuadruped=meshes[0]?.userData.nativeQuadruped;
+  if(nativeQuadruped){
+    if(meshes.length!==1||nativeQuadruped.version!==1||allBones.size!==27||meshes[0].skeleton?.bones.length!==27||meshes[0].skeleton.bones.some(bone=>allBones.get(bone.name)!==bone))throw new Error('Native quadruped differs from its inspected 27-joint rig');
+    if(instance.clip?.name!==nativeQuadruped.clipName)throw new Error('Native quadruped requires its inspected walking clip');
+    return{bones:allBones,allBones,mesh:meshes[0],nativeQuadruped,displayRig:null};
+  }
   if (meshes.length !== 1 || instance.capabilities?.animations?.length) throw new Error('Monster pose requires the inspected 54-joint static Smart Rig');
   if (bones.size !== 54) throw new Error('Monster rig differs from the inspected 54-joint static Smart Rig');
   const displayRig=meshes[0].userData.displayLimbRig;
@@ -39,7 +46,9 @@ export function inspectMeshyMonsterRig(instance) {
 
 export function createMeshyMonsterPose(instance, {groundHeight, strideDistance, initialPhase = 0, supportCrouch = 0} = {}) {
   if (typeof groundHeight !== 'function' || !Number.isFinite(strideDistance) || strideDistance <= 0 || !Number.isFinite(initialPhase) || !Number.isFinite(supportCrouch) || supportCrouch < 0 || supportCrouch > .25) throw new Error('Monster pose requires terrain sampling and a positive world stride');
-  const inspected=inspectMeshyMonsterRig(instance),{bones,mesh}=inspected,body=instance.body;
+  const inspected=inspectMeshyMonsterRig(instance);
+  if(inspected.nativeQuadruped)return createMeshyQuadrupedPose(instance,{groundHeight,strideDistance,initialPhase,supportCrouch});
+  const {bones,mesh}=inspected,body=instance.body;
   const displayPose=createMonsterDisplayPose(instance,inspected);
   const inverse = new T.Matrix4(), matrix = new T.Matrix4(), position = new T.Vector3(), scale = new T.Vector3(), quaternion = new T.Quaternion();
   const bodyBone = bones.get('Bone_000'), bodyOrigin = bodyBone.position.clone();

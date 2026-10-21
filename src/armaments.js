@@ -84,10 +84,11 @@ export function animateWeapons(city,target,time){
       const delta=normalizeAngle(bearing-weapon.facing),limit=weapon.base?Math.PI:batteryArc(city.faction)/2;
       desired=weapon.facing+T.MathUtils.clamp(delta,-limit,limit);
     }
-    if(city.faction==='kaiju'&&city.layout!=='saddle'&&!weapon.base){
+    if(city.faction==='kaiju'&&!weapon.base){
+      const layout=city.saddleLayout??city.verticalLayout;
       const prior=weapon.aimClearance;
-      if(!prior||prior.rings!==city.rings||prior.layout!==city.verticalLayout?.signature||prior.desired!==desired){
-        weapon.aimClearance={rings:city.rings,layout:city.verticalLayout?.signature,desired,physical:nearestCastleYaw({rings:city.rings,layout:city.verticalLayout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
+      if(!prior||prior.rings!==city.rings||prior.layout!==layout?.signature||prior.desired!==desired){
+        weapon.aimClearance={rings:city.rings,layout:layout?.signature,desired,physical:nearestCastleYaw({rings:city.rings,layout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
       }
       weapon.turret.rotation.y=weapon.aimClearance.physical;
     }else weapon.turret.rotation.y=desired;

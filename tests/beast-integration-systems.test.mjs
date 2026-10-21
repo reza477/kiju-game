@@ -22,6 +22,10 @@ for(const [faction,variant]of BEAST_VARIANTS)test(`new beast preserves ${variant
  const result=systemsTrace(sim,faction,variant);
  assert.deepEqual([result.sha256,result.samples,result.eventCount],expected[variant]);
 });
-test('new beast preserves all 20 saddle mounts, low flesh growth, half-height cyborg and other variant identities',()=>{
- assert.deepEqual(layoutTrace(saddle,vertical,variants),{sha256:'2c948d1f74012d3ea8b531094fcd2052f2572d452bce07a6b2faa0838e88995d',cases:6});
+// The approved native fit moves only the four lowest X mounts and their paths.
+// Exact132-field delta against the old hash is recorded in
+// artifacts/beast-integration/authoring/native-city-presentation-v12b/layout-delta-audit.json.
+// Full-foundation regression separately protects126 layouts and original IDs/Y/Z/dimensions.
+test('native saddle fit preserves low flesh growth, half-height cyborg and other variant identities',()=>{
+ assert.deepEqual(layoutTrace(saddle,vertical,variants),{sha256:'e8222c7f085f8110f02227ec53ce41628027f7a524c6ace31dfaa4496fd22ff8',cases:6});
 });

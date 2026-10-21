@@ -18,7 +18,8 @@ try{
  }
  assert.ok(frame);const frameSurface=surface(meshes(frame));report.frameLinks=frame.userData.pannierLinks;
  // Structural additions must remain within the existing saddle footprint.
- for(const point of frameSurface.vertices)assert.ok(Math.abs(point.x)<=10.3+1e-6,'Frame expands the approved deck footprint');
+ assert.equal(layout.footprint.width,24.8,'Approved wider fit for the native quadruped');
+ for(const point of frameSurface.vertices)assert.ok(Math.abs(point.x)<=12.4+1e-6,'Frame expands the approved deck footprint');
  // All districts, including all upgraded roofs and working annexes, at every
  // occupied mount. Actual triangle intersections use full inclined members.
  for(const type of Object.keys(BUILDINGS))for(const level of[1,2,3])for(const facing of(type==='cannon'?[0,Math.PI/2,Math.PI,3*Math.PI/2]:[null])){

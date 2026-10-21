@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CARRIER_VARIANTS} from '../src/variants.js';
-import {createGame,serialize,deserialize,startBattle,meleeReach,expandRing,tick,build,fire,ability} from '../src/simulation.js';
+import {createGame,serialize,deserialize,startBattle,meleeReach,expandRing,tick,build,fire,ability,setBatteryFacing} from '../src/simulation.js';
 import {batteryPosition,batterySolution} from '../src/weapon-layout.js';
 import {KAIJU_SCALE} from '../src/city-layout.js';
 import {createVerticalLayout,VERTICAL_SLOT_ORDER} from '../src/vertical-city.js';
+import {createSaddleLayout} from '../src/saddle-layout.js';
 import {castleShotClearance,castleSolids} from '../src/castle-collision.js';
 
 function towerFixture(count=3,variant='cyborg'){
@@ -36,8 +37,8 @@ test('cross-faction and mismatched battle variants are rejected',()=>{
  s.variant='drill';s.enemies[0].variant='vertical';assert.equal(deserialize(serialize(s)),null);
  const b=createGame();b.x=b.enemies[0].x;b.z=b.enemies[0].z;startBattle(b,b.enemies[0].id);b.battle.enemyVariant='flesh';assert.equal(deserialize(serialize(b)),null);
 });
-test('harness expansion grants capacity; each new district adds a supported floor above the existing city',()=>{
- const s=createGame('kaiju','flesh'),before=towerLayout(s);
+test('cyborg harness expansion grants capacity; each new district adds a supported floor above the existing city',()=>{
+ const s=createGame('kaiju','cyborg'),before=towerLayout(s);
  assert.equal(before.floors.length,3);assert.ok(expandRing(s).ok);for(let i=0;i<48;i++)tick(s,.25);
  assert.equal(s.rings,2);assert.deepEqual(towerLayout(s),before,'Unused capacity must not manufacture empty castle storeys');
  assert.ok(build(s,'cannon',19).ok);const after=towerLayout(s);
@@ -54,6 +55,33 @@ test('harness expansion grants capacity; each new district adds a supported floo
  const p=mountPosition(s,19),base=mountPosition(s,7);
  assert.equal(p.x,base.x);assert.equal(p.z,base.z);assert.ok(p.y>base.y);
 });
+// Flesh is a low saddle in the latest game. Keep the vertical cases above
+// and below specific to cyborg; never force a flesh save through towerLayout.
+// The broader saddle-weapons suite also checks actual rendered muzzle/mesh
+// intersections and the recorded mechanical baseline of all other variants.
+test('flesh reinforcement preserves occupied saddle mounts and a new ward fires from its own supported position',()=>{
+ const s=createGame('kaiju','flesh'),before=createSaddleLayout(s.buildings,s.towerOrder);
+ assert.ok(expandRing(s).ok);for(let i=0;i<48;i++)tick(s,.25);
+ assert.equal(s.rings,2);assert.deepEqual(createSaddleLayout(s.buildings,s.towerOrder),before,'Unused capacity cannot create empty saddle wards');
+ assert.ok(build(s,'cannon',19).ok);const after=createSaddleLayout(s.buildings,s.towerOrder);
+ assert.equal(after.floors.length,4);assert.deepEqual(after.order,[...before.order,19]);
+ assert.deepEqual(after.floors.slice(0,-1),before.floors);assert.deepEqual(after.footprint,before.footprint);
+ for(const slot of before.order)assert.deepEqual(after.positions[slot],before.positions[slot],'New construction cannot move an occupied saddle mount');
+ assert.equal(new Set(after.floors.map(f=>{const p=after.positions[f.slot];return `${p.x}:${p.y}:${p.z}`;})).size,4);
+ assert.ok(after.maxY<38,'A new saddle ward must remain low instead of becoming a vertical castle floor');
+ for(let i=0;i<36;i++)tick(s,.25);assert.equal(s.buildings[19].remaining,0);
+ const layout=createSaddleLayout(s.buildings,s.towerOrder),p=batteryPosition('kaiju',19,'flesh',layout),actor={x:0,z:0,angle:0};
+ assert.ok(setBatteryFacing(s,19,Math.PI).ok);
+ const clear=batterySolution(s,19,actor,{x:p.x,z:p.z-40},54);
+ assert.deepEqual(clear.position,{x:p.x,z:p.z});assert.ok(clear.inArc&&clear.inRange);assert.equal(clear.blocker,null);assert.ok(clear.active,'The actual outward saddle sector must remain usable');
+ assert.ok(setBatteryFacing(s,19,-Math.PI/2).ok);
+ const blocked=batterySolution(s,19,actor,{x:p.x-40,z:p.z},54);
+ assert.ok(blocked.inArc&&blocked.inRange);assert.equal(blocked.active,false);assert.match(blocked.blocker,/^castle:saddle:/);
+ const namesBlocker=solid=>'castle:'+solid.id===blocked.blocker||(solid.children??[]).some(namesBlocker);
+ assert.ok(castleSolids(s.rings,layout).some(namesBlocker),'The obstructed lateral path must name actual saddle geometry within its cached hierarchy');
+ assert.deepEqual(deserialize(serialize(s)),s,'The latest layout preserves legal saves and construction IDs');
+});
+
 test('drill hull elongates mounts and physical melee spacing',()=>{
  const standard=batteryPosition('crawler',17,'standard'),drill=batteryPosition('crawler',17,'drill');
  assert.equal(drill.z,standard.z*1.32);assert.equal(drill.x,standard.x*.85);
@@ -73,10 +101,10 @@ test('the ground drill uses real ranged attacks against airborne rivals',()=>{
  }
 });
 test('low castle guns hit the titan while a genuinely built high floor clears its shoulders and still respects masonry',()=>{
- for(const variant of ['cyborg','flesh']){
+ for(const variant of ['cyborg']){
   // A compact cyborg needs more actual occupied storeys to reach above the
   // unchanged robot. Its twelfth floor is no longer the old tall mount.
-  const s=towerFixture(variant==='cyborg'?20:12,variant),lowSlot=s.towerOrder[0],highSlot=s.towerOrder.at(-1);
+  const s=towerFixture(20,variant),lowSlot=s.towerOrder[0],highSlot=s.towerOrder.at(-1);
   for(const slot of [lowSlot,highSlot])s.buildings[slot]={type:'cannon',level:1,remaining:0,facing:0};
   const low=batterySolution(s,lowSlot,{x:0,z:0,angle:0},{x:0,z:45},54),high=batterySolution(s,highSlot,{x:0,z:0,angle:0},{x:0,z:45},54);
   assert.equal(low.blocker,'carrier');assert.equal(low.active,false);
@@ -94,7 +122,7 @@ test('low castle guns hit the titan while a genuinely built high floor clears it
 });
 
 test('vertical castle masonry blocks oblique cannon damage while its outward port stays usable',()=>{
- for(const variant of ['cyborg','flesh'])for(const {level,offset} of [{level:1,offset:30},{level:1,offset:-30},{level:3,offset:35},{level:3,offset:40}]){
+ for(const variant of ['cyborg'])for(const {level,offset} of [{level:1,offset:30},{level:1,offset:-30},{level:3,offset:35},{level:3,offset:40}]){
   const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};
   const rival=s.enemies.find(e=>e.variant==='standard');s.x=rival.x;s.z=rival.z;startBattle(s,rival.id);
   const b=s.battle,p=mountPosition(s,slot),yaw=towerLayout(s).positions[slot].rotation+offset*Math.PI/180;
@@ -112,10 +140,10 @@ test('vertical castle masonry blocks oblique cannon damage while its outward por
 });
 
 test('actual vertical castle portal trim, corner shafts and lancet frames stop curved cannon shots',()=>{
- for(const variant of ['cyborg','flesh'])for(const {level,degrees,enemyFaction,solid} of [
+ for(const variant of ['cyborg'])for(const {level,degrees,enemyFaction,solid} of [
   {level:3,degrees:20,enemyFaction:'crawler',solid:'vertical:gun-portal:1:0'},
   {level:1,degrees:40,enemyFaction:'airship',solid:'vertical:corner:1:-1:-1'},
-  {level:1,degrees:variant==='cyborg'?54:47,enemyFaction:'airship',solid:variant==='cyborg'?'vertical:side-arch:1:-1:0:7':'vertical:side-arch:1:-1:0:0'},
+  {level:1,degrees:54,enemyFaction:'airship',solid:'vertical:side-arch:1:-1:0:7'},
  ]){
   const s=towerFixture(3,variant),slot=11;s.buildings[slot]={type:'cannon',level,remaining:0};s.battle={enemyFaction};
   const layout=towerLayout(s),p=mountPosition(s,slot),yaw=layout.positions[slot].rotation+degrees*Math.PI/180;

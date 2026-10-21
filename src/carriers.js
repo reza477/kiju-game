@@ -16,6 +16,7 @@ import {createCrawlerBody,createCrawlerPodium,createCrawlerCityPlatform,createCr
 import {createStandardCrawlerChassis,createStandardCrawlerWheel} from './crawler-study.js';
 import {meshyCyborgReady,createMeshyCyborg,animateMeshyCyborg} from './meshy-cyborg.js';
 import {meshyMonsterReady,createMeshyMonsterCity,animateMeshyMonsterCity} from './meshy-monster-city.js';
+import {createNativeQuadrupedCityPose,animateNativeQuadrupedCityPose,finishNativeQuadrupedCityPose} from './quadruped-city-pose.js';
 
 export const slotPosition=(i,faction)=>faction==='kaiju'?kaijuSlotPosition(i):({x:(i%5-2)*3.05,y:0,z:(Math.floor(i/5)-1.5)*3.7});
 
@@ -155,11 +156,13 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   city.groundSupports=variantParts.groundSupports?.map(p=>p.multiply(new T.Vector3(footprintScale.x,1,footprintScale.z)));
   city.meshyCarrier=variantParts.meshyCarrier??null;
   city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
+  createNativeQuadrupedCityPose(city);
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
 export function animateCity(city,time,moving,populationCount=28){
-  if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);animateMeshyCyborg(city,time,moving);animateMeshyMonsterCity(city,time,moving);}
+  if(city.nativeQuadrupedPresentation){animateNativeQuadrupedCityPose(city,time);animateMeshyMonsterCity(city,time,moving);finishNativeQuadrupedCityPose(city);}
+  else if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);animateMeshyCyborg(city,time,moving);animateMeshyMonsterCity(city,time,moving);}
   else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
   const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;
   for(const spinner of city.spinners){

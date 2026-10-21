@@ -4,7 +4,7 @@ import {createMeshyMonsterPose} from './meshy-monster.js';
 import {getMaterial,box,beam,batchStatic} from './materials.js';
 import {renderedTerrainHeight} from './terrain.js';
 import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
-import {createFleshHarness} from './saddle-harness.js';
+import {createFleshHarness,NATIVE_GIRDLE_STATIONS} from './saddle-harness.js';
 
 export const meshyMonsterReady=()=>meshyCarriersStatus().assets.find(asset=>asset.kind==='flesh')?.state==='ready';
 export const MONSTER_BODY_FIT=Object.freeze({x:-.325,y:-1.8,z:-12,scaleX:16,scaleY:21,scaleZ:16,strikeAdvance:3.3});
@@ -132,15 +132,16 @@ function createSaddle(rig,meshes){
 }
 
 export function createMeshyMonsterCity(rig){
-  const instance=instantiateMeshyCarrier('flesh');
-  const fit=MONSTER_BODY_FIT;
+  const native=meshyCarriersStatus().assets.find(asset=>asset.kind==='flesh')?.capabilities?.nativeQuadruped;
+  const instance=instantiateMeshyCarrier('flesh',native?{clipName:native.clipName,strideDistance:native.strideDistance}:undefined);
+  const fit=native?.fit??MONSTER_BODY_FIT;
   instance.root.scale.set(fit.scaleX,fit.scaleY,fit.scaleZ);instance.root.position.set(fit.x,fit.y,fit.z);rig.add(instance.root);
   const renderMeshes=[];instance.body.traverse(object=>{if(object.isSkinnedMesh)renderMeshes.push(object);});
-  const controller=createMeshyMonsterPose(instance,{groundHeight:renderedTerrainHeight,strideDistance:8.8,supportCrouch:.12});
-  const saddle=createSaddle(rig,renderMeshes),harness=createFleshHarness(rig,renderMeshes),setSaddleLoad=saddle.setLoad.bind(saddle);saddle.update();
+  const controller=createMeshyMonsterPose(instance,{groundHeight:renderedTerrainHeight,strideDistance:native?.strideDistance??8.8,supportCrouch:.12});
+  const saddle=createSaddle(rig,renderMeshes),harness=createFleshHarness(rig,renderMeshes,native?{stations:NATIVE_GIRDLE_STATIONS}:undefined),setSaddleLoad=saddle.setLoad.bind(saddle);saddle.update();
   saddle.setLoad=layout=>{setSaddleLoad(layout);harness.setLoad(layout);};
   saddle.harness=harness;
-  return {kind:'flesh',instance,controller,renderMeshes,saddle,previous:null,metrics:{animation:'Local four-legged gait on Meshy Smart Rig',visibleStrikeError:null}};
+  return {kind:'flesh',instance,controller,renderMeshes,saddle,bodyFit:{...fit},previous:null,metrics:{animation:native?'Distance-driven Meshy quadruped gait with planted feet':'Local four-legged gait on Meshy Smart Rig',visibleStrikeError:null}};
 }
 
 export function animateMeshyMonsterCity(city,time,moving){
@@ -150,13 +151,13 @@ export function animateMeshyMonsterCity(city,time,moving){
   const age=time-city.strikeTime,contact=city.strikeContactTime??.7,end=city.strikeDuration??1.3;
   const active=age>=0&&age<end&&city.strikeTarget?.isVector3&&city.strikeHand;
   const weight=active?ease(.14,.55,age)*(1-ease(contact+.22,end,age)):0;
-  // The new, unstretched source arm is 1.56 world metres short at the existing
-  // monster contact. A bounded skin-only weight shift supplies that reach;
-  // planted paws and the skin-anchored saddle follow through the normal solver.
+  // A bounded, asset-declared body shift supplies visible strike reach;
+  // planted paws and the skin-anchored saddle follow through the pose solver.
   // The city rig, collision body, weapons, target marker and event stay fixed.
-  adapter.instance.root.position.z=MONSTER_BODY_FIT.z+MONSTER_BODY_FIT.strikeAdvance*weight;
+  const fit=adapter.bodyFit??MONSTER_BODY_FIT;
+  adapter.instance.root.position.z=fit.z+(adapter.instance.capabilities.nativeQuadruped?0:fit.strikeAdvance*weight);
   const status=adapter.controller.update({time,moving,distanceDelta:distance,heading:city.heading,
-    strikeHand:active?city.strikeHand.getWorldPosition(new T.Vector3()):null,strikeWeight:weight});
+    strikeHand:active?city.strikeHand.getWorldPosition(new T.Vector3()):null,strikeWeight:weight,flight:city.nativeQuadrupedPresentation?.flight??null});
   adapter.metrics.visibleStrikeError=status?.strikeError??null;
   adapter.metrics.unreachableStrike=weight>.999&&status?.strikeError>.025;
   if(!adapter.saddleFitted){adapter.saddle.fitToPose();adapter.saddle.harness.fitToPose();adapter.saddleFitted=true;}

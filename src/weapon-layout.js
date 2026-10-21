@@ -2,6 +2,7 @@ import {kaijuSlotPosition,KAIJU_SCALE,KAIJU_DECK_Y} from './city-layout.js';
 import {variantFootprint} from './variants.js';
 import {castleShotClearance,cannonMountProfile} from './castle-collision.js';
 import {createVerticalLayout} from './vertical-city.js';
+import {createSaddleLayout} from './saddle-layout.js';
 
 export const normalizeAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const batteryArc=faction=>faction==='airship'?Math.PI*4/3:Math.PI*5/6;
@@ -23,7 +24,8 @@ function crossesCarrier(start,end,min,max){
   return far>.01&&near<1;
 }
 export function batterySolution(state,slot,attacker,target,range){
-  const layout=state.faction==='kaiju'?createVerticalLayout(state.buildings,state.towerOrder,state.variant):null;
+  const saddle=state.faction==='kaiju'&&state.variant==='flesh';
+  const layout=state.faction==='kaiju'?(saddle?createSaddleLayout(state.buildings,state.towerOrder):createVerticalLayout(state.buildings,state.towerOrder,state.variant)):null;
   const building=state.buildings[slot],p=batteryPosition(state.faction,slot,state.variant,layout),a=attacker.angle;
   const world={x:attacker.x+Math.cos(a)*p.x+Math.sin(a)*p.z,z:attacker.z-Math.sin(a)*p.x+Math.cos(a)*p.z};
   const dx=target.x-world.x,dz=target.z-world.z,d=Math.hypot(dx,dz);
@@ -35,8 +37,8 @@ export function batterySolution(state,slot,attacker,target,range){
   const muzzleHeight=state.faction==='kaiju'?cannonMountProfile(layout).muzzleY:1.8;
   let blocker=null;
   const targetHeight=state.battle?.enemyFaction==='kaiju'?17.5:state.battle?.enemyFaction==='airship'?18:10;
-  if(state.faction==='kaiju'&&crossesCarrier({x:p.x,y:p.y+muzzleHeight*scale,z:p.z},{x:p.x+localDirection.x*d,y:targetHeight,z:p.z+localDirection.z*d},{x:-5*scale,y:24*scale,z:-3.7*scale},{x:5*scale,y:51*scale,z:3.2*scale}))blocker='carrier';
-  if(state.faction!=='airship')for(let i=0;i<state.buildings.length;i++){
+  if(state.faction==='kaiju'&&!saddle&&crossesCarrier({x:p.x,y:p.y+muzzleHeight*scale,z:p.z},{x:p.x+localDirection.x*d,y:targetHeight,z:p.z+localDirection.z*d},{x:-5*scale,y:24*scale,z:-3.7*scale},{x:5*scale,y:51*scale,z:3.2*scale}))blocker='carrier';
+  if(state.faction!=='airship'&&!saddle)for(let i=0;i<state.buildings.length;i++){
     const other=state.buildings[i];if(i===slot||!other||other.remaining>0||!['keep','housing','foundry','sawmill'].includes(other.type))continue;
     const q=batteryPosition(state.faction,i,state.variant,layout),vx=q.x-p.x,vz=q.z-p.z;
     const along=vx*localDirection.x+vz*localDirection.z,across=Math.abs(vx*localDirection.z-vz*localDirection.x);

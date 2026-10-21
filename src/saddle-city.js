@@ -3,6 +3,13 @@ import {getMaterial,box,cylinder,beam,batchStatic} from './materials.js';
 import {SADDLE_DECK_Y,SADDLE_DISTRICT_SIZE,saddleDistrictHeight} from './saddle-layout.js';
 export {createSaddleLayout} from './saddle-layout.js';
 
+// Collision collects these same primitive factories without loading textures or
+// requiring a DOM. Material kinds retain the renderer's bevel decisions.
+let geometryMaterials;
+function geometryPalette(){
+ if(!geometryMaterials){geometryMaterials={};for(const [name,kind]of Object.entries({wall:'stone',trim:'plaster',roof:'roof',dark:'metal',iron:'metal',wood:'wood',leather:'fabric',cloth:'fabric',glass:'glass',light:'window',brass:'gold',paving:'pavement',soil:'soil',leaves:'foliage'})){const material=new T.MeshBasicMaterial();material.name=kind+' geometry-only';material.userData.shared=true;geometryMaterials[name]=material;}}
+ return geometryMaterials;
+}
 function palette(enemy=false){return {wall:getMaterial('stone',0x9ca699),trim:getMaterial('plaster',0xc1bda4),roof:getMaterial('roof',0x454e58),dark:getMaterial('metal',0x303a3b),iron:getMaterial('metal',0x586363),wood:getMaterial('wood',0x77614c),leather:getMaterial('fabric',0x645443,{sheen:.08,roughness:.88,metalness:0}),cloth:getMaterial('fabric',enemy?0x74404a:0x513549),glass:getMaterial('glass',0x6c8588),light:getMaterial('window',0xc5c0a1),brass:getMaterial('gold',0x9d8960),paving:getMaterial('pavement',0xa8a899),soil:getMaterial('soil',0x4e4437),leaves:getMaterial('foliage',0x60794b)};}
 function prism(group,points,depth,material,x=0,y=0,z=0){
  const shape=new T.Shape(points.map(p=>new T.Vector2(...p))),geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false});geometry.translate(0,0,-depth/2);
@@ -16,7 +23,7 @@ function window(group,x,y,z,p,lit=false){
 }
 function strap(group,points,material,r=.09){for(let i=1;i<points.length;i++)beam(group,points[i-1],points[i],r,material);}
 
-function pannierFrame(layout,deckY,material){
+function pannierFrame(layout,deckY,material,geometryOnly=false){
  const group=new T.Group();group.name='Occupied pannier load frame';group.userData.noBatch=true;
  const links=[];
  // Forged ties join occupied deck rims within their existing envelope.
@@ -34,14 +41,23 @@ function pannierFrame(layout,deckY,material){
   for(const zone of['upper-pannier','lower-pannier'])for(let row=0;row<3;row++){
    if(zone==='upper-pannier'&&row>0)continue;
    const front=occupied.get(`${side}:${zone}:${row}`),rear=occupied.get(`${side}:${zone}:${row+1}`);
-   if(front&&rear)link(station(front.mount,-1),station(rear.mount,1),'underdeck-joist',[front.slot,rear.slot],zone==='lower-pannier'?.06:.20);
+   if(front&&rear){
+    const a=station(front.mount,-1),b=station(rear.mount,1),slots=[front.slot,rear.slot],width=zone==='lower-pannier'?.06:.20;
+    // A steep diagonal would cross the next lower gun's yaw sweep. Carry its
+    // load along the upper deck underside, then down outside the lower rim.
+    // Both original bearing points and the approved outer width are retained.
+    if(zone==='lower-pannier'&&a[1]-b[1]>1){
+     const upper=[b[0],a[1],b[2]+.16],lower=[b[0],b[1],upper[2]];
+     link(a,upper,'underdeck-joist',slots,width);link(upper,lower,'underdeck-joist',slots,width);link(lower,b,'underdeck-joist',slots,width);
+    }else link(a,b,'underdeck-joist',slots,width);
+   }
   }
  }
- group.userData.pannierLinks=links;return batchStatic(group);
+ group.userData.pannierLinks=links;return geometryOnly?group:batchStatic(group);
 }
 
-export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout){
- const group=new T.Group();group.name='Flesh colossus saddle and flank pannier decks';const p=palette(enemy);
+export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout,{geometryOnly=false}={}){
+ const group=new T.Group();group.name='Flesh colossus saddle and flank pannier decks';const p=geometryOnly?geometryPalette():palette(enemy);
  // The carrier owns the continuous skin-following girdles. Foundation rebuilds
  // only recreate occupied cargo decks, never a second static belt in the torso.
  for(const f of layout?.floors??[]){
@@ -65,13 +81,13 @@ export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout){
    strap(g,[[1.1,-.31,-1.63],[1.1,-1.18,-.2],[1.1,-.31,1.55]],p.iron,.065);
   }
  }
- const frame=pannierFrame(layout,deckY,p.iron);if(frame.userData.pannierLinks.length)group.add(frame);
+ const frame=pannierFrame(layout,deckY,p.iron,geometryOnly);if(frame.userData.pannierLinks.length)group.add(frame);
  group.userData.saddleCity=true;group.userData.layoutSignature=layout?.signature;group.userData.buildableSlots=layout?.floors.length??0;group.userData.surfaceLevels=(layout?.floors??[]).map(f=>deckY+f.y+f.surfaceOffset);
- return batchStatic(group);
+ return geometryOnly?group:batchStatic(group);
 }
 
-export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown'}={}){
- const g=new T.Group(),p=palette(enemy);g.name=`Gothic saddle ${type}`;level=Math.max(1,Math.min(3,level));const height=saddleDistrictHeight(level),wallH=1.72+.18*(level-1),front=.71;
+export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geometryOnly=false}={}){
+ const g=new T.Group(),p=geometryOnly?geometryPalette():palette(enemy);g.name=`Gothic saddle ${type}`;level=Math.max(1,Math.min(3,level));const height=saddleDistrictHeight(level),wallH=1.72+.18*(level-1),front=.71;
  // Human doors and circulation remain full sized; upgrades enrich their own
  // small chamber rather than increasing the entire city's height or width.
  const room=new T.Group();room.name='Compact occupied Gothic chamber';g.add(room);
