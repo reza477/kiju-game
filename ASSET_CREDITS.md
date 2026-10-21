@@ -1,5 +1,15 @@
 # Asset credits
 
+The October 2026 remake adds locally authored anatomical flesh geometry and cast
+robot armor, retaining the original private Meshy rigs and contact vertices.
+Original GLBs remain intact. Flesh provenance is recorded in
+`asset-sources/authored-flesh.json`; robot hand/boot hull provenance and original
+vertex IDs are recorded in `src/cyborg-contact-hulls.js`. Standing tree crowns,
+crawler terraces and hull machinery are newly authored geometry. The flesh
+reference illustration in `asset-sources/flesh-remake-reference.png` was generated
+with OpenAI image_gen as visual direction; it is not a gameplay screenshot.
+No Meshy generation credits were spent for these local derivatives.
+
 Carrier, castle, district, citizen, plant and landscape meshes and the sound design are original local code. Surface scans and the lighting environment are bundled public CC0 assets from [Poly Haven](https://polyhaven.com). Powered by Poly Haven.
 
 The original 1k color, OpenGL normal and roughness files are redistributed under [CC0 1.0](https://polyhaven.com/license). Nothing is fetched from Poly Haven while playing. Checksums and original download URLs are recorded in `assets/materials/manifest.json`.
@@ -23,4 +33,4 @@ Three.js 0.185.1 and its HDRLoader use the MIT license in `vendor/LICENSE`. The 
 
 ## October 2026 painted remake materials
 
-The three local albedo artworks in assets/art-remake were generated with the built-in OpenAI image_gen tool for this project. They are original generated artwork, not Poly Haven scans. Exact prompts are retained in asset-sources/remake-paint.json; generated originals remain on the owner's computer. Existing Meshy masters and other credited sources retain their attribution.
+The four local albedo artworks in assets/art-remake were generated with the built-in OpenAI image_gen tool for this project. They are original generated artwork, not Poly Haven scans. Exact prompts are retained in asset-sources/remake-paint.json and asset-sources/hide-paint.json; generated originals remain on the owner's computer. Existing Meshy masters and other credited sources retain their attribution.

@@ -41,6 +41,10 @@ export function createMeshyMonsterPose(instance, {groundHeight, strideDistance, 
   body.updateWorldMatrix(true, true); inverse.copy(body.matrixWorld).invert();
   const tail = MONSTER_RIG.tail.map(name => bones.get(name));
   const skinIndex = mesh.geometry.attributes.skinIndex, skinWeight = mesh.geometry.attributes.skinWeight;
+  // Authored skins append display vertices after the unchanged source pool.
+  // Those new weighted surfaces must not redefine paw clearance or claw tips.
+  const contactCount = mesh.geometry.userData.sourceContactVertices ?? mesh.geometry.attributes.position.count;
+  if (!Number.isInteger(contactCount) || contactCount < 1 || contactCount > mesh.geometry.attributes.position.count) throw new Error('Invalid monster contact pool');
   const legs = Object.entries(MONSTER_RIG).filter(([key]) => key !== 'tail').map(([key, names]) => {
     // The last Smart Rig joint is a toe, not the wrist/hock. Letting FABRIK
     // bend that short paw segment curls the weight-bearing pad into a knuckle.
@@ -53,7 +57,7 @@ export function createMeshyMonsterPose(instance, {groundHeight, strideDistance, 
     // The actual weighted toe vertices establish sole clearance. Nothing here
     // changes mesh positions, indices, weights, or inverse bind matrices.
     let minY = Infinity, total = 0; const soleVertices = []; const centre = new T.Vector3(), vertex = new T.Vector3();
-    for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+    for (let i = 0; i < contactCount; i++) {
       let weight = 0;
       for (let k = 0; k < 4; k++) if (descendants.has(skinIndex.array[i * 4 + k])) weight += skinWeight.array[i * 4 + k];
       if (weight < .4) continue;

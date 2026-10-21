@@ -21,7 +21,11 @@ function functional(city) {return [city.rig.matrixWorld.elements, city.strikeHan
 function assertArrayClose(a, b, tolerance = 1e-9) {assert.equal(a.length, b.length); for (let i = 0; i < a.length; i++) assert.ok(Math.abs(a[i] - b[i]) <= tolerance, `element ${i}: ${a[i]} != ${b[i]}`);}
 function skinMetrics(city) {
   const mesh = city.meshyCarrier.renderMeshes[0], vertex = new T.Vector3(), bounds = new T.Box3(); let gap = Infinity, castleVertices = 0;
-  for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+  // Authored armor keeps the original skin as an unrendered contact pool.
+  // Appearance metrics must inspect triangles that are actually drawn; exact
+  // source contact/support scans remain separate tests below.
+  const visible = mesh.geometry.index ? new Set(mesh.geometry.index.array) : Array.from({length: mesh.geometry.attributes.position.count}, (_, i) => i);
+  for (const i of visible) {
     mesh.getVertexPosition(i, vertex); vertex.applyMatrix4(mesh.matrixWorld); gap = Math.min(gap, vertex.y - renderedTerrainHeight(vertex.x, vertex.z));
     city.rig.worldToLocal(vertex); bounds.expandByPoint(vertex);
     if (vertex.y >= 34 && Math.abs(vertex.x) <= 4.4 && vertex.z >= -17.2 && vertex.z <= -6.8) castleVertices++;
@@ -49,7 +53,10 @@ after(() => {
 
 test('actual robot uses requested clip, keeps exact castle/weapon/control transforms, and leaves original body fallback', () => {
   const imported = build(); assert.equal(imported.meshyCarrier.kind, 'cyborg'); assert.equal(imported.meshyCarrier.instance.clip.name, 'Casual_Walk');
-  assert.equal(imported.meshyCarrier.instance.capabilities.triangles, 57620); assert.equal(imported.meshyCarrier.instance.capabilities.bones.length, 28);
+  const authored = imported.meshyCarrier.renderMeshes[0].geometry.userData.foundryCyborg;
+  assert.equal(authored.sourceTriangles, 57620, 'The original Meshy source remains intact');
+  assert.equal(imported.meshyCarrier.instance.capabilities.triangles, 11224, 'The drawn body is the authored armor and contact hulls');
+  assert.equal(imported.meshyCarrier.instance.capabilities.bones.length, 28);
   assert.equal(imported.deckY, 34); assert.equal(imported.scale, .55); assert.equal(imported.verticalLayout.heightScale, .5);
   assert.ok(imported.limbs.every(limb => !limb.obj.visible)); assert.ok(legacy.limbs.every(limb => limb.obj.visible));
   for (let i = 0; i < 100; i++) {
@@ -129,14 +136,17 @@ test('world-Y support metric equals the actual complete skinned boot minimum thr
   }
 });
 
-test('actual skinned boot hull clears rendered terrain and walking upper body clears the unchanged castle volume', () => {
+test('actual skinned boot hull clears rendered terrain and walking upper body clears the unchanged castle volume', t => {
   const city = build(); let minimumGap = Infinity, intrusions = 0; const envelope = new T.Box3();
   for (let i = 0; i < 160; i++) {
     place(city, 0, i * .35); animateCity(city, i / 30, true);
-    if (i % 4 === 0) {const metrics = skinMetrics(city); minimumGap = Math.min(minimumGap, metrics.gap); intrusions += metrics.castleVertices; envelope.union(metrics.bounds);}
+    const metrics = skinMetrics(city);
+    minimumGap = Math.min(minimumGap, metrics.gap); intrusions += metrics.castleVertices; envelope.union(metrics.bounds);
   }
+  const width = envelope.max.x - envelope.min.x;
+  t.diagnostic(JSON.stringify({visibleWalkingEnvelope: {min: envelope.min.toArray(), max: envelope.max.toArray(), width}, minimumGap, castleIntrusions: intrusions}));
   assert.ok(minimumGap >= -.005, 'Real boot penetration: ' + minimumGap);
-  assert.equal(intrusions, 0); assert.ok(envelope.max.x - envelope.min.x < 24.1, 'Walking body width exceeds unchanged proxy width');
+  assert.equal(intrusions, 0); assert.ok(width < 24.1, 'Walking body width exceeds unchanged proxy width: ' + width);
   assert.equal(CYBORG_BODY_FIT.scaleY, 32); assert.equal(CYBORG_BODY_FIT.scaleZ, 22);
 });
 

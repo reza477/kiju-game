@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {GLTFLoader} from '../vendor/GLTFLoader.js';
 import {bindMeshyTreeCoverage} from '../src/meshy-pilot.js';
+import {createAuthoredTreeDisplay} from '../src/authored-trees.js';
 import {createWorldInteractions} from '../src/landscape.js';
 import {disposeGroup} from '../src/materials.js';
 
@@ -222,4 +223,22 @@ test('shipped near and far triangles preserve original Meshy UV chart boundaries
       }
     }finally{original.dispose();gltf.scene.traverse(mesh=>{if(mesh.isMesh){mesh.geometry.dispose();mesh.material.dispose();}});}
   }
+});
+
+
+test('authored display replacement preserves exact standing instance matrices, owner ranges and saved destruction',()=>{
+  const originals=masters(),painted=masters();
+  for(const[kind,master]of painted)master.display=createAuthoredTreeDisplay(kind,master.geometry.boundingBox);
+  const a=createFixture(),b=createFixture(),restoreDocument=mockCanvas();
+  try{
+    const old=bind(a,originals),next=bind(b,painted);
+    assert.deepEqual(next.stats.roots,old.stats.roots);assert.equal(next.stats.count,old.stats.count);
+    for(const mesh of next.meshes){const prior=old.meshes.find(p=>p.userData.meshyTreeCoverage===mesh.userData.meshyTreeCoverage);assert.deepEqual(mesh.instanceMatrix.array,prior.instanceMatrix.array);assert.equal(mesh.material.userData.authoredTree,true);assert.notEqual(mesh.geometry,painted.get(mesh.userData.meshyTreeCoverage).display.lods.near);}
+    assert.deepEqual(b.records.map(({parts,...record})=>record),a.records.map(({parts,...record})=>record));
+    for(let i=0;i<b.records.length;i++)assert.deepEqual(b.records[i].parts.map(p=>({first:p.first,count:p.count})),a.records[i].parts.map(p=>({first:p.first,count:p.count})));
+    const before=matrices(b.group),interactions=createWorldInteractions(b.group,b.records),damage=['standing-pine'];
+    interactions.resetInteractions({mode:'expedition',damage});assert.equal(interactions.stats.destroyedCount,1);assert.deepEqual(damage,['standing-pine']);
+    for(const record of b.records)for(const part of record.parts)for(let i=part.first;i<part.first+part.count;i++)assert.equal(part.batch.mesh.instanceMatrix.array[i*16+13]===-5000,record.id==='standing-pine');
+    interactions.resetInteractions();for(const[mesh,array]of before)assert.deepEqual(Array.from(mesh.instanceMatrix.array),array);
+  }finally{disposeGroup(a.group);disposeGroup(b.group);closeMasters(originals);closeMasters(painted);for(const master of painted.values()){for(const g of Object.values(master.display.lods))g.dispose();master.display.material.dispose();}restoreDocument();}
 });

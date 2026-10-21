@@ -692,7 +692,63 @@ export function createVerticalDistrict(type,level=1,height=3.8+.8*(level-1),heig
   return group;
 }
 
+function crawlerTerraces(deckY){
+  const group=new T.Group(),p=palettes.crawler;
+  group.name='outer-borough';group.position.y=deckY;
+  const addresses=[];
+  for(const side of[-1,1])for(let i=0;i<6;i++)addresses.push({x:side*8.88,z:-6.5+i*2.5,angle:side*Math.PI/2,i:i+(side+1)*3,h:[3.45,3.05,3.20,2.65,2.30,1.85][i],w:2.32,rear:false});
+  for(let i=0;i<4;i++)addresses.push({x:-5.7+i*3.8,z:-9.07,angle:Math.PI,i:i+12,h:[3.45,4.05,3.80,3.35][i],w:3.43,rear:true});
+  for(const a of addresses){
+    const g=new T.Group();g.name=`Commonwealth terrace address ${a.i}`;g.userData.cosmeticAddress=a.i;g.position.set(a.x,0,a.z);g.rotation.y=a.angle;group.add(g);
+    const {w,h}=a,d=1.15,wall=new T.Color(p.wall).offsetHSL(0,-.025,(a.i%3-1)*.025).getHex();
+    architecturalLoft(g,[{y:0,w:w+.08,d:1.30,c:.10},{y:.22,w:w+.08,d:1.30,c:.10}],dressed(p.trim),0,-.07,-.06,'Terrace continuous street plinth');
+    architecturalLoft(g,[{y:0,w,d,c:.13},{y:h,w,d,c:.13}],wallMaterial('crawler',wall),0,.12,-.08,'Industrial terrace main volume');
+    // One strong stone cornice and a restrained belt group the separate
+    // addresses into wings; there are still exactly the same sixteen roots.
+    cornice(g,w,d,h+.12,p,0,-.08);
+    box(g,w+.06,.10,d+.06,dressed(p.trim),0,1.15,-.08);
+    const roofHeight=a.rear?.78:.62;
+    roof(g,w+.18,roofHeight,d+.23,M('roof',p.roof),0,h+.22,-.08,'mansard');
+    // Both city-facing and outward facades are inhabited. Windows are deliberately
+    // grouped, leaving broad brick piers instead of uniform tiny detail noise.
+    const floors=h>3?3:2,columns=a.rear?3:2;
+    for(const angle of[0,Math.PI]){
+      const face=new T.Group();face.rotation.y=angle;face.position.z=-.08;g.add(face);
+      for(let row=0;row<floors;row++)for(let col=0;col<columns;col++){
+        const x=(col-(columns-1)/2)*w*.30,y=.38+row*(h-.52)/floors,width=a.rear?.45:.43,height=Math.min(.67,(h-.52)/floors*.62);
+        box(face,width+.10,height+.10,.055,M('wood',p.dark),x,y+height/2,d/2+.025);
+        box(face,width,height,.023,glazingMaterial(x,y,a.i,angle),x,y+height/2,d/2+.063);
+        box(face,.025,height,.03,dressed(p.trim),x,y+height/2,d/2+.082);
+      }
+      entrance(face,0,d/2+.045,.16,p,'crawler',.30,.72);
+    }
+    if(a.rear||a.i%3===0)bowWindow(g,a.rear?1.13:.88,.78,0,h-1.05,.47,p);
+    // Rear pavilion gables supply a deliberate skyline focus below the existing
+    // chimney tops; the bow-side blocks taper low to retain plot visibility.
+    if(a.rear&&(a.i===13||a.i===14)){
+      const pavilion=architecturalLoft(g,[{y:0,w:1.16,d:.72,c:.10},{y:.73,w:1.16,d:.72,c:.10}],wallMaterial('crawler',wall),0,h+.19,.11,'Rear civic roof pavilion');
+      roof(g,1.36,.61,.89,M('roof',p.roof),0,h+.94,.11);
+      archedPanel(g,.49,.57,0,h+.32,.496,dressed(p.trim));archedPanel(g,.36,.44,0,h+.38,.532,M('glass',0x668786));
+      pavilion.userData.architecturalDetail=true;
+    }
+    // Paired chimney breasts, rather than many loose roof props.
+    if(a.rear||a.i%2===0)chimney(g,-w*.31,h+.35,-.25,.62,p,.24);
+  }
+  // Short iron galleries join the existing rear addresses. They sit outside
+  // all build/pedestrian plots; no walk surface or route is added to simulation.
+  for(const x of[-3.8,0,3.8]){
+    const z=-9.07,y=2.02;
+    box(group,.46,.13,1.02,M('metal',p.dark),x,y,z);
+    for(const side of[-1,1]){
+      beam(group,[x-.23,y+.55,z+side*.48],[x+.23,y+.55,z+side*.48],.035,M('metal',p.dark));
+      for(const dx of[-.19,.19])beam(group,[x+dx,y,z+side*.48],[x+dx,y+.55,z+side*.48],.025,M('metal',p.dark));
+    }
+  }
+  return group;
+}
+
 export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
+  if(faction==='crawler')return crawlerTerraces(deckY);
   const group = new T.Group();
   const p = palettes[faction] || palettes.kaiju;
   group.name = 'outer-borough';
@@ -707,8 +763,7 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
     const h = 1.55 + i % 3 * .25;
     const wall = new T.Color(p.wall).offsetHSL(0, 0, (i % 3 - 1) * .055).getHex();
     box(g, 1.65, .18, 1.46, dressed(p.trim), 0, .02, 0);
-    if(faction==='crawler')architecturalLoft(g,[{y:0,w:1.43,d:1.13,c:.11},{y:h,w:1.43,d:1.13,c:.11}],wallMaterial(faction,wall),0,.12,-.08,'Clipped borough townhouse');
-    else box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
+    box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
     box(g, 1.58, .12, 1.3, dressed(p.light), 0, h + .13, -.08);
     if (faction === 'airship') {
       dome(g, .43, 0, h + .18, -.08, p, .8);
@@ -722,18 +777,7 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
       box(g,1.65,.10,.51,dressed(p.light),0,h-.70,.58);
       for(const side of[-1,1])beam(g,[side*.57,h-1.12,.51],[side*.57,h-.75,.81],.041,M('gold',p.trim));
     }
-    else roof(g, 1.63, faction === 'kaiju' ? .8 : .43, 1.35, M('roof', p.roof), 0, h + .2, -.08, faction === 'crawler' ? 'mansard' : 'gable');
-    if(faction==='crawler'){
-      for(const side of[-1,1])for(let row=0;row<4;row++)box(g,.19,.15,.16,dressed(p.trim),side*.665,.24+row*(h-.20)/4,.46);
-      if(i%4===0){
-        box(g,.77,.68,.63,wallMaterial(faction,p.wall),0,h+.42,.28);
-        roof(g,.96,.63,.77,M('roof',p.roof),0,h+.75,.28);
-        window(g,0,h+.23,.614,.33,.43,p,true);
-      }
-      // Bow-front addresses alternate with the flatter workshops; this gives
-      // the unchanged perimeter street a rhythm of major volumes.
-      if(i%2===0)bowWindow(g,.91,.64,0,h-.75,.46,p);
-    }
+    else roof(g, 1.63, .8, 1.35, M('roof', p.roof), 0, h + .2, -.08);
     for (const xx of [-.46, 0, .46]) {
       box(g, .22, .35, .035, glazingMaterial(xx, h - .29, .509, i), xx, h - .29, .509);
       box(g, .26, .05, .07, dressed(p.trim), xx, h - .49, .52);

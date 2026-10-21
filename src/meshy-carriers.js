@@ -3,10 +3,12 @@ import {GLTFLoader} from '../vendor/GLTFLoader.js';
 import {clone as cloneSkeleton} from '../vendor/SkeletonUtils.js';
 import {softenCarrierNormals} from './carrier-normals.js';
 import {sculptFleshGeometry, fleshContactBoneIndices} from './carrier-sculpt.js';
+import {buildFoundryCyborg} from './cyborg-foundry.js';
+import {surfaceSet} from './surface-library.js';
 
 // This loader owns bodies only. City decks, picking, weapons, locomotion and
 // combat stay with the existing carrier. No remote request or rig-name guess.
-const files = Object.freeze({cyborg: '../assets/carriers/meshy/cyborg.glb', flesh: '../assets/carriers/meshy/flesh.glb'});
+const files = Object.freeze({cyborg: '../assets/carriers/meshy/cyborg.glb', flesh: '../assets/art-remake/flesh-sculpt.glb'});
 const instances = new WeakMap();
 const cloneData = value => JSON.parse(JSON.stringify(value));
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -115,10 +117,21 @@ function prepareMaster(gltf, kind, bytes) {
       object.frustumCulled = false;
     }
     if (!geometries.has(geometry)) {
+      if(kind==='flesh'&&object.userData.authoredFlesh){
+        geometry.userData.authoredFlesh=true;
+        geometry.userData.sourceContactVertices=object.userData.sourceContactVertices;
+      }
+      if (kind === 'cyborg' && object.isSkinnedMesh && geometry.attributes.position.count > 512 && object.skeleton.bones.some(b=>b.name==='mixamorigHips')) {
+        const authored=buildFoundryCyborg(object);
+        for(const name of Object.keys(geometry.attributes))geometry.deleteAttribute(name);
+        for(const [name,attribute]of Object.entries(authored.attributes))geometry.setAttribute(name,attribute);
+        geometry.setIndex(authored.index);geometry.clearGroups();Object.assign(geometry.userData,authored.userData);
+        geometry.computeBoundingBox();geometry.computeBoundingSphere();authored.dispose();
+      }
       // Dense imported anatomy benefits from a bounded sculpt. Coarse authored
       // meshes retain their intentional silhouettes. The original GLB, joints,
       // indices, UVs and skin weights stay intact; all contact paws are fixed.
-      if (kind === 'flesh' && object.isSkinnedMesh && geometry.attributes.position.count > 512) {
+      if (kind === 'flesh' && !geometry.userData.authoredFlesh && object.isSkinnedMesh && geometry.attributes.position.count > 512) {
         const derived = sculptFleshGeometry(geometry, {protectedBoneIndices: fleshContactBoneIndices(object.skeleton.bones)});
         geometry.setAttribute('position', derived.geometry.attributes.position);
         geometry.setAttribute('normal', derived.geometry.attributes.normal);
@@ -133,15 +146,33 @@ function prepareMaster(gltf, kind, bytes) {
     for (const material of [object.material].flat()) {
       if (!material?.isMeshStandardMaterial && !material?.isMeshBasicMaterial) throw new Error(kind + ' has an unsupported material');
       if (!materials.has(material) && material.isMeshStandardMaterial) {
+        const foundry=Boolean(geometry.userData.foundryCyborg);
+        const authoredFlesh=Boolean(geometry.userData.authoredFlesh),authored=foundry||authoredFlesh;
+        if(authored){
+          material.vertexColors=true;material.color.set(0xffffff);
+          material.map=material.normalMap=material.roughnessMap=material.metalnessMap=material.aoMap=null;
+          material.metalness=foundry?.3:0;material.roughness=foundry?.56:.82;
+        }
         // Preserve the authored anatomy, rig and UV wear masks. Paint their
         // reflectance as one restrained material family instead of retaining
         // the imported near-black / sharp metallic response.
         material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .16);
         material.metalness *= kind === 'cyborg' ? .34 : .04;
         material.envMapIntensity = kind === 'cyborg' ? .42 : .32;
-        const floor = kind === 'cyborg' ? '.64' : '.84';
+        const floor = foundry ? '.46' : kind === 'cyborg' ? '.64' : '.84';
         material.onBeforeCompile = shader => {
-          shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+          if(authored){
+            // The existing shared paint library owns this texture. Bind-space
+            // projection follows the animated metal instead of swimming over it.
+            shader.uniforms.foundryPaint={value:surfaceSet(foundry?'metal':'hide').map};
+            shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 foundryPoint;').replace('#include <begin_vertex>','#include <begin_vertex>\nfoundryPoint=position;');
+            shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D foundryPaint;\nvarying vec3 foundryPoint;').replace('#include <map_fragment>',`#include <map_fragment>
+              vec3 pigment=texture2D(foundryPaint,foundryPoint.xy*${foundry?'5.0':'2.5'},${foundry?'0.0':'1.0'}).rgb*.65+texture2D(foundryPaint,foundryPoint.zy*${foundry?'5.0':'2.5'},${foundry?'0.0':'1.0'}).rgb*.35;
+              float wear=clamp(dot(pigment,vec3(.2126,.7152,.0722))*2.2,0.0,1.0);
+              ${foundry?'diffuseColor.rgb*=mix(.70,1.12,wear);':'float hideMask=1.0-smoothstep(.50,.65,vColor.r); diffuseColor.rgb*=mix(1.0,mix(.44,1.38,wear),hideMask);'}
+            `);
+          }
+          if(!authored)shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
             float pigmentLuma = dot(diffuseColor.rgb, vec3(.2126,.7152,.0722));
             float pigmentValue = pow(clamp(pigmentLuma*1.5,0.0,1.0),.65);
             ${kind === 'cyborg' ? `
@@ -158,7 +189,7 @@ function prepareMaster(gltf, kind, bytes) {
           shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
             '#include <roughnessmap_fragment>\nroughnessFactor = ' + floor + ' + (1.0 - ' + floor + ') * roughnessFactor;');
         };
-        material.customProgramCacheKey = () => 'remake-carrier-painted-v3-' + kind;
+        material.customProgramCacheKey = () => 'remake-carrier-painted-v7-' + kind + (authored?'-authored':'');
       }
       materials.add(material);
       for (const value of Object.values(material)) if (value?.isTexture) {

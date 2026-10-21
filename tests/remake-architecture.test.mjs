@@ -35,7 +35,24 @@ test('authored crawler structure stays in its former footprint, above terrain co
 
 test('swept plough retains the old prow reach and has complete finite surface normals',()=>{
   const prow=new T.Group();craft.createCrawlerProw(prow);integrity(prow);
-  const b=new T.Box3().setFromObject(prow);assert.ok(b.min.x>=-6.51&&b.max.x<=6.51);assert.ok(b.max.z<=14.71);assert.ok(b.min.y>=1.55);
+  const b=new T.Box3().setFromObject(prow);assert.ok(b.min.x>=-6.51&&b.max.x<=6.51);assert.ok(b.max.z<=14.665);assert.ok(b.min.y>=1.55);
+  const plates=[];prow.traverse(o=>{if(o.name==='Ridge-cast central plough'||o.name==='Swept outer plough wing')plates.push(o);});assert.equal(plates.length,3);
+  for(const plate of plates){const n=plate.geometry.attributes.normal;for(let row=1;row<8;row++)for(let col=1;col<8;col++)assert.ok(n.getY(row*9+col)>0,'Exposed curved plough face must face upward');}
+});
+
+test('six large engine shoulders fit beneath the city without covering the original track contacts',()=>{
+  const engines=new T.Group();craft.createCrawlerEngineBays(engines);integrity(engines);
+  const bodies=[];engines.traverse(o=>{if(o.name==='Cast steam-engine shoulder')bodies.push(o);});assert.equal(bodies.length,6);
+  const b=new T.Box3().setFromObject(engines);assert.ok(b.min.y>=5.60&&b.max.y<7.78);assert.ok(b.max.x<10&&b.min.x>-10);assert.ok(b.min.z>-9.5&&b.max.z<5.5);
+});
+
+test('industrial terrace wings retain sixteen cosmetic addresses and leave all district route columns clear',()=>{
+  const quarter=architecture.createPerimeterQuarter('crawler',10),addresses=quarter.children.filter(o=>o.userData.cosmeticAddress!==undefined);
+  assert.equal(addresses.length,16);assert.equal(new Set(addresses.map(o=>o.userData.cosmeticAddress)).size,16);
+  quarter.updateMatrixWorld(true);const v=new T.Vector3();
+  quarter.traverse(o=>{if(!o.isMesh)return;const p=o.geometry.attributes.position;for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);assert.ok(!(Math.abs(v.x)<7.51&&Math.abs(v.z)<7.26),'Cosmetic terrace entered the functional district and route area');}});
+  const b=new T.Box3().setFromObject(quarter);assert.ok(b.max.y>15.4&&b.max.y<16.7);assert.ok(b.min.x>-10&&b.max.x<10&&b.min.z>-10.2&&b.max.z<8);
+  const authored=new T.Group();quarter.traverse(o=>{if(['Industrial terrace main volume','Terrace continuous street plinth','Rear civic roof pavilion'].includes(o.name))authored.add(o.clone());});integrity(authored);
 });
 
 test('vaulted undercroft geometry has real open surrounds and remains inside the city podium envelope',()=>{

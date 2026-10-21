@@ -21,18 +21,20 @@ isolated contexts on ports 4223/4224, never the owner's saved browser profile.
 The simulation, costs, progression, district IDs/order, weapons, terrain heights,
 resource positions, destructive scenery identities, controls and save schema are
 retained. This is a visual rebuild within the existing Three.js engine, not a new
-game-rules implementation. Imported carrier assets and animation rigs are reused;
-their source GLBs remain intact. New procedural architecture, hull forms, field
-botany and rocks replace substantial visible geometry. This is not falsely
-described as a completely new asset library.
+game-rules implementation. Original animation rigs and contact vertices are
+retained; their source GLBs remain intact. Round 3 replaces the broad visible
+creature and robot bodies, standing tree masters, architecture, hull forms, field
+botany and rocks. This is not falsely described as a completely new asset library.
 
 ## Replacement map
 
 - New generated local paint textures replace architectural stone/brick, roof,
   plaster and iron finishes. Shared textures retain metric surface scale.
-- Imported character albedo is interpreted as a sculptural pigment mask, with
-  ivory/oxide metal and warmer organic colours. Matching surface normals are
-  softened across UV seams without welding UVs or changing the rig.
+- New flesh anatomy and broad vertex paint replace the fragmented original
+  visible body. Rounded robot castings, bearings and clean terminal hulls replace
+  the visible robot body. Both retain original rigs and exact source contact pools;
+  pose adapters limit contact sampling to those pools. No attack timing or target
+  calculation changes are intended.
 - Ground and river shaders replace the separate pilot and global material
   paths with one consistent habitat family. Terrain geometry is retained.
 - Foliage, rocks, ruins, sky and all lighting modes use coordinated palettes.
@@ -51,9 +53,10 @@ described as a completely new asset library.
 
 ## Assets
 
-Three new 1254×1254 PNG albedo artworks were generated with the built-in image_gen
+Four new 1254×1254 PNG albedo artworks were generated with the built-in image_gen
 tool, inspected and copied unmodified into `assets/art-remake/`. Original generated
-files remain retained. Prompts are in `asset-sources/remake-paint.json`. Natural
+files remain retained. Prompts are in `asset-sources/remake-paint.json` and
+`asset-sources/hide-paint.json`. Natural
 rock/bark/wood scans and original Meshy source masters remain preserved. New
 artwork is not a replacement of every mesh or every source asset.
 
@@ -72,6 +75,23 @@ raycast to distant highway slabs, not the ruined resource-site buildings.
 The exact diagnostic is retained in `artifacts/art-remake/ruin-diagnosis-round02`.
 The first candidate passed 336 unit checks and all six bounded native-control
 smokes, but these functional results do not establish visual quality.
+
+Round 2 reviewed `d297f7cc735f07946a95e5bf2fa5a6acc102ef7f`, raw runtime
+fingerprint `b4d116645d93480c09c2f1ab938fce24873ed5c861dff3678187cf4d77fe0351`.
+The independent result was **6.7/10, FAIL**. See the immutable
+`art-reviews/ART_REMAKE_ROUND_02.md`. Highway slabs, shrubs and rocks improved;
+fragmented flesh anatomy, weak city massing and bland terrain remained. All
+350 unit checks and six 5-second native movement/build/save smokes passed.
+The initial browser launch failure and its successful retry are both retained.
+
+Round 3 builder work adds new anatomical flesh, rounded robot armor, convex
+terminal hulls, connected tree crowns, terrain habitat paint and crawler
+terraces/machinery. The packed flesh asset was reproduced byte-for-byte with the
+tracked offline tools. Original meshes, weights, animation and inverse-bind
+matrices remain available. New anatomy has new topology and authored weights;
+its original contact pool is stored but mostly not drawn. Walking, turning,
+stopping, combat and visible contact checks are required separately. New source
+geometry does not establish a passing art score.
 
 Known inherited limitation: flesh saddle district cannon artwork uses saddle
 mounts while numerical firing geometry still follows the historical vertical

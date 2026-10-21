@@ -1,0 +1,10 @@
+{
+  "tool": "OpenAI image_gen",
+  "createdAt": "2026-10-21",
+  "original": "C:/Users/user/.codex/generated_images/01a15c5a-ec16-7172-9158-a7b9bb4589e2/exec-244cd0fa-2adf-42ab-bdb5-57074e4238a9.png",
+  "runtime": "assets/art-remake/hide-paint.png",
+  "sha256": "8c5726e28287cf2c329b9d13147b9eda71aedcd9bf93fa0b71bf17fb55e6765d",
+  "nativeDimensions": [1254, 1254],
+  "modifications": "None. Copied original PNG unchanged. The runtime samples it in bind-space and masks horns using authored vertex paint.",
+  "prompt": "Create one square seamless tileable base-colour material texture for an enormous dark-fantasy quadruped, a painterly leathery bison-like beast. This is a flat orthographic 2D texture swatch filling the entire image, NOT an illustration of an animal, no objects, no border, no text, no cast shadows or directional lighting, no perspective. High quality hand-painted game art with broad organic flowing brush masses, warm umber and grey-brown hide, muted moss undertones, tawny worn high areas, restrained dark irregular follicle marks, fine short directional fur laid into smooth leathery folds. The large low-frequency mottling should read clearly when mapped across a huge sculpted body; secondary medium brush strokes give authored character. Quiet balanced values, avoid tiny grain, repeated scales, rocks, cracks, cellular noise, flat beige, saturated colours, glossy wet skin or metallic highlights. Rich varied painted surface, with smoothly matching all four edges and no conspicuous focal spot. Produce the highest native detail available."
+}

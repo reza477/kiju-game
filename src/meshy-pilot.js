@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {GLTFLoader} from '../vendor/GLTFLoader.js';
 import {mergeGeometries} from '../vendor/BufferGeometryUtils.js';
+import {createAuthoredTreeDisplay} from './authored-trees.js';
 
 // A bounded local kit. Add a tree only after its permitted Meshy export has been
 // downloaded, inspected, and recorded. There is no Meshy/CDN request at runtime.
@@ -205,6 +206,12 @@ export function loadMeshyPilot() {
         } catch (error) {for (const geometry of Object.values(lods)) geometry.dispose(); throw error;}
         finally {releaseResources(gltf.scene);}
       }
+      // Preserve the imported originals and their provenance. The remake uses
+      // authored display meshes inside the same original normalized envelopes.
+      for (const kind of ['pine','broadleaf']) {
+        const master=masters.get(kind);master.display=createAuthoredTreeDisplay(kind,master.geometry.boundingBox);
+        master.inventory.display={source:master.display.source,lods:Object.fromEntries(Object.entries(master.display.lods).map(([level,g])=>[level,{triangles:g.index.count/3,leaves:g.userData.leafCount,limbs:g.userData.limbCount}]))};
+      }
       status.state = 'ready';
       status.milliseconds = performance.now() - start;
       return meshyPilotStatus();
@@ -212,6 +219,7 @@ export function loadMeshyPilot() {
       status.state = 'failed'; status.error = String(error?.message || error);
       for (const master of masters.values()) {
         master.geometry.dispose(); master.material.dispose();
+        if(master.display){for(const geometry of new Set(Object.values(master.display.lods)))geometry.dispose();master.display.material.dispose();}
         for (const geometry of Object.values(master.lods || {})) geometry.dispose();
         releaseTextures(new Set(Object.values(master.material).filter(value => value?.isTexture)));
       }
@@ -247,11 +255,11 @@ export function bindMeshyTreeCoverage({group, Instances, trees, records = [], as
   }
   const batches = new Map(), replacements = [];
   for (const {root, kind, bounds, owners} of roots.values()) {
-    const master = assets.get(kind), level = stats.level, source = master.lods?.[level];
+    const master = assets.get(kind), level = stats.level, source = master.display?.lods?.[level]??master.lods?.[level];
     if (!source) throw new Error('Meshy ' + kind + ' ' + level + ' LOD is not loaded');
     if (!batches.has(kind)) {
       const geometry = source.clone(); geometry.userData.shared = false;
-      batches.set(kind, new Instances(group, geometry, master.material, !trees.distant, 'foliage'));
+      batches.set(kind, new Instances(group, geometry, master.display?.material??master.material, !trees.distant, 'foliage'));
     }
     const batch = batches.get(kind), box = master.geometry.boundingBox, first = batch.items.length;
     const halfX = Math.max(Math.abs(bounds.min.x - root[0]), Math.abs(bounds.max.x - root[0]));
@@ -294,7 +302,7 @@ function itemMatrix(item, target) {
   if (item.rotation) target.quaternion.copy(item.rotation); else target.rotation.set(0, item.yaw, 0);
   target.updateMatrix(); return target.matrix;
 }
-function ownedGeometry(master) {const geometry = master.geometry.clone(); geometry.userData.shared = false; return geometry;}
+function ownedGeometry(master) {const geometry = (master.display?.geometry??master.geometry).clone(); geometry.userData.shared = false; return geometry;}
 
 // Compact only removed display parts and repair every logical owner's range.
 // Never consume randomness, move anchors, touch collision rules, or remap IDs.
@@ -321,7 +329,7 @@ export function bindMeshyPilot({group, Instances, records, trees, rocks, assets 
         geometry.scale(size.x, size.y, size.z); geometry.translate(centre.x, centre.y, centre.z);
         geometry.computeBoundingBox(); geometry.computeBoundingSphere();
       }
-      batches.set(kind, new Instances(group, geometry, master.material, true, kind === 'rock' ? null : 'foliage'));
+      batches.set(kind, new Instances(group, geometry, master.display?.material??master.material, true, kind === 'rock' ? null : 'foliage'));
     }
     return batches.get(kind);
   };

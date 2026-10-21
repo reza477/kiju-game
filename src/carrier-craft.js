@@ -34,7 +34,10 @@ export function createCrawlerBody(frame){
  const armour=m('metal',0x3e525a),steel=m('metal',0x788283),dark=m('metal',0x283a41),brass=m('gold',0xa38a57);
  const section=(z,w,top,bottom)=>({z,points:[[-w+.8,bottom],[-w,bottom+.65],[-w,top-.65],[-w+.85,top],[w-.85,top],[w,top-.65],[w,bottom+.65],[w-.8,bottom]]});
  loft(frame,[section(-11.5,7.55,5.70,3.18),section(-8.8,9,6.10,2.9),section(8.5,9,6.10,2.9),section(11.5,7.9,5.80,3.45)],armour,'Chamfered crawler citadel hull');
- loft(frame,[section(-10.7,7.1,7.45,5.75),section(-8.6,8.25,7.45,5.75),section(7.8,8.25,7.45,5.75),section(10.4,7.3,7.15,5.75)],steel,'Raised armored city saddle');
+ // The narrowed central spine leaves the engine shoulders legible. The old
+ // full-width blank upper casing is replaced, not hidden beneath this kit.
+ loft(frame,[section(-10.7,6.8,7.45,5.75),section(-8.6,7.15,7.45,5.75),section(7.8,7.15,7.45,5.75),section(10.4,6.8,7.15,5.75)],dark,'Recessed load-bearing engine spine');
+ createCrawlerEngineBays(frame);
  for(const side of[-1,1]){
   // One strong articulated wheel guard, with service bays between its struts.
   box(frame,.34,.31,21.8,armour,side*10.62,5.20,0);
@@ -45,12 +48,11 @@ export function createCrawlerBody(frame){
    beam(frame,[side*10.91,4.88,z-1.25],[side*10.91,5.54,z+1.28],.047,brass);
    for(const dz of[-1.40,1.40])cylinder(frame,.11,.11,.09,brass,side*10.94,5.35,z+dz,8).rotation.z=Math.PI/2;
   }
-  // Heavy exposed suspension and a long steam main connect hull and bogies.
+  // Heavy exposed suspension connects the engine shoulders and bogies.
   for(const z of[-7.5,-1.5,4.5]){
    beam(frame,[side*8.9,5.1,z-.9],[side*10.2,3.55,z+.7],.17,dark);
    beam(frame,[side*9.3,4.72,z-.62],[side*10.05,3.79,z+.47],.084,steel);
   }
-  tube(frame,[[side*8.68,6.55,-9.2],[side*9.07,6.55,-8.2],[side*9.07,6.55,7.7],[side*8.60,5.82,9.1]],.14,brass,'Main steam manifold');
   for(const z of[-7.6,-4.0]){
    // Flared furnace bases make the tall chimneys rooted in the machinery.
    cylinder(frame,.85,1.16,1.48,dark,side*7.6,7.77,z,16);
@@ -63,6 +65,29 @@ export function createCrawlerBody(frame){
  box(frame,8.8,1.7,.18,dark,0,4.6,-11.47);
  for(let x=-3.9;x<=4;x+=.56)box(frame,.20,1.44,.13,steel,x,4.6,-11.60).rotation.x=.13;
  for(const x of[-5.7,5.7]){ring(frame,.57,.12,brass,x,3.63,-10.94);box(frame,.45,.5,.75,dark,x,3.9,-10.93);}
+}
+
+export function createCrawlerEngineBays(frame){
+ const paint=m('metal',0x536b6c),dark=m('metal',0x293f45),steel=m('metal',0x85938b),brass=m('gold',0xa28b59);
+ for(const side of[-1,1])for(const z of[-7.1,-2.1,2.9]){
+  const bay=new T.Group();bay.position.set(side*8.72,6.58,z);frame.add(bay);
+  const shell=new T.Shape();shell.moveTo(-.82,-.84);shell.lineTo(.82,-.84);shell.lineTo(.99,-.38);
+  shell.bezierCurveTo(1.06,.11,.97,.63,.60,.86);shell.bezierCurveTo(.28,1.03,-.28,1.03,-.60,.86);
+  shell.bezierCurveTo(-.97,.63,-1.06,.11,-.99,-.38);shell.closePath();
+  const g=new T.ExtrudeGeometry(shell,{depth:3.82,steps:1,bevelEnabled:false,curveSegments:8});g.translate(0,0,-1.91);
+  mesh(bay,g,paint,'Cast steam-engine shoulder');
+  // Broad cradle bands and recessed end mechanisms are large, readable masses.
+  for(const end of[-1,1]){
+   const cap=cylinder(bay,.72,.77,.18,dark,0,.03,end*1.94,24);cap.rotation.x=Math.PI/2;
+   const piston=cylinder(bay,.39,.46,.21,steel,0,.03,end*2.03,20);piston.rotation.x=Math.PI/2;
+   const hub=cylinder(bay,.17,.23,.24,brass,0,.03,end*2.15,16);hub.rotation.x=Math.PI/2;
+   const band=tube(bay,[[-.96,-.42,end*1.46],[-.88,.48,end*1.46],[-.48,.91,end*1.46],[.48,.91,end*1.46],[.88,.48,end*1.46],[.96,-.42,end*1.46]],.065,dark,'Steam-chamber cast cradle');
+   band.userData.architecturalDetail=true;
+  }
+  const corbel=plate(bay,[[-.38,-.67],[-.58,.27],[-.41,1.15],[.42,1.15],[.58,.27],[.38,-.67]],.34,steel,'Engine-to-citadel bracket');
+  corbel.rotation.y=side*Math.PI/2;corbel.position.set(side*.91,0,0);
+  tube(bay,[[side*.57,.72,-.91],[side*.58,1.02,-.91],[side*.25,1.08,-.91],[0,1.08,-.91]],.095,brass,'Short engine steam feed');
+ }
 }
 
 // A perimeter loft supplies real stone chamfers and outward-facing cornices.
@@ -99,15 +124,32 @@ export function createCrawlerCityPlatform(frame,deckY){
 
 export function createCrawlerProw(frame){
  const steel=m('metal',0x6f8081),dark=m('metal',0x304950),brass=m('gold',0xac955c);
- // A forged, swept breakwater/plough carries the silhouette. It remains
- // wholly inside the old bumper and cone-tooth reach, above terrain support.
- const section=(z,w,top,bottom)=>({z,points:[[-w,bottom],[-w,top],[w,top],[w,bottom]]});
- loft(frame,[section(11.10,6.45,4.38,2.05),section(12.45,6.45,3.98,1.70),section(14.58,5.66,2.03,1.62)],steel,'Swept steel city plough');
- for(const x of[-5.45,-2.72,0,2.72,5.45]){
-  const rib=plate(frame,[[11.12,4.43],[12.48,4.03],[14.59,2.09],[14.59,1.64],[12.40,3.62],[11.12,3.95]],.105,dark,'Forged plough rib');
-  rib.rotation.y=-Math.PI/2;rib.position.x=x;
+ // Three separately swept cast plates curl forward and rise toward their outer
+ // wings. The central ridge breaks the formerly broad rectangular shovel read.
+ for(const panel of[-1,0,1]){
+  const n=8,row=n+1,vertices=[],uv=[],indices=[];
+  const surface=(u,v)=>{
+   const centre=panel===0,side=panel,xx=centre?(u-.5)*4.10:side*(2.17+u*4.20-v*u*.47);
+   const rear=centre?11.14:11.14-u*.24,front=centre?14.27+Math.sin(u*Math.PI)*.35:14.24-u*.95;
+   const zz=rear+(front-rear)*(v*.68+v*v*.32),top=centre?4.34+Math.sin(u*Math.PI)*.16:4.34-u*.15;
+   const bottom=centre?1.72:1.75+u*.23,yy=top+(bottom-top)*v+.48*Math.sin(v*Math.PI);
+   return[xx,yy,zz];
+  };
+  for(let skin=0;skin<2;skin++)for(let v=0;v<=n;v++)for(let u=0;u<=n;u++){
+   const p=surface(u/n,v/n);vertices.push(p[0],p[1]-skin*.12,p[2]);uv.push(u/n,v/n);
+  }
+  const layer=row*row,quad=(a,b,c,d,reverse=false)=>indices.push(...(reverse?[a,c,b,b,c,d]:[a,b,c,b,d,c]));
+  for(let v=0;v<n;v++)for(let u=0;u<n;u++){
+   const a=v*row+u;
+   // Mirrored wing parameterization needs the opposite winding.
+   quad(a,a+row,a+1,a+row+1,panel<0);quad(a+layer,a+layer+1,a+layer+row,a+layer+row+1,panel<0);
+  }
+  const edge=[];for(let u=0;u<n;u++)edge.push(u);for(let v=0;v<n;v++)edge.push(v*row+n);for(let u=n;u>0;u--)edge.push(n*row+u);for(let v=n;v>0;v--)edge.push(v*row);
+  for(let i=0;i<edge.length;i++){const a=edge[i],b=edge[(i+1)%edge.length];quad(a,b,a+layer,b+layer,panel<0);}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(vertices,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();
+  mesh(frame,g,panel===0?steel:m('metal',0x5c7475),panel===0?'Ridge-cast central plough':'Swept outer plough wing');
+  const edgePoints=Array.from({length:9},(_,i)=>surface(i/8,1));tube(frame,edgePoints,.047,dark,'Curved replaceable cutting edge');
  }
- beam(frame,[-5.61,2.07,14.60],[5.61,2.07,14.60],.065,brass);
  for(const x of[-4.8,4.8]){
   beam(frame,[x,4.22,11.20],[x,5.10,10.54],.16,dark);
   cylinder(frame,.28,.28,.28,brass,x,4.31,11.24,16).rotation.x=Math.PI/2;

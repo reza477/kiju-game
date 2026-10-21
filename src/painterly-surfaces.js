@@ -71,7 +71,7 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       float closePaint=1.0-smoothstep(95.0,230.0,cameraDistance);
       float paintVisibility=1.0-smoothstep(300.0,620.0,cameraDistance);
       vec3 earthTint=mix(vec3(.88,.94,1.03),vec3(1.09,1.04,.91),smoothstep(.60,1.38,paintedFacet))*paintedFacet;
-      float paintWeight=(.42+woodland*.16+habitat.a*.10)*(1.0-wetToe*.52)*(1.0-mineral*.44)*paintVisibility*uEarthPaintReady;
+      float paintWeight=(.17+woodland*.15+habitat.a*.43)*(1.0-wetToe*.52)*(1.0-mineral*.44)*paintVisibility*uEarthPaintReady;
       diffuseColor.rgb*=mix(vec3(1.0),earthTint,paintWeight);
       // One packed normal sample supports close inspection. Its frequency and
       // contrast fade with distance so wide views remain composed and quiet.
@@ -90,7 +90,7 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.57);
     `);
   };
-  material.customProgramCacheKey=()=> 'painted-world-habitat-v13-quiet-masses';
+  material.customProgramCacheKey=()=> 'painted-world-habitat-v14-landform-masses';
 }
 
 export function paintRiver(material,time,ripple,windGLSL) {

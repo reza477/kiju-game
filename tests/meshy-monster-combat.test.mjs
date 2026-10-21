@@ -62,6 +62,36 @@ const transform = object => [object.position.toArray(), object.quaternion.toArra
 const variants = [['crawler', 'standard'], ['crawler', 'drill'], ['kaiju', 'flesh'], ['kaiju', 'cyborg'], ['airship', 'horizontal'], ['airship', 'vertical']];
 const assetsPresent = ['flesh', 'cyborg'].every(kind => fs.existsSync(new URL('../assets/carriers/meshy/' + kind + '.glb', import.meta.url)));
 
+test('authored flesh contact pool excludes added fully weighted display vertices', {skip: !assetsPresent && 'Production Meshy carrier assets unavailable'}, async () => {
+  const restore = cpuBrowser(); let instance, altered, original, baseline, candidate, dispose;
+  try {
+    const assets = await import('../src/meshy-carriers.js'); await assets.loadMeshyCarriers(); dispose = assets.disposeMeshyCarrier;
+    const {createMeshyMonsterPose} = await import('../src/meshy-monster.js');
+    instance = assets.instantiateMeshyCarrier('flesh'); const mesh = instance.body.getObjectByProperty('isSkinnedMesh', true);
+    original = mesh.geometry; assert.ok(original.userData.sourceContactVertices < original.attributes.position.count);
+    baseline = createMeshyMonsterPose(instance, {groundHeight: () => 0, strideDistance: 8.8});
+    const before = baseline.status(), tip = before.strikeVertexIndex;
+    altered = original.clone();
+    // A later cosmetic append may legitimately use the terminal joint. A
+    // visibly farther tip or lower pad must not redefine the original solver.
+    for (const [name, attribute] of Object.entries(original.attributes)) {
+      const values = new attribute.array.constructor(attribute.array.length + attribute.itemSize * 3); values.set(attribute.array);
+      for (let i = 0; i < 3; i++) for (let lane = 0; lane < attribute.itemSize; lane++) values[attribute.array.length + i * attribute.itemSize + lane] = attribute.getComponent(tip, lane);
+      if (name === 'position') for (let i = 0; i < 3; i++) {const offset = attribute.array.length + i * 3; values[offset] += (i - 1) * .1; values[offset + 1] -= .3 + (i === 1 ? .03 : 0); values[offset + 2] += 1;}
+      altered.setAttribute(name, new T.BufferAttribute(values, attribute.itemSize, attribute.normalized));
+    }
+    const first = original.attributes.position.count;
+    altered.setIndex([...original.index.array, first, first + 1, first + 2]); mesh.geometry = altered;
+    candidate = createMeshyMonsterPose(instance, {groundHeight: () => 0, strideDistance: 8.8});
+    assert.equal(candidate.status().strikeVertexIndex, tip);
+    assert.deepEqual(candidate.status().legs.map(l => l.soleSamples), before.legs.map(l => l.soleSamples));
+  } finally {
+    baseline?.dispose(); candidate?.dispose();
+    if (instance) {instance.body.getObjectByProperty('isSkinnedMesh', true).geometry = original; dispose(instance);}
+    altered?.dispose(); restore();
+  }
+});
+
 test('actual imported monster claw reaches all six original impact surfaces at 0.7s without stretching or intersecting its fixed foundation', {skip: !assetsPresent && 'Production Meshy carrier assets unavailable'}, async t => {
   const restore = cpuBrowser();
   try {
@@ -75,6 +105,16 @@ test('actual imported monster claw reaches all six original impact surfaces at 0
       assert.equal(city.meshyCarrier?.kind, 'flesh');
       if (faction === 'kaiju') assert.equal(enemy.meshyCarrier?.kind, variant, 'Test must use imported target, not fallback anatomy');
       const {instance, controller} = city.meshyCarrier, mesh = instance.body.getObjectByProperty('isSkinnedMesh', true);
+      if (mesh.userData.authoredFlesh) {
+        const contactCount = mesh.geometry.userData.sourceContactVertices;
+        assert.equal(contactCount, mesh.userData.sourceContactVertices, 'Preserved source pool metadata reaches the pose geometry');
+        assert.ok(contactCount < mesh.geometry.attributes.position.count, 'Fixture includes additional authored display vertices');
+        const contact = controller.status().strikeVertexIndex;
+        assert.ok(contact < contactCount, 'Strike sampling stays in the exact original contact pool');
+        const signature = id => ['position', 'skinIndex', 'skinWeight'].flatMap(name => {const a=mesh.geometry.attributes[name];return Array.from({length:a.itemSize},(_,lane)=>a.getComponent(id,lane));}).join(',');
+        const expected = signature(contact);
+        assert.ok([...new Set(mesh.geometry.index.array)].some(id => id < contactCount && signature(id) === expected), 'The selected original claw vertex '+contact+' remains on the visible paw hull, including exact UV seam duplicates');
+      }
       const bones = mesh.skeleton.bones.map(bone => ({bone, position: bone.position.toArray(), scale: bone.scale.toArray()}));
       const inverseBinds = mesh.skeleton.boneInverses.map(matrix => matrix.toArray());
       const state = sim.createGame('kaiju', 'flesh'); state.time = 1;

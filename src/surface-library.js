@@ -4,7 +4,7 @@ import * as T from '../vendor/three.module.js';
 // Original scans remain source assets but are no longer the architectural finish.
 const loaded=new Map(),skinLoaded=new Map(),pending=new Set(),failures=[];
 const paintTextures=new Map();
-const paintFamilies={stone:['stone-paint',2.4],brick:['stone-paint',1.2],plaster:['iron-paint',6],roof:['stone-paint',1.7],metal:['iron-paint',4],earth:['earth-paint',10]};
+const paintFamilies={stone:['stone-paint',2.4],brick:['stone-paint',1.2],plaster:['iron-paint',6],roof:['stone-paint',1.7],metal:['iron-paint',4],earth:['earth-paint',10],hide:['hide-paint',2.5]};
 const skinRegions=new Set(['torso','head','jaw','arm','leg']);
 const tileSize={slate:6,rock:4,bark:2.2,stone:3.4,brick:3.2,roof:3.4,metal:4,wood:3.2,plaster:3.6};
 const loader=new T.TextureLoader();

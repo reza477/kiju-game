@@ -15,11 +15,14 @@ export const meshyCyborgReady = () => meshyCarriersStatus().assets.find(asset =>
 
 function soleIndices(mesh, side) {
   const skin = mesh.geometry.attributes.skinIndex, weights = mesh.geometry.attributes.skinWeight, position = mesh.geometry.attributes.position;
+  const contactCount=mesh.geometry.userData.sourceContactVertices??position.count;
+  if(!Number.isInteger(contactCount)||contactCount<1||contactCount>position.count)throw new Error('Invalid cyborg contact pool');
   const joints = new Set(mesh.skeleton.bones.map((b, i) => b.name.startsWith('mixamorig' + side) && /Leg|Foot|Toe/.test(b.name) ? i : -1)); joints.delete(-1);
   const candidates = [], p = new T.Vector3();
   mesh.geometry.computeBoundingBox();
-  const bounds = mesh.geometry.boundingBox, bootTop = bounds.min.y + (bounds.max.y - bounds.min.y) * .2353;
-  for (let i = 0; i < position.count; i++) {
+  const preserved=mesh.geometry.userData.sourceContactBounds;
+  const bounds = preserved?new T.Box3(new T.Vector3(...preserved.min),new T.Vector3(...preserved.max)):mesh.geometry.boundingBox, bootTop = bounds.min.y + (bounds.max.y - bounds.min.y) * .2353;
+  for (let i = 0; i < contactCount; i++) {
     let influence = 0;
     for (let k = 0; k < 4; k++) if (joints.has(skin.getComponent(i, k))) influence += weights.getComponent(i, k);
     if (influence > .4 && position.getY(i) < bootTop) candidates.push({index: i, y: position.getY(i)});
@@ -54,7 +57,8 @@ function palmContactIndex(mesh, hand) {
   const position = mesh.geometry.attributes.position, skin = mesh.geometry.attributes.skinIndex, weight = mesh.geometry.attributes.skinWeight;
   const direction = point(hand).sub(point(hand.parent)).normalize().transformDirection(mesh.matrixWorld.clone().invert());
   let best = -1, score = -Infinity;
-  for (let i = 0; i < position.count; i++) {
+  const contactCount=mesh.geometry.userData.sourceContactVertices??position.count;
+  for (let i = 0; i < contactCount; i++) {
     let influence = 0; for (let k = 0; k < 4; k++) if (joints.has(skin.getComponent(i, k))) influence += weight.getComponent(i, k);
     if (influence < .99999) continue;
     const projected = position.getX(i) * direction.x + position.getY(i) * direction.y + position.getZ(i) * direction.z;

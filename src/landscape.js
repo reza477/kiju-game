@@ -209,7 +209,7 @@ function animateVegetation(mesh, items, kind) {
   const key = mesh.material;
   if (!windMaterials.has(key)) {
     const material = mesh.material.clone(),volumeNormals=!!(material.userData.crownVolumeNormals||material.userData.rootedBladeNormals);
-    const importedTree=['pine','broadleaf'].includes(material.userData.meshyPilot);
+    const importedTree=['pine','broadleaf'].includes(material.userData.meshyPilot)&&!material.userData.authoredTree;
     if(importedTree){material.normalScale.setScalar(.075);material.roughness=.97;}
     if(material.userData.crownVolumeNormals)material.defines={...material.defines,CANOPY_SPRAY:1};
     material.onBeforeCompile = shader=>{
@@ -235,7 +235,7 @@ function animateVegetation(mesh, items, kind) {
         #endif
       `);
     };
-    material.customProgramCacheKey = () => 'rooted-painted-distance-v11'+(volumeNormals?':foliage-volume':'')+(importedTree?':'+material.userData.meshyPilot:'');
+    material.customProgramCacheKey = () => 'rooted-painted-distance-v12-leaf-fans'+(material.userData.authoredTree?':authored-tree':'')+(volumeNormals?':foliage-volume':'')+(importedTree?':'+material.userData.meshyPilot:'');
     const silhouette={side:material.side,map:material.map,alphaTest:material.alphaTest};
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, ...silhouette });
     const distance = new T.MeshDistanceMaterial(silhouette);
@@ -319,7 +319,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x747b60, dry: 0xa38c62, meadow: 0xa5a077, soil: 0x8b725b, litter:0x574e45, moss:0x66776b, ash: 0x7d7c83, slate: 0x788591, wet: 0x455e5c, gravel: 0xaaa38e, riverbed: 0x3c5a5d, drainage:0x8c8b7d, silt:0xb0a486, sedge:0x60766b }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x627b5c, dry: 0xa78b5b, meadow: 0x889566, soil: 0x947452, litter:0x465346, moss:0x506d5b, ash: 0x79767c, slate: 0x76858a, wet: 0x3d5d59, gravel: 0xaba38d, riverbed: 0x385954, drainage:0x657a70, silt:0xb4a177, sedge:0x57755f }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = renderedTerrainHeight(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -340,9 +340,7 @@ function groundAlbedo() {
     const stone = Math.min(.98, mineral * (.76 + region.slate * .24) + region.slate * smooth(17, 30, y) * .36 + outcrop * .72 + crest*.83+talus*.62+eco.broken*.70+washedStone*.58+terraceFace*.46);
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
-    const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74,terraceFace*.78, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
-    c.copy(palette.grass).lerp(palette.dry,cover.dry*.71+smooth(.46,.78,broad)*.19).lerp(palette.meadow,region.meadow*.38);
-    c.lerp(palette.soil,smooth(.30,.75,cover.bare)*.48).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
+    const soil = Math.max(ruin*.94,smooth(.46,.78,cover.bare)*.78,cover.channel*.92,cover.fan*.42,terraceFace*.74, smooth(0,2,Math.abs(z-roadZ(x)))*(1-smooth(3,7,Math.abs(z-roadZ(x))))*.78);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
     let clearingDistance=Math.hypot(x+30,z-40);for(const [cx,cz]of RESOURCE_CLEARINGS)clearingDistance=Math.min(clearingDistance,Math.hypot(x-cx,z-cz));
@@ -351,22 +349,27 @@ function groundAlbedo() {
     // Smaller clearings and tongues of woodland litter connect actual canopy
     // edges to the floor; their contour is not another broad painted circle.
     forest=smooth(.16,.77,forest+(noise(x*.041,z*.037)-.5)*.10);
-    c.lerp(palette.litter,forest*(.48+cover.bare*.24)).lerp(palette.moss,forest*cover.cover*.28);
-    c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
-    c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
-    const bankPatch=smooth(.39,.60,noise(x*.13+17,z*.075-8));
-    const wetToe=1-smooth(waterline-.1,waterline+2.7,d);
-    c.lerp(palette.gravel, bank * (.12+bankPatch*.52)).lerp(palette.wet,bank*((1-bankPatch)*.38+wetToe*.44));
-    c.lerp(palette.riverbed, 1 - smooth(waterline-1.4+(bankPatch-.5)*2.2,waterline+.6+(bankPatch-.5)*1.8,d));
-    c.lerp(palette.litter,eco.woods*.55).lerp(palette.moss,eco.wet*.60).lerp(palette.wet,eco.wet*(1-smooth(beach,beach+8,d))*.66);
+    // Assign the large material masses first. The former chain of weak dry,
+    // meadow, soil and ash blends averaged almost every open area to beige.
+    // Now actual convex shoulders expose ochre, connected woodland retains
+    // deep sage litter, and stone follows the existing scarps and drainage.
+    const dryShoulder=smooth(.28,.72,cover.exposed*.78+smooth(.002,.027,-curvature)*.28);
+    const woodland=smooth(.19,.73,forest),bare=smooth(.24,.78,soil),mineralFace=smooth(.20,.81,stone);
+    c.copy(palette.grass).lerp(palette.meadow,region.meadow*.34);
+    c.lerp(palette.dry,dryShoulder*.83).lerp(palette.moss,cover.wet*.50);
+    c.lerp(palette.soil,bare*(1-woodland*.65));
+    c.lerp(palette.litter,woodland*.96).lerp(palette.ash,smooth(.38,.86,ash)*.80);
+    c.lerp(palette.slate,mineralFace*.96);
     const channelEdge=Math.max(0,cover.bank-cover.channel*.75);
-    c.lerp(palette.sedge,channelEdge*.63).lerp(palette.drainage,cover.channel*(.32+washedStone*.12)).lerp(palette.silt,cover.fan*.36);
-    // Geological striations are broad and follow the ridge, without vertex-sized
-    // colour noise. The close detail comes from material-specific tiled textures.
-    const meadowMass=smooth(.38,.61,noise(x*.028+8,z*.033-4));
-    c.lerp(palette.meadow,meadowMass*(1-stone)*(1-bank)*(1-forest)*.32);
-    c.lerp(palette.litter,smooth(.30,.68,forest)*.30);
-    c.multiplyScalar(.94+smooth(.25,.75,broad)*.045+veins*.025);
+    c.lerp(palette.sedge,channelEdge*.78).lerp(palette.drainage,cover.channel*.79).lerp(palette.silt,cover.fan*.60);
+    // The margin reads as a continuous damp shoreline, with sparse warm bars;
+    // it is not a pale outline around the entire watercourse.
+    const bankPatch=smooth(.36,.66,noise(x*.075+17,z*.048-8));
+    const wetToe=1-smooth(waterline-.1,waterline+2.7,d);
+    c.lerp(palette.gravel,bank*(.35+bankPatch*.48));
+    c.lerp(palette.wet,bank*(wetToe*.68+(1-bankPatch)*.28));
+    c.lerp(palette.riverbed,1-smooth(waterline-1.4+(bankPatch-.5)*1.5,waterline+.6+(bankPatch-.5)*1.2,d));
+    c.multiplyScalar(.965+veins*.035);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255;
     // Base-colour alpha carries static geological cavity shading. Concave

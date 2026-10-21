@@ -49,6 +49,7 @@ async function fingerprint(root){
 await fs.mkdir(out,{recursive:true});assert.equal((await fs.readdir(out)).length,0,'Output must be empty; never overwrite original evidence.');
 const report={protocol:'art-remake-v1',mode,label,startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['MODE','RUN_LABEL','SOURCE_ROOT','FIXTURE_ROOT','OUTPUT_DIR','GAME_TEST_URL','VIEW','VARIANT','CAPTURE_VARIANT','LIGHT','HEADLESS','RECORD_VIDEO','OBSERVE_FRAMES','DIAGNOSTIC_RAYS','WALK_HOLD_MS'].filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]]))},method:'Fresh isolated context per case; baseline createGame fixture, ordinary Continue click, native orbit/wheel/touch, normal gameplay with HUD. No screenshot retouching, runtime state writes, time overrides or frame pumping.',limitations:['Phone captures are Windows Chrome emulation, not physical Apple-device verification.','Initial fixture and framing are fixed; native elapsed time and animation pose are recorded and can differ.','Bounded smoke is not a release, offline/update, performance or art gate.','Optional RAF observations measure native callback intervals in this view only; they are not GPU time, sustained performance or comparative speedup evidence.'],visits:[],passed:false};
 const write=()=>fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
+if(process.env.NATIVE_SLOT_CHECK)report.command.environment.NATIVE_SLOT_CHECK=process.env.NATIVE_SLOT_CHECK;
 await write();let browser,context,page,visit;
 const snapshot=()=>page.evaluate(()=>{const {state:s,scene:g}=window.__colossus,gl=g.renderer.getContext();return{time:s.time,faction:s.faction,variant:s.variant,x:s.x,z:s.z,angle:s.angle,paused:s.paused,speed:s.speed,mode:s.mode,buildings:s.buildings,towerOrder:s.towerOrder??null,resources:s.resources,worldDamage:s.worldDamage,camera:{yaw:g.yaw,pitch:g.pitch,zoom:g.zoom,view:g.view,mode:g.cinematic.mode,position:g.camera.position.toArray(),target:g.focus.toArray()},quality:g.quality,light:g.light,render:{calls:g.renderer.info.render.calls,triangles:g.renderer.info.render.triangles,canvasWidth:g.canvas.width,canvasHeight:g.canvas.height},hud:!document.getElementById('hud').classList.contains('hidden'),dialog:document.getElementById('dialog').open,overflow:document.documentElement.scrollWidth>innerWidth+1,environmentReady:g.environmentReady,environmentError:g.environmentError,surfaces:g.surfaceDiagnostics(),contextLost:gl.isContextLost(),shaderFailures:(g.renderer.info.programs??[]).filter(p=>p.diagnostics?.runnable===false).map(p=>p.name)};});
 const until=(predicate,arg,timeoutMs=120000)=>waitForBrowserCondition(page,predicate,arg,{timeoutMs,pollingMs:100});
@@ -119,6 +120,42 @@ async function observePerformance(){
  const sorted=[...observations.intervalsMs].sort((a,b)=>a-b),percentile=p=>sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*p)-1)];
  visit.performance={method:'Read-only native requestAnimationFrame callback intervals during stationary normal gameplay; no extra render or time advance calls.',...observations,meanMs:observations.elapsedMs/count,p50Ms:percentile(.5),p95Ms:percentile(.95),worstMs:sorted.at(-1),observedCallbacksPerSecond:count*1000/observations.elapsedMs};
 }
+async function inspectCarrierState(){
+ return page.evaluate(async()=>{
+  const {meshyCarriersStatus}=await import('/src/meshy-carriers.js'),adapter=window.__colossus.scene.city.meshyCarrier;
+  return{assets:meshyCarriersStatus(),visibleBody:adapter?{kind:adapter.kind,meshes:adapter.renderMeshes.map(m=>({vertices:m.geometry.attributes.position.count,triangles:(m.geometry.index?.count??m.geometry.attributes.position.count)/3,foundry:m.geometry.userData.foundryCyborg??null,sculpt:m.geometry.userData.fleshSculpt??null}))}:null};
+ });
+}
+async function checkNativeSlots(){
+ assert.equal(visit.faction,'crawler','Native all-slot audit is for horizontal crawler plots.');
+ const originalInput=visit.cameraInput,initial=(await snapshot()).camera;
+ const required=await page.evaluate(()=>window.__colossus.scene.city.slots.filter(s=>!s.userData.locked).map(s=>s.userData.slot));
+ const pending=new Set(required),selected=[],angles=[];
+ for(const yaw of[initial.yaw,initial.yaw+Math.PI,initial.yaw+Math.PI/2,initial.yaw-Math.PI/2]){
+  if(!pending.size)break;
+  await nativeCamera({yaw,pitch:.78,zoom:57});angles.push(visit.cameraInput);
+  for(const slot of [...pending]){
+   const point=await page.evaluate(async slot=>{
+    const T=await import('/vendor/three.module.js'),g=window.__colossus.scene,target=g.city.slots.find(s=>s.userData.slot===slot),box=new T.Box3().setFromObject(target),ray=new T.Raycaster(),rect=g.canvas.getBoundingClientRect();
+    const list=[...g.city.slots.filter(s=>!s.userData.locked),...g.enemyCities.filter(c=>c.root.visible).map(c=>c.enemyProxy),...g.pickables,g.ground];
+    for(const x of[.5,.3,.7])for(const z of[.5,.3,.7]){
+     const p=new T.Vector3(T.MathUtils.lerp(box.min.x,box.max.x,x),box.max.y,T.MathUtils.lerp(box.min.z,box.max.z,z)).project(g.camera),screen={x:rect.left+(p.x*.5+.5)*rect.width,y:rect.top+(-p.y*.5+.5)*rect.height};
+     if(p.z>=1||document.elementFromPoint(screen.x,screen.y)!==g.canvas)continue;
+     ray.setFromCamera(new T.Vector2(p.x,p.y),g.camera);
+     const hit=ray.intersectObjects(list,true).find(h=>['slot','enemy','node','ground'].some(k=>h.object.userData[k]!==undefined));
+     if(hit?.object.userData.slot===slot)return screen;
+    }return null;
+   },slot);
+   if(!point)continue;
+   await page.mouse.click(point.x,point.y);
+   await until(slot=>new RegExp('DISTRICT '+(slot+1)+'(?:\\D|$)').test(document.querySelector('#selection .eyebrow')?.textContent??''),slot,5000);
+   selected.push({slot,point,selectedAt:new Date().toISOString(),panel:await page.locator('#selection').innerText()});pending.delete(slot);
+  }
+ }
+ visit.nativeSlotSelection={method:'Read-only projection/raycast chooses a visible canvas point, then real mouse clicks verify the native district panel. No game-state writes or direct select calls.',required,selected,angles,missing:[...pending]};
+ assert.equal(pending.size,0,'Some unlocked districts could not be selected through the canvas.');
+ await page.keyboard.press('Escape');await nativeCamera({yaw:initial.yaw,pitch:initial.pitch,zoom:initial.zoom});visit.cameraInput=originalInput;
+}
 async function smoke(){
  const before=await snapshot();await page.keyboard.down('w');const holdStarted=performance.now();
  try{await until(({x,z})=>Math.hypot(window.__colossus.state.x-x,window.__colossus.state.z-z)>=3,{x:before.x,z:before.z},20000);if(walkHoldMs){const remaining=walkHoldMs-(performance.now()-holdStarted);if(remaining>0)await page.waitForTimeout(remaining);}}finally{await page.keyboard.up('w');}
@@ -160,12 +197,15 @@ try{
   }else await tap('#continue');
   await until(()=>window.__colossus.scene.environmentReady&&window.__colossus.scene.surfaceDiagnostics().pending===0);
   const initial=await snapshot();assert.equal(initial.faction,item.faction);assert.equal(initial.variant,item.variant);assert.equal(initial.quality,quality);visit.initial=initial;
+  visit.carriers=await inspectCarrierState();for(const asset of visit.carriers.assets.assets)assert.equal(asset.state,'ready','Imported carrier master must actually load: '+asset.kind);
+  if(item.faction==='kaiju')assert.equal(visit.carriers.visibleBody?.kind,item.variant,'Kaiju must use its loaded animated body');
   if(mode==='capture'){
    const target=item.variant==='standard'?item:{...item,yaw:initial.camera.yaw+(item.name==='desktop-reverse'?Math.PI:0),pitch:initial.camera.pitch,zoom:initial.camera.zoom*(item.name==='desktop-close'?.75:1)};
    await nativeCamera(target);await selectLighting();visit.capture=await snapshot();validate(visit.capture);visit.image=await screenshot(item.name);
    if(process.env.RECORD_VIDEO==='1'){visit.motionStart=await snapshot();await page.waitForTimeout(5000);visit.motionEnd=await snapshot();assert.ok(visit.motionEnd.time>visit.motionStart.time);}
   }
   else await smoke();
+  if(process.env.NATIVE_SLOT_CHECK==='1')await checkNativeSlots();
   await observePerformance();
   assert.deepEqual(visit.errors,[]);assert.deepEqual(visit.remoteRequests,[]);visit.finishedAt=new Date().toISOString();visit.passed=true;await write();await context.close();context=null;page=null;console.log(`PASS ${item.name}`);
  }

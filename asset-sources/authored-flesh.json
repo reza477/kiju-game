@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "name": "Authored anatomical flesh body v4",
+  "createdAt": "2026-10-21",
+  "method": "New smooth-union SDF anatomical forms and vertex paint around the original Meshy skeleton. Original paw vertices define clean convex hull faces; the original rig and contact attributes remain byte exact. This is a locally authored derivative, not a new Meshy generation.",
+  "source": {
+    "path": "assets/carriers/meshy/flesh.glb",
+    "sha256": "b9dcc002b95c6495522a8b2a7ec8a27fb88de7add8a2e0265a34177b3a9c872f",
+    "bytes": 10440784
+  },
+  "output": {
+    "path": "assets/art-remake/flesh-sculpt.glb",
+    "sha256": "7033228cb23c75c75391885f08598cc9125fd787dcc25dfec3a24fb62179ff09",
+    "bytes": 12591528
+  },
+  "generator": {
+    "scripts": [
+      {
+        "path": "scripts/art-remake/inventory-carrier.mjs",
+        "sha256": "d2a5810e6243d45768628f83e241b848d05fbc81643c1f2a1781b8f91ebecbe0"
+      },
+      {
+        "path": "scripts/art-remake/author-flesh-body.py",
+        "sha256": "a884f40190845d13be694a16eb076f19ab2be59cd2b6ab99b6fcf93abcca4129"
+      },
+      {
+        "path": "scripts/art-remake/pack-authored-flesh.mjs",
+        "sha256": "d9b50f89f3a71af3740042af0b0451df03d424fd61e30180c46b9b7877ec36a6"
+      },
+      {
+        "path": "scripts/art-remake/requirements.txt",
+        "sha256": "6e0ffaab78beb0e77a781e9dbe0158b5984072793a70015f31f9f50bd81622a8"
+      }
+    ],
+    "python": "3.12.14",
+    "node": "v24.18.0",
+    "three": "0.185.1",
+    "requirements": "scripts/art-remake/requirements.txt"
+  },
+  "geometry": {
+    "sourceContactVertices": 85568,
+    "newVertices": 80578,
+    "totalVertices": 166146,
+    "visibleTriangles": 161630,
+    "pawHullTriangles": 506,
+    "pawHullVertices": 261,
+    "visibleBounds": [
+      [
+        -0.7382344007492065,
+        2.3633798917899185e-8,
+        -1.2647355794906616
+      ],
+      [
+        0.7591638565063477,
+        1.6199201345443726,
+        1.2869999408721924
+      ]
+    ],
+    "newWeightSumMaximumError": 1.7881393432617188e-7,
+    "maximumDiscardedNewInfluenceMass": 0.1933254599571228,
+    "newPawWeightMax": 0.3199998140335083
+  },
+  "reproducibility": {
+    "verified": true,
+    "verifiedAt": "2026-10-21T04:27:27.770Z",
+    "method": "Ran tracked inventory, authoring and packing scripts twice into independent fresh output folders with explicit inputs. Both packed GLBs and the integrated asset are byte identical.",
+    "rebuiltOutput": "artifacts/art-remake/mesh-experiments/crest-v4-rebuild/flesh-sculpt.glb",
+    "sha256": "7033228cb23c75c75391885f08598cc9125fd787dcc25dfec3a24fb62179ff09",
+    "evidence": [
+      "artifacts/art-remake/mesh-experiments/crest-v4-inventory-run.json",
+      "artifacts/art-remake/mesh-experiments/crest-v4-authoring-run.json",
+      "artifacts/art-remake/mesh-experiments/crest-v4-packing-run.json",
+      "artifacts/art-remake/mesh-experiments/crest-v4-rebuild-run.json"
+    ],
+    "scope": "Verified on the listed Windows/Python/Node/library environment; cross-platform bit identity is not asserted."
+  },
+  "validation": {
+    "test": "node --test tests/authored-flesh.test.mjs",
+    "offlineReport": "artifacts/art-remake/mesh-experiments/crest-v4/validation.json",
+    "cpuFrames": 360,
+    "terrain": ".045*x + .025*z + .15*sin(z*.15)",
+    "maxRenderedGapAboveSource": 0,
+    "minRenderedClearance": 0.004011706051025632,
+    "minHullFaceClearance": 0.005919683634765915,
+    "combat": {
+      "command": "node --test tests/meshy-monster-combat.test.mjs",
+      "tests": 8,
+      "passed": 8,
+      "evidence": "artifacts/art-remake/mesh-experiments/crest-v4-combat.txt",
+      "run": "artifacts/art-remake/mesh-experiments/crest-v4-combat-run.json"
+    }
+  },
+  "limitations": [
+    "Real browser animation and independent art review are separate required checks.",
+    "New topology has authored normalized skin weights; original atlas UVs apply only to retained source vertices. New body appearance uses vertex colors.",
+    "The new mesh stores the original contact pool even where those original triangles are no longer drawn.",
+    "Some blended new surfaces reduce mixed influences to the largest four; the recorded discarded influence mass concerns new authored weights only. Original weights are unchanged.",
+    "SourceContactVertices metadata must remain available to contact inspection. The legacy smoothing for the old shredded mesh must be skipped for authoredFlesh assets."
+  ],
+  "previousGeneration": {
+    "name": "Authored anatomical flesh body v3",
+    "sha256": "8e67ac5674fb80e76592bfc30a2d2d72b271367e178323225e75bd20f79c8032",
+    "bytes": 12524648,
+    "provenance": "artifacts/art-remake/mesh-experiments/crest-v4-before-provenance.json"
+  },
+  "changesSincePrevious": "Restore a smooth upper cranial crest around [-0.064,1.42,0.66], radii [0.20,0.20,0.20], primarily attached to Bone_053 and Bone_029. It restores visible anatomy crossed by the existing combat-height rays. No combat math, range, target proxy or tolerances changed."
+}

@@ -1,0 +1,10 @@
+# Exact numerical/image package versions used for the verified v3 rebuild.
+numpy==2.3.5
+scipy==1.18.1
+scikit-image==0.26.0
+trimesh==5.1.1
+Pillow==12.3.0
+networkx==3.7
+lazy_loader==0.6
+rtree==1.4.1
+packaging==26.3

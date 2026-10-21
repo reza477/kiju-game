@@ -158,13 +158,18 @@ test('all three actual embedded GLBs load once with matte materials and independ
     for (const [index, mesh] of first.pilot.meshes.entries()) {
       const other = second.pilot.meshes[index], material = mesh.material, kind = mesh.userData.meshyPilot;
       assert.notEqual(mesh.geometry, other.geometry); assert.notEqual(mesh.instanceMatrix, other.instanceMatrix); assert.equal(material, other.material);
-      assert.equal(material.metalness, 0); assert.equal(material.roughness, kind === 'rock' ? .90 : kind === 'pine' ? .96 : .92);
-      assert.equal(material.roughnessMap, null); assert.equal(material.metalnessMap, null);
-      assert.equal(material.map.colorSpace, T.SRGBColorSpace); assert.equal(material.normalMap.colorSpace, T.NoColorSpace);
-      const normalScale = kind === 'rock' ? .22 : kind === 'pine' ? .12 : .34;
-      assert.deepEqual(material.normalScale.toArray(), [normalScale, normalScale]); assert.equal(material.transparent, false);
-      assert.equal(material.envMapIntensity, kind === 'pine' ? .5 : 1);
-      assert.deepEqual(material.color.toArray(), kind === 'pine' ? [.86, .92, .74] : kind === 'rock' ? [.98, 1.05, .90] : [1, 1, 1]);
+      assert.equal(material.metalness,0);assert.equal(material.transparent,false);
+      assert.equal(material.roughnessMap,null);assert.equal(material.metalnessMap,null);
+      if(kind==='rock'){
+        assert.equal(material.roughness,.90);assert.equal(material.map.colorSpace,T.SRGBColorSpace);assert.equal(material.normalMap.colorSpace,T.NoColorSpace);
+        assert.deepEqual(material.normalScale.toArray(),[.22,.22]);assert.deepEqual(material.color.toArray(),[.98,1.05,.90]);
+      }else{
+        assert.equal(material.userData.authoredTree,true);assert.equal(material.vertexColors,true);assert.equal(material.roughness,.96);
+        assert.equal(material.map,null);assert.equal(material.normalMap,null);assert.equal(material.envMapIntensity,.65);
+        assert.deepEqual(material.color.toArray(),[1,1,1]);assert.equal(mesh.geometry.userData.authoredTree,kind);
+        const inventory=status.assets.find(asset=>asset.kind===kind);assert.equal(inventory.display.source,'src/authored-trees.js');
+        assert.equal(mesh.geometry.index.count/3,inventory.display.lods.near.triangles);
+      }
       for (const attribute of Object.values(mesh.geometry.attributes)) for (const value of attribute.array) assert.ok(Number.isFinite(value));
       assert.ok(mesh.geometry.boundingSphere.radius > 0);
     }
