@@ -56,7 +56,9 @@ test('rock-attached shrubs root their visible stems while preserving terrain, pl
     assert.equal(digest(JSON.stringify(world.crushables)),expected.records,'Every ID, X/Z, kind, size and record order is unchanged');
     for(const[name,attribute]of [['groundPosition',world.ground.geometry.attributes.position],['groundIndex',world.ground.geometry.index],['groundNormal',world.ground.geometry.attributes.normal]])assert.equal(digest(binary(attribute.array)),expected[name]);
     const shape=createHash('sha256');
-    world.group.traverse(mesh=>{if(!mesh.isInstancedMesh)return;const a=mesh.instanceMatrix.array.slice();for(let i=0;i<a.length;i+=16)a[i+13]=0;shape.update(mesh.name);shape.update(binary(a));if(mesh.instanceColor)shape.update(binary(mesh.instanceColor.array));});
+    // The later owner-requested places are tested independently; every original
+    // instance still retains this exact pre-enrichment preservation fingerprint.
+    world.group.traverse(mesh=>{if(!mesh.isInstancedMesh||mesh.userData.reclaimedPlaces)return;const a=mesh.instanceMatrix.array.slice();for(let i=0;i<a.length;i+=16)a[i+13]=0;shape.update(mesh.name);shape.update(binary(a));if(mesh.instanceColor)shape.update(binary(mesh.instanceColor.array));});
     assert.equal(shape.digest('hex'),expected.instanceMatricesExceptYAndColours,'No PRNG drift, X/Z shift, scaling, rotation, recolouring, or changed batch/instance order');
     const shrubs=allShrubs(world),byFixture=offending.map(fixture=>{
       const matches=shrubs.filter(s=>Math.abs(s.x-fixture.x)<.0001&&Math.abs(s.z-fixture.z)<.0001);

@@ -15,6 +15,7 @@ import { bindMeshyPilot, bindMeshyTreeCoverage } from './meshy-pilot.js';
 import { bindGroundDressing } from './ground-dressing.js';
 import { createGroundCoverVolume } from './ground-cover-volume.js';
 import { createDecorativeRoadRemnants } from './decorative-roads.js';
+import { bindReclaimedPlaces } from './reclaimed-places.js';
 
 // Local scenery mixes the existing generated world with a bounded imported kit.
 const TAU = Math.PI * 2;
@@ -422,7 +423,7 @@ function isClearing(x, z, margin = 0) {
 }
 
 class Instances {
-  constructor(group, geometry, material, castShadow = true, wind = null) { this.group = group; this.geometry = geometry; this.material = material; this.castShadow = castShadow; this.wind = wind; this.items = []; }
+  constructor(group, geometry, material, castShadow = true, wind = null, {partition=true} = {}) { this.group = group; this.geometry = geometry; this.material = material; this.castShadow = castShadow; this.wind = wind; this.partition=partition; this.items = []; }
   add(x, y, z, sx = 1, sy = 1, sz = 1, colour = 0xffffff, yaw = 0, rotation = null) {
     this.items.push({ x, y, z, sx, sy, sz, colour, yaw, rotation }); return this.items.length - 1;
   }
@@ -455,7 +456,7 @@ class Instances {
     // Imported crowns carry one instance per tree instead of many tiny pieces.
     // Keep the existing spatial culling useful for those smaller, denser batches.
     const partitionThreshold = this.geometry.userData.meshyTreeLod ? 32 : 256;
-    this.group.add(this.wind && this.items.length >= partitionThreshold ? partitionStaticInstances(mesh,this.items) : mesh);
+    this.group.add(this.partition && this.wind && this.items.length >= partitionThreshold ? partitionStaticInstances(mesh,this.items) : mesh);
     this.mesh = mesh; return mesh;
   }
 }
@@ -1151,6 +1152,7 @@ export function createLandscape() {
   group.add(groundCover.group);
   const decorativeRoads=createDecorativeRoadRemnants({existingRecords:records});
   group.add(decorativeRoads.group);
+  const reclaimedPlaces=bindReclaimedPlaces({group,Instances,records});
   const life = createWorldLife(); group.add(life.group); life.update(0, 0);
   const interactions = createWorldInteractions(group, records), stats = interactions.stats;
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
@@ -1162,6 +1164,7 @@ export function createLandscape() {
   stats.groundDressing=dressing.stats;
   stats.groundCoverVolume=groundCover.stats;
   stats.decorativeRoads=decorativeRoads.stats;
+  stats.reclaimedPlaces=reclaimedPlaces.stats;
   stats.drainage=valleyDrainageDiagnostics();
   stats.landform={...WESTERN_TERRACE};
   stats.lifeCount = life.stats.lifeCount; stats.wind = windAt(0); stats.windTime = 0; stats.animatedVegetationInstances = 0;
@@ -1170,8 +1173,8 @@ export function createLandscape() {
   return {
     group, ground, water, heightAt, surfaceHeightAt: renderedTerrainHeight, stats, crushables: interactions.crushables,
     update(time, delta = 0) { waterTime.value = time; vegetationTime.value = time; stats.windTime = time; windAt(time, 0, 0, stats.wind); life.update(time, delta, actors); },
-    interact(nextActors, delta, options) { actors = nextActors || []; return interactions.interact(actors, delta, options); },
-    resetInteractions: options => interactions.resetInteractions(options),
+    interact(nextActors, delta, options) { actors = nextActors || []; const result=interactions.interact(actors, delta, options);reclaimedPlaces.interact(actors,delta,options);return result; },
+    resetInteractions: options => {interactions.resetInteractions(options);reclaimedPlaces.reset(options);},
     movementMaterials: [...interactions.movementMaterials,...pilot.meshes],
     setQuality(quality) {
       const low = quality === 'retro' || quality === 'low';
@@ -1181,6 +1184,7 @@ export function createLandscape() {
       if (meadowDetail) meadowDetail.visible = !low;
       groundCover.setQuality(quality);
       decorativeRoads.setQuality(quality);
+      reclaimedPlaces.setQuality(quality);
       canopyMeshes.forEach(mesh => { mesh.castShadow = !low; });
       pilot.treeMeshes.forEach(mesh => { mesh.castShadow = !low; });
       distantCanopyMeshes.forEach(mesh=>{mesh.castShadow=false;});

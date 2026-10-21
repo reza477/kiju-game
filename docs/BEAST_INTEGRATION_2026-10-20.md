@@ -4,6 +4,16 @@ Owner request, 20 October 2026 (Pacific): rig and integrate the new private Mesh
 
 This is an explicit new review-cycle authorization for the existing remake work group. Previous scores and evidence stay unchanged. The normal four-round maximum, 8.5 overall requirement and zero concrete visual/runtime errors still apply. `delivery/readiness.json` remains false during implementation and review.
 
+## World enrichment checkpoint, 21 October 2026
+
+The owner's follow-up requested more things in the world. Seventeen composed places add broken field boundaries, weathered route markers, workyard remnants, timber and surrounding plants. They add 865 display instances in five global draws, with 69,100 triangles at high detail and 17,044 in four draws at low detail. All 1,665 original scenery records, terrain, resource placement, saved IDs and transforms remain unchanged.
+
+The 142 structural pieces respond to swept carrier contact at their own positions and settle into grounded rubble or timber. Original saved scenery destruction remains authoritative. Cosmetic breakaway adds no collision, resource or save entries; it resets with the world and does not repeatedly upload unchanged matrices. An earlier missed-owner pass-through finding is retained in `artifacts/beast-integration/world-enrichment/ownership-audit-01.json`.
+
+Two syntax checks and 21 focused tests passed on 21 October, 13:41:50.627–13:41:55.851 UTC, with exact commands, exits and source hashes in `world-enrichment/checks-breakaway-01.json`. Fresh ordinary-HUD gameplay capture `world-enrichment/builder-day-02/report.json` passed at 13:43:10.050–13:43:55.868 UTC (exit 0): nine original PNGs and video, no runtime errors or failed/remote requests, two existing shader precision warnings. Its runtime fingerprint is `e40363167a63bc39b8b53c087fc6a9ee3c37d1d40b822dbcd884bbb8ede4f38f`, on parent commit `20d809cef4f8ef412222f0f4fbc7a4cd53c5389b` plus the recorded world changes. This capture uses the still-active V13 beast, not the unintegrated native quadruped. The isolated build succeeded as `f348f4b52b31d95ee00c`; its exact command/timing/exit are in `world-enrichment/build-final-01.json`. A preceding attempt to use nonexistent npm script `build` failed; the successful check uses the actual isolated mobile build script.
+
+These are builder checks, not an independent art pass or sustained performance benchmark. Native quadruped combat, harness integration and the combined independent review remain pending. No push or publication is authorized by this checkpoint; delivery remains **Configured but blocked**.
+
 ## Starting identity
 
 - Source checkpoint: `6c7ee9b2ec3bb44aaefbc2ec3ea9bd86e9d60f5c`.
