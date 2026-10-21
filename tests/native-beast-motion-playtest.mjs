@@ -69,16 +69,34 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:process.env.HEADLESS==='1',args:['--mute-audio','--enable-gpu','--use-angle=d3d11']});report.browser={version:browser.version(),headless:process.env.HEADLESS==='1'};
  context=await browser.newContext({viewport:{width:1440,height:960},deviceScaleFactor:1,serviceWorkers:'block',recordVideo:{dir:path.join(out,'motion'),size:{width:1440,height:960}},storageState:{cookies:[],origins:[{origin:base.origin,localStorage:[{name:sim.SAVE_KEY,value:fixture},{name:'colossus-quality-v1',value:'high'},{name:'colossus-camera-mode',value:'steady'}]}]}});
  page=await context.newPage();page.setDefaultTimeout(30000);page.on('request',request=>{const u=new URL(request.url());if(!['blob:','data:'].includes(u.protocol)&&u.origin!==base.origin)report.remoteRequests.push(u.href);});page.on('pageerror',e=>report.errors.push(e.message));page.on('requestfailed',r=>report.failedRequests.push({url:r.url(),error:r.failure()}));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());if(m.type()==='warning')report.warnings.push(m.text());});
- page.on('response',response=>{
-  const url=new URL(response.url()),file=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname).slice(1),expected=report.sourceStart.hashes[file];
+ // Network buffers belong to a DevTools session. The native GLB exceeds
+ // Playwright's default inspector cache, so this public session both allocates
+ // sufficient buffers and owns the response events/body reads. Nothing is
+ // intercepted, re-fetched, fulfilled or substituted for the actual response.
+ const responseSession=await context.newCDPSession(page),responses=new Map();
+ report.servedIdentityMethod={protocol:'CDP Network.responseReceived/loadingFinished/getResponseBody',session:'Dedicated public CDPSession; buffer allocation and body reads use this same session',maxTotalBufferSize:512*1024*1024,maxResourceBufferSize:128*1024*1024};
+ responseSession.on('Network.responseReceived',event=>{
+  const url=new URL(event.response.url),file=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname).slice(1),expected=report.sourceStart.hashes[file];
   if(url.origin!==base.origin||!expected)return;
-  // Observe the actual response, including decoded compressed bodies. Never
-  // intercept, fulfill, route or substitute a request to obtain this identity.
-  pendingResponses.push((async()=>{try{
-   const bytes=await response.body(),actual=sha(bytes),record={file,url:url.href,status:response.status(),bytes:bytes.length,expectedSha256:expected,sha256:actual,matched:actual===expected,checkedAt:new Date().toISOString()};report.servedResponses.push(record);
-   if(!record.matched)report.servedIdentityErrors.push({file,url:url.href,expectedSha256:expected,sha256:actual,error:'Served runtime bytes differ from sourceStart'});
-  }catch(error){report.servedIdentityErrors.push({file,url:url.href,error:error.message});}})());
+  const response={file,url:url.href,requestId:event.requestId,status:event.response.status,mimeType:event.response.mimeType,fromDiskCache:!!event.response.fromDiskCache,fromServiceWorker:!!event.response.fromServiceWorker,expectedSha256:expected};
+  // Register on responseReceived, not loadingFinished, so the final wait also
+  // includes any body that is still downloading when observations finish.
+  pendingResponses.push(new Promise(resolve=>{responses.set(event.requestId,{response,resolve});}));
  });
+ responseSession.on('Network.loadingFinished',event=>{
+  const pending=responses.get(event.requestId);if(!pending)return;
+  responses.delete(event.requestId);
+  void(async()=>{try{
+   const body=await responseSession.send('Network.getResponseBody',{requestId:event.requestId}),bytes=Buffer.from(body.body,body.base64Encoded?'base64':'utf8'),actual=sha(bytes);
+   const record={...pending.response,bytes:bytes.length,encodedDataLength:event.encodedDataLength,base64Encoded:body.base64Encoded,sha256:actual,matched:actual===pending.response.expectedSha256,checkedAt:new Date().toISOString()};report.servedResponses.push(record);
+   if(!record.matched)report.servedIdentityErrors.push({...pending.response,sha256:actual,error:'Served runtime bytes differ from sourceStart'});
+  }catch(error){report.servedIdentityErrors.push({...pending.response,error:error.message});}finally{pending.resolve();}})();
+ });
+ responseSession.on('Network.loadingFailed',event=>{
+  const pending=responses.get(event.requestId);if(!pending)return;
+  responses.delete(event.requestId);report.servedIdentityErrors.push({...pending.response,error:'Actual response failed: '+event.errorText});pending.resolve();
+ });
+ await responseSession.send('Network.enable',{maxTotalBufferSize:report.servedIdentityMethod.maxTotalBufferSize,maxResourceBufferSize:report.servedIdentityMethod.maxResourceBufferSize});
  const until=(fn,arg,timeoutMs=120000)=>waitForBrowserCondition(page,fn,arg,{timeoutMs,pollingMs:30});
  const snapshot=()=>page.evaluate(()=>{const {state:s,scene:g}=window.__colossus;return{time:s.time,mode:s.mode,paused:s.paused,speed:s.speed,x:s.x,z:s.z,angle:s.angle,moving:s.moving,hp:s.hp,buildings:s.buildings,towerOrder:s.towerOrder,battle:s.battle,camera:{view:g.view,yaw:g.yaw,pitch:g.pitch,zoom:g.zoom},light:g.light,carrier:g.city.meshyCarrier?.metrics,pose:g.city.meshyCarrier?.controller.status(),nativeRig:g.city.meshyCarrier?.renderMeshes.filter(m=>m.isSkinnedMesh).map(m=>({bones:m.skeleton.bones.length,vertices:m.geometry.attributes.position.count,nativeQuadruped:!!m.userData.nativeQuadruped})),harness:g.city.meshyCarrier?.saddle.harness.bands.map(b=>({station:b.z,visible:b.mesh.visible,anchors:b.anchors.length})),hud:!document.querySelector('#hud').classList.contains('hidden'),overflow:document.documentElement.scrollWidth>innerWidth,contextLost:g.renderer.getContext().isContextLost(),shaderFailures:g.renderer.info.programs.filter(p=>p.diagnostics?.runnable===false).map(p=>p.name)};});
  const shot=async name=>{const file=path.join(out,name+'.png');const before=await snapshot();await page.screenshot({path:file});const after=await snapshot(),bytes=await fs.readFile(file);report.images.push({name,path:file,bytes:bytes.length,sha256:sha(bytes),width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),capturedAt:new Date().toISOString(),original:true,state:before,after});await write();};
