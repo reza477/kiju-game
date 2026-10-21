@@ -1,18 +1,19 @@
 {
   "eligible": false,
-  "reason": "Local native quadruped builder candidate integrated for round 03. Latest flesh low saddle city and cyborg half-height vertical castle are preserved. Full combined suite: 432/433 pass; strict connected-skin self-crossing test fails, including genuine new moving hindquarter intersections. Build succeeds. Rounds 01/02 remain failed at 7.6/8.0; round 03 pending and two rounds remain. No visual or technical acceptance is implied by local integration, native performance recording or build success. Private playtest delivery remains Configured but blocked. Do not push or deploy.",
+  "reason": "Native quadruped round 03 failed at 8.1/10. Latest flesh low saddle city and cyborg half-height vertical castle are preserved. Full combined suite: 432/433 pass; strict connected-skin self-crossing test fails, including genuine new moving hindquarter intersections. Build and bounded native movement/combat captures succeed, but the tall sparse-load scaffold, repeated city/frame finish and performance cost remain. Rounds 01/02 remain failed at 7.6/8.0; one review round remains. Private playtest delivery remains Configured but blocked. Do not push or deploy.",
   "candidateRuntimeFingerprint": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
   "candidateBuild": "d433bbc1ac5692facda6",
   "candidateTechnicalEvidence": "artifacts/beast-integration/native27-cpu-combined-v2/checks/full-suite-01.json",
   "candidateBuildEvidence": "artifacts/beast-integration/native27-cpu-combined-v2/checks/build-01.json",
-  "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_02.md",
+  "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_03.md",
   "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",
-  "reviewedImplementation": "4832146fc0b4e1d7de459f9474fa7a53c1f239f2",
-  "reviewedRuntimeFingerprint": "e0e770dc6632c03e7c66b2312475bea6cd669a7d03141d58702a42a80ef9ca6e",
-  "reviewedBuild": "7220a6a5891358c2afd5",
+  "reviewedImplementation": "a192105ebcafe18c431a399f75fb8139b6ebc099",
+  "reviewedRuntimeFingerprint": "bef17724ac55de669f80379c77ea7a74d524473ac920b81f7b9513c8d9cc9b7f",
+  "reviewedBuild": "d433bbc1ac5692facda6",
   "beastIntegrationRounds": [
     7.6,
-    8
+    8,
+    8.1
   ],
   "visualRounds": [
     6.2,
@@ -26,6 +27,6 @@
     "evidence": "art-reviews/iphone-pass1-04.md",
     "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
   },
-  "reviewedTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json",
+  "reviewedTechnicalEvidence": "artifacts/beast-integration/native27-cpu-combined-v2/checks/full-suite-01.json",
   "candidatePerformanceEvidence": "artifacts/beast-integration/native-full-saddle-performance-combined-v2-01/report.json"
 }
