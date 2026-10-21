@@ -183,7 +183,11 @@ const statuses=[];
 async function evidenceText(selection,kind){
   let result='';if(!selection?.length){missing.push(kind+': NOT RECORDED / no evidence selected.');return kind+': NOT RECORDED / no evidence selected.\n';}
   for(const selected of selection){const item=await readSelection(selected);if(!item){result+=(typeof selected==='string'?selected:selected.path)+': NOT RECORDED\n';continue;}
-    const v=item.value||{},status={kind,...item.record,command:v.command??'NOT RECORDED',startedAt:v.startedAt??'NOT RECORDED',finishedAt:v.finishedAt??'NOT RECORDED',exitCode:v.exitCode??'NOT RECORDED',passed:v.passed??'NOT RECORDED'};
+    const v=item.value||{},startField=['startedAt','startTime','started','startedUtc'].find(key=>v[key]!==undefined&&v[key]!==null),finishField=['finishedAt','endedAt','endTime','finished','finishedUtc'].find(key=>v[key]!==undefined&&v[key]!==null);
+    const status={kind,...item.record,command:v.command??'NOT RECORDED',startedAt:startField?v[startField]:'NOT RECORDED',finishedAt:finishField?v[finishField]:'NOT RECORDED',exitCode:v.exitCode??'NOT RECORDED',passed:v.passed??'NOT RECORDED'};
+    if(startField)status.startedAtSourceField=startField;
+    if(finishField)status.finishedAtSourceField=finishField;
+    if(v.recorderExitCode!==undefined)status.recorderExitCode=v.recorderExitCode;
     // Preserve explicit test-source evidence. Do not infer which revision an
     // ordinary text log tested when its execution wrapper did not record it.
     if(v.sourceStart&&v.sourceFinish){status.recordedSourceStart=v.sourceStart.fingerprint??'NOT RECORDED';status.recordedSourceFinish=v.sourceFinish.fingerprint??'NOT RECORDED';}

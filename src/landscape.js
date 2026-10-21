@@ -384,6 +384,37 @@ function groundAlbedo() {
   return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
 }
 
+function paintCanopyFloor(ground,records){
+  // Connected litter belongs beneath actual woodland, rather than following a
+  // separate noise patch. This changes paint only; all roots and land stay put.
+  const image=ground.material.map.image,size=image.width,data=image.data;
+  const cover=new Float32Array(size*size),step=1200/(size-1);
+  let trees=0;
+  for(const record of records){
+    if(record.kind!=='tree'||Math.max(Math.abs(record.x),Math.abs(record.z))>190||terrainNormal(record.x,record.z).y<.70)continue;
+    trees++;
+    const rx=4.3*record.size,rz=5.1*record.size;
+    const minCol=Math.max(0,Math.floor((record.x-rx+600)/step)),maxCol=Math.min(size-1,Math.ceil((record.x+rx+600)/step));
+    const minRow=Math.max(0,Math.floor((600-record.z-rz)/step)),maxRow=Math.min(size-1,Math.ceil((600-record.z+rz)/step));
+    for(let row=minRow;row<=maxRow;row++)for(let col=minCol;col<=maxCol;col++){
+      const dx=(col*step-600-record.x)/rx,dz=(600-row*step-record.z)/rz,q=dx*dx+dz*dz;
+      if(q<1)cover[row*size+col]+=(1-q)*(1-q)*.72;
+    }
+  }
+  const colour=new T.Color(),litter=new T.Color(0x56614e),weights=ground.userData.surfaceTextures[0],weightData=weights.image.data;
+  let paintedTexels=0;
+  for(let i=0;i<cover.length;i++){
+    const mass=smooth(.06,.82,cover[i]);if(mass<=0)continue;
+    const offset=i*4;
+    colour.setRGB(data[offset]/255,data[offset+1]/255,data[offset+2]/255,T.SRGBColorSpace).lerp(litter,mass*.32);
+    const hex=colour.getHex();data[offset]=hex>>16;data[offset+1]=(hex>>8)&255;data[offset+2]=hex&255;
+    data[offset+3]=Math.round(data[offset+3]*(1-mass*.12));
+    weightData[offset+2]=Math.max(weightData[offset+2],Math.round(mass*.70*255));paintedTexels++;
+  }
+  ground.material.map.needsUpdate=true;weights.needsUpdate=true;
+  return{trees,paintedTexels,addedTextures:0,addedTriangles:0};
+}
+
 function random(seed) { let n = seed >>> 0; return () => { n = (n * 1664525 + 1013904223) >>> 0; return n / 4294967296; }; }
 function isClearing(x, z, margin = 0) {
   return Math.hypot(x + 30, z - 40) < 24 + margin ||
@@ -993,6 +1024,21 @@ export function createLandscape() {
   const rocks = new Instances(group, fracturedRockGeometry(), getMaterial('rock', 0xffffff,{vertexColors:true}));
   const shrubMat=getMaterial('foliage',0xffffff,{side:T.DoubleSide,vertexColors:true,roughness:.94});
   const shrubs = new Instances(group, fieldShrubGeometry(), createVegetationMaterial('broadleaf'), true, 'foliage');
+  // Rock-attached shrubs retain their established X/Z, scale and owner. The
+  // authored stems sit slightly off the display centre, so derive grounding
+  // from their real basal vertices instead of the parent rock's elevation.
+  const shrubPosition=shrubs.geometry.attributes.position,shrubBox=shrubs.geometry.boundingBox;
+  const rootCeiling=shrubBox.min.y+(shrubBox.max.y-shrubBox.min.y)*.04,shrubRoots=new Map();
+  for(let i=0;i<shrubPosition.count;i++)if(shrubPosition.getY(i)<=rootCeiling){
+    const root=[shrubPosition.getX(i)*.75,shrubPosition.getY(i)*.6,shrubPosition.getZ(i)*.8];
+    shrubRoots.set(root.join(','),root);
+  }
+  const shrubRootTop=Math.max(...[...shrubRoots.values()].map(root=>root[1]));
+  const rockShrubHeight=(x,z)=>{
+    let y=Infinity;
+    for(const[rx,ry,rz]of shrubRoots.values())y=Math.min(y,renderedTerrainHeight(x+rx,z+rz)-ry);
+    return y-.015; // Bury the complete narrow root collar, including float32 rounding.
+  };
   const ferns = new Instances(group, fernGeometry(), shrubMat, false, 'grass');
   const grassMat = createVegetationMaterial('grass');
   const grass = new Instances(group, grassTuftGeometry(), grassMat, false, 'grass');
@@ -1023,7 +1069,14 @@ export function createLandscape() {
     const r = .35 + rand() * 1.35;
     const first = rocks.add(x, sceneryHeight(x, z) + r * .25, z, r, r * (.45 + rand() * .5), r * .85, ROCK_COLOURS[i % ROCK_COLOURS.length], rand() * TAU);
     const shrubStart = shrubs.items.length;
-    if (rand() > .36) for (let j = 0; j < 3; j++) shrubs.add(x + rand() * 2, sceneryHeight(x, z) + .5, z + rand() * 2, .75, .6, .8, LEAF_COLOURS[(i + j) % LEAF_COLOURS.length]);
+    if (rand() > .36) for (let j = 0; j < 3; j++) {
+      // Same two draws, in the same order, as the historical placement.
+      const shrubX=x+rand()*2,shrubZ=z+rand()*2;
+      const shrubY=rockShrubHeight(shrubX,shrubZ),index=shrubs.add(shrubX,shrubY,shrubZ,.75,.6,.8,LEAF_COLOURS[(i+j)%LEAF_COLOURS.length]);
+      // Clamp the whole visible collar to zero wind weight in colour and depth
+      // passes. Keep the existing small-shrub bend and flutter amplitudes.
+      Object.assign(shrubs.items[index],{windRoot:[shrubX,shrubY+shrubRootTop,shrubZ,1.2],windFlex:[.14,.025],windMotion:[.73,2.4]});
+    }
     register(`rock:${i}`, 'rock', x, z, r, [{ batch: rocks, first, count: 1 }, { batch: shrubs, first: shrubStart, count: shrubs.items.length - shrubStart }]);
   }
   for (let i = 0; i < 44; i++) {
@@ -1079,6 +1132,7 @@ export function createLandscape() {
   composeRegions(trees,shrubs,grass);composeRegions(distantTrees,{items:[]},{items:[]});createSlateLandmark(group,records);
   const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
   const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,selectionHeightAt:selectionSceneryHeight,ecologyAt,isClearing});
+  const canopyFloor=paintCanopyFloor(ground,records);
   // All botanical shrubs, including later woodland/ruin additions, share one
   // restrained palette. This does not touch their position, scale, wind or owner.
   for(const item of shrubs.items){
@@ -1102,6 +1156,7 @@ export function createLandscape() {
   stats.ecotones={bushes:ecotones.bushes,ferns:ecotones.ferns,ledges:ecotones.ledges,relocatedGrass:ecotones.relocatedGrass,patchAnchors:ecotones.patchAnchors};
   stats.authoredValley=authored.stats;
   stats.groundTransitions=groundTransitions;
+  stats.canopyFloor=canopyFloor;
   stats.meshyPilot=pilot.stats;
   stats.meshyTreeCoverage={near:trees.coverage,distant:distantTrees.coverage};
   stats.groundDressing=dressing.stats;

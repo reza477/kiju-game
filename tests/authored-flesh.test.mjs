@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 import * as T from '../vendor/three.module.js';
 import {GLTFLoader} from '../vendor/GLTFLoader.js';
+import {createMeshyCarrierCache,disposeMeshyCarrier} from '../src/meshy-carriers.js';
 import {createMeshyMonsterPose,inspectMeshyMonsterRig,MONSTER_RIG} from '../src/meshy-monster.js';
 import {fleshSculptFixture} from './helpers/carrier-sculpt-fixture.mjs';
 
@@ -68,6 +69,18 @@ test('authored upper skull keeps a visible surface at the original combat height
   [hit.face.a,hit.face.b,hit.face.c].forEach((index,corner)=>{for(let lane=0;lane<4;lane++)if(geometry.attributes.skinIndex.getComponent(index,lane)===bone)influence+=geometry.attributes.skinWeight.getComponent(index,lane)*barycentric.getComponent(corner);});
   assert.ok(influence>.5,'Upper-skull target follows the original nape joint');
   material.dispose();
+});
+
+test('runtime loading preserves authored skin and horn normals exactly',async()=>{
+  const fixture=await candidateFixture(),expected=digest(fixture.mesh.geometry.attributes.normal.array);
+  const cache=createMeshyCarrierCache({fetchAsset:async()=>new Response(fixture.input),parse:async()=>fixture.gltf});
+  let instance;
+  try{
+    await cache.load('flesh');instance=cache.instantiate('flesh');
+    const mesh=instance.body.getObjectByProperty('isSkinnedMesh',true);
+    assert.equal(mesh.geometry.userData.authoredFlesh,true);
+    assert.equal(digest(mesh.geometry.attributes.normal.array),expected,'Imported seam smoothing must not round authored horn planes');
+  }finally{if(instance)disposeMeshyCarrier(instance);cache.dispose();}
 });
 
 test('authored paw hulls retain actual rendered contact through walking, turning, stopping and slopes',async()=>{

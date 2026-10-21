@@ -93,6 +93,39 @@ its original contact pool is stored but mostly not drawn. Walking, turning,
 stopping, combat and visible contact checks are required separately. New source
 geometry does not establish a passing art score.
 
+Round 3 reviewed `3432867ea3e40341f2b747c800398ff7aed2acdc`, raw runtime
+fingerprint `6a91bf08e12d400787d5f6080bfe1fbc2ad2fd46cccc08db603c672588b22864`.
+Its independent result was **7.2/10, FAIL**. The critic found the shredded flesh
+resolved but the face and articulation still too toy-like, plus detached robot
+wrists and weak saddle construction. Supplemental geometry inspection identified
+103 rock-attached shrubs floating over the terrain. The 365-test suite and all
+six native movement/build/save/reload smokes passed; they did not clear the art
+gate. The old unit recorder omitted a runtime fingerprint and preceded generated
+build metadata, so it is not described as an exact recorded capture identity.
+
+Round 4 refines facial planes, recessed eyes, horns and limb transitions; repairs
+the articulated robot wrist assemblies; roots the 524 rock-attached shrubs using
+their actual basal vertices; and adds quiet woodland floor variation without
+changing terrain geometry or scenery identities. Authored metal and hide now
+retain their intended material response instead of receiving the legacy imported
+mesh roughness/metalness remap a second time.
+
+A full-city check caught five new flesh/deck intersections before final review.
+The authored anatomy was narrowed around the unchanged mount positions. Exact
+visible-triangle clipping now checks all 20 occupied deck slabs with 0.066 world
+units of clearance at 31 poses spanning standing, walking, turning and stopping.
+The corrected asset was reproduced byte-for-byte twice; the original rig,
+inverse binds, contact pool and combat target region remain preserved.
+
+The older belly girdles still disappear into the flesh body. A closed replacement
+was attempted with skin anchors and exact face/skin intersection tests. It still
+crossed a swinging forelimb, so the implementation and its failed tests were
+archived outside the runtime and rejected. The restored runtime is byte-identical
+to fingerprint `d932c2814b11d323b8fe368e5e50fa940450276419545e82f3c2d588cdfcbcf1`,
+which passed all 370 tests after build `69feb5cf51fe3d04acb4`. Every test-source
+hash also matches that recorded run. Only the reporting packager changed later.
+The original strap limitation remains visible and must not be described as fixed.
+
 Known inherited limitation: flesh saddle district cannon artwork uses saddle
 mounts while numerical firing geometry still follows the historical vertical
 layout. This remake does not silently rebalance or change that system.

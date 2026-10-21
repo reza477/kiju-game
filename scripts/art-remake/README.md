@@ -2,15 +2,16 @@
 
 These offline tools build a new anatomical body around the existing 54-joint
 Meshy rig. The ribcage, shoulders, haunches, limbs, tail, skull, brows, muzzle,
-ears, cranial crest and horns are smooth unions of authored shapes. The eyes and nostrils are
-separate forms in the same primitive. Broad vertex paint supplies the colour.
+ears and cranial crest are authored shapes with deliberate broad planes. Small
+eyes sit inside carved orbits; nostrils and the mouth are recessed. Separate swept
+horns retain hard normal planes. Broad vertex paint supplies the colour.
 This is a local derivative, not a new Meshy generation or an atlas projection.
 
 The original GLB is read only. All 85,568 original positions, UVs, joint indices
 and weights remain an unchanged contact pool in the result. Only 261 of these
 vertices are drawn, as 506 new convex paw-hull triangles. Their positions and
 weights are exact; their normals are recomputed for the clean hull surfaces.
-The new body adds 80,578 vertices. The original rig, hierarchy and inverse bind
+The new body adds 77,668 vertices. The original rig, hierarchy and inverse bind
 matrices remain unchanged. The packed output contains one skinned primitive.
 
 ## Rebuild
@@ -30,7 +31,7 @@ $sourceGlb = Join-Path $repoPath 'assets/carriers/meshy/flesh.glb'
 python -m pip install --target $depsDir -r scripts/art-remake/requirements.txt
 node scripts/art-remake/inventory-carrier.mjs --repo $repoPath --input $sourceGlb --output "$outputDir/inventory.json"
 python scripts/art-remake/author-flesh-body.py --repo $repoPath --input $sourceGlb --inventory "$outputDir/inventory.json" --deps $depsDir --output-dir $outputDir
-node scripts/art-remake/pack-authored-flesh.mjs --input "$outputDir/authored-flesh-v4-prototype.glb" --output "$outputDir/flesh-sculpt.glb" --report "$outputDir/packing.json"
+node scripts/art-remake/pack-authored-flesh.mjs --input "$outputDir/authored-flesh-v5-prototype.glb" --output "$outputDir/flesh-sculpt.glb" --report "$outputDir/packing.json"
 Get-FileHash -Algorithm SHA256 "$outputDir/flesh-sculpt.glb"
 ```
 
@@ -44,8 +45,8 @@ rebuilt packed GLB was byte identical to the integrated candidate:
 
 * Source: `assets/carriers/meshy/flesh.glb`, 10,440,784 bytes,
   SHA-256 `b9dcc002b95c6495522a8b2a7ec8a27fb88de7add8a2e0265a34177b3a9c872f`.
-* Result: `assets/art-remake/flesh-sculpt.glb`, 12,591,528 bytes,
-  SHA-256 `7033228cb23c75c75391885f08598cc9125fd787dcc25dfec3a24fb62179ff09`.
+* Result: `assets/art-remake/flesh-sculpt.glb`, 12,255,228 bytes,
+  SHA-256 `8f827f1d1d586c2d4688d0d4e5606d7d6980b8e87062e09065aeb21e2666b4ed`.
 
 See `asset-sources/authored-flesh.json` for the actual runtime versions, script
 hashes and preserved evidence locations. Cross-platform byte identity is not
@@ -55,7 +56,7 @@ these tools never overwrite the runtime asset themselves.
 ## Regression and integration
 
 ```powershell
-node --test tests/authored-flesh.test.mjs
+node --test tests/authored-flesh.test.mjs tests/authored-flesh-saddle.test.mjs
 ```
 
 The tests read the actual integrated asset and check its hash, original contact
@@ -69,7 +70,7 @@ This catches a floating or penetrating replacement paw even if the hidden
 contact pool still passes. It does not certify browser animation or art quality.
 
 Runtime integration must preserve vertex colours and the `authoredFlesh` and
-`sourceContactVertices` metadata, and skip the old shredded-mesh smoothing path.
+`sourceContactVertices` metadata, and skip the old shredded-mesh smoothing and seam-normal passes.
 New body weights are explicitly authored; blends retain their largest four
 influences. The recorded maximum discarded mixture mass applies only to new
 vertices, never the retained source skin. Real gameplay captures and independent
@@ -79,3 +80,17 @@ Version 4 restores the original upper-skull target region with a blended cranial
 crest following Bone_053 and Bone_029. The unchanged combat regression also
 passes for all six carrier targets (`node --test tests/meshy-monster-combat.test.mjs`).
 No attack range, marker, ray height or solver tolerance was adjusted.
+
+Version 5 refines the face, articulation and horn silhouette while retaining that
+crest and all source contact data. A production-cache regression verifies that
+authored skin and horn normals survive loading exactly. No noisy displacement
+is used. The robot normal processing remains unchanged.
+
+The final v5 saddle-fit revision lowers the rear dorsal arc, narrows the ribcage
+and haunches, lowers the deltoids and tapers the proximal rear limbs. It uses
+coherent anatomical forms, with no deck-shaped cutouts. A separate regression
+compares exact posed visible triangles with all 20 occupied walking slabs in
+31 standing, walking, turning and stopping poses over 360 frames. The authored
+skin clears slabs expanded by .12 rig units (6.6 cm at the .55 world scale); the
+original visible source also has zero nominal slab crossings in the same poses.
+This is a bounded sampled-pose guarantee, not an exhaustive animation proof.

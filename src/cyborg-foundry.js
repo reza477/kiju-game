@@ -19,14 +19,14 @@ export function buildFoundryCyborg(mesh) {
   let position = [], normal = [], color = [], uv = [], skinIndex = [], skinWeight = [];
   const parts=[];
   const palette = Object.fromEntries(Object.entries({armor:0x586d62, ivory:0xb3b39a, iron:0x34494b, dark:0x243033, brass:0x9d8053, amber:0xe8bd65}).map(([k,v])=>[k,new T.Color(v)]));
-  const add = (geometry, centre, rotation, boneName, paint, secondBone = null) => {
+  const add = (geometry, centre, rotation, boneName, paint, secondBone = null, role = null) => {
     if (rotation) geometry.applyQuaternion(rotation);
     geometry.translate(centre.x, centre.y, centre.z);
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     const p = g.attributes.position, n = g.attributes.normal, t = g.attributes.uv;
     let volume=0;const a=new T.Vector3(),b=new T.Vector3(),c=new T.Vector3();
     for(let i=0;i<p.count;i+=3){a.fromBufferAttribute(p,i).sub(centre);b.fromBufferAttribute(p,i+1).sub(centre);c.fromBufferAttribute(p,i+2).sub(centre);volume+=a.dot(b.cross(c))/6;}
-    parts.push({bone:boneName,vertices:p.count,volume});
+    parts.push({bone:boneName,firstVertex:position.length/3,vertices:p.count,volume,role});
     const boneIndex = joint(boneName), other = secondBone ? joint(secondBone) : boneIndex;
     for (let i=0;i<p.count;i++) {
       position.push(p.getX(i),p.getY(i),p.getZ(i));
@@ -47,8 +47,8 @@ export function buildFoundryCyborg(mesh) {
     const g=new T.ExtrudeGeometry(shape,{depth:d-bevel*2,steps:1,bevelEnabled:true,bevelSegments:1,bevelSize:bevel,bevelThickness:bevel,curveSegments:1});
     g.translate(0,0,-(d-bevel*2)/2); add(g,centre,rotation,name,paint);
   };
-  const ball=(name,centre,r,paint='dark')=>add(new T.SphereGeometry(r,16,10),centre,null,name,paint);
-  const casing=(name,centre,w,h,d,paint='armor',rotation=null)=>{
+  const ball=(name,centre,r,paint='dark',role=null)=>add(new T.SphereGeometry(r,16,10),centre,null,name,paint,null,role);
+  const casing=(name,centre,w,h,d,paint='armor',rotation=null,role=null)=>{
     // Rounded, tapered castings have a waist, broad shoulder and rolled ends.
     // The cross-section is a squarish oval; it is not a dressed-up box face.
     const rings=[[-.5,.62],[-.45,.91],[-.27,1], [.22,1.04],[.43,.91],[.5,.64]],segments=24,p=[],indices=[];
@@ -61,19 +61,19 @@ export function buildFoundryCyborg(mesh) {
     }
     for(let i=1;i<segments-1;i++){indices.push(0,i,i+1);const e=(rings.length-1)*segments;indices.push(e,e+i+1,e+i);}
     const g=new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute(p,3)).setIndex(indices);g.computeVertexNormals();
-    add(g,centre,rotation,name,paint);
+    add(g,centre,rotation,name,paint,null,role);
   };
-  const cylinder=(name,a,b,r,paint='iron',r2=r)=>{
+  const cylinder=(name,a,b,r,paint='iron',r2=r,role=null)=>{
     const delta=b.clone().sub(a), q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,1,0),delta.clone().normalize());
-    add(new T.CylinderGeometry(r2,r,delta.length(),16,1),a.clone().lerp(b,.5),q,name,paint);
+    add(new T.CylinderGeometry(r2,r,delta.length(),16,1),a.clone().lerp(b,.5),q,name,paint,null,role);
   };
   const bearing=(name,centre,r)=>{
     ball(name,centre,r*.77,'dark');
     add(new T.TorusGeometry(r*.76,r*.14,6,20),centre,new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/2),name,'brass');
   };
-  const limb=(name,end,w,d,paint)=>{
+  const limb=(name,end,w,d,paint,role=null)=>{
     const a=at(name),b=at(end),delta=b.clone().sub(a);
-    casing(name,a.clone().lerp(b,.49),w,delta.length()*.77,d,paint,new T.Quaternion().setFromUnitVectors(new T.Vector3(0,-1,0),delta.normalize()));
+    casing(name,a.clone().lerp(b,.49),w,delta.length()*.77,d,paint,new T.Quaternion().setFromUnitVectors(new T.Vector3(0,-1,0),delta.normalize()),role);
   };
   const offset=(v,x,y,z)=>v.clone().add(new T.Vector3(x,y,z));
   const torso=at('Spine1'),hip=at('Hips'),head=at('Head');
@@ -100,6 +100,11 @@ export function buildFoundryCyborg(mesh) {
   }
   plate('Head',offset(head,0,.012,.129),.112,.054,.029,'iron');
   for(let i=0;i<3;i++)plate('Head',offset(head,(i-1)*.045,.165-i*.003,-.006),.014,.024,.172,'brass');
+  // A recessed rear radiator gives the broad helmet a readable working side.
+  // Four rolled louvers share one frame, within the existing body envelope.
+  plate('Head',offset(head,0,.078,-.106),.128,.092,.012,'iron');
+  for(let i=0;i<4;i++)plate('Head',offset(head,0,.052+i*.018,-.116),.106,.006,.021,'ivory',
+    new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-.28));
   for(const side of['Left','Right']){
     const sign=side==='Left'?1:-1;
     bearing(side+'Shoulder',at(side+'Arm'),.111);
@@ -109,8 +114,17 @@ export function buildFoundryCyborg(mesh) {
     casing(side+'Shoulder',offset(at(side+'Arm'),sign*.024,.092,-.012),.227,.025,.25,'brass');
     limb(side+'Arm',side+'ForeArm',.14,.16,'iron');
     bearing(side+'ForeArm',at(side+'ForeArm'),.077);
-    limb(side+'ForeArm',side+'Hand',.17,.173,'armor');
+    limb(side+'ForeArm',side+'Hand',.17,.173,'armor',side+' forearm casting');
     const a=at(side+'ForeArm'),b=at(side+'Hand');
+    // The forearm shell ends before the hand pivot. A fixed forearm sleeve
+    // overlaps that shell and ends at the shared wrist centre; the hand-owned
+    // ball turns inside it. Both centres remain coincident under wrist IK.
+    const wristAxis=b.clone().sub(a).normalize();
+    cylinder(side+'ForeArm',a.clone().lerp(b,.78),b,.051,'iron',.055,side+' wrist sleeve');
+    cylinder(side+'ForeArm',a.clone().lerp(b,.80),a.clone().lerp(b,.91),.064,'armor');
+    ball(side+'Hand',b,.056,'dark',side+' wrist bearing');
+    add(new T.TorusGeometry(.055,.006,6,20),b.clone().addScaledVector(wristAxis,-.014),
+      new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,1),wristAxis),side+'ForeArm','brass');
     cylinder(side+'ForeArm',offset(a,-sign*.044,-.025,.065),offset(b,-sign*.044,.045,.065),.017,'brass');
     bearing(side+'UpLeg',at(side+'UpLeg'),.094);
     limb(side+'UpLeg',side+'Leg',.172,.205,'armor');
@@ -151,6 +165,6 @@ export function buildFoundryCyborg(mesh) {
   geometry.computeBoundingBox();geometry.computeBoundingSphere();
   geometry.userData.sourceContactVertices=p.count;
   geometry.userData.sourceContactBounds={min:source.boundingBox.min.toArray(),max:source.boundingBox.max.toArray()};
-  geometry.userData.foundryCyborg={authoredVertices,retainedTriangles,sourceTriangles:(source.index?.count??p.count)/3,parts};
+  geometry.userData.foundryCyborg={authoredVertices,retainedTriangles,sourceTriangles:(source.index?.count??p.count)/3,parts:parts.map(part=>({...part,firstVertex:part.firstVertex+p.count}))};
   return geometry;
 }

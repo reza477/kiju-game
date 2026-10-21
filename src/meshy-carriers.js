@@ -139,7 +139,9 @@ function prepareMaster(gltf, kind, bytes) {
         geometry.computeBoundingBox(); geometry.computeBoundingSphere();
         derived.geometry.dispose();
       }
-      softenCarrierNormals(geometry, kind === 'flesh' ? 100 : 38);
+      // Authored flesh already supplies smooth skin normals and deliberate
+      // hard horn planes. The imported seam pass would erase that distinction.
+      if (kind !== 'flesh' || !geometry.userData.authoredFlesh) softenCarrierNormals(geometry, kind === 'flesh' ? 100 : 38);
     }
     geometries.add(geometry); triangles += (geometry.index?.count ?? geometry.attributes.position.count) / 3;
     object.castShadow = true; object.receiveShadow = true;
@@ -157,9 +159,11 @@ function prepareMaster(gltf, kind, bytes) {
         // reflectance as one restrained material family instead of retaining
         // the imported near-black / sharp metallic response.
         material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .16);
-        material.metalness *= kind === 'cyborg' ? .34 : .04;
+        // The new paint families already define their physical response. The
+        // legacy imported-map correction must not flatten that response twice.
+        if(!authored)material.metalness *= kind === 'cyborg' ? .34 : .04;
         material.envMapIntensity = kind === 'cyborg' ? .42 : .32;
-        const floor = foundry ? '.46' : kind === 'cyborg' ? '.64' : '.84';
+        const floor = authored ? '0.0' : kind === 'cyborg' ? '.64' : '.84';
         material.onBeforeCompile = shader => {
           if(authored){
             // The existing shared paint library owns this texture. Bind-space
@@ -189,7 +193,7 @@ function prepareMaster(gltf, kind, bytes) {
           shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
             '#include <roughnessmap_fragment>\nroughnessFactor = ' + floor + ' + (1.0 - ' + floor + ') * roughnessFactor;');
         };
-        material.customProgramCacheKey = () => 'remake-carrier-painted-v7-' + kind + (authored?'-authored':'');
+        material.customProgramCacheKey = () => 'remake-carrier-painted-v8-' + kind + (authored?'-authored':'');
       }
       materials.add(material);
       for (const value of Object.values(material)) if (value?.isTexture) {

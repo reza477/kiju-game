@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "name": "Authored anatomical flesh body v4",
+  "name": "Authored anatomical flesh body v5",
   "createdAt": "2026-10-21",
-  "method": "New smooth-union SDF anatomical forms and vertex paint around the original Meshy skeleton. Original paw vertices define clean convex hull faces; the original rig and contact attributes remain byte exact. This is a locally authored derivative, not a new Meshy generation.",
+  "method": "New broad anatomical SDF forms and vertex paint around the original Meshy skeleton, with explicit swept horn meshes and recessed facial features. Original paw vertices define clean convex hull faces; the source rig and contact attributes remain byte exact. This is a locally authored derivative, not a new Meshy generation.",
   "source": {
     "path": "assets/carriers/meshy/flesh.glb",
     "sha256": "b9dcc002b95c6495522a8b2a7ec8a27fb88de7add8a2e0265a34177b3a9c872f",
@@ -10,8 +10,8 @@
   },
   "output": {
     "path": "assets/art-remake/flesh-sculpt.glb",
-    "sha256": "7033228cb23c75c75391885f08598cc9125fd787dcc25dfec3a24fb62179ff09",
-    "bytes": 12591528
+    "sha256": "8f827f1d1d586c2d4688d0d4e5606d7d6980b8e87062e09065aeb21e2666b4ed",
+    "bytes": 12255228
   },
   "generator": {
     "scripts": [
@@ -21,7 +21,7 @@
       },
       {
         "path": "scripts/art-remake/author-flesh-body.py",
-        "sha256": "a884f40190845d13be694a16eb076f19ab2be59cd2b6ab99b6fcf93abcca4129"
+        "sha256": "785ce84d8204b0ad02588f91061281e5aa72c2fc96a84d598aea364c0f5ef294"
       },
       {
         "path": "scripts/art-remake/pack-authored-flesh.mjs",
@@ -39,55 +39,75 @@
   },
   "geometry": {
     "sourceContactVertices": 85568,
-    "newVertices": 80578,
-    "totalVertices": 166146,
-    "visibleTriangles": 161630,
+    "newVertices": 77668,
+    "totalVertices": 163236,
+    "visibleTriangles": 149126,
     "pawHullTriangles": 506,
     "pawHullVertices": 261,
     "visibleBounds": [
       [
         -0.7382344007492065,
-        2.3633798917899185e-8,
+        2.3633798917899185e-08,
         -1.2647355794906616
       ],
       [
         0.7591638565063477,
-        1.6199201345443726,
-        1.2869999408721924
+        1.6684231758117676,
+        1.2952536344528198
       ]
     ],
-    "newWeightSumMaximumError": 1.7881393432617188e-7,
-    "maximumDiscardedNewInfluenceMass": 0.1933254599571228,
-    "newPawWeightMax": 0.3199998140335083
+    "newWeightSumMaximumError": 1.7881393432617188e-07,
+    "maximumDiscardedNewInfluenceMass": 0.20357000827789307,
+    "newPawWeightMax": 0.3199998438358307
   },
   "reproducibility": {
     "verified": true,
-    "verifiedAt": "2026-10-21T04:27:27.770Z",
-    "method": "Ran tracked inventory, authoring and packing scripts twice into independent fresh output folders with explicit inputs. Both packed GLBs and the integrated asset are byte identical.",
-    "rebuiltOutput": "artifacts/art-remake/mesh-experiments/crest-v4-rebuild/flesh-sculpt.glb",
-    "sha256": "7033228cb23c75c75391885f08598cc9125fd787dcc25dfec3a24fb62179ff09",
+    "verifiedAt": "2026-10-21T05:12:36.682302+00:00",
+    "method": "The tracked authoring script was run into two fresh output folders, then each was packed. Both packed GLBs and the integrated asset are byte identical.",
+    "rebuiltOutput": "artifacts/art-remake/round4-preparation/flesh/saddle-fit-rebuilt/flesh-sculpt.glb",
+    "sha256": "8f827f1d1d586c2d4688d0d4e5606d7d6980b8e87062e09065aeb21e2666b4ed",
     "evidence": [
-      "artifacts/art-remake/mesh-experiments/crest-v4-inventory-run.json",
-      "artifacts/art-remake/mesh-experiments/crest-v4-authoring-run.json",
-      "artifacts/art-remake/mesh-experiments/crest-v4-packing-run.json",
-      "artifacts/art-remake/mesh-experiments/crest-v4-rebuild-run.json"
+      "artifacts/art-remake/round4-preparation/flesh/saddle-fit-02-run.json",
+      "artifacts/art-remake/round4-preparation/flesh/saddle-fit-02-packing-run.json",
+      "artifacts/art-remake/round4-preparation/flesh/saddle-fit-rebuilt-run.json",
+      "artifacts/art-remake/round4-preparation/flesh/saddle-fit-rebuilt-packing-run.json",
+      "artifacts/art-remake/round4-preparation/flesh/saddle-fit-integration.json"
     ],
-    "scope": "Verified on the listed Windows/Python/Node/library environment; cross-platform bit identity is not asserted."
+    "scope": "Verified on listed Windows/Python/Node/library versions; cross-platform byte identity is not asserted."
   },
   "validation": {
-    "test": "node --test tests/authored-flesh.test.mjs",
-    "offlineReport": "artifacts/art-remake/mesh-experiments/crest-v4/validation.json",
+    "test": "node --test tests/authored-flesh.test.mjs tests/authored-flesh-saddle.test.mjs tests/meshy-monster-combat.test.mjs",
     "cpuFrames": 360,
     "terrain": ".045*x + .025*z + .15*sin(z*.15)",
-    "maxRenderedGapAboveSource": 0,
-    "minRenderedClearance": 0.004011706051025632,
-    "minHullFaceClearance": 0.005919683634765915,
-    "combat": {
-      "command": "node --test tests/meshy-monster-combat.test.mjs",
-      "tests": 8,
-      "passed": 8,
-      "evidence": "artifacts/art-remake/mesh-experiments/crest-v4-combat.txt",
-      "run": "artifacts/art-remake/mesh-experiments/crest-v4-combat-run.json"
+    "runtimeTests": {
+      "status": "PASS",
+      "passed": 14,
+      "total": 14,
+      "evidence": "artifacts/art-remake/round4-preparation/flesh/saddle-fit-tests.txt",
+      "run": "artifacts/art-remake/round4-preparation/flesh/saddle-fit-tests-run.json"
+    },
+    "saddlePrecheck": {
+      "samples": 25,
+      "marginRigUnits": 0.12,
+      "marginWorldUnits": 0.066,
+      "intersections": 0,
+      "evidence": "artifacts/art-remake/round4-preparation/flesh/saddle-check/saddle-fit-02.json"
+    },
+    "saddleRegression": {
+      "frames": 360,
+      "sampledPoses": 31,
+      "occupiedMounts": 20,
+      "poses": [
+        "standing",
+        "walking",
+        "turning",
+        "stopping"
+      ],
+      "marginRigUnits": 0.12,
+      "marginWorldUnits": 0.066,
+      "originalVisibleIntersections": 0,
+      "authoredVisibleIntersections": 0,
+      "method": "Exact triangle/slab clipping of actual indexed posed visible skin. Original source faces are evaluated at the byte-exact retained original vertex prefix in the identical posed skeleton. Whole-mesh bounds and invisible-pool vertices are not collision evidence."
     }
   },
   "limitations": [
@@ -98,10 +118,10 @@
     "SourceContactVertices metadata must remain available to contact inspection. The legacy smoothing for the old shredded mesh must be skipped for authoredFlesh assets."
   ],
   "previousGeneration": {
-    "name": "Authored anatomical flesh body v3",
-    "sha256": "8e67ac5674fb80e76592bfc30a2d2d72b271367e178323225e75bd20f79c8032",
-    "bytes": 12524648,
-    "provenance": "artifacts/art-remake/mesh-experiments/crest-v4-before-provenance.json"
+    "name": "Authored anatomical flesh body v5 before saddle clearance correction",
+    "sha256": "5847e16c54b1ee276139528ad63f052ab96bde5fd30a2f7a95f11ce5db05e782",
+    "bytes": 12619372,
+    "provenance": "artifacts/art-remake/round4-preparation/flesh/before-saddle-fit-provenance.json"
   },
-  "changesSincePrevious": "Restore a smooth upper cranial crest around [-0.064,1.42,0.66], radii [0.20,0.20,0.20], primarily attached to Bone_053 and Bone_029. It restores visible anatomy crossed by the existing combat-height rays. No combat math, range, target proxy or tolerances changed."
+  "changesSincePrevious": "Lower the rear dorsal arc and shorten its shoulder hump; narrow the ribcage and haunches, lower the deltoids and taper the proximal rear limbs. These coherent form edits clear the unchanged occupied saddle decks, without deck-shaped cutouts. Retain v5 facial planes, horns, v4 combat crest, original source contact pool, paw hulls, complete rig and body fitting."
 }
