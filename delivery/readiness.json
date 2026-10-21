@@ -1,6 +1,21 @@
 {
   "eligible": false,
-  "reason": "The visual release gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. Frozen source d55644881550aa3d4aaa2dd5873492f13435754f, build af7991973d3ec6fc31ad, passes the complete Linux functional gate in Actions run 36382922486: 226/226 unit tests, 12/12 game groups, 8/8 transport and 3/3 startup regressions, synthetic credential confinement and all 111 exact runtime files. Matching Windows game checks pass 12/12 with the same A/B build IDs and artifact hash. Production runtime is unchanged since bf24be2. The Actions run stops at release eligibility and publication is skipped. Obtain a passing art review or explicit art-only owner exception for private playtesting before enabling release; preserve all functional, privacy and included-only usage checks. Generic private hosting is verified, but no playable game is hosted. Actual scoped CI publishing, hosted game A-to-B, desktop WebKit and physical Apple-device checks remain unexercised.",
-  "evidence": "art-reviews/iphone-pass1-04.md",
-  "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
+  "reason": "The October painterly remake failed its fourth independent art review at 7.4/10. The flesh belly girdles still penetrate/disappear into the body; character, material and scene quality remain below the 8.5 target. Stop visual revisions after four rounds. The candidate passed 370 unit tests and all six bounded native movement/construction/save/reload checks, but these do not clear the art gate. Private playtest delivery is Configured but blocked. No push or deployment is authorized by these results; hosted, physical-device and remaining delivery checks are unverified for this candidate.",
+  "evidence": "art-reviews/ART_REMAKE_ROUND_04.md",
+  "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",
+  "reviewedImplementation": "70cf5e0d280eadcd36bfd56f7f6c4e3edd26512f",
+  "reviewedRuntimeFingerprint": "d932c2814b11d323b8fe368e5e50fa940450276419545e82f3c2d588cdfcbcf1",
+  "reviewedBuild": "69feb5cf51fe3d04acb4",
+  "visualRounds": [
+    6.2,
+    6.7,
+    7.2,
+    7.4
+  ],
+  "inheritedReleaseGate": {
+    "eligible": false,
+    "reason": "The visual release gate remains failed after four rounds (overall 6.9/10, HUD 8.4/10), with no owner exception. Frozen source d55644881550aa3d4aaa2dd5873492f13435754f, build af7991973d3ec6fc31ad, passes the complete Linux functional gate in Actions run 36382922486: 226/226 unit tests, 12/12 game groups, 8/8 transport and 3/3 startup regressions, synthetic credential confinement and all 111 exact runtime files. Matching Windows game checks pass 12/12 with the same A/B build IDs and artifact hash. Production runtime is unchanged since bf24be2. The Actions run stops at release eligibility and publication is skipped. Obtain a passing art review or explicit art-only owner exception for private playtesting before enabling release; preserve all functional, privacy and included-only usage checks. Generic private hosting is verified, but no playable game is hosted. Actual scoped CI publishing, hosted game A-to-B, desktop WebKit and physical Apple-device checks remain unexercised.",
+    "evidence": "art-reviews/iphone-pass1-04.md",
+    "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
+  }
 }

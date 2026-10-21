@@ -1,4 +1,4 @@
-# Painterly art remake — working record
+# Painterly art remake — reviewed candidate
 
 Owner request: remake the game's visual presentation using the direction from
 **Build kaiju city builder prototype**, retaining the existing game design and
@@ -60,12 +60,19 @@ files remain retained. Prompts are in `asset-sources/remake-paint.json` and
 rock/bark/wood scans and original Meshy source masters remain preserved. New
 artwork is not a replacement of every mesh or every source asset.
 
+The Meshy browser connection was unavailable after the existing-account sign-in
+attempt. No new Meshy generation was submitted and no credits were used. The new
+flesh geometry and robot castings were authored locally with reproducible tools;
+the original Meshy assets remain intact. This limitation does not waive the art
+review requirement.
+
 ## Verification and release
 
-Work in progress. Append final tested source identity and actual results here.
-Prior failed art gates remain historical and are not changed by this remake.
-The new visual update has its own maximum four independent rounds. Delivery is
-ineligible until its required checks and an actual 8.5/zero-error review pass.
+The fourth independent review is **7.4/10, FAIL**. The required 8.5/zero-error
+gate remains failed. All four rounds are complete and visual revisions stop for
+this update under the owner's limit. The playable local candidate is retained
+for review. Release eligibility remains false: **Configured but blocked**.
+Prior failed release evidence remains historical; no push or deployment occurred.
 
 Round 1 reviewed commit `33654f2bcb8532c868d917c55074d4746804037a`, raw runtime
 fingerprint `01fa0467f3dbbdd11f043d4c30a5721e4c92c53b366b534fd55899c5fca3d9f6`.
@@ -125,6 +132,40 @@ to fingerprint `d932c2814b11d323b8fe368e5e50fa940450276419545e82f3c2d588cdfcbcf1
 which passed all 370 tests after build `69feb5cf51fe3d04acb4`. Every test-source
 hash also matches that recorded run. Only the reporting packager changed later.
 The original strap limitation remains visible and must not be described as fixed.
+
+The fourth candidate is committed as
+`70cf5e0d280eadcd36bfd56f7f6c4e3edd26512f`. Its final build contains 146 files,
+144 precache entries and 85,495,484 bytes. Build and full-suite commands, times,
+exit codes and complete runtime/test inventories are retained in
+`artifacts/art-remake/checks/round4-build-final.json` and
+`round4-unit-final-attempt02.json`. Both the build and recording wrapper succeeded;
+the build's only expected runtime mutation was generated `src/build-info.js`.
+The suite ran after that metadata update and passed 370/370 checks.
+
+All six native 5-second movement/construction/save/reload cases passed between
+2026-10-21 05:29:32.975 and 05:33:50.227 UTC, exit 0, with zero browser errors or
+remote requests. Start/end source fingerprints match the complete unit-tested
+runtime. These bounded checks are recorded in
+`artifacts/art-remake/smoke-round4-final/report.json`. The 90-callback stationary
+samples have p50 intervals of 10.6–11.0 ms and p95 of 21.1–21.9 ms. These are
+native callback observations, not GPU times or sustained benchmarks. There is
+no matching baseline timing run, physical-phone check or thermal/battery test.
+
+Round 4's immutable review is `art-reviews/ART_REMAKE_ROUND_04.md`. The critic
+made 16 fresh visits across 12 runs, including the five matched views, all six
+variants, reverse/night views and both native kaiju walks. All runs exited 0.
+There were zero browser errors/failed requests and 24 retained D3D shader
+precision warnings, with no reported non-runnable shader or lost context.
+The cyborg wrists stay connected in the inspected motion and the flesh deforms
+coherently, but the belly straps still penetrate/disappear into the torso.
+The ranked quality deficits are hero sculpt/material craft, carrier/city
+structural integration, medium-scale landscape authorship and basic airship
+surfaces. Functional checks do not change the **7.4/10, FAIL** conclusion.
+
+Later commits containing this report, release-blocker metadata and the immutable
+fourth review change reporting only. The captured implementation remains
+`70cf5e0d280eadcd36bfd56f7f6c4e3edd26512f` with the exact runtime fingerprint
+recorded above. The handoff manifest identifies the later selected final commit.
 
 Known inherited limitation: flesh saddle district cannon artwork uses saddle
 mounts while numerical firing geometry still follows the historical vertical
