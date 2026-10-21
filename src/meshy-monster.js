@@ -1,5 +1,6 @@
 import * as T from '../vendor/three.module.js';
 import {markMeshyCarrierPose} from './meshy-carriers.js';
+import {createMonsterDisplayPose} from './monster-display-rig.js';
 
 // Inspected 54-joint Smart Rig exported from the owner's remeshed monster.
 // This asset has a valid skin but no exported clips. This adapter poses only
@@ -19,20 +20,27 @@ const smooth = value => value * value * (3 - 2 * value);
 
 export function inspectMeshyMonsterRig(instance) {
   if (!instance?.body?.isObject3D || !instance.root?.isObject3D) throw new Error('Monster pose requires an imported carrier instance');
-  const bones = new Map(), meshes = [];
-  instance.body.traverse(object => {if (object.isBone) bones.set(object.name, object); if (object.isSkinnedMesh) meshes.push(object);});
-  if (meshes.length !== 1 || bones.size !== 54 || instance.capabilities?.animations?.length) throw new Error('Monster pose requires the inspected 54-joint static Smart Rig');
+  const bones = new Map(), allBones = new Map(), meshes = [];
+  instance.body.traverse(object => {if (object.isBone) allBones.set(object.name, object); if (object.isSkinnedMesh) meshes.push(object);});
+  for(let i=0;i<54;i++){const name='Bone_'+String(i).padStart(3,'0');if(allBones.has(name))bones.set(name,allBones.get(name));}
+  if (meshes.length !== 1 || instance.capabilities?.animations?.length) throw new Error('Monster pose requires the inspected 54-joint static Smart Rig');
+  if (bones.size !== 54) throw new Error('Monster rig differs from the inspected 54-joint static Smart Rig');
+  const displayRig=meshes[0].userData.displayLimbRig;
+  const displayNames=displayRig?.chains?.flatMap(chain=>chain.joints)??[];
+  if(displayRig&&(displayRig.version!==1||displayRig.chains?.length!==4))throw new Error('Unsupported monster display rig');
+  if(new Set(displayNames).size!==displayNames.length||displayNames.some(name=>bones.has(name)||!allBones.has(name))||allBones.size!==54+displayNames.length)throw new Error('Monster has undeclared display joints');
   for (const chain of Object.values(MONSTER_RIG)) for (let i = 0; i < chain.length; i++) {
     if (!bones.has(chain[i]) || i && bones.get(chain[i]).parent !== bones.get(chain[i - 1])) throw new Error('Monster chain differs from the inspected rig: ' + chain[i]);
   }
   if (bones.get('Bone_040').parent?.name !== 'Bone_041') throw new Error('Monster strike requires its inspected scapula joint');
   if (!meshes[0].geometry.attributes.skinIndex || !meshes[0].geometry.attributes.skinWeight) throw new Error('Monster pose requires original skin weights');
-  return {bones, mesh: meshes[0]};
+  return {bones, allBones, mesh: meshes[0], displayRig};
 }
 
 export function createMeshyMonsterPose(instance, {groundHeight, strideDistance, initialPhase = 0, supportCrouch = 0} = {}) {
   if (typeof groundHeight !== 'function' || !Number.isFinite(strideDistance) || strideDistance <= 0 || !Number.isFinite(initialPhase) || !Number.isFinite(supportCrouch) || supportCrouch < 0 || supportCrouch > .25) throw new Error('Monster pose requires terrain sampling and a positive world stride');
-  const {bones, mesh} = inspectMeshyMonsterRig(instance), body = instance.body;
+  const inspected=inspectMeshyMonsterRig(instance),{bones,mesh}=inspected,body=instance.body;
+  const displayPose=createMonsterDisplayPose(instance,inspected);
   const inverse = new T.Matrix4(), matrix = new T.Matrix4(), position = new T.Vector3(), scale = new T.Vector3(), quaternion = new T.Quaternion();
   const bodyBone = bones.get('Bone_000'), bodyOrigin = bodyBone.position.clone();
   const rest = new Map([...bones].map(([name, bone]) => [name, bone.quaternion.clone()]));
@@ -245,9 +253,9 @@ export function createMeshyMonsterPose(instance, {groundHeight, strideDistance, 
       const actual = leg.end.localToWorld(scratch.copy(leg.soleOffset)); leg.error = actual.distanceTo(worldTarget);
       if (attacking) strikeError = strikeContact.distanceTo(strikeHand);
     }
-    lastMoving = Boolean(moving); body.updateWorldMatrix(true, true); mesh.updateMatrixWorld(true); markMeshyCarrierPose(instance);
+    lastMoving = Boolean(moving); body.updateWorldMatrix(true, true); displayPose?.update({strikeWeight}); mesh.updateMatrixWorld(true); markMeshyCarrierPose(instance);
     return status();
   }
   function status() {return {phase, disposed, strikeError, strikeSurfacePoint: strikeError === null ? null : strikeContact.toArray(), strikeVertexIndex: legs.find(leg => leg.key === 'frontRight').tipIndex, legs: legs.map(leg => ({name: leg.key, phase: leg.phase, planted: leg.contact, target: leg.target.toArray(), soleError: leg.error, sampledSkinClearance: leg.skinClearance, soleSamples: leg.samples.length, replanted: leg.replanted, replantCount: leg.replantCount}))};}
-  return {update, status, dispose() {disposed = true; for (const leg of legs) {leg.plant = null; leg.swing = null;}}, instance};
+  return {update,status,displayStatus:()=>displayPose?.status()??[],dispose() {disposed = true; for (const leg of legs) {leg.plant = null; leg.swing = null;}},instance};
 }

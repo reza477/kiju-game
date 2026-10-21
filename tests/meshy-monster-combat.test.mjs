@@ -1,4 +1,7 @@
 import test from 'node:test';
+import {cpuImageBitmap} from './beast-integration-cpu.mjs';
+import {createDisplayGeometryVerifier} from './beast-integration-display.mjs';
+import {saddleSlabCollisions,visibleSkinVerticesInRig} from './helpers/saddle-slab-clearance.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -20,11 +23,7 @@ function cpuBrowser() {
     if (url.protocol === 'blob:') return originals.get('fetch')(value, options);
     throw new Error('CPU fixture blocks nonlocal fetch: ' + url.protocol);
   };
-  globalThis.createImageBitmap = async blob => {
-    const bytes = Buffer.from(await blob.arrayBuffer());
-    assert.equal(bytes.toString('hex', 0, 8), '89504e470d0a1a0a');
-    return {width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20), close() {}};
-  };
+  globalThis.createImageBitmap = cpuImageBitmap;
   return () => {for (const [key, value] of originals) {if (value === undefined) delete globalThis[key]; else globalThis[key] = value;}};
 }
 
@@ -60,6 +59,10 @@ function foundationIntersections(mesh, rig) {
 
 const transform = object => [object.position.toArray(), object.quaternion.toArray(), object.scale.toArray()];
 const variants = [['crawler', 'standard'], ['crawler', 'drill'], ['kaiju', 'flesh'], ['kaiju', 'cyborg'], ['airship', 'horizontal'], ['airship', 'vertical']];
+// Include both sides of the late support-elbow transition. Endpoints alone
+// miss geometry that crosses a deck between reach, contact and recovery.
+// Dense strike checks exposed shoulder/deck crossings during recovery frames62–65.
+const loadedStrikeFrames=[0,12,24,29,31,32,42,57,58,59,60,62,63,64,65,77];
 const assetsPresent = ['flesh', 'cyborg'].every(kind => fs.existsSync(new URL('../assets/carriers/meshy/' + kind + '.glb', import.meta.url)));
 
 test('authored flesh contact pool excludes added fully weighted display vertices', {skip: !assetsPresent && 'Production Meshy carrier assets unavailable'}, async () => {
@@ -92,13 +95,18 @@ test('authored flesh contact pool excludes added fully weighted display vertices
   }
 });
 
-test('actual imported monster claw reaches all six original impact surfaces at 0.7s without stretching or intersecting its fixed foundation', {skip: !assetsPresent && 'Production Meshy carrier assets unavailable'}, async t => {
+test('actual imported monster claw reaches all six original impact surfaces without stretching or intersecting its fixed foundation and 20 occupied decks', {skip: !assetsPresent && 'Production Meshy carrier assets unavailable'}, async t => {
   const restore = cpuBrowser();
   try {
     const {loadMeshyCarriers} = await import('../src/meshy-carriers.js'); await loadMeshyCarriers();
-    const {makeCity, animateCity} = await import('../src/carriers.js'), {placeCity, GameScene} = await import('../src/scene.js'), sim = await import('../src/simulation.js');
-    for (const [faction, variant] of variants) await t.test(variant, () => {
-      const city = makeCity('kaiju', false, 1, 'flesh'), enemy = makeCity(faction, true, 1, variant);
+    const {makeCity, animateCity, setCityRings} = await import('../src/carriers.js'), {placeCity, GameScene} = await import('../src/scene.js'), sim = await import('../src/simulation.js');
+    for (const [faction, variant] of variants) await t.test(variant, context => {
+      const state=sim.createGame('kaiju','flesh');state.rings=2;
+      const added=state.buildings.flatMap((building,slot)=>building?[]:[slot]);
+      for(const slot of added)state.buildings[slot]={type:'housing',level:1,remaining:0};
+      state.towerOrder.push(...added);
+      const city = makeCity('kaiju', false, state.rings, 'flesh'), enemy = makeCity(faction, true, 1, variant);
+      setCityRings(city,state.rings,state.buildings,state.towerOrder);assert.equal(city.saddleLayout.floors.length,20,'All20 production deck slabs must be occupied during the strike');
       const reach = sim.meleeReach('kaiju', faction, 'flesh', variant); enemy.id = 'cpu-target';
       placeCity(city, -60, 30, 0); placeCity(enemy, -60, 30 + reach - .5, Math.PI);
       animateCity(city, 0, false, 0); animateCity(enemy, 0, false, 0);
@@ -113,25 +121,44 @@ test('actual imported monster claw reaches all six original impact surfaces at 0
         assert.ok(contact < contactCount, 'Strike sampling stays in the exact original contact pool');
         const signature = id => ['position', 'skinIndex', 'skinWeight'].flatMap(name => {const a=mesh.geometry.attributes[name];return Array.from({length:a.itemSize},(_,lane)=>a.getComponent(id,lane));}).join(',');
         const expected = signature(contact);
-        assert.ok([...new Set(mesh.geometry.index.array)].some(id => id < contactCount && signature(id) === expected), 'The selected original claw vertex '+contact+' remains on the visible paw hull, including exact UV seam duplicates');
+        const visible=new Set(mesh.geometry.index.array),matching=[...visible].filter(id=>signature(id)===expected);
+        assert.ok(matching.length>0, 'The selected original claw vertex '+contact+' remains on the visible paw hull, including exact UV seam duplicates');
+        if(mesh.userData.riggedBeast){
+          // The new UV atlas duplicates visible hull vertices after the hidden
+          // source pool. Require an exact rendered position/weight signature
+          // and explicit source mapping; index placement is not contact proof.
+          const hulls=Object.values(mesh.userData.visibleContactHulls??{});
+          assert.ok(hulls.some(hull=>hull.visibleVertexIds.some((id,i)=>visible.has(id)&&matching.includes(id)&&signature(hull.sourceVertexIds[i])===expected)), 'Visible strike duplicate must map to the exact original contact');
+        }
       }
       const bones = mesh.skeleton.bones.map(bone => ({bone, position: bone.position.toArray(), scale: bone.scale.toArray()}));
+      const originalNames=new Set(Array.from({length:54},(_,i)=>'Bone_'+String(i).padStart(3,'0'))),displayVerifier=mesh.userData.displayLimbRig?createDisplayGeometryVerifier(instance):null;
+      // Observe the production call, forwarding it unchanged. The verifier
+      // must not reconstruct the attack timing or assume a neutral-only pole.
+      const originalUpdate=controller.update;let observedStrikeWeight=0;
+      controller.update=function(args){observedStrikeWeight=args.strikeWeight??0;return originalUpdate.call(this,args);};
       const inverseBinds = mesh.skeleton.boneInverses.map(matrix => matrix.toArray());
-      const state = sim.createGame('kaiju', 'flesh'); state.time = 1;
+      state.time = 1;
       state.battle = {time: 0, enemyId: enemy.id, player: {x: -60, z: 30}, enemy: {x: -60, z: 30 + reach - .5}};
       const beforeSave = sim.serialize(state);
       const harness = {city, enemyCities: [enemy], state, scene: new T.Scene(), fx: [], cinematic: {mode: 'steady', impulse() {}}};
       GameScene.prototype.createEffect.call(harness, {kind: 'impact', source: 'player', time: 0, from: state.battle.player, to: state.battle.enemy, mounts: []});
       assert.ok(city.strikeTarget?.isVector3, 'Original surface raycast must produce the impact anchor');
-      const target = city.strikeTarget.clone(); let contactChecked = false;
+      const target = city.strikeTarget.clone(); let contactChecked = false,loadedStrikeSamples=0;
       for (let frame = 0; frame <= 78; frame++) {
         const time = 1 + frame / 60; animateCity(city, time, false, 0);
-        if ([0, 12, 24, 42, 60, 77].includes(frame)) assert.equal(foundationIntersections(mesh, city.rig), 0, variant + ' castle intersection at ' + frame / 60);
+        if (loadedStrikeFrames.includes(frame)) {
+          assert.equal(foundationIntersections(mesh, city.rig), 0, variant + ' castle intersection at ' + frame / 60);
+          city.root.updateMatrixWorld(true);
+          const counts=saddleSlabCollisions(visibleSkinVerticesInRig(mesh,city.rig),mesh.geometry.index.array,.12);
+          assert.deepEqual(counts,Array(20).fill(0),variant+' actual visible skin violates20 occupied slab clearance at strike-frame-'+frame+'; counts by tier '+JSON.stringify(counts));loadedStrikeSamples++;
+        }
         for (const {bone, position, scale} of bones) {
           assert.deepEqual(bone.scale.toArray(), scale, 'No bone stretching: ' + bone.name);
           if (bone.name === 'Bone_000') {assert.equal(bone.position.x, position[0]); assert.equal(bone.position.z, position[2]); assert.ok(Math.abs(bone.position.y - position[1]) <= .041);}
-          else assert.deepEqual(bone.position.toArray(), position, 'Original attachment length: ' + bone.name);
+          else if(originalNames.has(bone.name)) assert.deepEqual(bone.position.toArray(), position, 'Original attachment length: ' + bone.name);
         }
+        displayVerifier?.check(variant+' strike-frame-'+frame,{strikeWeight:observedStrikeWeight});
         if (frame !== 42) continue;
         const status = controller.status(), marker = city.strikeHand.getWorldPosition(new T.Vector3()), actual = new T.Vector3();
         actual.fromBufferAttribute(mesh.geometry.attributes.position, status.strikeVertexIndex); mesh.applyBoneTransform(status.strikeVertexIndex, actual).applyMatrix4(mesh.matrixWorld);
@@ -145,7 +172,8 @@ test('actual imported monster claw reaches all six original impact surfaces at 0
       }
       assert.ok(contactChecked); assert.equal(sim.serialize(state), beforeSave);
       assert.deepEqual(mesh.skeleton.boneInverses.map(matrix => matrix.toArray()), inverseBinds);
-      controller.dispose(); enemy.meshyCarrier?.controller?.dispose();
+      assert.equal(loadedStrikeSamples,loadedStrikeFrames.length);context.diagnostic(JSON.stringify({variant,loadedStrikeSamples,occupiedDecks:20,marginRigUnits:.12,marginWorldUnits:.066}));
+      controller.update=originalUpdate;controller.dispose(); enemy.meshyCarrier?.controller?.dispose();
     });
   } finally {restore();}
 });

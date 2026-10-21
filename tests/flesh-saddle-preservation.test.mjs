@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {cpuImageBitmap} from './beast-integration-cpu.mjs';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
@@ -192,7 +193,7 @@ test('saddle anchors initialize on the first placed terrain pose and remain atta
   globalThis.document={createElement:()=>({width:512,height:512,getContext:()=>context}),createElementNS:()=>({addEventListener(){},removeEventListener(){},setAttribute(){}})};
   globalThis.self=globalThis;
   globalThis.fetch=async(value,options)=>{const url=new URL(value);if(url.protocol==='file:')return new Response(readFileSync(fileURLToPath(url)),{headers:{'content-type':'model/gltf-binary'}});if(url.protocol==='blob:')return originals.get('fetch')(value,options);throw Error('CPU fixture blocks nonlocal fetch: '+url.protocol);};
-  globalThis.createImageBitmap=async blob=>{const bytes=Buffer.from(await blob.arrayBuffer());assert.equal(bytes.toString('hex',0,8),'89504e470d0a1a0a');return{width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),close(){}};};
+  globalThis.createImageBitmap=cpuImageBitmap;
   try{
     const {loadMeshyCarriers}=await import('../src/meshy-carriers.js');await loadMeshyCarriers();
     const {makeCity,animateCity,setCityRings}=await import('../src/carriers.js'),{placeCity}=await import('../src/scene.js'),{resolveImpactAnchor}=await import('../src/impact-anchor.js');

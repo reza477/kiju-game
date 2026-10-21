@@ -8,7 +8,7 @@ import {surfaceSet} from './surface-library.js';
 
 // This loader owns bodies only. City decks, picking, weapons, locomotion and
 // combat stay with the existing carrier. No remote request or rig-name guess.
-const files = Object.freeze({cyborg: '../assets/carriers/meshy/cyborg.glb', flesh: '../assets/art-remake/flesh-sculpt.glb'});
+const files = Object.freeze({cyborg: '../assets/carriers/meshy/cyborg.glb', flesh: '../assets/beast-integration/titanhorn-rigged.glb'});
 const instances = new WeakMap();
 const cloneData = value => JSON.parse(JSON.stringify(value));
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -120,6 +120,7 @@ function prepareMaster(gltf, kind, bytes) {
       if(kind==='flesh'&&object.userData.authoredFlesh){
         geometry.userData.authoredFlesh=true;
         geometry.userData.sourceContactVertices=object.userData.sourceContactVertices;
+        geometry.userData.riggedBeast=Boolean(object.userData.riggedBeast);
       }
       if (kind === 'cyborg' && object.isSkinnedMesh && geometry.attributes.position.count > 512 && object.skeleton.bones.some(b=>b.name==='mixamorigHips')) {
         const authored=buildFoundryCyborg(object);
@@ -149,8 +150,8 @@ function prepareMaster(gltf, kind, bytes) {
       if (!material?.isMeshStandardMaterial && !material?.isMeshBasicMaterial) throw new Error(kind + ' has an unsupported material');
       if (!materials.has(material) && material.isMeshStandardMaterial) {
         const foundry=Boolean(geometry.userData.foundryCyborg);
-        const authoredFlesh=Boolean(geometry.userData.authoredFlesh),authored=foundry||authoredFlesh;
-        if(authored){
+        const authoredFlesh=Boolean(geometry.userData.authoredFlesh),riggedBeast=Boolean(geometry.userData.riggedBeast),authored=foundry||authoredFlesh;
+        if(authored&&!riggedBeast){
           material.vertexColors=true;material.color.set(0xffffff);
           material.map=material.normalMap=material.roughnessMap=material.metalnessMap=material.aoMap=null;
           material.metalness=foundry?.3:0;material.roughness=foundry?.56:.82;
@@ -158,14 +159,15 @@ function prepareMaster(gltf, kind, bytes) {
         // Preserve the authored anatomy, rig and UV wear masks. Paint their
         // reflectance as one restrained material family instead of retaining
         // the imported near-black / sharp metallic response.
-        material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .16);
+        material.normalScale.multiplyScalar(riggedBeast?.55:kind === 'cyborg' ? .24 : .16);
+        if(riggedBeast){material.vertexColors=false;material.color.set(0xffffff);material.metalness=0;material.roughness=.92;}
         // The new paint families already define their physical response. The
         // legacy imported-map correction must not flatten that response twice.
         if(!authored)material.metalness *= kind === 'cyborg' ? .34 : .04;
         material.envMapIntensity = kind === 'cyborg' ? .42 : .32;
-        const floor = authored ? '0.0' : kind === 'cyborg' ? '.64' : '.84';
+        const floor = riggedBeast ? '.52' : authored ? '0.0' : kind === 'cyborg' ? '.64' : '.84';
         material.onBeforeCompile = shader => {
-          if(authored){
+          if(authored&&!riggedBeast){
             // The existing shared paint library owns this texture. Bind-space
             // projection follows the animated metal instead of swimming over it.
             shader.uniforms.foundryPaint={value:surfaceSet(foundry?'metal':'hide').map};
@@ -193,7 +195,7 @@ function prepareMaster(gltf, kind, bytes) {
           shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
             '#include <roughnessmap_fragment>\nroughnessFactor = ' + floor + ' + (1.0 - ' + floor + ') * roughnessFactor;');
         };
-        material.customProgramCacheKey = () => 'remake-carrier-painted-v8-' + kind + (authored?'-authored':'');
+        material.customProgramCacheKey = () => 'remake-carrier-painted-v10c-' + kind + (riggedBeast?'-titanhorn':authored?'-authored':'');
       }
       materials.add(material);
       for (const value of Object.values(material)) if (value?.isTexture) {

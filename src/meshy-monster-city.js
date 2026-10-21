@@ -4,6 +4,7 @@ import {createMeshyMonsterPose} from './meshy-monster.js';
 import {getMaterial,box,beam,batchStatic} from './materials.js';
 import {renderedTerrainHeight} from './terrain.js';
 import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
+import {createFleshHarness} from './saddle-harness.js';
 
 export const meshyMonsterReady=()=>meshyCarriersStatus().assets.find(asset=>asset.kind==='flesh')?.state==='ready';
 export const MONSTER_BODY_FIT=Object.freeze({x:-.325,y:-1.8,z:-12,scaleX:16,scaleY:21,scaleZ:16,strikeAdvance:3.3});
@@ -114,7 +115,9 @@ export function createMeshyMonsterCity(rig){
   instance.root.scale.set(fit.scaleX,fit.scaleY,fit.scaleZ);instance.root.position.set(fit.x,fit.y,fit.z);rig.add(instance.root);
   const renderMeshes=[];instance.body.traverse(object=>{if(object.isSkinnedMesh)renderMeshes.push(object);});
   const controller=createMeshyMonsterPose(instance,{groundHeight:renderedTerrainHeight,strideDistance:8.8,supportCrouch:.12});
-  const saddle=createSaddle(rig,renderMeshes);saddle.update();
+  const saddle=createSaddle(rig,renderMeshes),harness=createFleshHarness(rig,renderMeshes),setSaddleLoad=saddle.setLoad.bind(saddle);saddle.update();
+  saddle.setLoad=layout=>{setSaddleLoad(layout);harness.setLoad(layout);};
+  saddle.harness=harness;
   return {kind:'flesh',instance,controller,renderMeshes,saddle,previous:null,metrics:{animation:'Local four-legged gait on Meshy Smart Rig',visibleStrikeError:null}};
 }
 
@@ -134,6 +137,7 @@ export function animateMeshyMonsterCity(city,time,moving){
     strikeHand:active?city.strikeHand.getWorldPosition(new T.Vector3()):null,strikeWeight:weight});
   adapter.metrics.visibleStrikeError=status?.strikeError??null;
   adapter.metrics.unreachableStrike=weight>.999&&status?.strikeError>.025;
-  if(!adapter.saddleFitted){adapter.saddle.fitToPose();adapter.saddleFitted=true;}
+  if(!adapter.saddleFitted){adapter.saddle.fitToPose();adapter.saddle.harness.fitToPose();adapter.saddleFitted=true;}
   adapter.saddle.update();
+  adapter.saddle.harness.update();
 }

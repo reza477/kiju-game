@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "inputSha256": "526f96ce96552638cd45e80698388833fdfa32d76d5f26c43a7ebc6ff7533a80",
+  "sourceSha256": "697b53d8e64e818ac407806ae347e200b9341c5eff9663fe62079671efa7ee04",
+  "sourceBaseColorSha256": "d930c5cec47009ab7ddad20268e17fa5feaa3353f95ae1c7662bb18e6c374c78",
+  "paw": "frontLeft",
+  "chart": "side_2positive",
+  "previousUVBounds": [[0.49658203125, 0.02490234375], [0.52880859375, 0.05712890625]],
+  "replacementUVBounds": [[0.54736328125, 0.72998046875], [0.57177734375, 0.75439453125]],
+  "sourcePatchPixels2048": [50, 50],
+  "selection": "Original front-left foot +Z-facing skin, wholly inside the padded source-face UV mask. The coherent dark brown patch replaces the accidental broad pale claw cap; no image pixels are altered.",
+  "sourcePatchQuality": {
+    "meanRGB": [77.61668589004229, 59.90965013456363, 45.172625913110345],
+    "luminance5Median95": [41.459, 60.816, 88.0928],
+    "measurement": "Original JPEG pixels, inclusive rectangle sample; sRGB channel-weighted luma, not perceptual or linear-light luminance."
+  }
+}

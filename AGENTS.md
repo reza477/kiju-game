@@ -12,6 +12,8 @@ This retention limit supersedes the instruction below to preserve raw evidence i
 
 # Visual development review gate
 
+Owner authorization, 20 October 2026: rig and integrate the new private Titanhorn beast, fix the saddle straps, and start another independent review cycle. Preserve the latest game design and systems. This explicitly authorizes a new cycle of up to four rounds for that integration; previous reviews remain unchanged and do not count as a pass. Do not release until the required checks and an actual passing review are complete.
+
 ## Gothic construction rule
 
 Owner revision, 4 October 2026: the flesh quadruped is now a compact saddle city, with districts around its torso, waist and flanks and a low top load. It must not build a tall vertical tower. This supersedes the flesh-specific vertical rule below. Keep district IDs, construction order, saved progress, capacity, costs, upgrade benefits and movement/combat statistics. The cyborg still follows the half-height vertical castle rule. Treat any combat firing-geometry change separately from this presentation revision unless explicitly authorized.

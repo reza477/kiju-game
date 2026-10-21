@@ -18,18 +18,8 @@ function strap(group,points,material,r=.09){for(let i=1;i<points.length;i++)beam
 
 export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout){
  const group=new T.Group();group.name='Flesh colossus saddle and flank pannier decks';const p=palette(enemy);
- // Two broad girdles descend from the spine, down the panniers and beneath
- // the belly. They visually bind the separate loads into a riding saddle.
- for(const z of[-7.85,-15.25]){
-  if(z<-10&&!layout?.rearLoaded)continue;
-  const rear=z<-10,top=rear?24.3:29,ys=rear?[22.8,20.6,17.2,15.9,14.6]:[27.5,23.9,20.2,17.8,16.4];
-  const outline=[[-3.45,top-.43,z],[-5.45,ys[0],z],[-6.52,ys[1],z],[-7.17,ys[2],z],[-5.22,ys[3],z],[0,ys[4],z],[5.22,ys[3],z],[7.17,ys[2],z],[6.52,ys[1],z],[5.45,ys[0],z],[3.45,top-.43,z]];
-  for(let i=1;i<outline.length;i++){
-   const a=new T.Vector3(...outline[i-1]),b=new T.Vector3(...outline[i]),v=b.clone().sub(a),belt=box(group,.27,v.length(),.36,p.leather);
-   belt.position.copy(a).addScaledVector(v,.5);belt.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());
-  }
-  for(const side of[-1,1]){const y=rear?18.9:22.1;box(group,.17,.98,.4,p.brass,side*6.85,y,z);box(group,.19,.63,.26,p.dark,side*6.86,y,z);box(group,.21,.09,.32,p.brass,side*6.98,y,z);}
- }
+ // The carrier owns the continuous skin-following girdles. Foundation rebuilds
+ // only recreate occupied cargo decks, never a second static belt in the torso.
  for(const f of layout?.floors??[]){
   const mount=layout.positions[f.slot],g=new T.Group();g.name=`Saddle deck for district ${f.slot}`;g.position.set(mount.x,deckY+mount.y,mount.z);g.rotation.y=mount.rotation;
   Object.assign(g.userData,{saddleDistrict:true,slot:f.slot,tier:f.tier});group.add(g);

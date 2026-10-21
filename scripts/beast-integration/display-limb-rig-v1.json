@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "space": "model",
+  "originalJointCount": 54,
+  "chains": [
+    {
+      "key": "frontLeft",
+      "joints": [
+        "Titanhorn_frontLeft_upper",
+        "Titanhorn_frontLeft_hinge",
+        "Titanhorn_frontLeft_end"
+      ],
+      "lengths": [
+        0.5040000000000001,
+        0.6160000000000001
+      ],
+      "sourceRoot": "Bone_035",
+      "sourceEnd": "Bone_033",
+      "rootOffset": [
+        0.027057351335308233,
+        0.19176858038819145,
+        0.004577182659130652
+      ],
+      "endOffset": [
+        0,
+        0,
+        0
+      ],
+      "frameBone": "Bone_007",
+      "frameNeutralQuaternion": [
+        0.29659373365920644,
+        -0.08880729790258261,
+        -0.08880722024687578,
+        0.9467094055861897
+      ],
+      "sourceEndNeutralQuaternion": [
+        0.8979398325650443,
+        -0.2439889252412786,
+        -0.24398901775058307,
+        0.2732083832347964
+      ],
+      "pole": [
+        0,
+        -0.35,
+        -1
+      ]
+    },
+    {
+      "key": "frontRight",
+      "joints": [
+        "Titanhorn_frontRight_upper",
+        "Titanhorn_frontRight_hinge",
+        "Titanhorn_frontRight_end"
+      ],
+      "lengths": [
+        0.5175,
+        0.6325
+      ],
+      "sourceRoot": "Bone_040",
+      "sourceEnd": "Bone_038",
+      "rootOffset": [
+        0.01533113206455436,
+        0.19176852804289735,
+        -0.08504945144687215
+      ],
+      "endOffset": [
+        0,
+        0,
+        0
+      ],
+      "frameBone": "Bone_007",
+      "frameNeutralQuaternion": [
+        0.29659373365920644,
+        -0.08880729790258261,
+        -0.08880722024687578,
+        0.9467094055861897
+      ],
+      "sourceEndNeutralQuaternion": [
+        0.8735808547030673,
+        0.19166803737172913,
+        0.19166806039487647,
+        0.404206888079352
+      ],
+      "pole": [
+        0,
+        -0.35,
+        -1
+      ]
+    },
+    {
+      "key": "rearLeft",
+      "joints": [
+        "Titanhorn_rearLeft_upper",
+        "Titanhorn_rearLeft_hinge",
+        "Titanhorn_rearLeft_end"
+      ],
+      "lengths": [
+        0.48600000000000004,
+        0.5940000000000001
+      ],
+      "sourceRoot": "Bone_005",
+      "sourceEnd": "Bone_026",
+      "rootOffset": [
+        -0.18228423177334188,
+        0.10941096682740359,
+        0.0073167597588224
+      ],
+      "endOffset": [
+        0,
+        0,
+        0
+      ],
+      "frameBone": "Bone_001",
+      "frameNeutralQuaternion": [
+        -0.1436240219050466,
+        -0.519464189817984,
+        -0.519464205775209,
+        0.663088255624314
+      ],
+      "sourceEndNeutralQuaternion": [
+        0.8328731662405199,
+        -0.35513837602953324,
+        -0.3551383668461233,
+        0.23254196013078052
+      ],
+      "pole": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "key": "rearRight",
+      "joints": [
+        "Titanhorn_rearRight_upper",
+        "Titanhorn_rearRight_hinge",
+        "Titanhorn_rearRight_end"
+      ],
+      "lengths": [
+        0.5175,
+        0.6325
+      ],
+      "sourceRoot": "Bone_003",
+      "sourceEnd": "Bone_020",
+      "rootOffset": [
+        0.09742755972377215,
+        0.07953529922122216,
+        -0.109018446043194
+      ],
+      "endOffset": [
+        0,
+        0,
+        0
+      ],
+      "frameBone": "Bone_001",
+      "frameNeutralQuaternion": [
+        -0.1436240219050466,
+        -0.519464189817984,
+        -0.519464205775209,
+        0.663088255624314
+      ],
+      "sourceEndNeutralQuaternion": [
+        0.8560485241978709,
+        0.2682524481330549,
+        0.2682525551091035,
+        0.35108704756328907
+      ],
+      "pole": [
+        0,
+        0,
+        1
+      ]
+    }
+  ],
+  "reachCalibration": {
+    "report": "artifacts/beast-integration/systems/display-reach-envelope-v2.json",
+    "sha256": "131ab79ee1d0ab463dfefc6791a45a1055ae662f0565ba4bf8b1d4eac2905bec",
+    "poses": 834,
+    "measuredMaximumModelReach": [
+      1.03043513,
+      1.054687785,
+      0.994119962,
+      1.062913821
+    ],
+    "totalLengths": [
+      1.12,
+      1.15,
+      1.08,
+      1.15
+    ],
+    "scope": "360 actual slope/gait/turn/stop poses and474 actual strike phases acrossall6 carrier targets; no universal terrain guarantee."
+  }
+}
