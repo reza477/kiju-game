@@ -1,0 +1,30 @@
+{
+  "generator": "Built-in image_gen tool",
+  "createdFor": "Colossus Wake painterly remake",
+  "files": [
+    {
+      "file": "stone-paint.png",
+      "prompt": "Create a production game material texture, 2048x2048 square, perfectly seamless tileable on all four edges. Orthographic flat albedo map ONLY, even neutral illumination, no perspective, no cast shadows, no bevel lighting, no text or frame. Painterly dark-fantasy hand-painted weathered limestone masonry for a richly detailed Gothic walking castle, premium stylized 3D art. Broad readable blocks of subtly varied sizes fitted in staggered courses, cool neutral gray-beige stone (medium light overall, almost grayscale so it can be tinted in engine), fine dark narrow mortar joints, beautifully hand-painted chipped edges and restrained mineral streaks, occasional subtle lichen in crevices. Painterly shape economy, sophisticated selected brush marks, physical plausible scale. 8 to 10 stone blocks across image. Not photoreal noisy scan, not low resolution pixel art, not cartoon outlines. Material must read as sculpted authored stone from a distance and contain careful crafted close detail. Entire image is uninterrupted texture edge to edge.",
+      "bytes": 3772097,
+      "sha256": "f18b1041b804bc9cc027a1d9bcab73c097ed5fc66bfb0eaa8cc6c9c0ba09fc73",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "earth-paint.png",
+      "prompt": "Create a production game material seamless tileable texture, square 2048x2048. This is only a flat orthographic albedo texture of weathered moorland earth and woodland litter, even neutral lighting without baked directional shadows, no objects sticking up, no text, no border, no perspective. Premium hand-painted stylized dark fantasy art, sophisticated visible paintwork, natural muted umber taupe soil with worn ochre dry blades, very sparse tiny flat leaf fragments and subdued stone chips, broad softly brushed soil masses with carefully painted middle-scale erosion lines. Quiet coherent non-speckled composition. NOT a photograph, NOT noisy gravel, NOT tiny generic grain, NOT uniform mosaic. Mostly earthy grey-brown with restrained ochre, suitable to tint and blend over meadow, mud, and woodland floor in a real-time 3D game. Material must be seamless horizontally and vertically, uninterrupted edge to edge with no dominant feature or central composition. High quality, crisp natural authored detail, matte surface.",
+      "bytes": 3830050,
+      "sha256": "098b56cec3e76c113cf2466793aec21a977534882b4f7f0e1a241f839528e88b",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "file": "iron-paint.png",
+      "prompt": "A seamless tileable production game albedo texture of dark weathered wrought iron, square 2048x2048, flat orthographic, totally even neutral lighting, no perspective and no cast shadows. Premium hand painted dark fantasy 3D material, beautiful quiet painterly brushwork. Desaturated slate gray forged metal with broad soft variations, restrained edge wear and shallow hammered imperfections, small subtle scattered oxidized umber marks, matte finish. No rivets, no frames, no panel grid, no gold, no text, no borders. Midtone neutral gray overall suitable to tint as steel, dark iron, copper, or brass in engine. Clearly authored illustration, NOT photoreal noisy scan, NOT grunge, NOT scratched everywhere, NOT low resolution. Variation mostly broad, careful selective fine detail. Perfect seamless continuation at all four edges, uninterrupted texture.",
+      "bytes": 3252401,
+      "sha256": "8b3390037a0c9e0aebdb86c418acf699563929b5bd8025e069e1f6ac50cdf035",
+      "width": 1254,
+      "height": 1254
+    }
+  ]
+}

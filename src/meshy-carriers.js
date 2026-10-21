@@ -117,18 +117,32 @@ function prepareMaster(gltf, kind, bytes) {
     for (const material of [object.material].flat()) {
       if (!material?.isMeshStandardMaterial && !material?.isMeshBasicMaterial) throw new Error(kind + ' has an unsupported material');
       if (!materials.has(material) && material.isMeshStandardMaterial) {
-        // Fit the imported PBR response to the established matte painted world.
-        // Preserve the owner's colour/metal maps while avoiding sharp chrome
-        // noise that overwhelms the body silhouette beside the stone castle.
-        material.normalScale.multiplyScalar(kind === 'cyborg' ? .38 : .45);
-        material.metalness *= kind === 'cyborg' ? .42 : .08;
-        material.envMapIntensity = kind === 'cyborg' ? .58 : .48;
+        // Preserve the authored anatomy, rig and UV wear masks. Paint their
+        // reflectance as one restrained material family instead of retaining
+        // the imported near-black / sharp metallic response.
+        material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .28);
+        material.metalness *= kind === 'cyborg' ? .34 : .04;
+        material.envMapIntensity = kind === 'cyborg' ? .42 : .32;
         const floor = kind === 'cyborg' ? '.64' : '.74';
         material.onBeforeCompile = shader => {
+          shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+            float pigmentLuma = dot(diffuseColor.rgb, vec3(.2126,.7152,.0722));
+            float pigmentValue = smoothstep(.008,.52,pigmentLuma);
+            ${kind === 'cyborg' ? `
+            vec3 paintedBody = mix(vec3(.065,.095,.105),vec3(.52,.49,.38),pigmentValue);
+            float copperMask = smoothstep(.025,.15,diffuseColor.r-diffuseColor.b);
+            paintedBody = mix(paintedBody,vec3(.34,.18,.075),copperMask*.55);
+            ` : `
+            vec3 paintedBody = mix(vec3(.075,.095,.12),vec3(.34,.39,.38),pigmentValue);
+            float warmFissure = smoothstep(.025,.16,diffuseColor.r-max(diffuseColor.g,diffuseColor.b));
+            paintedBody = mix(paintedBody,vec3(.24,.105,.065),warmFissure*.45);
+            `}
+            diffuseColor.rgb = paintedBody;
+          `);
           shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
             '#include <roughnessmap_fragment>\nroughnessFactor = ' + floor + ' + (1.0 - ' + floor + ') * roughnessFactor;');
         };
-        material.customProgramCacheKey = () => 'meshy-carrier-matte-v1-' + kind;
+        material.customProgramCacheKey = () => 'remake-carrier-painted-v2-' + kind;
       }
       materials.add(material);
       for (const value of Object.values(material)) if (value?.isTexture) {

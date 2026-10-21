@@ -1,0 +1,313 @@
+/* Colossus Wake: the expedition atlas.
+ * Presentation only. Existing IDs, pointer behavior, mobile sheets and actions
+ * stay in index.html/style.css/mobile.css. System fonts work entirely offline.
+ */
+:root {
+  --ink: #142a27;
+  --cream: #f1ead7;
+  --muted: #b7c2b6;
+  --gold: #d6b983;
+  --line: #bfac7b3d;
+  --panel: #152c29f0;
+  --green: #b8d19d;
+  --ui-serif: Georgia, 'Times New Roman', serif;
+  --ui-sans: 'Segoe UI', Arial, sans-serif;
+  --ui-surface: linear-gradient(125deg, #263c35f2, #132a27f5 70%);
+  --ui-inset: #071c1970;
+}
+
+body { background: #162d29; font-family: var(--ui-sans); }
+button { border-color: var(--line); background: #30483a; -webkit-tap-highlight-color: transparent; }
+button:hover { background: #415845; border-color: #d6b9838c; }
+button:focus-visible { outline-color: #f4d9a3; outline-offset: 3px; }
+button:disabled { opacity: .46; }
+h2, h3 { font-family: var(--ui-serif); }
+.eyebrow { color: var(--gold); letter-spacing: .17em; font-weight: 600; }
+.vignette { background: radial-gradient(ellipse at 50% 44%, transparent 66%, #0b21201c); }
+
+/* Quiet solid surfaces avoid the GPU cost and soft lettering of glass blur. */
+.panel {
+  background: var(--ui-surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  box-shadow: 0 6px 20px #03161138, inset 0 1px #f8e1a50c;
+  backdrop-filter: none;
+}
+.seal {
+  border-color: #bea77b;
+  border-radius: 50%;
+  background: #0c25224a;
+  transform: none;
+  box-shadow: inset 0 0 0 3px #203b31, inset 0 0 0 4px #ba9b6260;
+  color: #ecdbb3;
+  letter-spacing: -.06em;
+}
+.primary {
+  background: linear-gradient(110deg, #e3c895, #c9aa70);
+  color: #1b3028;
+  border-color: #e8d09e;
+  box-shadow: inset 0 1px #fff3cf75, 0 2px 8px #04181325;
+  letter-spacing: .02em;
+}
+.primary:hover { background: linear-gradient(110deg, #f0d9ae, #dbc08b); border-color: #f5e4bd; }
+.text-button { color: #d1c6a9; text-underline-offset: 4px; }
+.text-button:hover { color: #fff1d1; text-decoration: underline; }
+.minor { background: #bed5ad08; border-color: #bdc9b02b; }
+.minor:hover { background: #c4d5ac16; }
+.minor span { color: #b6c1ac; }
+kbd { border-color: #b5c7b23b; border-radius: 2px; background: #d8e8bf07; }
+
+/* Title treatment stays beside the live, orbitable carrier preview. */
+#intro { background: linear-gradient(90deg, #0c2424f5, #102b27df 53%, #12312b00); }
+.intro-top { color: #c0c4aa; letter-spacing: .23em; }
+.intro-copy > .eyebrow { font-size: 9px; color: #c6ad7d; }
+.intro-copy > .eyebrow i { width: 4px; height: 4px; border-radius: 0; transform: rotate(45deg); background: #d9b87f; }
+h1 {
+  font-family: var(--ui-serif);
+  font-weight: 400;
+  letter-spacing: -.035em;
+  line-height: .98;
+  color: #f0e8d3;
+  text-shadow: 0 3px 22px #041e1866;
+}
+h1 em { color: #d6b77e; letter-spacing: .075em; font-weight: 400; }
+.intro-copy .rule { width: 84px; background: linear-gradient(90deg, #d1b984, #d1b98412); }
+.intro-lead { color: #e6dfcc; }
+.intro-description { color: #b8c4b7; }
+.primary.large { border-radius: 1px; }
+.primary.large span { color: #38513c; }
+.local-note { color: #a6b8a8; }
+#title-update-status { max-width: 300px; margin-top: 5px; color: #a9bbaa; font-size: 11px !important; line-height: 1.5; }
+.intro-bottom { color: #bdc3aa; }
+#faction-description {
+  border: 0;
+  border-right: 2px solid #c8ad765c;
+  background: linear-gradient(90deg, transparent, #0c2825d9);
+  backdrop-filter: none;
+  padding: 16px 20px;
+  text-shadow: 0 2px 8px #071e1b;
+}
+#faction-description .eyebrow { background: none; padding: 0; color: #d9bd87; }
+#faction-description h2 { color: #f3ead6; text-shadow: 0 2px 7px #09231e; }
+#faction-description p { color: #d3dbcb; line-height: 1.7; }
+.faction-options { gap: 5px; }
+.faction {
+  position: relative;
+  background: #17312df2;
+  border-color: #bec6a42e;
+  border-radius: 1px;
+  box-shadow: inset 0 1px #ebd09b0a;
+}
+.faction:hover { background: #31483afa; box-shadow: inset 0 1px #ecd5a228; }
+.faction.active { background: #344b3cf5; border-color: #ceb27b; box-shadow: inset 0 -2px #d6b983; }
+.faction-symbol { color: #cbb789; }
+.faction small { color: #a5b9a6; letter-spacing: .13em; }
+.faction strong { color: #efe4cc; }
+.variant-options { gap: 5px; }
+.variant-options button { background: #122c28f0; border-radius: 1px; border-color: #b5bda332; }
+.variant-options button.active { border-color: #c3ae7d99; background: #354a39f2; }
+.variant-options small { color: #b4c1ae; }
+.orbit-hint { color: #d0d7c3; letter-spacing: .15em; }
+
+/* The resource rail is the main instrument; secondary panels recede. */
+.topbar {
+  background: linear-gradient(90deg, #152c29f5, #263e35f5 45%, #152c29f5);
+  border-top-color: #d1b77e8c;
+  border-bottom-color: #bac6a32e;
+}
+.brand { color: #d4c49e; }
+.brand b { color: #ead9b0; }
+.resource-icon { color: #c3b78e; }
+.resource-icon.timber { color: #bed29c; }
+.resource-icon.iron { color: #bccbc5; }
+.resource-icon.food { color: #e0c88a; }
+.resource small { color: #a7bca9; }
+.resource strong { color: #f2ead6; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rate { color: #bdd7a4; }
+.rate.negative { color: #f0b397; }
+.time-controls > span { color: #d8c395; }
+.time-controls button { background: #0e292536; border-color: #c7ba8e40; }
+.view-switch {
+  background: #17312cde;
+  box-shadow: 0 2px 8px #09231a25;
+  border-color: #b5b89a38;
+  border-radius: 2px;
+}
+.view-switch button { color: #c9d1be; border-radius: 1px; }
+.view-switch button:hover { color: #fff1d5; background: #d6d6ad10; }
+.view-switch button.active { color: #142f27; background: #cfb984; box-shadow: inset 0 1px #fff2cd66; }
+
+.city-card { border-top-color: #cfb78280; }
+.city-card h2 { color: #f0e7cd; letter-spacing: -.025em; }
+.city-card .eyebrow { color: #c0bc91; }
+.hull-label { color: #9fb7a4; }
+.hull-label strong { color: #d8e2c7; }
+.bar { height: 3px; border-radius: 0; background: #09271f; box-shadow: 0 1px #c9d8b017; }
+.bar i { background: linear-gradient(90deg, #7fa389, #c6d6a6); }
+.bar.enemy i { background: linear-gradient(90deg, #b56955, #dfb084); }
+.status-line { color: #c8d1ba; }
+.city-ledger { border-top-color: #b6bea72a; color: #a6b9a8; }
+.city-ledger strong { color: #d7dfca; font-weight: 500; }
+.city-card .minor { text-align: left; }
+.objective, .journal { background: #142e29e8; }
+.objective summary, .journal summary { color: #bac29e; }
+.objective summary::after, .journal summary::after { color: #d2b881; font-weight: 400; }
+.objective-item { color: #b9c8af; }
+.objective-item i { border-color: #bac4a447; }
+.objective-item.done i { background: #b4c69a; border-color: #b4c69a; }
+.selection { border-left-color: #d3b77d7a; }
+.selection h3 { color: #eddfbc; }
+.selection p { color: #bac8b5; }
+.selection .stats-row { color: #cbd6bd; }
+.tower-floor-control { color: #c7bc94; }
+.tower-floor-control select { background: #102b26; border-color: #b5c0a63b; color: #e3e5d1; }
+.stack-direction { color: #d7be8d; }
+.stack-preview { border-color: #c5ad7145; }
+.stack-preview span { background: #c7d4ad08; color: #c6d2bb; }
+.section-heading { color: #d0bc8b; }
+.north { color: #a0b6a5; }
+.map-card { background: linear-gradient(135deg, #213d32f0, #142d27f5); }
+#minimap { border-color: #bdc4a737; background: #1b382e; outline: 1px solid #081e1750; outline-offset: -4px; }
+.map-legend { color: #aec4aa; }
+.map-legend span:last-child { color: #d3a48c; }
+#destinations-toggle { color: #c8c8a6; }
+#destinations button { color: #d2dbbf; border-color: #b8c2a622; }
+#destinations button:hover { color: #f3e3bc; background: #d2d6ac08; }
+#journal p { color: #b5c6ad; border-color: #bcc3a822; }
+#journal p:first-child { color: #dcdfc6; }
+
+/* District cards use a clear name/cost hierarchy and restrained icon wells. */
+.build-tray { border-top-color: #cab37b80; background: linear-gradient(180deg, #243c31f0, #102b26f7); }
+.tray-heading { border-bottom: 1px solid #bec2a325; padding-bottom: 9px; }
+.tray-heading .eyebrow { color: #d2bb87; }
+.tray-heading > span:nth-child(2) { color: #aebfaa; }
+.build-option {
+  background: #d1d7b005;
+  border-color: #a7b59729;
+  border-radius: 1px;
+  box-shadow: inset 0 1px #d2d8b509;
+}
+.build-option:hover { background: #b9c59c12; border-color: #c6b67e8a; }
+.build-option.active { background: #c4ad6420; border-color: #dec78b; box-shadow: inset 0 -2px #dec78b; }
+.build-option .icon { color: #cbb987; text-shadow: 0 2px 4px #071e19; }
+.build-option .name { color: #e6e4cc; font-weight: 500; }
+.build-option .cost { color: #aabb9f; font-variant-numeric: tabular-nums; }
+.control-hint { color: #e0e4cd; text-shadow: 0 1px 5px #09271a; }
+.control-hint .text-button { color: #d6dcbf; }
+.utility { gap: 3px; }
+.utility button { background: #17312de8; border-color: #adb99533; color: #bdc9ae; border-radius: 2px; }
+.utility button:hover { background: #34503e; color: #f2e6c3; }
+.map-marker { background: #16382ce8; border-color: #c2c79375; box-shadow: 0 3px 9px #08271b45; }
+.map-marker.rival { background: #493d2be8; border-color: #d9ac82; }
+.map-marker small { color: #c0d2b0; }
+#toast { background: #18362df5; border-color: #cfb67c8c; box-shadow: 0 6px 20px #031c163b; color: #f2e8cc; }
+#paused-banner { background: #18352def; border-color: #baa36b; color: #e5d0a1; box-shadow: 0 10px 35px #09281e45; }
+#paused-banner span { color: #c5d0ba; }
+
+/* Battle and menus belong to the same atlas, with warmer danger accents. */
+.battle-title { border-top-color: #cd9b7480; }
+.battle-title > .eyebrow { color: #d4ad87; }
+.battle-tactics button { background: #254334; color: #c9d6bc; }
+.battle-tactics button.active { background: #bba66e; border-color: #dcc68f; color: #173126; }
+.weapons .secondary { background: #38523c; color: #ead9af; border-color: #bdb37b80; }
+.battle-player-hull { color: #c7d3b8; }
+#battle-advice, #battery-status { color: #c3ccb1; }
+dialog { background: linear-gradient(140deg, #294034, #142f29); border-color: #c5ad786e; border-radius: 3px; box-shadow: 0 28px 100px #031c1b80; }
+dialog::backdrop { background: #061c1ba8; backdrop-filter: none; }
+#dialog-content h2 { color: #eddbb4; }
+#dialog-content p { color: #bcccb6; }
+.dialog-close { color: #d8c69c; }
+.menu-buttons button, .settings-grid button { background: #314d39; }
+.menu-buttons button:hover, .settings-grid button:hover { background: #496043; }
+.menu-buttons .primary { background: linear-gradient(110deg, #e3c895, #c9aa70); }
+.playtest-section textarea { background: #0b2520; border-color: #b4bd9f40; }
+.playtest-actions button, .file-button { background: #314b37; border-color: #bbc19d42; }
+#loading { background: radial-gradient(ellipse at 50% 42%, #294536, #102c29 70%); }
+#loading .eyebrow { letter-spacing: .26em; }
+#loading p { color: #e6d9b6; }
+#error { background: #17352e; border-color: #c4ac7c; }
+
+/* Desktop geometry: the city retains the broad clear center of the screen. */
+@media (min-width: 851px) and (pointer: fine) {
+  #intro { width: 460px; padding: 30px 40px; }
+  .intro-copy { margin-top: clamp(28px, 7vh, 72px); }
+  .intro-copy h1 { font-size: clamp(53px, 5.2vw, 76px); }
+  .intro-lead { font-size: 22px; }
+  .intro-description { font-size: 12px; line-height: 1.8; max-width: 285px; }
+  .intro-bottom { left: 40px; }
+  #faction-select { right: 30px; bottom: 30px; width: min(620px, 54vw); }
+  .faction { padding: 15px 12px; }
+  .faction strong { font-size: 16px; }
+  .variant-options button { padding: 11px 14px; }
+  .topbar { height: 58px; width: min(1030px, calc(100% - 40px)); gap: 26px; }
+  .resource small { font-size: 8px; letter-spacing: .16em; }
+  .topbar .resource strong { font-size: 19px; }
+  .left-stack { width: 222px; top: 90px; gap: 8px; }
+  .right-stack { width: 200px; top: 90px; gap: 8px; }
+  .city-card { padding: 15px; }
+  .city-card h2 { font-size: 25px; line-height: 1.12; margin: 8px 0 17px; }
+  .city-ledger { font-size: 11px; margin-top: 12px; padding-top: 10px; }
+  .city-card .minor { font-size: 10px; padding: 9px 8px; }
+  .city-card .minor span { font-size: 9px; }
+  .view-switch { top: 88px; padding: 3px; gap: 2px; }
+  .view-switch button { padding: 8px 13px; font-size: 10px; }
+  .view-switch kbd { margin-left: 6px; }
+  .build-tray { width: min(760px, calc(100% - 460px)); padding: 10px 12px; bottom: 48px; }
+  .tray-heading { margin-bottom: 8px; padding-bottom: 8px; }
+  .tray-heading .eyebrow { font-size: 8px; }
+  .buildings { gap: 5px; }
+  .build-option { padding: 8px 4px; }
+  .build-option .icon { height: 25px; font-size: 25px; }
+  .build-option .name { font-size: 10px; margin: 6px 0 4px; }
+  .build-option .cost { font-size: 9px; }
+  .utility button { padding: 7px 8px; }
+}
+@media (min-width: 851px) and (max-width: 1150px) and (pointer: fine) {
+  #intro { width: 410px; padding-left: 30px; }
+  .intro-bottom { left: 30px; }
+  .intro-copy { margin-top: 38px; }
+  .faction { padding: 13px 9px; gap: 8px; }
+  .faction strong { font-size: 14px; }
+  .left-stack { width: 210px; }
+  .right-stack { width: 185px; }
+  .build-tray { width: min(660px, calc(100% - 40px)); }
+}
+@media (min-width: 851px) and (max-height: 680px) and (pointer: fine) {
+  .intro-top { display: none; }
+  .intro-copy { margin-top: 4px; }
+  .intro-copy h1 { font-size: 48px; margin-top: 14px; }
+  .intro-copy .rule { margin: 15px 0; }
+  .intro-lead { font-size: 18px; }
+  .intro-description { margin: 11px 0 17px; font-size: 11px; }
+  .primary.large { padding: 12px 17px; }
+}
+
+/* Touch geometry and safe areas remain owned by mobile.css. */
+@media (pointer: coarse) {
+  .mobile-panels { background: #142e29f8; border-color: #c3af7e65; border-radius: 3px; }
+  .mobile-panels button { background: #2c4736; border-color: #b8c09d33; }
+  .mobile-panels [aria-expanded=true] { background: #d5bc85; color: #183329; border-color: #ead4a0; }
+  .sheet-heading, .dialog-toolbar { background: #213c2ffb; border-color: #c2b27d4d; color: #e0c78e; }
+  .sheet-heading button, .dialog-close { background: #36523b; border-color: #c3c49b38; }
+  .left-stack, .right-stack { background: #142f28fa; border-color: #bca9736b; border-radius: 3px; }
+  .build-tray { background: #142f28fa; }
+  .tray-heading { border: 0; padding-bottom: 0; }
+  #touch-pad button { background: #173b2dea; border-color: #b5c19580; color: #e2e6c9; box-shadow: 0 3px 9px #06241b2e; }
+  .build-option .name { font-weight: 500; }
+  .map-marker { background: #173a2ff2; }
+  .map-marker.rival { background: #4b3c2cf2; }
+  .in-battle .battle-actions { background: #163229f8; }
+  .battle-tactics button.active { background: #d4bb82; color: #183329; border-color: #ecd6a1; }
+}
+@media (pointer: coarse) and (max-width: 700px), (pointer: coarse) and (max-height: 560px) {
+  .left-stack > .panel, .right-stack > .panel { background: transparent; border: 0; box-shadow: none; }
+  .city-card h2 { color: #f0e7cf; }
+  .city-ledger { font-size: 14px; }
+  .city-card .minor span { font-size: 14px; }
+  .build-option .cost { font-size: 14px; }
+  .view-switch button { color: #d4ddc6; }
+  .view-switch button.active { color: #19362a; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button, .bar i, #toast { transition: none; }
+}

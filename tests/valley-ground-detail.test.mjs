@@ -28,16 +28,20 @@ test('production uses packed detail only for ground and leaves the river detail 
   assert.match(source,/const time=\{value:0\},rippleTexture=groundDetail\(\)/);
   assert.match(source,/groundTexture\(valley\?packValleyDetail\(data,size\):data,size,false,true\)/);
 });
-test('ground frequency transition is continuous after the added relief has fully faded',async()=>{
+test('world ground relief fades continuously with camera distance without a coordinate seam',async()=>{
   const source=await readFile(new URL('../src/painterly-surfaces.js',import.meta.url),'utf8');
-  // Evaluate the actual scalar shader expressions so a later boolean switch
-  // cannot silently reintroduce a discontinuity in the surviving R grain.
-  const field=name=>new Function('smoothstep','valleyRadius','uValleyDetailReady','return '+source.match(new RegExp('float '+name+'=([^;]+);'))[1]);
-  const region=field('valleyRegion'),frequency=field('valleyFrequency');
-  assert.equal(region(smoothstep,170,1),1);assert.equal(region(smoothstep,185,1),0);
-  for(const radius of[185,190,204.999,205,220])assert.equal(region(smoothstep,radius,1),0);
-  assert.equal(frequency(smoothstep,185,1),1);assert.equal(frequency(smoothstep,205,1),0);assert.equal(frequency(smoothstep,220,1),0);
-  const uv=radius=>radius*(.37+(.0625-.37)*frequency(smoothstep,radius,1));
-  for(const boundary of[185,205])assert.ok(Math.abs(uv(boundary-.0001)-uv(boundary+.0001))<.0001);
-  assert.equal(uv(220),220*.37,'The historical grain coordinate is exact outside the valley.');
+  // The owner-authorized remake replaces the coordinate-limited pilot with
+  // one global material. Preserve the former no-pop requirement at its new,
+  // view-relative attenuation boundaries instead of freezing the retired mask.
+  const expression=source.match(/float closePaint=([^;]+);/)[1];
+  const fade=new Function('smoothstep','cameraDistance','return '+expression);
+  assert.equal(fade(smoothstep,0),1);assert.equal(fade(smoothstep,95),1);
+  assert.equal(fade(smoothstep,230),0);assert.equal(fade(smoothstep,600),0);
+  let previous=1;
+  for(let distance=0;distance<=600;distance+=.25){
+    const value=fade(smoothstep,distance);assert.ok(Number.isFinite(value)&&value>=0&&value<=1);
+    assert.ok(value<=previous);assert.ok(previous-value<.003);previous=value;
+  }
+  for(const boundary of[95,230])assert.ok(Math.abs(fade(smoothstep,boundary-.0001)-fade(smoothstep,boundary+.0001))<.0001);
+  assert.doesNotMatch(source,/pilotSurfaceMask|pilotWoodlandDistance|groundPatchMaps/,'The remade material must not reintroduce a differently painted fixed rectangle.');
 });

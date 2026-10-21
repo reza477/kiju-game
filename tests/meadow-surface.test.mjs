@@ -13,24 +13,31 @@ test('painted ground borrows only owner textures and preserves render configurat
   const first=new T.MeshStandardMaterial({color:0x637758,roughness:.91,side:T.FrontSide}),second=first.clone();
   const weights=new T.DataTexture(new Uint8Array(4),1,1),detail=new T.DataTexture(new Uint8Array(4),1,1),otherWeights=weights.clone(),otherDetail=detail.clone();
   const before={color:first.color.getHex(),roughness:first.roughness,side:first.side,depthWrite:first.depthWrite,transparent:first.transparent};
-  paintGround(first,{weights,detail});paintGround(second,{weights:otherWeights,detail:otherDetail});
+  const earth=new T.Texture(),otherEarth=new T.Texture();
+  paintGround(first,{weights,detail,earth:{map:earth}});paintGround(second,{weights:otherWeights,detail:otherDetail,earth:{map:otherEarth}});
   const a=shader(),b=shader();first.onBeforeCompile(a);second.onBeforeCompile(b);
   assert.equal(a.uniforms.uHabitat.value,weights);assert.equal(a.uniforms.uBrushGrain.value,detail);
   assert.equal(b.uniforms.uHabitat.value,otherWeights);assert.equal(b.uniforms.uBrushGrain.value,otherDetail);
   assert.notEqual(a.uniforms.uHabitat,b.uniforms.uHabitat);
+  assert.equal(a.uniforms.uEarthPaint.value,earth);assert.equal(b.uniforms.uEarthPaint.value,otherEarth);
+  assert.equal(a.uniforms.uEarthPaintReady.value,1);assert.equal(first.groundColourMap,earth);
+  // TextureLoader fills this same handle on decode; no material recreation or
+  // false-ready toggle may detach the actual image from an already compiled shader.
+  earth.image={width:1024,height:1024};earth.needsUpdate=true;
+  assert.equal(a.uniforms.uEarthPaint.value.image.width,1024);
   assert.deepEqual({color:first.color.getHex(),roughness:first.roughness,side:first.side,depthWrite:first.depthWrite,transparent:first.transparent},before);
   assert.match(a.vertexShader,/attribute float groundMoisture/);
   assert.ok(!/transformed\s*[+*\/-]?=/.test(a.vertexShader),'Ground surface hook must not displace functional terrain.');
   assert.ok(!/grassScan|soilScan|uMeadow/.test(a.fragmentShader),'Obsolete meadow sampling must not survive.');
-  let disposed=0;for(const texture of[weights,detail])texture.addEventListener('dispose',()=>disposed++);
+  let disposed=0;for(const texture of[weights,detail,earth])texture.addEventListener('dispose',()=>disposed++);
   first.dispose();assert.equal(disposed,0,'Material disposal must not independently release owner-managed textures.');
-  second.dispose();for(const texture of[weights,detail,otherWeights,otherDetail])texture.dispose();
+  second.dispose();for(const texture of[weights,detail,otherWeights,otherDetail,earth,otherEarth])texture.dispose();
 });
 
 test('ground and river keys differ while river clocks and local inputs remain independent',()=>{
   const ground=new T.MeshStandardMaterial(),a=new T.MeshStandardMaterial(),b=new T.MeshStandardMaterial();
   const texture=new T.DataTexture(new Uint8Array(4),1,1),clockA={value:7},clockB={value:11};
-  paintGround(ground,{weights:texture,detail:texture});paintRiver(a,clockA,texture,WIND_GLSL);paintRiver(b,clockB,texture,WIND_GLSL);
+  paintGround(ground,{weights:texture,detail:texture,earth:null});paintRiver(a,clockA,texture,WIND_GLSL);paintRiver(b,clockB,texture,WIND_GLSL);
   const first=shader(),second=shader();a.onBeforeCompile(first);b.onBeforeCompile(second);
   assert.notEqual(ground.customProgramCacheKey(),a.customProgramCacheKey());assert.equal(a.customProgramCacheKey(),b.customProgramCacheKey());
   assert.equal(first.uniforms.uRiverTime,clockA);assert.equal(second.uniforms.uRiverTime,clockB);

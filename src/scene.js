@@ -26,10 +26,10 @@ export {makeCity,slotPosition};
 // Borrow only these actual site meshes after batching, retaining their shader
 // shape. This fixed list never prepares an entire resource site or world.
 const movementRuinShapes=new Map([
-  ['rock ffffff painterly ruin',true],
-  ['brick ffffff painterly ruin',true],
-  ['stone bbb9a4 painterly ruin',false],
-  ['pavement 90917e painterly ruin',false]
+  ['rock ffffff painted ruin',true],
+  ['brick ffffff painted ruin',true],
+  ['stone bbb9a4 painted ruin',false],
+  ['pavement 90917e painted ruin',false]
 ]);
 
 const previewBuildings=()=>{
@@ -266,7 +266,10 @@ export class GameScene {
 
   setQuality(quality,{persist=true}={}){
     if(quality==='retro')quality='performance';if(!isGraphicsQuality(quality))return false;this.quality=quality;
-    const dpr=quality==='high'?Math.min(2,Math.max(1.25,devicePixelRatio)):quality==='balanced'?Math.min(devicePixelRatio,1.2):.85;
+    // Performance keeps its cheaper geometry/lighting path, without rendering
+    // the entire world below one physical sample per CSS pixel. High-density
+    // touch screens get a modest 1.25x budget rather than the former .85x blur.
+    const dpr=quality==='high'?Math.min(2,Math.max(1.25,devicePixelRatio)):quality==='balanced'?Math.min(devicePixelRatio,1.5):Math.min(1.25,Math.max(1,devicePixelRatio));
     this.renderer.setPixelRatio(dpr);this.renderer.shadowMap.enabled=quality!=='performance';
     const shadowSize=quality==='high'?4096:2048;
     if(this.sun.shadow.mapSize.x!==shadowSize){this.sun.shadow.mapSize.set(shadowSize,shadowSize);if(this.sun.shadow.map){this.sun.shadow.map.dispose();this.sun.shadow.map=null;}}

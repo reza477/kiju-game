@@ -1,32 +1,32 @@
-// One lighting description is shared by the sky, physical lights, fog and
-// output transform. Positions are offsets from the directional light target.
+// A shared painterly light rig: warm limestone sunlight, cool slate fill and
+// uncluttered atmospheric depth. Every mode uses the same readable exposure.
 export const LIGHTING_PRESETS = Object.freeze({
   day: Object.freeze({
-    top:0x467fab,bottom:0xd8e0d9,fog:0xc2d1d0,fogDensity:.00105,
-    sun:0xffe0b7,sunPosition:Object.freeze([-65,78,65]),intensity:3.25,
-    skyLight:0xc1d9ee,groundLight:0x71766b,ambient:.64,
-    rim:0xa7c8e4,rimIntensity:.46,environment:.48,
-    exposure:1.0,windows:.12,bloom:.23,localLight:0,uplight:0,
-    sunDisc:7.0,scattering:.24,cloud:0xe8ecdf,cloudShade:0x93acb8,
-    cloudOpacity:.57,mist:0xc6d7d3,mistOpacity:.26
+    top:0x53677f,bottom:0xc5c6b6,fog:0xa5b0b3,fogDensity:.00085,
+    sun:0xffd8a0,sunPosition:Object.freeze([-65,78,65]),intensity:2.70,
+    skyLight:0xb0bfdc,groundLight:0x737568,ambient:.80,
+    rim:0xc0cee7,rimIntensity:.62,environment:.42,
+    exposure:1.03,windows:.21,bloom:.13,localLight:0,uplight:0,
+    sunDisc:4.2,scattering:.15,cloud:0xd8d8c6,cloudShade:0x727f97,
+    cloudOpacity:.52,mist:0xa9b6bb,mistOpacity:.17
   }),
   dusk: Object.freeze({
-    top:0x60799b,bottom:0xdbc7ae,fog:0xb3bec1,fogDensity:.00112,
-    sun:0xffbe7c,sunPosition:Object.freeze([-95,43,42]),intensity:2.75,
-    skyLight:0xaebbd9,groundLight:0x77715e,ambient:.72,
-    rim:0x93b2d3,rimIntensity:.88,environment:.39,
-    exposure:1.04,windows:.9,bloom:.29,localLight:5.6,uplight:36,
-    sunDisc:5.3,scattering:.48,cloud:0xf1d4b0,cloudShade:0x8193ac,
-    cloudOpacity:.62,mist:0xc2cbd0,mistOpacity:.32
+    top:0x525575,bottom:0xc4a184,fog:0x9b9aa8,fogDensity:.00096,
+    sun:0xffb777,sunPosition:Object.freeze([-95,43,42]),intensity:2.30,
+    skyLight:0xb0b7d6,groundLight:0x716a63,ambient:.81,
+    rim:0xb8c5e7,rimIntensity:.78,environment:.37,
+    exposure:1.07,windows:1.05,bloom:.19,localLight:5.6,uplight:36,
+    sunDisc:3.4,scattering:.26,cloud:0xdec3a3,cloudShade:0x686a88,
+    cloudOpacity:.55,mist:0xa8a4b8,mistOpacity:.22
   }),
   night: Object.freeze({
-    top:0x122b46,bottom:0x496878,fog:0x314c61,fogDensity:.0015,
-    sun:0xb9d5fa,sunPosition:Object.freeze([65,72,-70]),intensity:1.10,
-    skyLight:0x91aed1,groundLight:0x4b5a65,ambient:.60,
-    rim:0x97b6da,rimIntensity:.88,environment:.16,
-    exposure:1.06,windows:2.15,bloom:.34,localLight:9,uplight:58,
-    sunDisc:1.45,scattering:.055,cloud:0x7e99ad,cloudShade:0x294555,
-    cloudOpacity:.26,mist:0x668698,mistOpacity:.28
+    top:0x202b4b,bottom:0x56647e,fog:0x45536e,fogDensity:.00114,
+    sun:0xc4d0ff,sunPosition:Object.freeze([65,72,-70]),intensity:1.24,
+    skyLight:0x9caccd,groundLight:0x555d6b,ambient:.70,
+    rim:0xb6c6eb,rimIntensity:.82,environment:.19,
+    exposure:1.09,windows:1.85,bloom:.24,localLight:9,uplight:58,
+    sunDisc:1.25,scattering:.04,cloud:0x8591aa,cloudShade:0x3a4664,
+    cloudOpacity:.24,mist:0x76859e,mistOpacity:.17
   })
 });
 

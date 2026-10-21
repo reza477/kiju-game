@@ -6,7 +6,7 @@ import {bankWidth, protectedResource, renderedTerrainHeight, roadZ, shoreDistanc
 export const GROUND_COVER_LIMITS=Object.freeze({instances:6400,patches:760,extent:184,cellSize:96,maxRadius:1.6,minimumNormalY:.935,startRadius:27});
 const TAU=Math.PI*2,UP=new T.Vector3(0,1,0);
 const QUALITIES=Object.freeze({high:[1,135,195],balanced:[.72,115,170],medium:[.72,115,170],low:[.38,85,135],performance:[.18,65,105],retro:[.18,65,105]});
-const COLOURS={grass:[0x4b5734,0x687b46,0x87965c],fern:[0x425b38,0x658049,0x849663],shrub:[0x3f5634,0x657d43,0x82935b]};
+const COLOURS={grass:[0x5b6046,0x838a60,0xa6a273],fern:[0x3e5b52,0x657e65,0x939e79],shrub:[0x485d50,0x748365,0x9b9c71]};
 function random(seed){let value=seed>>>0;return()=>((value=(Math.imul(value,1664525)+1013904223)>>>0)/4294967296);}
 
 function sceneryExclusion(records){

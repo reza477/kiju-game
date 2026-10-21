@@ -236,8 +236,8 @@ test('production site replacement keeps five bounded current borrowed shaders an
   const borrowed=scene.movementMaterials,preparation=createMovementPreparation(renderer,borrowed),camera=new T.PerspectiveCamera();
   const state=()=>{const value=createGame('crawler','standard');value.enemies=[];return value;};
   const key=()=>`performance:day:final-environment:${scene.movementMaterialKey}`;
-  const expectedNames=['metal ffffff','rock ffffff painterly ruin','brick ffffff painterly ruin','stone bbb9a4 painterly ruin','pavement 90917e painterly ruin'];
-  const expectedKeys=['neutral-plate-reflectance-v1:world-metric-scenery-v3','painterly-ruin-stone-v3:world-metric-scenery-v3:painterly-bank-rock-v2','painterly-ruin-stone-v3:world-metric-scenery-v3','painterly-ruin-stone-v3','painterly-ruin-stone-v3'];
+  const expectedNames=['metal ffffff','rock ffffff painted ruin','brick ffffff painted ruin','stone bbb9a4 painted ruin','pavement 90917e painted ruin'];
+  const expectedKeys=['neutral-plate-reflectance-v1:world-metric-scenery-v3','painted-ruin-masonry-v4:world-metric-scenery-v3:painted-slate-rock-v3','painted-ruin-masonry-v4:world-metric-scenery-v3','painted-ruin-masonry-v4','painted-ruin-masonry-v4'];
   const owner=mesh=>scene.labels.find(site=>site.getObjectByProperty('uuid',mesh.uuid)===mesh);
   const clean=()=>{for(const owner of [scene.city?.root,...scene.enemyCities.map(city=>city.root),...scene.labels]){owner?.removeFromParent();if(owner)disposeGroup(owner);}};
   try{

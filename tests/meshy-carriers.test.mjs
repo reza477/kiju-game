@@ -75,7 +75,7 @@ test('actual vendored GLTF loader preserves skin, clip, geometry and colours wit
   assert.deepEqual(inventory.animations[0].translations[0].displacement, [0, 0, 4]);
   const instance = cache.instantiate('cyborg', options), mesh = instance.body.getObjectByName('Body');
   assert.equal(mesh.isSkinnedMesh, true); assert.deepEqual(Array.from(mesh.geometry.attributes.position.array), [-1, 0, Math.fround(-.4), 1, 0, Math.fround(.4), 0, 2, 0]);
-  assert.equal(mesh.material.roughness, .8); assert.equal(mesh.material.metalness, .2*.42); assert.deepEqual(mesh.material.color.toArray(), [.3, .4, .5]);
+  assert.equal(mesh.material.roughness, .8); assert.equal(mesh.material.metalness, .2*.34); assert.deepEqual(mesh.material.color.toArray(), [.3, .4, .5]);
   assert.equal(mesh.frustumCulled, false); disposeMeshyCarrier(instance); cache.dispose();
 });
 

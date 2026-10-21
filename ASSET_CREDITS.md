@@ -20,3 +20,7 @@ The original 1k color, OpenGL normal and roughness files are redistributed under
 | HDR lighting | [Kloppenheim 06 (Pure Sky)](https://polyhaven.com/a/kloppenheim_06_puresky) | Greg Zaal, Jarod Guest |
 
 Three.js 0.185.1 and its HDRLoader use the MIT license in `vendor/LICENSE`. The loader import is changed to the vendored renderer. No remote scripts or fonts are used.
+
+## October 2026 painted remake materials
+
+The three local albedo artworks in assets/art-remake were generated with the built-in OpenAI image_gen tool for this project. They are original generated artwork, not Poly Haven scans. Exact prompts are retained in asset-sources/remake-paint.json; generated originals remain on the owner's computer. Existing Meshy masters and other credited sources retain their attribution.

@@ -89,8 +89,8 @@ test('quality changes persist independently of saves; startup defaults and inval
   let dpr,postQuality,landscapeQuality;
   const scene={renderer:{setPixelRatio:value=>dpr=value,shadowMap:{}},sun:{shadow:{mapSize:{x:4096,set(x){this.x=x;}}}},presentation:{setQuality:value=>postQuality=value},atmosphere:{setQuality(){}},landscape:{setQuality:value=>landscapeQuality=value},resize(){}};
   assert.equal(GameScene.prototype.setQuality.call(scene,'performance',{persist:false}),true);
-  assert.equal(saved.size,0);assert.equal(dpr,.85);assert.equal(scene.renderer.shadowMap.enabled,false);assert.equal(postQuality,'performance');assert.equal(landscapeQuality,'retro');
-  GameScene.prototype.setQuality.call(scene,'balanced');assert.equal(saved.get(GRAPHICS_QUALITY_KEY),'balanced');assert.equal(dpr,1.2);assert.equal(scene.renderer.shadowMap.enabled,true);
+  assert.equal(saved.size,0);assert.equal(dpr,1.25);assert.equal(scene.renderer.shadowMap.enabled,false);assert.equal(postQuality,'performance');assert.equal(landscapeQuality,'retro');
+  GameScene.prototype.setQuality.call(scene,'balanced');assert.equal(saved.get(GRAPHICS_QUALITY_KEY),'balanced');assert.equal(dpr,1.5);assert.equal(scene.renderer.shadowMap.enabled,true);
   assert.equal(GameScene.prototype.setQuality.call(scene,'invalid'),false);assert.equal(scene.quality,'balanced');assert.equal(saved.size,1);
   Object.defineProperty(globalThis,'localStorage',{configurable:true,get(){throw new Error('storage unavailable');}});
   assert.doesNotThrow(()=>GameScene.prototype.setQuality.call(scene,'high'));assert.equal(scene.quality,'high');

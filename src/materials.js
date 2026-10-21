@@ -101,12 +101,12 @@ export function getMaterial(kind='stone', color, options={}) {
   const cloth=kind==='fabric';
   const Material=metallic||glazed||cloth?T.MeshPhysicalMaterial:T.MeshStandardMaterial;
   const m=new Material({color,map:texture,
-    roughness:scan?1:metallic?.43:glazed?.22:kind==='skin'?.83:.92,
-    metalness:metallic?.68:glazed?.24:0,
+    roughness:scan?.painted?(metallic?.74:.94):scan?1:metallic?.64:glazed?.24:kind==='skin'?.88:.92,
+    metalness:metallic?.38:glazed?.18:0,
     normalMap:scan?.normalMap??null,normalScale:new T.Vector2(.55,.55),roughnessMap:scan?.roughnessMap??null,
-    bumpMap:!scan&&mapped&&!glazed?texture:null,
+    bumpMap:scan?.painted&&!metallic?texture:!scan&&mapped&&!glazed?texture:null,
     bumpScale:kind==='skin'?.055:kind==='brick'||kind==='stone'?.035:kind==='roof'?.022:.008,
-    ...(painted?{clearcoat:.42,clearcoatRoughness:.29,metalness:.42}:{}),
+    ...(painted?{clearcoat:.12,clearcoatRoughness:.62,metalness:.32}:{}),
     ...(glazed?{clearcoat:.72,clearcoatRoughness:.14,ior:1.48,roughness:.18,metalness:.08}:{}),
     ...(cloth?{sheen:.65,sheenColor:new T.Color(color).lerp(new T.Color(0xd6c8b3),.28),sheenRoughness:.78}:{}),...options});
   if(kind==='metal'){

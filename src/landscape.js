@@ -26,9 +26,9 @@ const sceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?renderedTerrain
 // The edited shelf lies entirely inside178m. Far scenery therefore retains the
 // exact historical rendered-grid sampler, including its former selection gates.
 const selectionSceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?historicalRenderedTerrainHeight(x,z):scenerySelectionHeight(x,z);
-const LEAF_COLOURS = [0x536e3b, 0x678747, 0x77994f, 0x819951, 0x486745, 0x95a65c];
-const PINE_COLOURS = [0x3f654e, 0x4c7558, 0x557e58, 0x64865f];
-const ROCK_COLOURS = [0x898d80, 0x9b9b8d, 0x747d72, 0xb4af9b];
+const LEAF_COLOURS = [0x586a54, 0x718365, 0x8f9268, 0xa49b6a, 0x4b6964, 0xaaa37a];
+const PINE_COLOURS = [0x3b6260, 0x496c68, 0x58776d, 0x6e8675];
+const ROCK_COLOURS = [0x87909c, 0xa1a6ad, 0x737f8c, 0xb5b09b];
 const vegetationTime = { value: 0 }, windMaterials = new WeakMap();
 const metricInstanceMaterials=new WeakMap();
 function metricInstanceMaterial(source){
@@ -39,7 +39,7 @@ function metricInstanceMaterial(source){
   // The source cache owns this clone; sites and persistent scenery borrow it.
   // Removing one site must not invalidate the material in every other owner.
   m.userData.shared=true;
-  if(sceneryRock)m.normalScale.setScalar(.16);
+  if(sceneryRock)m.normalScale.setScalar(.085);
   m.onBeforeCompile=shader=>{
     prior.call(source,shader);
     shader.uniforms.uScenerySurfaceScale={value:sceneryRock?2.8:source.userData.surfaceScale};
@@ -76,10 +76,10 @@ function metricInstanceMaterial(source){
         .replace('#include <map_fragment>',`#ifdef USE_MAP
           vec4 mineral=texture2D(map,vMapUv);
           float mineralTone=dot(mineral.rgb,vec3(.2126,.7152,.0722));
-          diffuseColor.rgb*=mix(.36,.73,smoothstep(.04,.48,mineralTone));
+          diffuseColor.rgb*=mix(.66,1.08,smoothstep(.04,.48,mineralTone));
           diffuseColor.a*=mineral.a;
           #endif
-          diffuseColor.rgb*=mix(vec3(.96,1.01,1.04),vec3(.41,.59,.54),vRockContact.y);
+          diffuseColor.rgb*=mix(vec3(.91,.97,1.07),vec3(.48,.61,.62),vRockContact.y);
           diffuseColor.rgb*=mix(vec3(.94,1.0,1.02),vec3(1.04,.99,.92),vRockContact.z);
           diffuseColor.rgb*=1.0-vRockContact.x*.09;
           // Quiet mineral bedding reads across existing fractured planes.
@@ -90,7 +90,7 @@ function metricInstanceMaterial(source){
         `);
     }
   };
-  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':painterly-bank-rock-v2':'');
+  m.customProgramCacheKey=()=>priorKey+':world-metric-scenery-v3'+(sceneryRock?':painted-slate-rock-v3':'');
   metricInstanceMaterials.set(source,m);return m;
 }
 const VEGETATION_GLSL = `
@@ -208,9 +208,23 @@ function animateVegetation(mesh, items, kind) {
   const key = mesh.material;
   if (!windMaterials.has(key)) {
     const material = mesh.material.clone(),volumeNormals=!!(material.userData.crownVolumeNormals||material.userData.rootedBladeNormals);
+    const importedTree=['pine','broadleaf'].includes(material.userData.meshyPilot);
+    if(importedTree){material.normalScale.setScalar(.075);material.roughness=.97;}
     if(material.userData.crownVolumeNormals)material.defines={...material.defines,CANOPY_SPRAY:1};
     material.onBeforeCompile = shader=>{
       vegetationShader(shader);
+      if(importedTree)shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#ifdef USE_MAP
+        vec4 crownPaint=texture2D(map,vMapUv);
+        float foliage=smoothstep(-.015,.055,crownPaint.g-(crownPaint.r+crownPaint.b)*.5);
+        float crownValue=dot(crownPaint.rgb,vec3(.2126,.7152,.0722));
+        float broadPlane=smoothstep(.012,.27,crownValue);
+        vec3 crownShade=${material.userData.meshyPilot==='pine'?'vec3(.033,.073,.071)':'vec3(.065,.093,.061)'};
+        vec3 crownLight=${material.userData.meshyPilot==='pine'?'vec3(.20,.29,.23)':'vec3(.35,.34,.17)'};
+        // Preserve the delivered connected crown, UVs and species. Palette and
+        // restrained optical detail make its masses belong to this landscape.
+        diffuseColor.rgb*=mix(crownPaint.rgb,mix(crownShade,crownLight,broadPlane),foliage*.84);
+        diffuseColor.a*=crownPaint.a;
+      #endif`);
       // Foliage normals describe a spray volume or upward-curving grass blade,
       // not the supporting card's front/back face. Avoid dark crossing seams.
       if(volumeNormals)shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_begin>',`#include <normal_fragment_begin>
@@ -220,7 +234,7 @@ function animateVegetation(mesh, items, kind) {
         #endif
       `);
     };
-    material.customProgramCacheKey = () => 'rooted-sculpted-distance-v10'+(volumeNormals?':foliage-volume':'');
+    material.customProgramCacheKey = () => 'rooted-painted-distance-v11'+(volumeNormals?':foliage-volume':'')+(importedTree?':'+material.userData.meshyPilot:'');
     const silhouette={side:material.side,map:material.map,alphaTest:material.alphaTest};
     const depth = new T.MeshDepthMaterial({ depthPacking: T.RGBADepthPacking, ...silhouette });
     const distance = new T.MeshDistanceMaterial(silhouette);
@@ -304,7 +318,7 @@ function ruinFootprint(x, z) {
 function groundAlbedo() {
   const size = 1024, colourData = new Uint8Array(size * size * 4), weightData = new Uint8Array(size * size * 4), heights = new Float32Array(size * size);
   const spacing = 1200 / (size - 1), c = new T.Color();
-  const palette = Object.fromEntries(Object.entries({ grass: 0x566d51, dry: 0x82785c, meadow: 0x818b61, soil: 0x74614e, litter:0x494238, moss:0x526950, ash: 0x656c65, slate: 0x64716e, wet: 0x374c43, gravel: 0x838371, riverbed: 0x354c48, drainage:0x717363, silt:0x939079, sedge:0x52634e }).map(([key, value]) => [key, new T.Color(value)]));
+  const palette = Object.fromEntries(Object.entries({ grass: 0x747b60, dry: 0xa38c62, meadow: 0xa5a077, soil: 0x8b725b, litter:0x574e45, moss:0x66776b, ash: 0x7d7c83, slate: 0x788591, wet: 0x455e5c, gravel: 0xaaa38e, riverbed: 0x3c5a5d, drainage:0x8c8b7d, silt:0xb0a486, sedge:0x60766b }).map(([key, value]) => [key, new T.Color(value)]));
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) heights[row * size + col] = renderedTerrainHeight(col * spacing - 600, 600 - row * spacing);
   for (let row = 0; row < size; row++) for (let col = 0; col < size; col++) {
     const x = col * spacing - 600, z = 600 - row * spacing, i = row * size + col, y = heights[i];
@@ -326,7 +340,7 @@ function groundAlbedo() {
     const beach=bankWidth(x,z),waterline=-3+(beach+3)*.61;
     const bank = smooth(waterline-.7,waterline+1.2,d)*(1-smooth(beach+3,beach+8,d));
     const soil = Math.max(ruin * .91, region.meadow * .19, bank,cover.bare*.76,cover.channel*.91,cover.fan*.74,terraceFace*.78, smooth(0, 2, Math.abs(z - roadZ(x))) * (1 - smooth(3, 7, Math.abs(z - roadZ(x)))) * .65);
-    c.copy(palette.grass).lerp(palette.dry,cover.dry*.56+smooth(.46,.78,broad)*.13).lerp(palette.meadow,region.meadow*.28);
+    c.copy(palette.grass).lerp(palette.dry,cover.dry*.71+smooth(.46,.78,broad)*.19).lerp(palette.meadow,region.meadow*.38);
     c.lerp(palette.soil,smooth(.30,.75,cover.bare)*.48).lerp(palette.wet,cover.wet*.45).lerp(palette.moss,cover.hollow*cover.cover*.37);
     let forest=smooth(.49,.72,noise(x*.015+20,z*.015+12))*.64;
     for(const[cx,cz]of[[-102,38],[123,61],[95,137],[-145,-38]])forest=Math.max(forest,Math.exp(-(((x-cx)/26)**2+((z-cz)/26)**2))*.85);
@@ -336,7 +350,7 @@ function groundAlbedo() {
     // Smaller clearings and tongues of woodland litter connect actual canopy
     // edges to the floor; their contour is not another broad painted circle.
     forest=smooth(.16,.77,forest+(noise(x*.041,z*.037)-.5)*.10);
-    c.lerp(palette.litter,forest*(.59+cover.bare*.28)).lerp(palette.moss,forest*cover.cover*.28);
+    c.lerp(palette.litter,forest*(.48+cover.bare*.24)).lerp(palette.moss,forest*cover.cover*.28);
     c.lerp(palette.ash, ash * .82).lerp(palette.soil, soil * (1 - bank) * .78);
     c.lerp(palette.slate, stone).lerp(palette.wet, (1 - smooth(beach+4,beach+18,d)) * (1 - bank) * .55);
     const bankPatch=smooth(.39,.60,noise(x*.13+17,z*.075-8));
@@ -350,7 +364,7 @@ function groundAlbedo() {
     // colour noise. The close detail comes from material-specific tiled textures.
     const meadowMass=smooth(.38,.61,noise(x*.028+8,z*.033-4));
     c.lerp(palette.meadow,meadowMass*(1-stone)*(1-bank)*(1-forest)*.32);
-    c.lerp(palette.litter,smooth(.30,.68,forest)*.38);
+    c.lerp(palette.litter,smooth(.30,.68,forest)*.30);
     c.multiplyScalar(.94+smooth(.25,.75,broad)*.045+veins*.025);
     const hex = c.getHex(), offset = i * 4;
     colourData[offset] = hex >> 16; colourData[offset + 1] = (hex >> 8) & 255; colourData[offset + 2] = hex & 255;
@@ -361,6 +375,7 @@ function groundAlbedo() {
     colourData[offset + 3] = Math.round((1-cavity*.48)*255);
     const rockWeight = Math.min(1, stone + bank * .4), soilWeight = Math.min(1 - rockWeight, Math.max(soil, ash * .8,forest*.9,eco.wet*.94,cover.hollow*.47));
     weightData[offset] = Math.round((1 - rockWeight - soilWeight) * 255); weightData[offset + 1] = Math.round(rockWeight * 255);
+    weightData[offset + 2] = Math.round(Math.min(1,forest)*255);weightData[offset + 3] = Math.round(soilWeight*255);
   }
   return { colour: groundTexture(colourData, size, true), weights: groundTexture(weightData, size) };
 }
@@ -529,7 +544,7 @@ function createWater() {
   }
   const geometry = new T.BufferGeometry(); geometry.setAttribute('position', new T.Float32BufferAttribute(positions, 3)); geometry.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2)); geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3)); geometry.setIndex(indices); geometry.computeVertexNormals();
   geometry.setAttribute('riverField',new T.Float32BufferAttribute(riverFields,4));
-  const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.43,metalness:0,side:T.DoubleSide,envMapIntensity:.58});
+  const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.43,metalness:0,side:T.DoubleSide,envMapIntensity:.55});
   const time={value:0},rippleTexture=groundDetail();
   paintRiver(material,time,rippleTexture,WIND_GLSL);
   const water = new T.Mesh(geometry, material); water.name = 'Flowing river'; water.receiveShadow = true; water.userData.noBatch = true;
@@ -788,7 +803,7 @@ export function createWorldInteractions(group, records) {
 function composeRegions(trees, shrubs, grass) {
   for (const batch of [trees.leaves, trees.needles, shrubs]) for (const item of batch.items) {
     const region = regionAt(item.x,item.z), wet = 1-smooth(9,30,shoreDistance(item.x,item.z)), c = new T.Color(item.colour);
-    c.lerp(new T.Color(0x405f4e),wet*.44); c.lerp(new T.Color(0x697765),region.slate*.42); c.lerp(new T.Color(0x777548),region.ash*.30);
+    c.lerp(new T.Color(0x3f6865),wet*.44); c.lerp(new T.Color(0x778582),region.slate*.42); c.lerp(new T.Color(0x978867),region.ash*.30);
     item.colour=c.getHex();
   }
   for(const item of grass.items){
@@ -805,7 +820,7 @@ function composeRegions(trees, shrubs, grass) {
       item.windFlex = [Math.min(.36, item.sy * .22) * (.52 + exposure * .48), .015 + exposure * .013];
       item.windMotion = [.86 + exposure * .20, 2.5 + exposure * .5];
     }
-    const c=new T.Color(item.colour);c.lerp(new T.Color(0x768768),region.slate*.6);c.lerp(new T.Color(0xaa9a69),region.meadow*.6);item.colour=c.getHex();
+    const c=new T.Color(item.colour);c.lerp(new T.Color(0x7d8e87),region.slate*.6);c.lerp(new T.Color(0xb1a473),region.meadow*.6);item.colour=c.getHex();
   }
 }
 function createSlateLandmark(group, records) {

@@ -1,40 +1,8 @@
-// Project-authored painterly surfaces. Linear-light shader colors; no external
-// assets, mutable material cache, added passes or simulated terrain displacement.
+// Painted material families share the existing world-space habitat, bank and
+// wind fields. These shaders never displace terrain or define gameplay data.
 import {getMaterial} from './materials.js';
-import {groundPatchMaps} from './ground-patch.js';
+import {surfaceSet} from './surface-library.js';
 
-// A soft, metre-space boundary keeps this material pilot inside the selected
-// riverbank/woodland rectangle. Outside it the established surfaces are exact.
-const pilotMaskGLSL=`
-  float pilotSurfaceMask(vec2 point) {
-    vec2 enter=smoothstep(vec2(-65.0,-140.0),vec2(-57.0,-133.0),point);
-    vec2 leave=1.0-smoothstep(vec2(24.0,-97.0),vec2(32.0,-90.0),point);
-    return enter.x*enter.y*leave.x*leave.y;
-  }
-`;
-
-// Static litter beds follow the six pre-existing pilot trees, not new scatter
-// or simulated shadows. Their root positions come from the unchanged seeded
-// landscape records. Forest floor remains after a tree is crushed.
-const pilotWoodlandGLSL=`
-  float pilotRootDistance(vec2 point,vec2 root,vec2 inverseSpread,float lean) {
-    vec2 offset=point-root;offset.x+=offset.y*lean;
-    offset*=inverseSpread;return dot(offset,offset);
-  }
-  float pilotWoodlandDistance(vec2 point) {
-    // tree:49 / tree:146 share an existing small east-bank canopy group.
-    float floorDistance=pilotRootDistance(point,vec2(2.3642589105293155,-119.47577563114464),vec2(.167,.208),.16);
-    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(3.730055456981063,-116.97929303627461),vec2(.172,.192),-.19));
-    // tree:1124, tree:477, tree:791 and tree:200 retain their original roots.
-    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(24.627368431538343,-117.10031807888299),vec2(.137,.169),.12));
-    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(-51.35322615969926,-116.31229785270989),vec2(.185,.208),-.22));
-    floorDistance=min(floorDistance,pilotRootDistance(point,vec2(-42.17492421157658,-103.26209894847125),vec2(.152,.196),.24));
-    return min(floorDistance,pilotRootDistance(point,vec2(-62.42828615941107,-130.5583181558177),vec2(.208,.244),-.16));
-  }
-`;
-
-// A bounded page-lifetime family: immutable variants of existing shared maps.
-// The source cache owns maps; resource scenes borrow these shared materials.
 const ruinMaterials=new Map();
 export function getRuinMaterial(kind, color) {
   if(!['stone','brick','pavement','rock'].includes(kind))return getMaterial(kind,color);
@@ -42,7 +10,7 @@ export function getRuinMaterial(kind, color) {
   if(ruinMaterials.has(key))return ruinMaterials.get(key);
   const source=getMaterial(kind,color),material=source.clone();
   material.userData={...source.userData,shared:true};
-  material.normalScale.setScalar(.19);material.roughness=.95;
+  material.normalScale.setScalar(.12);material.roughness=.94;
   material.onBeforeCompile=shader=>{
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRuinPoint;')
       .replace('#include <begin_vertex>',`#include <begin_vertex>
@@ -53,218 +21,133 @@ export function getRuinMaterial(kind, color) {
         vRuinPoint=ruinPoint.xyz;
       `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRuinPoint;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#ifdef USE_MAP
-      vec4 masonry=texture2D(map,vMapUv);
-      float tone=dot(masonry.rgb,vec3(.2126,.7152,.0722));
-      // Large stone planes carry light; photographed flecks stay subordinate.
-      float plane=mix(.31,.72,smoothstep(.045,.35,tone));
-      float foot=1.0-smoothstep(.12,3.4,vRuinPoint.y);
-      float rain=.5+.5*sin(vRuinPoint.x*1.13+sin(vRuinPoint.z*.61)*1.7);
-      float stain=smoothstep(.62,.81,rain)*(.19+foot*.38);
-      // Broad aged masonry faces, selective vertical deposits and worn mortar.
-      // The original map retains the actual stone/brick joints; no fake openings.
-      float deposit=smoothstep(.73,.87,rain)*(1.0-foot)*.14;
-      diffuseColor.rgb*=mix(vec3(.84,.91,.92),vec3(.34,.46,.35),stain+foot*.38)*plane;
-      diffuseColor.rgb+=vec3(.12,.105,.075)*deposit;
-      diffuseColor.a*=masonry.a;
-    #endif`);
-  };
-  material.customProgramCacheKey=()=> 'painterly-ruin-stone-v3';
-  material.name=source.name+' painterly ruin';ruinMaterials.set(key,material);
-  return material;
-}
-export function paintGround(material, {weights, detail}) {
-  const patch=groundPatchMaps();
-  // Enumerable texture handles keep the shared atlas visible to the existing
-  // resource inventory. Scene/material disposal never owns these page maps.
-  if(patch){material.groundColourMap=patch.colour;material.groundReliefMap=patch.relief;}
-  material.onBeforeCompile = shader => {
-    shader.uniforms.uHabitat = {value:weights};
-    shader.uniforms.uBrushGrain = {value:detail};
-    shader.uniforms.uGroundColour = {value:patch?.colour??null};
-    shader.uniforms.uGroundRelief = {value:patch?.relief??null};
-    shader.uniforms.uGroundPatchReady = {value:patch?1:0};
-    shader.uniforms.uValleyDetailReady = {value:detail.userData.valleyDetail?1:0};
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vPaintPoint;attribute float groundMoisture;varying float vPaintWet;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaintPoint=position;vPaintWet=groundMoisture;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vPaintPoint;varying float vPaintWet;
-      uniform sampler2D uHabitat,uBrushGrain;
-      uniform sampler2D uGroundColour,uGroundRelief;uniform float uGroundPatchReady,uValleyDetailReady;
-      ${pilotMaskGLSL}
-      ${pilotWoodlandGLSL}
-    `).replace('#include <map_fragment>', `#include <map_fragment>
-      float cavity=clamp(diffuseColor.a,.52,1.0);diffuseColor.a=opacity;
-      vec4 habitat=texture2D(uHabitat,vec2(vPaintPoint.x+600.0,600.0-vPaintPoint.z)/1200.0);
-      vec3 authoredGround=diffuseColor.rgb;
-      float pilotGround=pilotSurfaceMask(vPaintPoint.xz);
-      float pilotWetToe=smoothstep(.12,.90,vPaintWet);
-      vec2 groundSlope=vec2(0.0);float groundCavity=1.0,groundRoughness=mix(.95,.72,pilotWetToe);
-      // Reuse this existing sample for the packed valley detail; no extra fetch.
-      float valleyRadius=max(abs(vPaintPoint.x),abs(vPaintPoint.z));
-      float valleyRegion=1.0-smoothstep(170.0,185.0,valleyRadius);
-      // Fade the added relief before continuously returning to the historical
-      // grain frequency. Outside205 m both old coordinates and R bytes match.
-      float valleyFrequency=(1.0-smoothstep(185.0,205.0,valleyRadius))*uValleyDetailReady;
-      vec4 valleyBrush=texture2D(uBrushGrain,vPaintPoint.xz*mix(.37,.0625,valleyFrequency)+vec2(.31,.72));
-      float grain=valleyBrush.r;
-      float valleyDetail=valleyRegion*(1.0-pilotGround)*(1.0-vPaintWet*.90)*(1.0-habitat.g*.70)*uValleyDetailReady;
-      float bedding=vPaintPoint.y*.24+vPaintPoint.x*.037+vPaintPoint.z*.018;
-      float strata=mix(.93,1.05,smoothstep(.13,.83,fract(bedding)));
-      // Habitat edges and bank patches are authored into the world albedo.
-      // Leave open ground quiet rather than stamping high-contrast noise over it.
-      diffuseColor.rgb*=.977+(grain-.5)*.025;
-      diffuseColor.rgb*=mix(1.0,strata,habitat.g*.45);
-      diffuseColor.rgb*=mix(1.0,.78,vPaintWet);
-      // Habitat colours still locate meadow, litter, mineral and wet ground.
-      // Only the small turf blades and soil aggregates vary within those masses.
-      float turfStroke=smoothstep(.49,.70,valleyBrush.a),soilCrease=1.0-smoothstep(.37,.47,valleyBrush.a);
-      vec3 strokeTint=mix(vec3(1.065,1.05,.96),vec3(.98,1.11,.87),habitat.r);
-      diffuseColor.rgb*=mix(vec3(1.0),mix(vec3(1.0-soilCrease*.18),strokeTint,turfStroke),valleyDetail);
-      groundSlope=(valleyBrush.gb*2.0-1.0)*valleyDetail;
-      if(pilotGround>0.0) {
-        // Replace the weak broad pilot tint with metre-scale meadow/earth
-        // boundaries and litter attached to actual canopies. One existing
-        // seamless sample shapes their edges; there is no stacked noise field.
-        float earth=clamp(1.0-habitat.r-habitat.g,0.0,1.0);
-        float middle=texture2D(uBrushGrain,vPaintPoint.xz*.011+vec2(.17,.51)).r;
-        // Broader, closer-toned transitions avoid the flat camouflage islands
-        // identified in the gameplay review without adding another noise layer.
-        float brokenEarth=smoothstep(.490,.650,middle)*(.18+earth*.42);
-        vec3 meadow=vec3(.103,.138,.067),earthColour=vec3(.115,.105,.064);
-        vec3 openGround=mix(meadow,earthColour,clamp(earth*.68+brokenEarth,0.0,1.0));
-        openGround=mix(openGround,vec3(.133,.139,.113),habitat.g*.78);
-        vec3 pilotColour=mix(authoredGround,openGround,.66);
-        float floorDistance=pilotWoodlandDistance(vPaintPoint.xz);
-        float litter=1.0-smoothstep(.33,.94,floorDistance+(middle-.53)*1.25);
-        float rootContact=1.0-smoothstep(.010,.075,floorDistance);
-        vec3 forestFloor=mix(vec3(.049,.047,.030),vec3(.074,.061,.037),smoothstep(.47,.58,middle));
-        pilotColour=mix(pilotColour,forestFloor,litter*.82);
-        pilotColour*=1.0-rootContact*.20;
-        // The existing physical moisture field locates the bank. This soft,
-        // broken silt shoulder meets a darker wet toe without a painted outline.
-        pilotWetToe=smoothstep(.12,.78,vPaintWet+(middle-.53)*.36);
-        float dampShoulder=smoothstep(.025,.38,vPaintWet)*(1.0-pilotWetToe);
-        pilotColour=mix(pilotColour,vec3(.094,.091,.058),dampShoulder*.47);
-        pilotColour=mix(pilotColour,vec3(.032,.047,.034),pilotWetToe*.78);
-        pilotColour*=.998+(grain-.53)*.010;
-        diffuseColor.rgb=mix(diffuseColor.rgb,pilotColour,pilotGround);
-        if(uGroundPatchReady>0.5){
-          // One authored, non-repeating material covers this limited reach.
-          // The physical terrain and bank field remain the source of geometry.
-          vec2 patchUV=(vPaintPoint.xz-vec2(-65.0,-140.0))/vec2(97.0,50.0);
-          vec4 patchColour=texture2D(uGroundColour,patchUV);
-          vec3 patchRelief=texture2D(uGroundRelief,patchUV).rgb;
-          diffuseColor.rgb=mix(diffuseColor.rgb,patchColour.rgb,pilotGround);
-          groundRoughness=patchColour.a;groundSlope+=(patchRelief.rg*2.0-1.0)*pilotGround;
-          groundCavity=mix(1.0,patchRelief.b,pilotGround);
-        }
-      }
-    `).replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor=mix(.94,.67,vPaintWet);
-      roughnessFactor=mix(roughnessFactor,uGroundPatchReady>0.5?groundRoughness:mix(.95,.72,pilotWetToe),pilotGround);
-    `).replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      // Add a small world-oriented optical slope to the real mesh normal.
-      // No displaced silhouette, parallax or extra geometry is introduced.
-      if(valleyDetail>0.0||(pilotGround>0.0&&uGroundPatchReady>0.5))normal=normalize(normal+mat3(viewMatrix)*vec3(-groundSlope.x,0.0,-groundSlope.y)*.68);
-    `).replace('#include <aomap_fragment>', `#include <aomap_fragment>
-      reflectedLight.indirectDiffuse*=mix(1.0,cavity,.65)*groundCavity;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      // Weathering belongs to the masonry's foot and sheltered seams. Keep
+      // lit stone faces broad and legible instead of multiplying them to black.
+      float foot=1.0-smoothstep(.10,3.0,vRuinPoint.y);
+      float rain=.5+.5*sin(vRuinPoint.x*.73+sin(vRuinPoint.z*.37)*1.4);
+      float stain=smoothstep(.72,.91,rain)*(.07+foot*.13);
+      diffuseColor.rgb*=mix(vec3(1.04,1.01,.94),vec3(.59,.65,.60),stain+foot*.24);
     `);
   };
-  material.customProgramCacheKey=()=> 'painterly-habitat-v10-olive-valley-ground';
+  material.customProgramCacheKey=()=> 'painted-ruin-masonry-v4';
+  material.name=source.name+' painted ruin';ruinMaterials.set(key,material);
+  return material;
 }
 
-export function paintRiver(material, time, ripple, windGLSL) {
+export function paintGround(material, {weights, detail, earth=surfaceSet('earth')}) {
+  // Maps stay owned by the shared library. Retain discoverable handles for the
+  // existing renderer inventory and resource disposal accounting.
+  if(earth?.map)material.groundColourMap=earth.map;
   material.onBeforeCompile = shader => {
+    shader.uniforms.uHabitat={value:weights};
+    shader.uniforms.uBrushGrain={value:detail};
+    shader.uniforms.uEarthPaint={value:earth?.map??detail};
+    shader.uniforms.uEarthPaintReady={value:earth?.map?1:0};
+    shader.vertexShader=shader.vertexShader
+      .replace('#include <common>','#include <common>\nvarying vec3 vPaintPoint;attribute float groundMoisture;varying float vPaintWet;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvPaintPoint=position;vPaintWet=groundMoisture;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
+      varying vec3 vPaintPoint;varying float vPaintWet;
+      uniform sampler2D uHabitat,uBrushGrain,uEarthPaint;
+      uniform float uEarthPaintReady;
+    `).replace('#include <map_fragment>',`#include <map_fragment>
+      float cavity=clamp(diffuseColor.a,.52,1.0);diffuseColor.a=opacity;
+      vec4 habitat=texture2D(uHabitat,vec2(vPaintPoint.x+600.0,600.0-vPaintPoint.z)/1200.0);
+      float meadow=habitat.r,mineral=habitat.g,woodland=habitat.b;
+      float wetToe=smoothstep(.12,.88,vPaintWet);
+      // The metre-scale painting is detail within the authored habitat masses;
+      // it does not replace them with scattered decals or independent biomes.
+      vec2 paintUV=vPaintPoint.xz*.1;
+      vec3 earthPaint=texture2D(uEarthPaint,paintUV).rgb;
+      float paintTone=dot(earthPaint,vec3(.2126,.7152,.0722));
+      // Mid-sized pigment strokes survive City distance; the denser sample
+      // resolves soil, grit and litter as the camera comes closer. Mipmaps do
+      // the filtering instead of fading the whole material out at normal zoom.
+      vec3 middlePaint=texture2D(uEarthPaint,vPaintPoint.xz*.037+vec2(.27,.61)).rgb;
+      float middleTone=dot(middlePaint,vec3(.2126,.7152,.0722));
+      float paintedFacet=clamp(1.0+(paintTone-.095)*4.8+(middleTone-.095)*2.9,.50,1.52);
+      float cameraDistance=distance(cameraPosition,vPaintPoint);
+      float closePaint=1.0-smoothstep(95.0,230.0,cameraDistance);
+      float paintVisibility=1.0-smoothstep(300.0,620.0,cameraDistance);
+      vec3 earthTint=mix(vec3(.88,.94,1.03),vec3(1.09,1.04,.91),smoothstep(.60,1.38,paintedFacet))*paintedFacet;
+      float paintWeight=(.72+woodland*.16+habitat.a*.10)*(1.0-wetToe*.52)*(1.0-mineral*.44)*paintVisibility*uEarthPaintReady;
+      diffuseColor.rgb*=mix(vec3(1.0),earthTint,paintWeight);
+      // One packed normal sample supports close inspection. Its frequency and
+      // contrast fade with distance so wide views remain composed and quiet.
+      vec4 brush=texture2D(uBrushGrain,vPaintPoint.xz*.0625+vec2(.31,.72));
+      float relief=closePaint*(1.0-wetToe*.84)*(1.0-mineral*.64);
+      vec2 groundSlope=(brush.gb*2.0-1.0)*relief*.32;
+      // Broad mineral bedding follows the existing slope, with no fake ledges.
+      float bedding=vPaintPoint.y*.29+vPaintPoint.x*.021+vPaintPoint.z*.013;
+      diffuseColor.rgb*=mix(1.0,mix(.94,1.045,smoothstep(.16,.82,fract(bedding))),mineral*.58);
+      diffuseColor.rgb*=mix(1.0,.79,wetToe);
+    `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+      roughnessFactor=mix(.96,.70,wetToe);
+    `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+      normal=normalize(normal+mat3(viewMatrix)*vec3(-groundSlope.x,0.0,-groundSlope.y));
+    `).replace('#include <aomap_fragment>',`#include <aomap_fragment>
+      reflectedLight.indirectDiffuse*=mix(1.0,cavity,.57);
+    `);
+  };
+  material.customProgramCacheKey=()=> 'painted-world-habitat-v12-material-read';
+}
+
+export function paintRiver(material,time,ripple,windGLSL) {
+  material.onBeforeCompile=shader=>{
     shader.uniforms.uRiverTime=time;shader.uniforms.uRiverBrush={value:ripple};
     const common='\nuniform float uRiverTime;varying vec3 vRiverPosition,vRiverWind;varying vec4 vRiverField;\n';
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>'+common+windGLSL+'\nattribute vec4 riverField;')
       .replace('#include <begin_vertex>',`#include <begin_vertex>
         vec3 currentWind=worldWind(uRiverTime,position.xz);
         vRiverWind=currentWind;vRiverField=riverField;
-        // Retain the existing small surface motion and its native timing.
         transformed.y+=sin(position.z*.24-uRiverTime*.72)*(.023+currentWind.z*.022)+cos(position.x*.44+position.z*.13-uRiverTime*.43)*.019;
         vRiverPosition=transformed;
       `);
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>'+common+'\nuniform sampler2D uRiverBrush;'+pilotMaskGLSL)
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>'+common+'\nuniform sampler2D uRiverBrush;')
       .replace('#include <color_fragment>',`#include <color_fragment>
         float acrossRiver=vRiverField.x,alongRiver=vRiverPosition.z;
         float edgeDistance=abs(acrossRiver)/vRiverField.y;
-        float pilotWater=pilotSurfaceMask(vRiverPosition.xz);
-        float bend=vRiverField.w;
         vec2 tangent=normalize(vec2(vRiverField.z,1.0));
         vec2 across=vec2(tangent.y,-tangent.x);
-        // The bank distances are supplied by terrain.js, the same field that
-        // supports the world. Local inside-bend shallows occupy a narrow band.
         float brush=texture2D(uRiverBrush,vec2(alongRiver*.009,acrossRiver*.025)).r;
-        float insideBend=smoothstep(-.12,.55,sign(bend)*acrossRiver/vRiverField.y)*abs(bend);
-        float shallows=smoothstep(.69,.97,edgeDistance)*(.40+insideBend*.60);
-        vec3 deep=vec3(.012,.062,.071),shallow=vec3(.062,.139,.117);
-        diffuseColor.rgb=mix(deep,shallow,shallows*.84);
-        diffuseColor.rgb*=.97+(brush-.5)*.075;
-        float contact=smoothstep(.965,1.05,edgeDistance);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.035,.073,.062),contact*.72);
-        // In this reach, depth carries the colour and moving normals carry
-        // the current. Replace the painted cloudy streaks rather than adding
-        // more opacity/reflection layers to them. The supplied physical bank
-        // field controls every shallow/contact transition.
-        // Metre-space bank reach distinguishes a narrow outer bank from the
-        // broader inside-bend silt shelf. Existing brush data breaks its edge;
-        // this changes colour/roughness only, never the channel's actual extent.
+        float insideBend=smoothstep(-.12,.55,sign(vRiverField.w)*acrossRiver/vRiverField.y)*abs(vRiverField.w);
+        // The existing physical channel controls every contact and shallows.
+        // One continuous dark teal body replaces the pilot's separate treatment.
         float bankMetres=max(0.0,(1.0-edgeDistance)*vRiverField.y);
-        float shelfPatch=smoothstep(.47,.59,brush);
-        float shallowReach=1.65+insideBend*2.80+(brush-.53)*2.2;
-        float pilotShallows=1.0-smoothstep(.22,shallowReach,bankMetres);
-        vec3 bedColour=mix(vec3(.039,.079,.069),vec3(.077,.103,.061),insideBend*.62+shelfPatch*.38);
-        vec3 channelColour=mix(vec3(.012,.049,.058),bedColour,pilotShallows);
-        float wetContact=(1.0-smoothstep(.04,.57,bankMetres))*(.43+shelfPatch*.57);
-        channelColour=mix(channelColour,vec3(.021,.041,.029),wetContact*.62);
-        diffuseColor.rgb=mix(diffuseColor.rgb,channelColour,pilotWater);
-        // Two drifting, differently stretched fields break the wave fronts into
-        // current-sized patches. The old fine ground grain vanished under mip
-        // filtering at City zoom; these metre-scale patches remain readable.
+        float shallowReach=1.25+insideBend*2.9+(brush-.53)*1.7;
+        float shallows=1.0-smoothstep(.18,shallowReach,bankMetres);
+        vec3 deep=vec3(.021,.069,.084),bed=vec3(.094,.139,.116);
+        diffuseColor.rgb=mix(deep,bed,shallows*.78);
+        float contact=1.0-smoothstep(.06,.52,bankMetres);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.034,.057,.053),contact*.58);
+        // Broken strokes follow flow, while the intervening channel stays calm.
         vec2 flowUV=vec2(acrossRiver*.037,alongRiver*.021-uRiverTime*.027);
         float flowA=texture2D(uRiverBrush,flowUV).r;
         float flowB=texture2D(uRiverBrush,flowUV*vec2(.73,1.37)+vec2(.31+uRiverTime*.003,.69-uRiverTime*.009)).r;
-        // Broad phase bends vary both crest spacing and orientation. Fine
-        // texture alone produced evenly spaced transverse rows at City zoom.
-        float phaseBend=sin(alongRiver*.21+acrossRiver*.36-uRiverTime*.45)*2.7
+        float phaseBend=sin(alongRiver*.18+acrossRiver*.31-uRiverTime*.45)*2.4
           +sin(alongRiver*.09-acrossRiver*.41-uRiverTime*.19)*1.6;
-        float currentPhase=alongRiver*1.26+acrossRiver*.47+phaseBend+flowA*8.0-uRiverTime*1.55;
-        float secondaryPhase=alongRiver*1.77-acrossRiver*.82-phaseBend*.61+flowB*9.0-uRiverTime*2.15;
+        float currentPhase=alongRiver*1.12+acrossRiver*.39+phaseBend+flowA*8.0-uRiverTime*1.55;
+        float secondaryPhase=alongRiver*1.57-acrossRiver*.72-phaseBend*.61+flowB*9.0-uRiverTime*2.15;
         float crossPhase=alongRiver*.56+acrossRiver*1.12-phaseBend*.36+(flowA+flowB)*5.0-uRiverTime*1.13;
-        // Suppress unresolved crests in distant/world views instead of allowing
-        // animated one-pixel sparkle. This also retains a quiet open channel.
         vec3 waveVisibility=1.0-smoothstep(vec3(.8),vec3(2.5),vec3(fwidth(currentPhase),fwidth(secondaryPhase),fwidth(crossPhase)));
-        float bankDamping=1.0-smoothstep(.78,1.02,edgeDistance)*.64;
-        float currentMark=smoothstep(.88,.998,sin(secondaryPhase))*smoothstep(.53,.66,flowA)*waveVisibility.y;
-        diffuseColor.rgb+=vec3(.080,.102,.090)*currentMark*bankDamping*.10;
+        float bankDamping=1.0-smoothstep(.78,1.02,edgeDistance)*.68;
+        float currentMark=smoothstep(.89,.998,sin(secondaryPhase))*smoothstep(.54,.66,flowA)*waveVisibility.y;
+        diffuseColor.rgb+=vec3(.071,.103,.105)*currentMark*bankDamping*.12;
       `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-        // A rough bank and smoother moving channel retain broad reflections.
-        // Previously .56-.65 roughness plus a 60% reflection reduction made
-        // the pilot water respond like opaque blue soil.
-        roughnessFactor=clamp(.245+shallows*.15+(flowB-.53)*.09,.22,.42);
+        roughnessFactor=clamp(.31+shallows*.13+(flowB-.53)*.07,.28,.46);
       `).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-        // The channel's own tangent steers the ripples around its existing
-        // bends. Crossing, irregular fronts tilt the optical normal enough to
-        // carry visible reflections; they do not displace collision geometry.
-        vec2 slope=tangent*(cos(currentPhase)*.098*waveVisibility.x+cos(secondaryPhase)*.039*waveVisibility.y)
-          +across*cos(crossPhase)*.082*waveVisibility.z;
+        vec2 slope=tangent*(cos(currentPhase)*.081*waveVisibility.x+cos(secondaryPhase)*.031*waveVisibility.y)
+          +across*cos(crossPhase)*.063*waveVisibility.z;
         slope*=bankDamping*(.82+vRiverWind.z*.26)*(.78+.22*sin(alongRiver*.17-acrossRiver*.28-uRiverTime*.21));
         normal=normalize(mat3(viewMatrix)*vec3(-slope.x,1.0,-slope.y));
       `).replace('#include <lights_physical_fragment>',`#include <lights_physical_fragment>
-        // Water's air interface reflects about two percent head-on (IOR 1.333),
-        // rather than the Standard material's four-percent generic dielectric.
-        // Preserve its normal Fresnel growth at grazing angles.
         material.specularColor=vec3(.0204);
         material.specularColorBlended=material.specularColor;
       `).replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-        // Keep the real sun, HDR sky and shadow response. No opaque reflection
-        // overlay, emissive foam, refraction target or extra scene pass.
-        reflectedLight.directSpecular*=.65;
-        reflectedLight.indirectSpecular*=.78;
+        reflectedLight.directSpecular*=.61;
+        reflectedLight.indirectSpecular*=.80;
       `);
   };
-  material.customProgramCacheKey=()=> 'painterly-channel-v7-water-reflectance';
+  material.customProgramCacheKey=()=> 'painted-river-v8-slate-current';
 }

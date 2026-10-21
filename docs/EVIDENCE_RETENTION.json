@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-10-06T02:02:31.143Z",
+  "updatedAt": "2026-10-21T02:54:52.0043872Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
-  "workRequestsSinceCleanup": 2,
+  "workRequestsSinceCleanup": 3,
   "newGroupsSinceCleanup": [
     {
       "group": "rig-ground-refresh",
@@ -20,6 +20,13 @@
       "evidenceRoot": "artifacts/flesh-saddle",
       "reportingFolder": "artifacts/recent-work-handoff-2026-10-05",
       "status": "local candidate checkpoint; unit336, desktop7/portrait7 and five captures passed; paired timing failed browser-mode equality; final offline not run; art8.0 FAIL after four rounds; cannon geometry decision pending; no publication"
+    },
+    {
+      "group": "art-remake",
+      "request": "Rebuild the visual presentation in the owner-approved painterly dark-fantasy direction, retaining systems and latest saddle/vertical layouts.",
+      "baselineCommit": "96ab478480625923c4d3bc3f42781b0093e3194f",
+      "evidenceRoot": "artifacts/art-remake",
+      "status": "implementation in progress; no delivery authorization until required gate passes"
     }
   ],
   "retainedGroups": [

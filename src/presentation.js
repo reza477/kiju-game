@@ -23,7 +23,7 @@ export class Presentation {
     this.target.depthTexture=new T.DepthTexture(1,1,T.UnsignedIntType);
     this.bloom=new RadianceBloom(this.hdrSupported?T.HalfFloatType:T.UnsignedByteType);
     this.material=new T.ShaderMaterial({
-      name:'Linear HDR atmosphere composite',
+      name:'Painted-world linear light composite',
       uniforms:{tColor:{value:this.target.texture},tDepth:{value:this.target.depthTexture},tBloom0:{value:this.bloom.targets[0].texture},tBloom1:{value:this.bloom.targets[1].texture},tBloom2:{value:this.bloom.targets[2].texture},tBloom3:{value:this.bloom.targets[3].texture},resolution:{value:new T.Vector2(1,1)},inverseProjection:{value:camera.projectionMatrixInverse.clone()},projectionScale:{value:1},near:{value:camera.near},far:{value:camera.far},aoStrength:{value:.8},bloomStrength:{value:.18},exposure:{value:1},aoSamples:{value:12}},
       vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
       fragmentShader:`
@@ -100,11 +100,11 @@ export class Presentation {
 const NOISE_GLSL=`
 float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float noise21(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash21(i),hash21(i+vec2(1.,0.)),f.x),mix(hash21(i+vec2(0.,1.)),hash21(i+vec2(1.,1.)),f.x),f.y);}
-float cloudNoise(vec2 p){return noise21(p)*.57+noise21(p*2.03+17.3)*.28+noise21(p*4.11-8.4)*.15;}
+float cloudNoise(vec2 p){return noise21(p)*.72+noise21(p*2.03+17.3)*.28;}
 `;
 
 export function createSky(){
-  const material=new T.ShaderMaterial({name:'Sun-oriented atmospheric sky',side:T.BackSide,depthWrite:false,
+  const material=new T.ShaderMaterial({name:'Slate and parchment painted sky',side:T.BackSide,depthWrite:false,
     uniforms:{top:{value:new T.Color()},bottom:{value:new T.Color()},sunDirection:{value:new T.Vector3()},sunColor:{value:new T.Color()},sunDisc:{value:7},scattering:{value:.24},cloudColor:{value:new T.Color()},cloudShade:{value:new T.Color()},cloudOpacity:{value:.32},time:{value:0},wind:{value:new T.Vector2(.5,.3)}},
     vertexShader:`varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader:`
@@ -124,7 +124,7 @@ export function createSky(){
         float upper=smoothstep(.035,.16,direction.y);
         vec2 plane=direction.xz/max(.11,direction.y+.11)*2.4-wind*time*.00085;
         float mass=cloudNoise(plane)+cloudNoise(plane*.43+6.1)*.15;
-        float coverage=smoothstep(.48,.74,mass)*upper*cloudOpacity;
+        float coverage=smoothstep(.43,.74,mass)*upper*cloudOpacity;
         vec2 lightStep=sunDirection.xz/max(.22,sunDirection.y)*.10;
         float ahead=cloudNoise(plane+lightStep)+cloudNoise((plane+lightStep)*.43+6.1)*.15;
         float thickness=max(0.,mass-ahead)*3.7+max(0.,mass-.59)*.9;
