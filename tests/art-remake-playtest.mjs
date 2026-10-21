@@ -16,6 +16,12 @@ const out=path.resolve(process.env.OUTPUT_DIR||'artifacts/art-remake/capture');
 const base=new URL(process.env.GAME_TEST_URL||'http://127.0.0.1:4224/');
 const mode=process.env.MODE||'capture',label=process.env.RUN_LABEL||'AFTER';
 const requestedLight=process.env.LIGHT||'day';
+const walkHoldMs=process.env.WALK_HOLD_MS?Number(process.env.WALK_HOLD_MS):0;
+if(process.env.WALK_HOLD_MS!==undefined)assert.ok(Number.isInteger(walkHoldMs)&&walkHoldMs>=5000&&walkHoldMs<=8000,'WALK_HOLD_MS must be 5000–8000 when supplied.');
+const requestedRays=process.env.DIAGNOSTIC_RAYS?JSON.parse(process.env.DIAGNOSTIC_RAYS):null;
+if(requestedRays!==null)assert.ok(Array.isArray(requestedRays),'DIAGNOSTIC_RAYS must be a JSON array.');
+const diagnosticRays=requestedRays?.map(point=>Array.isArray(point)?{x:point[0],y:point[1]}:point)??null;
+if(diagnosticRays){assert.ok(Array.isArray(diagnosticRays)&&diagnosticRays.length>0&&diagnosticRays.length<=32,'DIAGNOSTIC_RAYS must contain 1–32 CSS pixel coordinates.');for(const point of diagnosticRays)assert.ok(Number.isFinite(point?.x)&&Number.isFinite(point?.y)&&point.x>=0&&point.y>=0,'Each diagnostic ray requires finite nonnegative x/y.');}
 assert.ok(['capture','smoke'].includes(mode));
 assert.ok(['day','dusk','night'].includes(requestedLight));
 assert.ok(['localhost','127.0.0.1'].includes(base.hostname),'Only isolated loopback servers allowed.');
@@ -41,7 +47,7 @@ async function fingerprint(root){
  return{root,commit:git(root,'rev-parse','HEAD'),status:git(root,'status','--short'),hashes,fingerprint:sha(JSON.stringify(hashes))};
 }
 await fs.mkdir(out,{recursive:true});assert.equal((await fs.readdir(out)).length,0,'Output must be empty; never overwrite original evidence.');
-const report={protocol:'art-remake-v1',mode,label,startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['MODE','RUN_LABEL','SOURCE_ROOT','FIXTURE_ROOT','OUTPUT_DIR','GAME_TEST_URL','VIEW','VARIANT','CAPTURE_VARIANT','LIGHT','HEADLESS','RECORD_VIDEO','OBSERVE_FRAMES'].filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]]))},method:'Fresh isolated context per case; baseline createGame fixture, ordinary Continue click, native orbit/wheel/touch, normal gameplay with HUD. No screenshot retouching, runtime state writes, time overrides or frame pumping.',limitations:['Phone captures are Windows Chrome emulation, not physical Apple-device verification.','Initial fixture and framing are fixed; native elapsed time and animation pose are recorded and can differ.','Bounded smoke is not a release, offline/update, performance or art gate.','Optional RAF observations measure native callback intervals in this view only; they are not GPU time, sustained performance or comparative speedup evidence.'],visits:[],passed:false};
+const report={protocol:'art-remake-v1',mode,label,startedAt:new Date().toISOString(),command:{executable:process.execPath,args:process.argv.slice(1),environment:Object.fromEntries(['MODE','RUN_LABEL','SOURCE_ROOT','FIXTURE_ROOT','OUTPUT_DIR','GAME_TEST_URL','VIEW','VARIANT','CAPTURE_VARIANT','LIGHT','HEADLESS','RECORD_VIDEO','OBSERVE_FRAMES','DIAGNOSTIC_RAYS','WALK_HOLD_MS'].filter(k=>process.env[k]!==undefined).map(k=>[k,process.env[k]]))},method:'Fresh isolated context per case; baseline createGame fixture, ordinary Continue click, native orbit/wheel/touch, normal gameplay with HUD. No screenshot retouching, runtime state writes, time overrides or frame pumping.',limitations:['Phone captures are Windows Chrome emulation, not physical Apple-device verification.','Initial fixture and framing are fixed; native elapsed time and animation pose are recorded and can differ.','Bounded smoke is not a release, offline/update, performance or art gate.','Optional RAF observations measure native callback intervals in this view only; they are not GPU time, sustained performance or comparative speedup evidence.'],visits:[],passed:false};
 const write=()=>fs.writeFile(path.join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
 await write();let browser,context,page,visit;
 const snapshot=()=>page.evaluate(()=>{const {state:s,scene:g}=window.__colossus,gl=g.renderer.getContext();return{time:s.time,faction:s.faction,variant:s.variant,x:s.x,z:s.z,angle:s.angle,paused:s.paused,speed:s.speed,mode:s.mode,buildings:s.buildings,towerOrder:s.towerOrder??null,resources:s.resources,worldDamage:s.worldDamage,camera:{yaw:g.yaw,pitch:g.pitch,zoom:g.zoom,view:g.view,mode:g.cinematic.mode,position:g.camera.position.toArray(),target:g.focus.toArray()},quality:g.quality,light:g.light,render:{calls:g.renderer.info.render.calls,triangles:g.renderer.info.render.triangles,canvasWidth:g.canvas.width,canvasHeight:g.canvas.height},hud:!document.getElementById('hud').classList.contains('hidden'),dialog:document.getElementById('dialog').open,overflow:document.documentElement.scrollWidth>innerWidth+1,environmentReady:g.environmentReady,environmentError:g.environmentError,surfaces:g.surfaceDiagnostics(),contextLost:gl.isContextLost(),shaderFailures:(g.renderer.info.programs??[]).filter(p=>p.diagnostics?.runnable===false).map(p=>p.name)};});
@@ -65,7 +71,36 @@ async function nativeCamera(target){
  visit.cameraInput={target,actual,point,strokes};
 }
 function validate(s){assert.equal(s.paused,false);assert.equal(s.speed,1);assert.equal(s.mode,'expedition');assert.equal(s.hud,true);assert.equal(s.dialog,false);assert.equal(s.overflow,false);assert.equal(s.contextLost,false);assert.equal(s.environmentReady,true);assert.equal(s.environmentError,null);assert.equal(s.surfaces.pending,0);assert.deepEqual(s.surfaces.failures,[]);assert.deepEqual(s.shaderFailures,[]);assert.ok(s.render.calls>0&&s.render.triangles>0);}
-async function screenshot(name){const file=path.join(out,`${label}-${name}.png`);await page.screenshot({path:file});const bytes=await fs.readFile(file);return{path:file,bytes:bytes.length,sha256:sha(bytes),width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),original:true,phoneEmulation:profiles[visit.profile].isMobile,capturedAt:new Date().toISOString()};}
+async function inspectScreenshotRays(){
+ return page.evaluate(async points=>{
+  const T=await import('/vendor/three.module.js'),g=window.__colossus.scene,rect=g.canvas.getBoundingClientRect(),raycaster=new T.Raycaster(),worldPosition=matrix=>new T.Vector3().setFromMatrixPosition(matrix).toArray();
+  const compact=(value,depth=0)=>{
+   if(value===null||['boolean','number'].includes(typeof value))return value;
+   if(typeof value==='string')return value.length>240?value.slice(0,240)+'…':value;
+   if(typeof value==='function'||typeof value==='undefined')return `[${typeof value}]`;
+   if(value?.isObject3D||value?.isMaterial||value?.isTexture||value?.isBufferGeometry)return{type:value.type??value.constructor?.name,name:value.name??'',uuid:value.uuid};
+   if(ArrayBuffer.isView(value))return{type:value.constructor.name,length:value.length};
+   if(Array.isArray(value))return depth>=2?{type:'Array',length:value.length}:value.length>12?{type:'Array',length:value.length,first:value.slice(0,3).map(item=>compact(item,depth+1))}:value.map(item=>compact(item,depth+1));
+   const keys=Object.keys(value);if(depth>=2)return{type:value.constructor?.name??'Object',keys:keys.slice(0,16),keyCount:keys.length};
+   const result=Object.fromEntries(keys.slice(0,16).map(key=>[key,compact(value[key],depth+1)]));if(keys.length>16)result.omittedKeys=keys.length-16;return result;
+  };
+  const describe=hit=>{
+   const object=hit.object,ancestry=[];let effectiveVisible=true;
+   for(let parent=object;parent;parent=parent.parent){effectiveVisible&&=parent.visible;ancestry.push({name:parent.name||'',type:parent.type,userData:compact(parent.userData)});}
+   const materials=Array.isArray(object.material)?object.material:[object.material],selectedMaterial=materials[hit.face?.materialIndex??0];effectiveVisible&&=selectedMaterial?.visible!==false;
+   let instanceWorldPosition=null;if(object.isInstancedMesh&&Number.isInteger(hit.instanceId)){const instance=new T.Matrix4();object.getMatrixAt(hit.instanceId,instance);instanceWorldPosition=worldPosition(new T.Matrix4().multiplyMatrices(object.matrixWorld,instance));}
+   return{distance:hit.distance,objectName:object.name||'',objectType:object.type,objectId:object.id,uuid:object.uuid,ancestorNameChain:ancestry.map(parent=>parent.name||`(unnamed ${parent.type})`),ancestry,geometryType:object.geometry?.type??null,geometryName:object.geometry?.name??null,materialNames:materials.filter(Boolean).map(material=>material.name||''),materialTypes:materials.filter(Boolean).map(material=>material.type),selectedMaterialName:selectedMaterial?.name??null,worldPosition:worldPosition(object.matrixWorld),instanceId:hit.instanceId??null,instanceWorldPosition,hitWorldPoint:hit.point.toArray(),faceIndex:hit.faceIndex??null,materialIndex:hit.face?.materialIndex??null,effectiveVisible,userData:compact(object.userData)};
+  };
+  const rays=points.map(point=>{
+   if(point.x<rect.left||point.x>=rect.right||point.y<rect.top||point.y>=rect.bottom)throw Error('Diagnostic coordinate lies outside the canvas.');
+   raycaster.setFromCamera(new T.Vector2((point.x-rect.left)/rect.width*2-1,-(point.y-rect.top)/rect.height*2+1),g.camera);
+   const hits=raycaster.intersectObjects(g.scene.children,true);
+   return{cssPixel:point,totalHits:hits.length,ray:{origin:raycaster.ray.origin.toArray(),direction:raycaster.ray.direction.toArray()},firstTenHits:hits.slice(0,10).map(describe)};
+  });
+  return{method:'Read-only raycast using existing scene/camera transforms immediately before the PNG screenshot call; native animation continues, so this does not claim an atomic same-frame snapshot.',sampledAt:new Date().toISOString(),performanceNow:performance.now(),simulationTime:window.__colossus.state.time,viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},canvasRect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height},camera:{position:worldPosition(g.camera.matrixWorld),matrixWorld:g.camera.matrixWorld.toArray(),projectionMatrix:g.camera.projectionMatrix.toArray()},rays};
+ },diagnosticRays);
+}
+async function screenshot(name){const file=path.join(out,`${label}-${name}.png`);if(diagnosticRays){visit.screenshotDiagnostics??=[];visit.screenshotDiagnostics.push({name,path:file,...await inspectScreenshotRays()});}await page.screenshot({path:file});const bytes=await fs.readFile(file);return{path:file,bytes:bytes.length,sha256:sha(bytes),width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),original:true,phoneEmulation:profiles[visit.profile].isMobile,capturedAt:new Date().toISOString()};}
 async function selectLighting(){
  const before=(await snapshot()).light;if(before===requestedLight)return;
  const mobile=profiles[visit.profile].isMobile;if(mobile)await tap('#mobile-menu');
@@ -85,12 +120,18 @@ async function observePerformance(){
  visit.performance={method:'Read-only native requestAnimationFrame callback intervals during stationary normal gameplay; no extra render or time advance calls.',...observations,meanMs:observations.elapsedMs/count,p50Ms:percentile(.5),p95Ms:percentile(.95),worstMs:sorted.at(-1),observedCallbacksPerSecond:count*1000/observations.elapsedMs};
 }
 async function smoke(){
- const before=await snapshot();await page.keyboard.down('w');
- try{await until(({x,z})=>Math.hypot(window.__colossus.state.x-x,window.__colossus.state.z-z)>=3,{x:before.x,z:before.z},20000);}finally{await page.keyboard.up('w');}
+ const before=await snapshot();await page.keyboard.down('w');const holdStarted=performance.now();
+ try{await until(({x,z})=>Math.hypot(window.__colossus.state.x-x,window.__colossus.state.z-z)>=3,{x:before.x,z:before.z},20000);if(walkHoldMs){const remaining=walkHoldMs-(performance.now()-holdStarted);if(remaining>0)await page.waitForTimeout(remaining);}}finally{await page.keyboard.up('w');}
+ const actualHeldMs=performance.now()-holdStarted;
  const moved=await snapshot();assert.ok(moved.time>before.time);visit.movement={before,after:moved,distance:Math.hypot(moved.x-before.x,moved.z-before.z)};
+ if(walkHoldMs)visit.movement.nativeHold={requestedMs:walkHoldMs,actualHeldMs};
+ const resourceBalance=()=>page.evaluate(()=>{const s=window.__colossus.state;return{resources:{wood:s.resources.wood,iron:s.resources.iron},deposits:{wood:s.nodes.filter(n=>n.kind==='wood').reduce((sum,n)=>sum+n.amount,0),iron:s.nodes.filter(n=>n.kind==='iron').reduce((sum,n)=>sum+n.amount,0)}};});
+ const balanceBefore=walkHoldMs?await resourceBalance():null;
  await tap('[data-building="sawmill"]');const empty=page.locator('[data-slot]:not([disabled])').first();const slot=Number(await empty.getAttribute('data-slot'));await empty.click();
  await until(i=>window.__colossus.state.buildings[i]?.type==='sawmill',slot);await until(i=>window.__colossus.state.buildings[i]?.remaining===0,slot,45000);
- const built=await snapshot();assert.equal(built.resources.wood,before.resources.wood-25);assert.equal(built.resources.iron,before.resources.iron-20);visit.construction={slot,completed:built.buildings[slot],towerOrder:built.towerOrder};
+ const built=await snapshot();visit.construction={slot,completed:built.buildings[slot],towerOrder:built.towerOrder};
+ if(walkHoldMs){const balanceAfter=await resourceBalance(),spent={};for(const [kind,cost]of [['wood',25],['iron',20]]){spent[kind]=balanceBefore.resources[kind]+balanceBefore.deposits[kind]-balanceAfter.deposits[kind]-balanceAfter.resources[kind];assert.ok(Math.abs(spent[kind]-cost)<.00001,kind+' construction balance did not match cost');}visit.construction.resourceBalance={before:balanceBefore,after:balanceAfter,spent,method:'Deposit depletion accounts for automatic gathering after the longer walk.'};}
+ else{assert.equal(built.resources.wood,before.resources.wood-25);assert.equal(built.resources.iron,before.resources.iron-20);}
  await page.keyboard.press('p');await until(()=>window.__colossus.state.paused);
  await tap('#save');const saved=await page.evaluate(()=>localStorage.getItem('colossus-wake-save-v1'));assert.ok(saved);const savedState=JSON.parse(saved);
  await page.reload({waitUntil:'domcontentloaded',timeout:120000});await until(()=>!!window.__colossus);await tap('#continue');await until(()=>window.__colossus.scene.environmentReady&&window.__colossus.scene.surfaceDiagnostics().pending===0);

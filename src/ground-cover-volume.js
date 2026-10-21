@@ -1,4 +1,5 @@
 import * as T from '../vendor/three.module.js';
+import {fieldShrubGeometry} from './field-botany.js';
 import {bankWidth, protectedResource, renderedTerrainHeight, roadZ, shoreDistance, terrainNoise, terrainNormal} from './terrain.js';
 
 // This layer is visual-only: it has its own deterministic sampler and never
@@ -124,13 +125,7 @@ export function createGroundCoverGeometry(kind){
   const positions=[],colours=[],palette=COLOURS[kind].map(hex=>new T.Color(hex)),colour=new T.Color();
   const emit=(a,b,c)=>{for(const point of[a,b,c]){positions.push(...point);const h=Math.max(0,Math.min(1,point[1]));colour.copy(palette[0]).lerp(palette[1],Math.min(1,h*2.6)).lerp(palette[2],Math.max(0,h-.25)*.70);colours.push(colour.r,colour.g,colour.b);}};
   if(kind==='shrub'){
-    // Three unequal rooted crowns read as one branching bush, rather than a
-    // smooth geodesic ball. All crowns share the same tiny opaque draw.
-    for(const [cx,cz,r,h,phase]of[[0,.14,.63,.96,.2],[-.40,-.23,.50,.67,.55],[.42,-.28,.43,.56,-.12]]){
-      const bottom=[cx,0,cz],top=[cx+.06,h,cz-.04],rim=[];
-      for(let i=0;i<4;i++){const a=phase+i*TAU/4;rim.push([cx+Math.cos(a)*r,h*(.43+(i%2)*.09),cz+Math.sin(a)*r]);}
-      for(let i=0;i<4;i++){const a=rim[i],b=rim[(i+1)%4];emit(bottom,a,b);emit(a,top,b);}
-    }
+    const geometry=fieldShrubGeometry(true);geometry.deleteAttribute('uv');return geometry;
   }else if(kind==='fern'){
     // Four bowed fronds, each with two opposing pairs of folded leaflets.
     // Notches between the leaflets supply the fern silhouette from City view.
@@ -166,7 +161,7 @@ export function createGroundCoverGeometry(kind){
 
 function createMaterial(timeUniform,range){
   const material=new T.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:T.DoubleSide});
-  material.name='Opaque low-poly ground cover';material.userData.noBatch=true;
+  material.name='Opaque botanical ground cover';material.userData.noBatch=true;
   material.onBeforeCompile=shader=>{
     shader.uniforms.uGroundCoverTime=timeUniform;shader.uniforms.uCoverRange=range;
     shader.vertexShader=shader.vertexShader.replace('#include <common>',`#include <common>

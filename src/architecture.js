@@ -37,7 +37,28 @@ function addMesh(group, geometry, material, x = 0, y = 0, z = 0) {
   return mesh;
 }
 
+function chamferedPlan(w,d,c){return[[-w/2+c,-d/2],[w/2-c,-d/2],[w/2,-d/2+c],[w/2,d/2-c],[w/2-c,d/2],[-w/2+c,d/2],[-w/2,d/2-c],[-w/2,-d/2+c]];}
+function architecturalLoft(group,levels,material,x,y,z,name){
+  const pos=[],uv=[],indices=[],n=8;
+  for(const level of levels)for(const[xx,zz]of chamferedPlan(level.w,level.d,level.c)){pos.push(xx,level.y,zz);uv.push(xx*.7,zz*.7+level.y*.4);}
+  for(let l=0;l<levels.length-1;l++)for(let i=0;i<n;i++){const a=l*n+i,b=l*n+(i+1)%n;indices.push(a,a+n,b,b,a+n,b+n);}
+  for(let i=1;i<n-1;i++){indices.push(0,i,i+1);const end=(levels.length-1)*n;indices.push(end,end+i+1,end+i);}
+  const source=new T.BufferGeometry();source.setAttribute('position',new T.Float32BufferAttribute(pos,3));source.setAttribute('uv',new T.Float32BufferAttribute(uv,2));source.setIndex(indices);
+  const g=source.toNonIndexed();source.dispose();g.computeVertexNormals();const result=addMesh(group,g,material,x,y,z);result.name=name;return result;
+}
+
 function roof(group, w, h, d, material, x, y, z, style = 'gable') {
+  if(style==='mansard'){
+    // Four steep slate faces turn into a shallow, hipped cap. The sloped ends
+    // and clipped corners replace the former flat-ended trapezoid extrusion.
+    architecturalLoft(group,[{y:0,w,d,c:Math.min(w,d)*.07},{y:h*.15,w:w*.98,d:d*.98,c:Math.min(w,d)*.075},{y:h*.77,w:w*.68,d:d*.66,c:Math.min(w,d)*.09},{y:h,w:w*.51,d:d*.48,c:Math.min(w,d)*.075}],material,x,y,z,'Hipped mansard slate roof');
+    architecturalLoft(group,[{y:-.055,w:w*1.01,d:d*1.01,c:Math.min(w,d)*.065},{y:.025,w:w*1.01,d:d*1.01,c:Math.min(w,d)*.065}],M('metal',0x52645f),x,y,z,'Folded mansard eaves');
+    const seams=M('metal',0x74877d);
+    for(const side of[-1,1])for(const offset of[-.22,.22]){
+      beam(group,[x+offset*w,y+h*.17,z+side*d*.485],[x+offset*w*.68,y+h*.77,z+side*d*.332],.013,seams);
+    }
+    return;
+  }
   // A ridged prism and a slate mansard retain actual roof planes and eaves.
   const shape = new T.Shape();
   if (style === 'mansard') {
@@ -194,6 +215,24 @@ function entrance(group, x, z, y, p, faction, width = .48, height = .95) {
   box(group, .018, height * .62, .015, M('gold', p.trim), x, y + height * .36, z + .086);
 }
 
+// Three glazed planes form a projecting bow, kept inside the former balcony
+// and awning extent. This silhouette reads from side streets and reverse orbit.
+function bowWindow(group,width,height,x,y,z,p){
+  const depth=width*.31,shape=new T.Shape();
+  shape.moveTo(-width/2,0);shape.lineTo(-width*.31,depth);shape.lineTo(width*.31,depth);shape.lineTo(width/2,0);shape.closePath();
+  const prism=new T.ExtrudeGeometry(shape,{depth:height,bevelEnabled:false});prism.rotateX(Math.PI/2);prism.translate(0,height,0);
+  addMesh(group,prism,M('wood',p.dark),x,y,z).name='Splayed timber oriel';
+  const g=new T.Group();g.position.set(x,y,z);group.add(g);
+  const front=width*.62;
+  window(g,0,.05,depth+.012,front*.84,height-.11,p);
+  for(const side of[-1,1]){
+    const face=new T.Group();face.position.set(side*width*.405,0,depth*.5);face.rotation.y=side*Math.atan2(depth,width*.19);
+    window(face,0,.06,.012,Math.hypot(width*.19,depth)*.73,height-.13,p);g.add(face);
+  }
+  architecturalLoft(g,[{y:-.09,w:width*1.10,d:depth*1.3,c:.055},{y:.015,w:width*1.10,d:depth*1.3,c:.055}],dressed(p.trim),0,0,depth*.52,'Oriel carved sill');
+  architecturalLoft(g,[{y:height-.015,w:width*1.12,d:depth*1.36,c:.055},{y:height+.07,w:width*.88,d:depth*1.12,c:.055}],dressed(p.light),0,0,depth*.52,'Oriel swept lintel');
+}
+
 function capital(group, level, faction, p) {
   const h = 2.65 + Math.min(level - 1, 4) * .3;
   box(group, 2.35, h, 2.2, wallMaterial(faction, p.wall), 0, h / 2 + .19, -.18);
@@ -228,17 +267,17 @@ function capital(group, level, faction, p) {
   } else if (faction === 'crawler') {
     roof(group, 2.55, .86, 2.38, M('roof', p.roof), 0, h + .22, -.18, 'mansard');
     const th = h + 3.35;
-    box(group, .93, 3.6, .95, wallMaterial(faction, p.wall), 0, th - 1.55, -.15);
+    architecturalLoft(group,[{y:0,w:.93,d:.95,c:.075},{y:2.62,w:.93,d:.95,c:.075},{y:2.87,w:.84,d:.86,c:.09},{y:3.6,w:.84,d:.86,c:.09}],wallMaterial(faction,p.wall),0,th-3.35,-.15,'Chamfered civic clock tower');
     for (const x of [-.43, .43]) box(group, .1, 3.64, .09, dressed(p.light), x, th - 1.55, .34);
     cornice(group, .98, 1.02, th, p, 0, -.15);
-    box(group, 1.18, .2, 1.2, dressed(p.light), 0, th + .23, -.15);
-    roof(group, 1.24, .98, 1.27, M('roof', p.roof), 0, th + .34, -.15);
+    architecturalLoft(group,[{y:0,w:1.08,d:1.10,c:.12},{y:.20,w:1.18,d:1.20,c:.13}],dressed(p.light),0,th+.13,-.15,'Clock tower carved crown');
+    roof(group, 1.24, .98, 1.27, M('roof', p.roof), 0, th + .34, -.15,'mansard');
     for(const sx of[-1,1])for(const sz of[-1,1]){
       box(group,.105,2.93,.11,dressed(p.trim),sx*.46,th-1.29,-.15+sz*.47);
       cylinder(group,.095,.15,.52,dressed(p.light),sx*.50,th+.60,-.15+sz*.52,8);
       cylinder(group,0,.14,.44,M('roof',p.roof),sx*.50,th+1.07,-.15+sz*.52,8);
     }
-    for (const angle of [0, Math.PI / 2, Math.PI]) {
+    for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       const clock = new T.Group();
       clock.position.set(0, th - .52, -.15);
       clock.rotation.y = angle;
@@ -315,11 +354,7 @@ function housing(group, level, faction, p) {
         roof(local, .39, .14, .31, M('roof', p.roof), 0, h + .75, d / 2 + .025);
         // A faceted oriel gives the terraced street real depth, tied back to
         // its brick wall by a stone corbel rather than flat window decals.
-        const bay=new T.Group();bay.position.set(0,1.31,d/2+.07);local.add(bay);
-        cylinder(bay,.27,.19,.17,dressed(p.trim),0,-.01,.08,5);
-        box(bay,.47,.49,.23,M('wood',p.dark),0,.28,.07);
-        window(bay,0,.08,.202,.34,.38,p);
-        box(bay,.57,.075,.34,dressed(p.trim),0,.58,.08);
+        bowWindow(local,.47,.49,0,1.31,d/2+.07,p);
       }
     }
     entrance(local, 0, d / 2 + .075, .23, p, faction, .23, .62);
@@ -672,7 +707,8 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
     const h = 1.55 + i % 3 * .25;
     const wall = new T.Color(p.wall).offsetHSL(0, 0, (i % 3 - 1) * .055).getHex();
     box(g, 1.65, .18, 1.46, dressed(p.trim), 0, .02, 0);
-    box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
+    if(faction==='crawler')architecturalLoft(g,[{y:0,w:1.43,d:1.13,c:.11},{y:h,w:1.43,d:1.13,c:.11}],wallMaterial(faction,wall),0,.12,-.08,'Clipped borough townhouse');
+    else box(g, 1.43, h, 1.13, wallMaterial(faction, wall), 0, h / 2 + .12, -.08);
     box(g, 1.58, .12, 1.3, dressed(p.light), 0, h + .13, -.08);
     if (faction === 'airship') {
       dome(g, .43, 0, h + .18, -.08, p, .8);
@@ -694,6 +730,9 @@ export function createPerimeterQuarter(faction = 'kaiju', deckY = 0) {
         roof(g,.96,.63,.77,M('roof',p.roof),0,h+.75,.28);
         window(g,0,h+.23,.614,.33,.43,p,true);
       }
+      // Bow-front addresses alternate with the flatter workshops; this gives
+      // the unchanged perimeter street a rhythm of major volumes.
+      if(i%2===0)bowWindow(g,.91,.64,0,h-.75,.46,p);
     }
     for (const xx of [-.46, 0, .46]) {
       box(g, .22, .35, .035, glazingMaterial(xx, h - .29, .509, i), xx, h - .29, .509);

@@ -68,7 +68,7 @@ test('new vegetation consumes no cutout texture and retains explicit independent
 test('grouped blades root at ground level, and sculpted stone stays at the inherited metre scale',()=>{
   const grass=grassTuftGeometry(),rock=fracturedRockGeometry();
   assert.equal(grass.boundingBox.min.y,0);assert.ok(grass.boundingBox.max.y<=.9);
-  assert.equal(grass.index.count/3,24);assert.ok(rock.attributes.position.count/3<=80);
+  assert.equal(grass.index.count/3,24);assert.ok(rock.attributes.position.count/3<=180);
   const rockSize=rock.boundingBox.getSize(new T.Vector3());
   assert.ok(rockSize.x<2.3&&rockSize.y<2&&rockSize.z<2.3);
   grass.dispose();rock.dispose();

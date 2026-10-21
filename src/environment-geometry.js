@@ -2,7 +2,7 @@ import * as T from '../vendor/three.module.js';
 
 // Original local botanical assets. Closed sculpted crowns and real grouped
 // blades live in the editable painterly kit; fern pinnae retain folded leaves.
-const TAU = Math.PI * 2;
+const TAU = Math.PI * 2, UP=new T.Vector3(0,1,0);
 function random(seed) { let n = seed >>> 0; return () => ((n = (n * 1664525 + 1013904223) >>> 0) / 4294967296); }
 function builder() {
   const p = [], uv = [], colour = [], index = [];
@@ -64,26 +64,49 @@ export function fernGeometry() {
 }
 
 export function fracturedRockGeometry() {
-  // A few large geological planes, one inclined bedding seam and a chipped
-  // shoulder replace the uniformly noisy round orb. Existing instance scale,
-  // physical support and persistent interaction anchors remain the caller's.
-  const outline = [[-.82,-.45],[-.29,-.86],[.56,-.73],[.94,-.16],[.79,.53],[.12,.84],[-.65,.62],[-.95,.06]];
-  const beds = [[-.74,.71,-.10],[-.37,1,.02],[.19,.93,.10],[.72,.66,.18]];
-  const p = [], uv = [], indices = [];
-  for (let row = 0; row < beds.length; row++) for (let side = 0; side < outline.length; side++) {
-    const [x,z] = outline[side], [y,w,shear] = beds[row];
-    p.push(x*w+shear, y+x*.17+z*.06, z*w-x*.08); uv.push((x+1)*.5,(z+1)*.5);
-    if (row < beds.length-1) {
-      const a = row*8+side, b = row*8+(side+1)%8;
-      indices.push(a,a+8,b,b,a+8,b+8);
+  // An asymmetric sedimentary body: wide bedding faces, a shallow fracture
+  // recess and rounded chipped shoulders. No regular geodesic gem facets.
+  const outline=[[-.90,-.28],[-.65,-.69],[-.16,-.82],[.46,-.74],[.87,-.39],[.93,.16],[.62,.60],[.10,.80],[-.59,.60],[-.91,.18]];
+  const beds=[[-.83,.62,-.07],[-.72,.87,-.04],[-.43,.96,0],[-.32,1,.018],[-.26,.93,.035],[.32,.88,.09],[.56,.77,.14],[.74,.56,.18]];
+  const p=[],uv=[],indices=[],colours=[];
+  for(let row=0;row<beds.length;row++)for(let side=0;side<outline.length;side++){
+    const[x,z]=outline[side],[y,w,shear]=beds[row];
+    const chip=(side===2&&row>=5)?.88:(side===6&&row===3)?.93:1;
+    p.push(x*w*chip+shear,y+x*.12+z*.035,z*w*chip-x*.045);uv.push(x*.5+.5,z*.5+.5);
+    const shade=row===4?.70:.89+row*.017;colours.push(shade,shade*.99,shade*.94);
+    if(row<beds.length-1){const a=row*10+side,b=row*10+(side+1)%10;indices.push(a,a+10,b,b,a+10,b+10);}
+  }
+  for(let side=1;side<9;side++)indices.push(0,side,side+1,70,70+side+1,70+side);
+  const source=new T.BufferGeometry();source.setAttribute('position',new T.Float32BufferAttribute(p,3));source.setAttribute('uv',new T.Float32BufferAttribute(uv,2));source.setAttribute('color',new T.Float32BufferAttribute(colours,3));source.setIndex(indices);
+  const geometry=source.toNonIndexed();source.dispose();geometry.computeVertexNormals();
+  insideEnvelope(geometry,[-.930,-.9064,-.8368],[.9742,.8861,.8304]);
+  geometry.name='Chipped sedimentary river stone';geometry.userData.assetSource='src/environment-geometry.js';return geometry;
+}
+
+// Decorative highway surface only. Original item placement/randomness is
+// retained by the caller; each vertex samples the actual rendered terrain.
+export function roadRibbonGeometry(items,heightAt,baseHeightAt=heightAt){
+  const positions=[],uvs=[],colours=[],indices=[],point=new T.Vector3(),colour=new T.Color();
+  let omittedCliffPieces=0;
+  for(const item of items){
+    const rotation=item.rotation??new T.Quaternion().setFromAxisAngle(UP,item.yaw||0);
+    const nx=Math.max(1,Math.ceil(item.sx/.70)),nz=Math.max(1,Math.ceil(item.sz/.70));
+    const corners=[[-.5,-.5],[.5,-.5],[-.5,.5],[.5,.5],[0,0]].map(([u,v])=>{
+      point.set(u*item.sx,0,v*item.sz).applyQuaternion(rotation);const x=item.x+point.x,z=item.z+point.z;
+      return{x,z,y:heightAt(x,z)};
+    });
+    // A weathered road cannot hang on a cliff. Omitting only its decorative
+    // surface here does not remove a route, collider, resource or scenery ID.
+    const steep=corners.some(({x,z})=>Math.hypot(heightAt(x+.4,z)-heightAt(x-.4,z),heightAt(x,z+.4)-heightAt(x,z-.4))/.8>1.35);
+    if(steep){omittedCliffPieces++;continue;}
+    const lift=item.y-baseHeightAt(item.x,item.z)+item.sy*.5,first=positions.length/3;colour.setHex(item.colour);
+    for(let row=0;row<=nz;row++)for(let col=0;col<=nx;col++){
+      point.set((col/nx-.5)*item.sx,0,(row/nz-.5)*item.sz).applyQuaternion(rotation);
+      const x=item.x+point.x,z=item.z+point.z;positions.push(x,heightAt(x,z)+lift,z);uvs.push(x/4,z/4);colours.push(colour.r,colour.g,colour.b);
+      if(row<nz&&col<nx){const a=first+row*(nx+1)+col,b=a+1,c=a+nx+1,d=c+1;indices.push(a,c,b,b,c,d);}
     }
   }
-  for(let side=1;side<7;side++) indices.push(0,side,side+1,24,24+side+1,24+side);
-  const source = new T.BufferGeometry();
-  source.setAttribute('position',new T.Float32BufferAttribute(p,3)); source.setAttribute('uv',new T.Float32BufferAttribute(uv,2)); source.setIndex(indices);
-  const geometry = source.toNonIndexed(); source.dispose(); geometry.computeVertexNormals();
-  geometry.computeBoundingBox(); geometry.computeBoundingSphere(); geometry.name='Painterly bedded river stone';
-  return geometry;
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));geometry.setAttribute('color',new T.Float32BufferAttribute(colours,3));geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();geometry.userData={terrainConforming:true,sourcePieces:items.length,omittedCliffPieces};return geometry;
 }
 
 export function ridgeBedGeometry() {

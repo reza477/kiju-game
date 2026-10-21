@@ -65,20 +65,72 @@ export function createCrawlerBody(frame){
  for(const x of[-5.7,5.7]){ring(frame,.57,.12,brass,x,3.63,-10.94);box(frame,.45,.5,.75,dark,x,3.9,-10.93);}
 }
 
-export function dressCrawlerUndercroft(frame){
- const brick=m('brick',0x845d4c),stone=m('stone',0xc0b298),dark=m('metal',0x31434b),glass=m('glass',0x73929a),trim=m('gold',0x9e8658);
- for(const side of[-1,1])for(const z of[-7.2,-3.6,0,3.6,7.2]){
-  const bay=new T.Group();bay.rotation.y=side*Math.PI/2;bay.position.set(side*9.21,8.21,z);frame.add(bay);
-  // Projecting brick pilasters, arched reveals, a deep sill and iron transom.
-  for(const x of[-1.52,1.52]){box(bay,.26,1.32,.26,brick,x,.66,0);box(bay,.35,.13,.31,stone,x,1.24,.01);}
-  const archPoints=[[-1.13,0],[-1.13,.58],[-.92,.91],[-.53,1.12],[0,1.20],[.53,1.12],[.92,.91],[1.13,.58],[1.13,0]];
-  const backing=plate(bay,archPoints,.075,dark,'Recessed industrial arcade');backing.position.z=.018;
-  const pane=plate(bay,archPoints.map(([x,y])=>[x*.91,y*.88]),.032,glass,'Undercroft iron glazing');pane.position.set(0,.045,.066);
-  for(const x of[-.70,0,.70])box(bay,.055,.86,.10,dark,x,.48,.10);
-  box(bay,2.12,.055,.12,dark,0,.58,.10);box(bay,2.46,.12,.35,stone,0,.025,.10);
-  for(let i=0;i<8;i++){const a=i/7*Math.PI;const voussoir=box(bay,.25,.19,.19,stone,Math.cos(a)*1.20,.58+Math.sin(a)*.72,.11);voussoir.rotation.z=a-Math.PI/2;}
+// A perimeter loft supplies real stone chamfers and outward-facing cornices.
+// Its vertical coordinates are authored inside the former podium slabs.
+function podiumRing(w,d,c){return[[-w/2+c,-d/2],[w/2-c,-d/2],[w/2,-d/2+c],[w/2,d/2-c],[w/2-c,d/2],[-w/2+c,d/2],[-w/2,d/2-c],[-w/2,-d/2+c]];}
+function podiumLoft(frame,levels,material,name){
+ const pos=[],uv=[],idx=[],n=8;
+ for(const {y,w,d,c} of levels)for(const[x,z]of podiumRing(w,d,c)){pos.push(x,y,z);uv.push(x*.23,z*.23+y*.13);}
+ for(let l=0;l<levels.length-1;l++)for(let i=0;i<n;i++){const a=l*n+i,b=l*n+(i+1)%n;idx.push(a,a+n,b,b,a+n,b+n);}
+ for(let i=1;i<n-1;i++){idx.push(0,i,i+1);const end=(levels.length-1)*n;idx.push(end,end+i+1,end+i);}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);
+ const flat=g.toNonIndexed();flat.computeVertexNormals();g.dispose();return mesh(frame,flat,material,name);
+}
+
+export function createCrawlerPodium(frame){
+ const stone=m('stone',0xaeb2a4),brick=m('brick',0x90634e),dark=m('metal',0x354c50),trim=m('stone',0xc3b899);
+ // Strong receding planes replace the flat concrete shelf beneath the city.
+ podiumLoft(frame,[{y:7.775,w:18.8,d:21.8,c:1.35},{y:8.02,w:20.1,d:23.1,c:1.55},{y:8.225,w:20.1,d:23.1,c:1.55}],stone,'Splayed eight-sided city plinth');
+ podiumLoft(frame,[{y:8.175,w:18.3,d:20.7,c:1.18},{y:9.525,w:18.3,d:20.7,c:1.18}],brick,'Chamfered masonry citadel');
+ podiumLoft(frame,[{y:9.40,w:18.45,d:20.85,c:1.24},{y:9.52,w:18.76,d:21.10,c:1.32},{y:9.64,w:18.76,d:21.10,c:1.32}],trim,'Continuous undercroft cornice');
+ // Four diagonal buttress returns anchor the architecture into the iron hull.
+ for(const sx of[-1,1])for(const sz of[-1,1]){
+  const brace=plate(frame,[[-.49,0],[-.39,1.27],[.37,1.27],[.58,.12]],.48,dark,'Cast corner corbel');
+  brace.position.set(sx*8.42,7.98,sz*9.60);brace.rotation.y=-sx*sz*Math.PI/4;
+  cylinder(frame,.19,.22,.13,trim,sx*8.42,9.43,sz*9.60,8);
  }
- for(const side of[-1,1])box(frame,.17,.12,20.7,trim,side*9.28,9.61,0);
+}
+
+export function createCrawlerCityPlatform(frame,deckY){
+ const dark=m('metal',0x45595c),stone=m('stone',0xa7b2a3);
+ podiumLoft(frame,[{y:deckY-.875,w:16.72,d:17.52,c:.68},{y:deckY-.25,w:17.3,d:18.1,c:.78},{y:deckY-.125,w:17.3,d:18.1,c:.78}],dark,'Cast city deck shoulders');
+ podiumLoft(frame,[{y:deckY-.14,w:17.5,d:18.3,c:.80},{y:deckY+.06,w:17.5,d:18.3,c:.80}],stone,'Dressed city deck rim');
+}
+
+export function createCrawlerProw(frame){
+ const steel=m('metal',0x6f8081),dark=m('metal',0x304950),brass=m('gold',0xac955c);
+ // A forged, swept breakwater/plough carries the silhouette. It remains
+ // wholly inside the old bumper and cone-tooth reach, above terrain support.
+ const section=(z,w,top,bottom)=>({z,points:[[-w,bottom],[-w,top],[w,top],[w,bottom]]});
+ loft(frame,[section(11.10,6.45,4.38,2.05),section(12.45,6.45,3.98,1.70),section(14.58,5.66,2.03,1.62)],steel,'Swept steel city plough');
+ for(const x of[-5.45,-2.72,0,2.72,5.45]){
+  const rib=plate(frame,[[11.12,4.43],[12.48,4.03],[14.59,2.09],[14.59,1.64],[12.40,3.62],[11.12,3.95]],.105,dark,'Forged plough rib');
+  rib.rotation.y=-Math.PI/2;rib.position.x=x;
+ }
+ beam(frame,[-5.61,2.07,14.60],[5.61,2.07,14.60],.065,brass);
+ for(const x of[-4.8,4.8]){
+  beam(frame,[x,4.22,11.20],[x,5.10,10.54],.16,dark);
+  cylinder(frame,.28,.28,.28,brass,x,4.31,11.24,16).rotation.x=Math.PI/2;
+ }
+}
+
+export function dressCrawlerUndercroft(frame){
+ const stone=m('stone',0xc0b298),dark=m('metal',0x283f47),glass=m('glass',0x668b92);
+ const positions=[];
+ for(const side of[-1,1])for(const z of[-7.2,-3.6,0,3.6,7.2])positions.push({x:side*9.17,z,angle:side*Math.PI/2});
+ for(const end of[-1,1])for(const x of[-6.6,-3.3,0,3.3,6.6])positions.push({x,z:end*10.37,angle:end<0?Math.PI:0});
+ for(const {x,z,angle}of positions){
+  const bay=new T.Group();bay.rotation.y=angle;bay.position.set(x,8.20,z);frame.add(bay);
+  const outer=new T.Shape();outer.moveTo(-1.40,0);outer.lineTo(-1.40,.47);outer.absellipse(0,.47,1.40,.80,Math.PI,0,true);outer.lineTo(1.40,0);outer.closePath();
+  const inner=new T.Path();inner.moveTo(-1.13,.02);inner.lineTo(1.13,.02);inner.lineTo(1.13,.47);inner.absellipse(0,.47,1.13,.57,0,Math.PI,false);inner.lineTo(-1.13,.02);inner.closePath();outer.holes.push(inner);
+  const surround=new T.ExtrudeGeometry(outer,{depth:.21,bevelEnabled:true,bevelSize:.022,bevelThickness:.022,bevelSegments:1,curveSegments:10});
+  mesh(bay,surround,stone,'Continuous vaulted arcade surround');
+  const opening=new T.Shape();opening.moveTo(-1.15,0);opening.lineTo(-1.15,.48);opening.absellipse(0,.48,1.15,.60,Math.PI,0,true);opening.lineTo(1.15,0);opening.closePath();
+  const pane=new T.ExtrudeGeometry(opening,{depth:.025,bevelEnabled:false,curveSegments:10});mesh(bay,pane,glass,'Recessed vaulted iron glazing').position.z=.015;
+  for(const dx of[-.69,0,.69])box(bay,.065,.73,.08,dark,dx,.39,.09);
+  box(bay,2.28,.065,.09,dark,0,.48,.09);box(bay,2.89,.14,.34,stone,0,-.005,.10);
+  const keystone=plate(bay,[[-.18,0],[-.13,.31],[.13,.31],[.18,0]],.26,stone,'Arcade keystone');keystone.position.set(0,1.01,.10);
+ }
 }
 
 export function createAirshipHull(frame){

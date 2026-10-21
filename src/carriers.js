@@ -12,7 +12,7 @@ import {addCarrierWeapons} from './armaments.js';
 import {terrainHeight,terrainNormal,renderedTerrainHeight} from './terrain.js';
 import {normalizeVariant,variantFootprint} from './variants.js';
 import {createCrawlerDrill,createVerticalEnvelopes} from './carrier-variants.js';
-import {createCrawlerBody,dressCrawlerUndercroft,createAirshipHull,dressEnvelopeCradle,createPropellerBlades} from './carrier-craft.js';
+import {createCrawlerBody,createCrawlerPodium,createCrawlerCityPlatform,createCrawlerProw,dressCrawlerUndercroft,createAirshipHull,dressEnvelopeCradle,createPropellerBlades} from './carrier-craft.js';
 import {createStandardCrawlerChassis,createStandardCrawlerWheel} from './crawler-study.js';
 import {meshyCyborgReady,createMeshyCyborg,animateMeshyCyborg} from './meshy-cyborg.js';
 import {meshyMonsterReady,createMeshyMonsterCity,animateMeshyMonsterCity} from './meshy-monster-city.js';
@@ -56,14 +56,9 @@ function crawler(frame,rig,spinners,variant){
       const stack=new T.Object3D();stack.position.set(side*7.6,16.7,z);stack.userData.smokestack=true;frame.add(stack);
     }
   }
-  box(frame,20.1,.45,23.1,m('stone',0xa8aaa0),0,8,0);
-  box(frame,18.3,1.35,20.7,m('brick',0x8f6151),0,8.85,0);
+  createCrawlerPodium(frame);
   dressCrawlerUndercroft(frame);
-  for(let x=-7.5;x<=7.5;x+=1.5){box(frame,.62,.67,.07,m('window'),x,8.9,10.4);box(frame,.8,.1,.18,m('stone',0xc0b4a0),x,8.46,10.43);}
-  if(variant!=='drill'){
-    const prow=box(frame,13,2.3,2.1,steel,0,3.2,12.1);prow.rotation.x=-.27;
-    for(let x=-6;x<=6;x+=1.4){cone(frame,.54,2.2,dark,x,2.1,13.6,4).rotation.x=Math.PI/2;box(frame,.08,2.2,2.2,brass,x,3.8,12.2);}
-  }
+  if(variant!=='drill')createCrawlerProw(frame);
   for(const side of [-1,1]){
     const lamp=sphere(frame,.3,m('window',0xffda91),side*7,5.9,11.65,1,1,.4);
     ring(frame,.37,.065,brass,side*7,5.9,11.7);
@@ -134,7 +129,8 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   }else{
     variantParts=faction==='crawler'?crawler(frame,rig,spinners,variant):airship(frame,rig,spinners,variant);
     const edge=m('stone',faction==='airship'?0xcdbb93:0x9eaaa3),metal=m('metal',0x45595c);
-    box(frame,17.3,.75,18.1,metal,0,deckY-.5,0);box(frame,17.5,.2,18.3,edge,0,deckY-.04,0);
+    if(faction==='crawler')createCrawlerCityPlatform(frame,deckY);
+    else{box(frame,17.3,.75,18.1,metal,0,deckY-.5,0);box(frame,17.5,.2,18.3,edge,0,deckY-.04,0);}
     box(frame,16.5,.09,17.2,m('pavement',0x7f918c),0,deckY+.1,0);
     frame.add(createPerimeterQuarter(faction,deckY),createStreetDetails(faction,deckY));
     for(const side of [-1,1]){

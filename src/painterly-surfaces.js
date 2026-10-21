@@ -58,26 +58,26 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       float wetToe=smoothstep(.12,.88,vPaintWet);
       // The metre-scale painting is detail within the authored habitat masses;
       // it does not replace them with scattered decals or independent biomes.
+      float cameraDistance=distance(cameraPosition,vPaintPoint);
+      float finePresence=1.0-smoothstep(24.0,90.0,cameraDistance);
       vec2 paintUV=vPaintPoint.xz*.1;
       vec3 earthPaint=texture2D(uEarthPaint,paintUV).rgb;
       float paintTone=dot(earthPaint,vec3(.2126,.7152,.0722));
-      // Mid-sized pigment strokes survive City distance; the denser sample
-      // resolves soil, grit and litter as the camera comes closer. Mipmaps do
-      // the filtering instead of fading the whole material out at normal zoom.
-      vec3 middlePaint=texture2D(uEarthPaint,vPaintPoint.xz*.037+vec2(.27,.61)).rgb;
+      // Quiet pigment masses carry City views; grit resolves only near the
+      // ground. A coarser mip removes the scratch pattern from the broad sample.
+      vec3 middlePaint=texture2D(uEarthPaint,vPaintPoint.xz*.037+vec2(.27,.61),2.0).rgb;
       float middleTone=dot(middlePaint,vec3(.2126,.7152,.0722));
-      float paintedFacet=clamp(1.0+(paintTone-.095)*4.8+(middleTone-.095)*2.9,.50,1.52);
-      float cameraDistance=distance(cameraPosition,vPaintPoint);
+      float paintedFacet=clamp(1.0+(paintTone-.095)*1.4*finePresence+(middleTone-.095)*2.1,.78,1.24);
       float closePaint=1.0-smoothstep(95.0,230.0,cameraDistance);
       float paintVisibility=1.0-smoothstep(300.0,620.0,cameraDistance);
       vec3 earthTint=mix(vec3(.88,.94,1.03),vec3(1.09,1.04,.91),smoothstep(.60,1.38,paintedFacet))*paintedFacet;
-      float paintWeight=(.72+woodland*.16+habitat.a*.10)*(1.0-wetToe*.52)*(1.0-mineral*.44)*paintVisibility*uEarthPaintReady;
+      float paintWeight=(.42+woodland*.16+habitat.a*.10)*(1.0-wetToe*.52)*(1.0-mineral*.44)*paintVisibility*uEarthPaintReady;
       diffuseColor.rgb*=mix(vec3(1.0),earthTint,paintWeight);
       // One packed normal sample supports close inspection. Its frequency and
       // contrast fade with distance so wide views remain composed and quiet.
       vec4 brush=texture2D(uBrushGrain,vPaintPoint.xz*.0625+vec2(.31,.72));
       float relief=closePaint*(1.0-wetToe*.84)*(1.0-mineral*.64);
-      vec2 groundSlope=(brush.gb*2.0-1.0)*relief*.32;
+      vec2 groundSlope=(brush.gb*2.0-1.0)*relief*.12;
       // Broad mineral bedding follows the existing slope, with no fake ledges.
       float bedding=vPaintPoint.y*.29+vPaintPoint.x*.021+vPaintPoint.z*.013;
       diffuseColor.rgb*=mix(1.0,mix(.94,1.045,smoothstep(.16,.82,fract(bedding))),mineral*.58);
@@ -90,7 +90,7 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.57);
     `);
   };
-  material.customProgramCacheKey=()=> 'painted-world-habitat-v12-material-read';
+  material.customProgramCacheKey=()=> 'painted-world-habitat-v13-quiet-masses';
 }
 
 export function paintRiver(material,time,ripple,windGLSL) {

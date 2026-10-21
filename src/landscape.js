@@ -3,11 +3,12 @@ import { getMaterial, box, cylinder, cone } from './materials.js';
 import { terrainHeight as heightAt, terrainNormal, scenerySelectionHeight, scenerySelectionNormal, westernTerraceDelta, WESTERN_TERRACE, terrainGridCoordinate, TERRAIN_SEGMENTS, renderedTerrainHeight, historicalRenderedTerrainHeight, protectedResource, riverX, riverWidth, shoreDistance, bankWidth, roadZ, terrainNoise as noise, smoothstep as smooth, RESOURCE_CENTRES } from './terrain.js';
 import { createWorldLife } from './world-life.js';
 import { windAt, WIND_GLSL } from './weather.js';
-import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, botanicalTree } from './environment-geometry.js';
+import { branchSprayGeometry, grassTuftGeometry, fernGeometry, fracturedRockGeometry, ridgeBedGeometry, roadRibbonGeometry, botanicalTree } from './environment-geometry.js';
 import { valleyWoodland, valleyGroundCover, valleyDrainageDiagnostics, composeAuthoredValley } from './authored-valley.js';
 import { createBridgeAbutments } from './bridge-study.js';
 import { partitionStaticInstances } from './spatial-instances.js';
 import { createVegetationMaterial } from './vegetation-materials.js';
+import { fieldShrubGeometry } from './field-botany.js';
 import { paintGround, paintRiver, getRuinMaterial } from './painterly-surfaces.js';
 import { packValleyDetail } from './valley-ground-detail.js';
 import { bindMeshyPilot, bindMeshyTreeCoverage } from './meshy-pilot.js';
@@ -28,7 +29,7 @@ const sceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?renderedTerrain
 const selectionSceneryHeight=(x,z)=>Math.max(Math.abs(x),Math.abs(z))>178?historicalRenderedTerrainHeight(x,z):scenerySelectionHeight(x,z);
 const LEAF_COLOURS = [0x586a54, 0x718365, 0x8f9268, 0xa49b6a, 0x4b6964, 0xaaa37a];
 const PINE_COLOURS = [0x3b6260, 0x496c68, 0x58776d, 0x6e8675];
-const ROCK_COLOURS = [0x87909c, 0xa1a6ad, 0x737f8c, 0xb5b09b];
+const ROCK_COLOURS = [0x969285, 0xaaa18c, 0x787d77, 0xb9ac91];
 const vegetationTime = { value: 0 }, windMaterials = new WeakMap();
 const metricInstanceMaterials=new WeakMap();
 function metricInstanceMaterial(source){
@@ -79,7 +80,7 @@ function metricInstanceMaterial(source){
           diffuseColor.rgb*=mix(.66,1.08,smoothstep(.04,.48,mineralTone));
           diffuseColor.a*=mineral.a;
           #endif
-          diffuseColor.rgb*=mix(vec3(.91,.97,1.07),vec3(.48,.61,.62),vRockContact.y);
+          diffuseColor.rgb*=mix(vec3(1.02,1.00,.92),vec3(.50,.58,.55),vRockContact.y);
           diffuseColor.rgb*=mix(vec3(.94,1.0,1.02),vec3(1.04,.99,.92),vRockContact.z);
           diffuseColor.rgb*=1.0-vRockContact.x*.09;
           // Quiet mineral bedding reads across existing fractured planes.
@@ -572,7 +573,14 @@ function createRoad(group) {
     posts.add(x, y + 4.2, z, .13, 8.4, .13, 0x625e4d);
     posts.link([x - 1.6, y + 7.9, z], [x + 1.6, y + 7.9, z], .07, 0x5d6257);
   }
-  road.finish('Abandoned old-world highway'); paint.finish('Weathered road markings'); posts.finish('Old telegraph poles');
+  // Keep the original placement/random sequence above. Replace rigid boxes
+  // with sampled ribbons so no pavement edge can float over a steep hillside.
+  for(const[batch,name,kind]of[[road,'Abandoned old-world highway','pavement'],[paint,'Weathered road markings','stone']]){
+    const geometry=roadRibbonGeometry(batch.items,renderedTerrainHeight,sceneryHeight);
+    const mesh=new T.Mesh(geometry,getMaterial(kind,0xffffff,{vertexColors:true}));mesh.name=name;mesh.receiveShadow=true;mesh.castShadow=false;mesh.userData.noBatch=true;
+    group.add(mesh);batch.geometry.dispose();
+  }
+  posts.finish('Old telegraph poles');
   createBridgeAbutments(group);
 }
 
@@ -847,7 +855,7 @@ function createSlateLandmark(group, records) {
 }
 
 function composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount) {
-  const shelves=new Instances(group,fracturedRockGeometry(),getMaterial('rock',0xffffff));
+  const shelves=new Instances(group,fracturedRockGeometry(),getMaterial('rock',0xffffff,{vertexColors:true}));
   const candidates=records.filter(record=>{
     if(Math.max(Math.abs(record.x),Math.abs(record.z))>185)return false;
     const e=ecologyAt(record.x,record.z);
@@ -979,9 +987,9 @@ export function createLandscape() {
   createRoad(group);
   const rand = random(196733), trees = treeBatches(group), distantTrees=treeBatches(group,true), records = [];
   const register = (id, kind, x, z, size, parts) => { if (!protectedResource(x, z)) records.push({ id, kind, x, z, size, parts }); };
-  const rocks = new Instances(group, fracturedRockGeometry(), getMaterial('rock', 0xffffff));
+  const rocks = new Instances(group, fracturedRockGeometry(), getMaterial('rock', 0xffffff,{vertexColors:true}));
   const shrubMat=getMaterial('foliage',0xffffff,{side:T.DoubleSide,vertexColors:true,roughness:.94});
-  const shrubs = new Instances(group, branchSprayGeometry(), createVegetationMaterial('broadleaf'), true, 'foliage');
+  const shrubs = new Instances(group, fieldShrubGeometry(), createVegetationMaterial('broadleaf'), true, 'foliage');
   const ferns = new Instances(group, fernGeometry(), shrubMat, false, 'grass');
   const grassMat = createVegetationMaterial('grass');
   const grass = new Instances(group, grassTuftGeometry(), grassMat, false, 'grass');
@@ -1068,6 +1076,13 @@ export function createLandscape() {
   composeRegions(trees,shrubs,grass);composeRegions(distantTrees,{items:[]},{items:[]});createSlateLandmark(group,records);
   const ecotones=composeEcotones(group,records,shrubs,ferns,grass,looseGrassCount);
   const authored=composeAuthoredValley({group,Instances,trees,shrubs,ferns,grass,rocks,records,addTree,heightAt:sceneryHeight,selectionHeightAt:selectionSceneryHeight,ecologyAt,isClearing});
+  // All botanical shrubs, including later woodland/ruin additions, share one
+  // restrained palette. This does not touch their position, scale, wind or owner.
+  for(const item of shrubs.items){
+    const wet=1-smooth(9,30,shoreDistance(item.x,item.z));
+    const tint=new T.Color(0xc8c4a9).lerp(new T.Color(0xa8b8ab),wet*.55);
+    item.colour=tint.getHex();
+  }
   const groundTransitions=composeGroundTransitions(grass,records,looseGrassCount);
   const pilot=bindMeshyPilot({group,Instances,records,trees,rocks});
   const dressing=bindGroundDressing({group,Instances,records});

@@ -1,6 +1,8 @@
 import * as T from '../vendor/three.module.js';
 import {GLTFLoader} from '../vendor/GLTFLoader.js';
 import {clone as cloneSkeleton} from '../vendor/SkeletonUtils.js';
+import {softenCarrierNormals} from './carrier-normals.js';
+import {sculptFleshGeometry, fleshContactBoneIndices} from './carrier-sculpt.js';
 
 // This loader owns bodies only. City decks, picking, weapons, locomotion and
 // combat stay with the existing carrier. No remote request or rig-name guess.
@@ -105,7 +107,6 @@ function prepareMaster(gltf, kind, bytes) {
     const geometry = object.geometry;
     if (!geometry?.attributes.position || !geometry.attributes.normal) throw new Error(kind + ' lacks mesh positions/normals');
     for (const attribute of Object.values(geometry.attributes)) for (const value of attribute.array) if (!Number.isFinite(value)) throw new Error(kind + ' has non-finite geometry');
-    geometries.add(geometry); triangles += (geometry.index?.count ?? geometry.attributes.position.count) / 3;
     if (object.isSkinnedMesh) {
       skinnedMeshes++;
       if (!object.skeleton?.bones.length || !geometry.attributes.skinIndex || !geometry.attributes.skinWeight || object.skeleton.bones.some(bone => !objects.has(bone))) throw new Error(kind + ' has an incomplete or external skeleton');
@@ -113,6 +114,21 @@ function prepareMaster(gltf, kind, bytes) {
       // character meshes remain visible until an animation envelope is measured.
       object.frustumCulled = false;
     }
+    if (!geometries.has(geometry)) {
+      // Dense imported anatomy benefits from a bounded sculpt. Coarse authored
+      // meshes retain their intentional silhouettes. The original GLB, joints,
+      // indices, UVs and skin weights stay intact; all contact paws are fixed.
+      if (kind === 'flesh' && object.isSkinnedMesh && geometry.attributes.position.count > 512) {
+        const derived = sculptFleshGeometry(geometry, {protectedBoneIndices: fleshContactBoneIndices(object.skeleton.bones)});
+        geometry.setAttribute('position', derived.geometry.attributes.position);
+        geometry.setAttribute('normal', derived.geometry.attributes.normal);
+        geometry.userData.fleshSculpt = derived.stats;
+        geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+        derived.geometry.dispose();
+      }
+      softenCarrierNormals(geometry, kind === 'flesh' ? 100 : 38);
+    }
+    geometries.add(geometry); triangles += (geometry.index?.count ?? geometry.attributes.position.count) / 3;
     object.castShadow = true; object.receiveShadow = true;
     for (const material of [object.material].flat()) {
       if (!material?.isMeshStandardMaterial && !material?.isMeshBasicMaterial) throw new Error(kind + ' has an unsupported material');
@@ -120,20 +136,20 @@ function prepareMaster(gltf, kind, bytes) {
         // Preserve the authored anatomy, rig and UV wear masks. Paint their
         // reflectance as one restrained material family instead of retaining
         // the imported near-black / sharp metallic response.
-        material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .28);
+        material.normalScale.multiplyScalar(kind === 'cyborg' ? .24 : .16);
         material.metalness *= kind === 'cyborg' ? .34 : .04;
         material.envMapIntensity = kind === 'cyborg' ? .42 : .32;
-        const floor = kind === 'cyborg' ? '.64' : '.74';
+        const floor = kind === 'cyborg' ? '.64' : '.84';
         material.onBeforeCompile = shader => {
           shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
             float pigmentLuma = dot(diffuseColor.rgb, vec3(.2126,.7152,.0722));
-            float pigmentValue = smoothstep(.008,.52,pigmentLuma);
+            float pigmentValue = pow(clamp(pigmentLuma*1.5,0.0,1.0),.65);
             ${kind === 'cyborg' ? `
             vec3 paintedBody = mix(vec3(.065,.095,.105),vec3(.52,.49,.38),pigmentValue);
             float copperMask = smoothstep(.025,.15,diffuseColor.r-diffuseColor.b);
             paintedBody = mix(paintedBody,vec3(.34,.18,.075),copperMask*.55);
             ` : `
-            vec3 paintedBody = mix(vec3(.075,.095,.12),vec3(.34,.39,.38),pigmentValue);
+            vec3 paintedBody = mix(vec3(.080,.068,.045),vec3(.46,.39,.28),pigmentValue);
             float warmFissure = smoothstep(.025,.16,diffuseColor.r-max(diffuseColor.g,diffuseColor.b));
             paintedBody = mix(paintedBody,vec3(.24,.105,.065),warmFissure*.45);
             `}
@@ -142,7 +158,7 @@ function prepareMaster(gltf, kind, bytes) {
           shader.fragmentShader = shader.fragmentShader.replace('#include <roughnessmap_fragment>',
             '#include <roughnessmap_fragment>\nroughnessFactor = ' + floor + ' + (1.0 - ' + floor + ') * roughnessFactor;');
         };
-        material.customProgramCacheKey = () => 'remake-carrier-painted-v2-' + kind;
+        material.customProgramCacheKey = () => 'remake-carrier-painted-v3-' + kind;
       }
       materials.add(material);
       for (const value of Object.values(material)) if (value?.isTexture) {
