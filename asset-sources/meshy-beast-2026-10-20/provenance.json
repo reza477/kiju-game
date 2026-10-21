@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "name": "Titanhorn",
+  "status": "private-unintegrated-original",
+  "workGroup": "art-remake",
+  "generationRequestRecordedAt": "2026-10-21T06:09:43.838Z",
+  "reference": {
+    "path": "asset-sources/flesh-remake-reference.png",
+    "sha256": "80d8b7f5b3fc49d5963051630926f944f4371f40d9f88e9bd011f9b0a4b51e85",
+    "width": 1536,
+    "height": 1024
+  },
+  "generation": {
+    "service": "Meshy",
+    "model": "Meshy 7.1 - Flagship",
+    "modelType": "High Detail",
+    "resolution": "Ultra 2K",
+    "texture": true,
+    "pose": false,
+    "multiView": false,
+    "split": false,
+    "imageEnhancement": false,
+    "license": "Private",
+    "generatedAssetPrivateLicenseVerified": true,
+    "creditsBefore": 1091,
+    "creditsAfter": 1056,
+    "creditsUsed": 35
+  },
+  "export": {
+    "file": "Meshy_AI_Titanhorn_1021061157_texture.glb",
+    "format": "GLB",
+    "resize": false,
+    "bytes": 21414880,
+    "sha256": "46bf950200c1740c10c9a868da13780bf6c6a7bd9790706c30a55688394c1750",
+    "originalDownload": "C:/Users/user/Downloads/Meshy_AI_Titanhorn_1021061157_texture.glb",
+    "byteIdenticalToDownload": true
+  },
+  "contents": {
+    "meshes": 1,
+    "primitives": 1,
+    "vertices": 260882,
+    "triangles": 487930,
+    "materials": 1,
+    "embeddedTextures": 3,
+    "textureDimensions": [2048, 2048],
+    "textureFormat": "JPEG",
+    "textureRoles": ["baseColor", "metallicRoughness", "normal"],
+    "skins": 0,
+    "joints": 0,
+    "animations": 0,
+    "externalDependencies": 0
+  },
+  "inspection": {
+    "finishedAt": "2026-10-21T06:17:06.250Z",
+    "exitCode": 0,
+    "structuralChecksPassed": true,
+    "runtimeFilesCompared": 142,
+    "runtimeFilesUnchanged": true,
+    "reviewedImplementation": "70cf5e0d280eadcd36bfd56f7f6c4e3edd26512f",
+    "runtimeFingerprint": "d932c2814b11d323b8fe368e5e50fa940450276419545e82f3c2d588cdfcbcf1",
+    "report": "artifacts/art-remake/meshy-beast-preparation-2026-10-20/local-inspection.json",
+    "scope": "Local byte and structural inspection, not art acceptance, game integration, full glTF validation, texture decode or performance testing."
+  },
+  "evidenceRoot": "artifacts/art-remake/meshy-beast-preparation-2026-10-20",
+  "releaseEligible": false,
+  "releaseBlocker": "Fourth remake art review failed at 7.4/10; existing strap intersections and quality gap remain. Source preparation does not reset the four-round limit."
+}
