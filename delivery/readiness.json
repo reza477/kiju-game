@@ -1,8 +1,8 @@
 {
   "eligible": false,
   "reason": "The owner authorized a new beast-integration review cycle. Round 1 failed at 7.6/10. The V13 candidate replaces the leg-following girdles with torso contours, corrects presentation elbow bends and passes all 388 tests plus dense body/harness checks across six opponents. Independent round 2 is pending: technical success does not clear the visual gate. Three review rounds remain in this cycle. Private playtest delivery remains Configured but blocked. Do not push or deploy until the visual and technical gates pass and the private delivery prerequisites are verified.",
-  "candidateRuntimeFingerprint": "b5152ee6a4813c5ffd323d0b3ea85d4e7a791217a22e59a681c0ab75fdacecb5",
-  "candidateBuild": "8a0fb7a7a4f2ab0022c7",
+  "candidateRuntimeFingerprint": "e0e770dc6632c03e7c66b2312475bea6cd669a7d03141d58702a42a80ef9ca6e",
+  "candidateBuild": "7220a6a5891358c2afd5",
   "candidateTechnicalEvidence": "artifacts/beast-integration/checks/full-v13-round02.json",
   "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_01.md",
   "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",

@@ -145,4 +145,3 @@ export function createFleshHarness(rig,meshes){
   }
   return{group,bands,fitToPose,update,setLoad(layout){rearLoaded=!!layout?.rearLoaded;},get fitted(){return fitted;}};
 }
-
