@@ -153,6 +153,13 @@ try{
   const status=(await import('/src/offline.js')).getOfflineStatus();
   return status.canPlayOffline&&status.installedBuildId===expected&&!status.needsReopen;
  },release.buildId);
+ // The normal title defaults to cyborg. Select the native-beast scenario
+ // through its real title control without changing the game's default.
+ if(requireNativeBeast){
+  await page.locator('[data-variant="flesh"]').tap();
+  await waitForPageBoolean(page,()=>window.__colossus.state.variant==='flesh'&&window.__colossus.scene.city.meshyCarrier?.kind==='flesh');
+  checks.push('Native title variant control selects flesh before starting the offline expedition');
+ }
  await page.locator('#begin').tap();await page.locator('#menu').tap();await page.locator('[data-dialog-action="save"]').tap();
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('colossus-wake-save-v1')));
  await page.locator('[data-dialog-action="playtest"]').tap();await page.locator('#offline-prepare').tap();
