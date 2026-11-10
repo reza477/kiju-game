@@ -46,7 +46,15 @@ function constructionTrace(variant){
 }
 
 test('flesh saddle keeps faction/building stats, costs, construction timing and saved state traces',()=>{
-  assert.equal(hash(JSON.stringify([sim.FACTIONS,sim.BUILDINGS,sim.ringCost])),BASELINE.economy);
+  // Nov10 corrects two misleading descriptions without changing their rates.
+  // Restore only those explicit strings for the historical whole-data hash;
+  // every faction field, cost, timing and other building field stays checked.
+  const buildings=structuredClone(sim.BUILDINGS);
+  assert.equal(buildings.sawmill.description,'Adds 2.5 timber per second near woodland for each completed level.');
+  assert.equal(buildings.foundry.description,'Adds 2.2 iron per second near ruins for each completed level.');
+  buildings.sawmill.description='Doubles timber gathering near woodland per level.';
+  buildings.foundry.description='Doubles iron gathering near ruins per level.';
+  assert.equal(hash(JSON.stringify([sim.FACTIONS,buildings,sim.ringCost])),BASELINE.economy);
   for(const variant of ['flesh','cyborg'])assert.equal(constructionTrace(variant),BASELINE[variant],`${variant}: economy/progression/save trace`);
 });
 

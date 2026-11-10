@@ -3,14 +3,15 @@ import {variantFootprint} from './variants.js';
 import {castleShotClearance,cannonMountProfile} from './castle-collision.js';
 import {createVerticalLayout} from './vertical-city.js';
 import {createSaddleLayout} from './saddle-layout.js';
+import {fleshCargoOffset} from './flesh-cargo-pose.js';
 
 export const normalizeAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 export const batteryArc=faction=>faction==='airship'?Math.PI*4/3:Math.PI*5/6;
-export function batteryPosition(faction,slot,variant,layout){
+export function batteryPosition(faction,slot,variant,layout,cargoOffsetY=0){
   const p=faction==='kaiju'?(layout?.positions[slot]??kaijuSlotPosition(slot)):{x:(slot%5-2)*3.05,z:(Math.floor(slot/5)-1.5)*3.7};
   const scale=faction==='kaiju'?KAIJU_SCALE:1;
   const footprint=variantFootprint(faction,variant);
-  return {x:p.x*scale*footprint.x,y:faction==='kaiju'?(KAIJU_DECK_Y+(p.y??0))*scale:faction==='airship'?18:10,z:p.z*scale*footprint.z};
+  return {x:p.x*scale*footprint.x,y:faction==='kaiju'?(KAIJU_DECK_Y+(p.y??0)+(variant==='flesh'?cargoOffsetY:0))*scale:faction==='airship'?18:10,z:p.z*scale*footprint.z};
 }
 export function defaultFacing(faction,slot){
   if(faction==='kaiju')return Math.PI;
@@ -23,10 +24,11 @@ function crossesCarrier(start,end,min,max){
     let a=(min[axis]-start[axis])/delta,b=(max[axis]-start[axis])/delta;if(a>b)[a,b]=[b,a];near=Math.max(near,a);far=Math.min(far,b);if(near>far)return false;}
   return far>.01&&near<1;
 }
-export function batterySolution(state,slot,attacker,target,range){
+export function batterySolution(state,slot,attacker,target,range,cargoOffsetY=fleshCargoOffset(state)){
   const saddle=state.faction==='kaiju'&&state.variant==='flesh';
+  if(!saddle)cargoOffsetY=0;
   const layout=state.faction==='kaiju'?(saddle?createSaddleLayout(state.buildings,state.towerOrder):createVerticalLayout(state.buildings,state.towerOrder,state.variant)):null;
-  const building=state.buildings[slot],p=batteryPosition(state.faction,slot,state.variant,layout),a=attacker.angle;
+  const building=state.buildings[slot],p=batteryPosition(state.faction,slot,state.variant,layout,cargoOffsetY),a=attacker.angle;
   const world={x:attacker.x+Math.cos(a)*p.x+Math.sin(a)*p.z,z:attacker.z-Math.sin(a)*p.x+Math.cos(a)*p.z};
   const dx=target.x-world.x,dz=target.z-world.z,d=Math.hypot(dx,dz);
   const worldBearing=normalizeAngle(Math.atan2(dx,dz)-a),footprint=variantFootprint(state.faction,state.variant);
@@ -47,7 +49,7 @@ export function batterySolution(state,slot,attacker,target,range){
     if(along>.75*scale&&along<d&&across<1.1*scale&&shotHeight>q.y&&shotHeight<top){blocker=i;break;}
   }
   if(state.faction==='kaiju'&&blocker===null&&building.remaining<=0&&inArc&&d<=range){
-    const clearance=castleShotClearance({rings:state.rings??1,layout,slot,level:building.level,yaw:bearing,target:{x:(p.x+localDirection.x*d)/scale,y:targetHeight/scale,z:(p.z+localDirection.z*d)/scale}});
+    const clearance=castleShotClearance({rings:state.rings??1,layout,slot,level:building.level,yaw:bearing,cargoOffsetY,target:{x:(p.x+localDirection.x*d)/scale,y:targetHeight/scale-cargoOffsetY,z:(p.z+localDirection.z*d)/scale}});
     if(!clearance.clear)blocker=clearance.blocker;
   }
   return {slot,level:building.level,facing,bearing,inArc,inRange:d<=range,blocker,active:building.remaining<=0&&inArc&&d<=range&&blocker===null,position:world};

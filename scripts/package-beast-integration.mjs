@@ -11,10 +11,12 @@ import {inflateSync} from 'node:zlib';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const BASELINE='6c7ee9b2ec3bb44aaefbc2ec3ea9bd86e9d60f5c';
 const BASELINE_FINGERPRINT='d932c2814b11d323b8fe368e5e50fa940450276419545e82f3c2d588cdfcbcf1';
-const help=`Usage: node scripts/package-beast-integration.mjs --after DIR --final COMMIT --output NEW_DIR --metadata FILE [--before DIR] [--validate-only]
+const help=`Usage: node scripts/package-beast-integration.mjs --after DIR --final COMMIT --output NEW_DIR --metadata FILE [--before DIR] [--baseline COMMIT --baseline-fingerprint SHA256] [--validate-only]
 
 Default --before: artifacts/beast-integration/baseline
-Fixed baseline: ${BASELINE}; captured raw fingerprint: ${BASELINE_FINGERPRINT}
+Default baseline: ${BASELINE}; captured raw fingerprint: ${BASELINE_FINGERPRINT}
+For a later update, supply both --baseline and --baseline-fingerprint with its
+actual preserved BEFORE commit and raw capture fingerprint. Neither is inferred.
 Both capture folders must contain report.json in art-remake-v1 capture format,
 with all five verified kaiju/flesh views from the selected revisions. --metadata
 may override beforeReport/afterReport, but may not substitute image folders.
@@ -56,7 +58,7 @@ const args={};
 for(let i=2;i<process.argv.length;i++){
   const key=process.argv[i];if(key==='--help'){console.log(help);process.exit(0);}
   if(key==='--validate-only'){assert.equal(args[key],undefined,'Duplicate argument: '+key);args[key]=true;continue;}
-  assert.ok(['--after','--final','--output','--metadata','--before'].includes(key),'Unknown argument: '+key);
+  assert.ok(['--after','--final','--output','--metadata','--before','--baseline','--baseline-fingerprint'].includes(key),'Unknown argument: '+key);
   assert.ok(process.argv[i+1]&&!process.argv[i+1].startsWith('--'),'Missing value for '+key);
   assert.equal(args[key],undefined,'Duplicate argument: '+key);args[key]=process.argv[++i];
 }
@@ -67,7 +69,10 @@ const pretty=value=>JSON.stringify(value,null,2);
 const readableText=(bytes,name)=>{assert.ok(!bytes.includes(0),'Binary content cannot be included as text: '+name);const value=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);assert.ok(!/data:[^,\s]+;base64,[A-Za-z0-9+/]{64}/.test(value),'Embedded media is prohibited: '+name);return value;};
 const git=(...values)=>execFileSync('git',values,{cwd:root,maxBuffer:256*1024*1024});
 const commitOf=value=>git('rev-parse','--verify',value+'^{commit}').toString().trim();
-const baseline=commitOf(BASELINE),final=commitOf(args['--final']);
+assert.equal(Boolean(args['--baseline']),Boolean(args['--baseline-fingerprint']),'A custom baseline requires both its commit and recorded raw fingerprint.');
+const baselineFingerprint=args['--baseline-fingerprint']||BASELINE_FINGERPRINT;
+assert.match(baselineFingerprint,/^[0-9a-f]{64}$/,'Baseline fingerprint must be the recorded SHA-256.');
+const baseline=commitOf(args['--baseline']||BASELINE),final=commitOf(args['--final']);
 assert.notEqual(baseline,final,'Baseline and final must be different commits.');
 const before=resolve(args['--before']||'artifacts/beast-integration/baseline'),after=resolve(args['--after']),output=resolve(args['--output']);
 let config={},configRecord=null;
@@ -208,7 +213,7 @@ for(const[label,folder]of[['BEFORE',before],['AFTER',after]]){
   assert.equal(r.visits.length,5,'Need exactly the five matched views, not intermediate captures');
   const start=await validateSnapshot(r.sourceStart,label,label+' capture start'),finish=await validateSnapshot(r.sourceFinish,label,label+' capture finish');
   assert.equal(start.recordedFingerprint,finish.recordedFingerprint,'Source changed during captures');
-  if(label==='BEFORE')assert.equal(start.recordedFingerprint,BASELINE_FINGERPRINT,'This package requires the actual preserved beast-integration baseline.');
+  if(label==='BEFORE')assert.equal(start.recordedFingerprint,baselineFingerprint,'This package requires the selected actual preserved baseline.');
   reports[label]={...item,folder,identity:{...start,captureToolSha256:r.toolSha256??'NOT RECORDED'}};
 }
 const photos=[],pairs=[];
@@ -233,7 +238,7 @@ for(const[name,title]of views){const pair=[];
 assert.equal(new Set(photos.map(p=>p.original)).size,10);assert.equal(new Set(photos.map(p=>p.sha256)).size,10);assert.equal(new Set(photos.map(p=>p.pixelSha256)).size,10,'Ten visually distinct originals required');
 const changes=git('diff','--no-renames','--name-status','-z',baseline,final,'--').toString().split('\0').filter(Boolean),changed=[];
 for(let i=0;i<changes.length;i+=2)changed.push({status:changes[i],file:changes[i+1]});
-const header=`COLOSSUS WAKE — BEAST INTEGRATION REVIEW\n\nBaseline commit: ${baseline}\nFinal implementation commit: ${final}\nBaseline committed runtime/assets/dependencies SHA-256: ${sources.BEFORE.fingerprint}\nFinal committed runtime/assets/dependencies SHA-256: ${sources.AFTER.fingerprint}\nBEFORE tested raw-file fingerprint: ${reports.BEFORE.identity.recordedFingerprint}\nAFTER tested raw-file fingerprint: ${reports.AFTER.identity.recordedFingerprint}\nEvidence selection: ${configRecord?pretty(configRecord):'No metadata file supplied.'}\nRecorded capture commits can precede final packaging; full file hashes, not a branch label, determine equivalence. Newline-only differences are itemized in screenshot metadata. Packaging runs no game, test, benchmark or art review. The latest design remains a low flesh saddle city and a half-height vertical cyborg castle.\n\n`;
+const header=`COLOSSUS WAKE — GAME IMPROVEMENT REVIEW\n\nBaseline commit: ${baseline}\nFinal implementation commit: ${final}\nBaseline committed runtime/assets/dependencies SHA-256: ${sources.BEFORE.fingerprint}\nFinal committed runtime/assets/dependencies SHA-256: ${sources.AFTER.fingerprint}\nBEFORE tested raw-file fingerprint: ${reports.BEFORE.identity.recordedFingerprint}\nAFTER tested raw-file fingerprint: ${reports.AFTER.identity.recordedFingerprint}\nEvidence selection: ${configRecord?pretty(configRecord):'No metadata file supplied.'}\nRecorded capture commits can precede final packaging; full file hashes, not a branch label, determine equivalence. Newline-only differences are itemized in screenshot metadata. Packaging runs no game, test, benchmark or art review. The latest design remains a low flesh saddle city and a half-height vertical cyborg castle.\n\n`;
 function sourceContents(rows){return rows.map(row=>{
   const commit=row.status==='D'?baseline:final,bytes=git('show',commit+':'+row.file),origin=`Committed ${row.status}; ${commit}${row.status==='D'?'; deleted file shown from baseline':''}`;
   return textPath(row.file)?complete(row.file,bytes,origin):`BINARY ASSET INVENTORY ONLY: ${row.file}\n${origin}\nBytes: ${bytes.length}\nSHA-256: ${sha(bytes)}\nOriginal source asset retained locally; no binary/base64 media embedded in upload texts.\n\n`;
@@ -275,7 +280,7 @@ write('11_READ_ME.txt',header+(config.summary||'Review the selected change repor
 assert.equal(files.size,19);const entries=[...files].sort(([a],[b])=>a.localeCompare(b)).map(([name,bytes])=>({name,bytes:bytes.length,sha256:sha(bytes)}));
 const payload=entries.reduce((sum,row)=>sum+row.bytes,0);let total=payload,manifest='',converged=false;
 for(let i=0;i<20;i++){
-  manifest=`COLOSSUS WAKE — BEAST INTEGRATION FILE MANIFEST\n\n20 files total: 10 screenshots + 10 text files.\nTotal folder size INCLUDING this manifest: ${total} bytes.\nManifest excluded from hashing; the other 19 files follow.\nBaseline: ${baseline}\nFinal: ${final}\nFinal committed runtime fingerprint: ${sources.AFTER.fingerprint}\nAFTER tested raw fingerprint: ${reports.AFTER.identity.recordedFingerprint}\n\nFILENAME | BYTES | SHA-256\n${entries.map(row=>`${row.name} | ${row.bytes} | ${row.sha256}`).join('\n')}\n`;
+  manifest=`COLOSSUS WAKE — GAME IMPROVEMENT FILE MANIFEST\n\n20 files total: 10 screenshots + 10 text files.\nTotal folder size INCLUDING this manifest: ${total} bytes.\nManifest excluded from hashing; the other 19 files follow.\nBaseline: ${baseline}\nFinal: ${final}\nFinal committed runtime fingerprint: ${sources.AFTER.fingerprint}\nAFTER tested raw fingerprint: ${reports.AFTER.identity.recordedFingerprint}\n\nFILENAME | BYTES | SHA-256\n${entries.map(row=>`${row.name} | ${row.bytes} | ${row.sha256}`).join('\n')}\n`;
   const next=payload+Buffer.byteLength(manifest);if(next===total){converged=true;break;}total=next;
 }
 assert.ok(converged,'Manifest self-size did not converge');write('20_FILE_MANIFEST.txt',manifest);assert.equal([...files.values()].reduce((sum,b)=>sum+b.length,0),total);

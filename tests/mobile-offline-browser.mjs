@@ -9,6 +9,7 @@ import {createHash} from 'node:crypto';
 import {buildMobileRelease} from '../scripts/build-mobile-release.mjs';
 import {deliveryBrowserOptions, browserGraphicsInfo} from '../scripts/browser-runtime.mjs';
 import {classifyCarrierRequest} from './carrier-request-origin.mjs';
+import {nativeBeastOfflineEvidence,verifyNativeBeastOffline} from './helpers/native-beast-offline.mjs';
 const require=createRequire(import.meta.url);
 let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}
 // This test owns its server so it can prove offline reopening with that server
@@ -24,6 +25,8 @@ const requireCarrierAssets=process.env.CARRIER_ASSETS_REQUIRED==='1';
 const carrierEvidence={enabled:requireCarrierAssets,manifest:[],phases:[]};
 const requireMeshyTrees=process.env.MESHY_TREES_REQUIRED==='1';
 const treeEvidence={enabled:requireMeshyTrees,manifest:[],phases:[]};
+const requireNativeBeast=process.env.NATIVE_BEAST_REQUIRED==='1';
+const nativeBeastEvidence=requireNativeBeast?await nativeBeastOfflineEvidence(release.output,descriptor):null;
 if(requireMeshyTrees){
  const sourceRoot=fileURLToPath(new URL('..',import.meta.url));
  for(const url of ['/assets/scenery/meshy-pilot/pine.glb','/assets/scenery/meshy-pilot/broadleaf.glb','/assets/scenery/meshy-pilot/pine-lods.glb','/assets/scenery/meshy-pilot/broadleaf-lods.glb','/src/meshy-pilot.js','/src/landscape.js']){
@@ -159,6 +162,7 @@ try{
  assert.equal(ready.installedBuildId,release.buildId);assert.equal(ready.runtimeBuild,release.buildId);assert.equal(typeof ready.needsReopen,'boolean');checks.push('Automatic/manual offline preparation verifies the complete runtime and matching build identity');
  await verifyCarrierAssets('installation-ready');
  await verifyMeshyTrees('installation-ready');
+ if(requireNativeBeast)checks.push(await verifyNativeBeastOffline(page,nativeBeastEvidence,'installation-ready'));
  assert.equal((await page.evaluate(async()=>await (await fetch('/health')).json())).testNetworkOnly,true);checks.push('Health endpoint remains network-only');
  await page.screenshot({path:`${out}/installation-ready.png`});
  await page.close();await new Promise(resolve=>server.close(resolve));await context.setOffline(true);
@@ -167,6 +171,7 @@ try{
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);assert.ok(await page.evaluate(()=>window.__colossus.state.time)>=saved.time);checks.push('With server stopped and network offline, reopened game resumes the saved expedition');
  await verifyCarrierAssets('server-stopped-offline-reopen',{offline:true});
  await verifyMeshyTrees('server-stopped-offline-reopen');
+ if(requireNativeBeast)checks.push(await verifyNativeBeastOffline(page,nativeBeastEvidence,'server-stopped-offline-reopen',{offline:true}));
  const position=await page.evaluate(()=>({x:window.__colossus.state.x,z:window.__colossus.state.z}));
  const session=await context.newCDPSession(page),pad=await page.locator('[data-move="up"]').boundingBox();
  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:0,x:pad.x+22,y:pad.y+22}]});await page.waitForTimeout(1200);await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
@@ -189,6 +194,7 @@ try{
  assert.equal(await page.evaluate(()=>window.__colossus.state.variant),saved.variant);checks.push('Explicit full-cache repair restores the game without deleting its save');
  await verifyCarrierAssets('after-explicit-cache-repair');
  await verifyMeshyTrees('after-explicit-cache-repair');
+ if(requireNativeBeast)checks.push(await verifyNativeBeastOffline(page,nativeBeastEvidence,'after-explicit-cache-repair'));
  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);checks.push('No browser runtime errors or third-party requests');
- await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote,localBlobRequests},null,2));
-}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}
+ await fs.writeFile(`${out}/results.json`,JSON.stringify({release,browser:browser.version(),graphics,checks,errors,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),...(requireNativeBeast?{nativeBeastEvidence}:{}),limitation:'Isolated desktop Chromium with touch emulation; physical iPad/iPhone and Safari installation not tested.'},null,2));console.log(JSON.stringify({release,graphics,checks,errors,remote,localBlobRequests},null,2));
+}catch(error){await page.screenshot({path:`${out}/failure.png`}).catch(()=>{});console.error(JSON.stringify({release,checks,errors,failedRequests,remote,localBlobRequests,...(requireCarrierAssets?{carrierEvidence}:{}),...(requireMeshyTrees?{treeEvidence}:{}),...(requireNativeBeast?{nativeBeastEvidence}:{}),failure:error.stack},null,2));process.exitCode=1;}finally{server.close();await browser.close();}

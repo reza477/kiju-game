@@ -2,13 +2,13 @@
 
 **Build a city. Carry it into battle.**
 
-A single-player 3D city-builder on a ruined future Earth. Raise a Gothic castle on a walking titan, command an industrial crawler, or sail a domed city above the valley. Gather resources, support your citizens, and defeat five rival cities in one playable region.
+A single-player 3D city-builder on a ruined future Earth. Fit a low saddle city to a living beast, raise a Gothic castle on a cyborg, command an industrial crawler, or sail a domed city above the valley. Gather resources, support your citizens, and defeat five rival cities in one playable region.
 
 ![Alpha 1 gameplay: an industrial city carried by an armored crawler](docs/media/alpha1-crawler.png)
 
 *Actual Alpha 1 desktop gameplay. [Screenshot provenance and cyborg view](docs/media/README.md).*
 
-Colossus Wake is a working title. This private repository contains the **Alpha 1 PC prototype**, version `0.10.0-alpha.1`, and its development history.
+Colossus Wake is a working title. This private repository contains the **PC prototype and its ongoing art remake**, based on version `0.10.0-alpha.1`, and their shared development history. The current improvement work is recorded in [November improvements](docs/IMPROVEMENTS_2026-11-10.md).
 
 [Playing & controls](docs/PLAYING.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 
@@ -18,13 +18,13 @@ Colossus Wake is a working title. This private repository contains the **Alpha 1
 
 | Faction | Carrier variants | City identity |
 | --- | --- | --- |
-| Thornbound | Flesh titan and cyborg titan | Gothic castle that grows one storey per district |
+| Thornbound | Flesh beast and cyborg titan | Compact saddle wards on flesh; a Gothic castle growing one storey per district on cyborg |
 | Commonwealth | Armored crawler and elongated spiral-drill crawler | British industrial city on a horizontal deck |
 | Saffron Courts | Horizontal-envelope airship and four-upright-balloon airship | Eastern-inspired domed city on a horizontal deck |
 
 Build and upgrade districts, manage wood, iron, food and housing, then travel between finite resource deposits. Battle with aimed batteries, melee attacks and faction abilities. Weapon placement, firing arcs and castle clearance affect which shots can fire.
 
-Both titan castles grow vertically on a fixed footprint. The cyborg's castle has half-height storeys; its robot and body weapons retain their scale. Construction order and district identities persist in saves.
+The flesh city stays low across the beast's back and flanks. The cyborg castle grows vertically with half-height storeys; its robot and body weapons retain their scale. Both support up to twenty districts after harness reinforcement. Construction order and district identities persist in saves.
 
 ## Play locally
 
@@ -38,11 +38,13 @@ node server.mjs
 
 Open [127.0.0.1:4178](http://127.0.0.1:4178) in Chrome or Edge with WebGL2 and hardware acceleration. Runtime libraries and assets are bundled; local play needs no login or internet connection. See the [first-expedition guide](docs/PLAYING.md#first-expedition).
 
-## Alpha 1 status
+## Current status and historical verification
+
+The latest completed beast-integration review is **8.1/10, FAIL**. Its required suite passed **432 of 433 tests**, with animated-body self-crossing unresolved. Its four-round cycle is closed; the separately requested November improvement update is in progress. Read the [unaltered final review](art-reviews/BEAST_INTEGRATION_ROUND_04.md) and [current improvement record](docs/IMPROVEMENTS_2026-11-10.md). Release remains **Configured but blocked**; a local build is not release approval.
 
 The September 17, 2026 verification record includes **127 passing unit tests**, 180 rendering combinations, 1,296 Gothic weapon-clearance cases, and desktop, touch-emulation and offline-package checks. These are recorded results for the documented Alpha 1 revision; ongoing automated checks cover a narrower scope. See [Alpha 1 verification](ALPHA1_VERIFICATION.md) and [Tests and package](https://github.com/reza477/kiju-game/actions/workflows/ci.yml).
 
-The final independent environment review scored **7.5/10**. The **8.5 visual quality gate remains unmet** after four rounds; its final bounded review identified no concrete visual or runtime defect. [Read the critic's findings](art-reviews/alpha1-04.md).
+The older Alpha 1 environment review scored **7.5/10**. That historical four-round review remains failed; its bounded inspection identified no concrete visual or runtime defect at that revision. It does not supersede later findings. [Read the historical critic's findings](art-reviews/alpha1-04.md).
 
 Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile performance and long-session memory stability remain pending. Touch controls and an offline package exist, but there is **no hosted mobile game link**. See [mobile playtest status](MOBILE_PLAYTEST.md).
 

@@ -1,9 +1,10 @@
 {
-  "updatedAt": "2026-10-21T02:54:52.0043872Z",
+  "updatedAt": "2026-11-10T07:19:09.7854615Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
-  "workRequestsSinceCleanup": 3,
-  "newGroupsSinceCleanup": [
+  "workRequestsSinceCleanup": 0,
+  "newGroupsSinceCleanup": [],
+  "retainedGroups": [
     {
       "group": "rig-ground-refresh",
       "request": "Use the newer remeshed and rigged humanoid/monster, add efficient ground cover and broken old roads.",
@@ -26,29 +27,47 @@
       "request": "Rebuild the visual presentation in the owner-approved painterly dark-fantasy direction, retaining systems and latest saddle/vertical layouts.",
       "baselineCommit": "96ab478480625923c4d3bc3f42781b0093e3194f",
       "evidenceRoot": "artifacts/art-remake",
-      "status": "implementation in progress; no delivery authorization until required gate passes"
-    }
-  ],
-  "retainedGroups": [
-    {
-      "group": "meshy-tree-coverage",
-      "finalCommit": "cab53c7404ef4507a6239ffe6815d91ac1dcbe88"
+      "status": "October21 implementation and four-round beast review complete; 8.1 FAIL and 432/433 tests, release blocked; all evidence retained unchanged",
+      "evidenceRoots": [
+        "artifacts/art-remake",
+        "artifacts/beast-integration",
+        "artifacts/critic-round-01",
+        "artifacts/critic-round-02",
+        "artifacts/critic-round-03",
+        "artifacts/critic-round-04",
+        "artifacts/review-handoff-native-beast-world-final-2026-10-21"
+      ]
     },
     {
-      "group": "ground-cover-volume",
-      "finalCommit": "8972f9ed72b91dc45ec9712d0271c5688a8aa42b"
-    },
-    {
-      "group": "water-polish",
-      "finalCommit": "3193014c0ac7fd6c3ebc8cbe970938918974c8d2"
-    },
-    {
-      "group": "carrier-assets",
-      "implementationCommit": "d6b1510568879d078e6dfe1b62145c5943f29c6c",
-      "reportCommit": "a9311775bd909979055199d9a94bdd5fa78541bb"
+      "evidenceRoot": "artifacts/nov10-improvements",
+      "status": "new improvement work in progress; prior failed review findings and release blockers unchanged",
+      "group": "nov10-improvements",
+      "baselineCommit": "3e060c2a83e5b9db80c0fb5c1581d4b9c5598d36",
+      "request": "Improve remake visuals, add useful features and fix bugs; audit prototype parity; owner approved a genuinely low flesh saddle refit."
     }
   ],
   "lastCleanup": {
+    "removedFiles": 847,
+    "date": "2026-11-10",
+    "errors": 0,
+    "trigger": "Fourth new evidence-producing work group since October4 cleanup",
+    "removedBytes": 933051135,
+    "verification": "artifacts/nov10-retention/after-verification-20261110.json",
+    "protectedOlderBytesHashVerified": 1115495547,
+    "ledger": "artifacts/nov10-retention/cleanup-applied-20261110.json",
+    "protectedOlderFilesHashVerified": 2641,
+    "trackedSummary": "docs/EVIDENCE_CLEANUP_2026-11-10.json"
+  },
+  "protected": "Game source, working/source assets, saves, Git history, source checkpoints, original Meshy masters, operational maintenance/delivery state, unfinished work, small tracked art conclusions and existing release blockers.",
+  "limits": [
+    "Only unchanged generated evidence from the expired four groups was removed; candidate hashes matched the prior retained inventory.",
+    "Older source/asset/build checkpoints, original Meshy assets and derivatives, operational/save records, complete source text and ambiguous files remain protected.",
+    "All current four groups and current handoff are excluded from the deletion set; protected older files were hash-verified against the October4 inventory.",
+    "Other registered worktree evidence remaining after the previous cleanup is source/operational or ambiguous and was retained.",
+    "No game test, browser, benchmark, art review, publishing, asset or game source change was performed for this cleanup.",
+    "A failed prior review remains failed; this retention update does not change release eligibility or review counts."
+  ],
+  "previousCleanup": {
     "date": "2026-10-04",
     "removedFiles": 6780,
     "removedBytes": 7893017168,
@@ -60,12 +79,5 @@
     "latestReviewBytes": 44029500,
     "ledger": "artifacts/evidence-retention/cleanup-applied-20261004.json",
     "verification": "artifacts/evidence-retention/after-verification-20261004.json"
-  },
-  "protected": "Game source, working/source assets, saves, Git history, source checkpoints, original Meshy masters, operational maintenance/delivery state, unfinished work, small tracked art conclusions and existing release blockers.",
-  "limits": [
-    "Old source-containing archives and operational releases retained where redundancy/inactivity was not established.",
-    "Protected mixed files outside the retained groups have existence/size evidence, not a before/after content-hash claim.",
-    "No gameplay, browser, benchmark or art-review rerun for this housekeeping task. No publication or deployment.",
-    "The last cleanup preserved the cab53c7404ef4507a6239ffe6815d91ac1dcbe88 runtime. The separately tracked rig-ground-refresh work group starts from the preserved 32e7d003645bdb8aece23745b434d1c5025033a7 checkpoint."
-  ]
+  }
 }

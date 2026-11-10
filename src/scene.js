@@ -21,6 +21,7 @@ import {surfaceDiagnostics} from './surface-library.js';
 import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
 import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQuality} from './camera-input.js';
 import {createMovementPreparation} from './movement-preparation.js';
+import {bindFleshCargoPose,clearFleshCargoPose} from './flesh-cargo-pose.js';
 export {makeCity,slotPosition};
 
 // The four additional programs traced during the first portrait movement.
@@ -91,6 +92,19 @@ export function placeCity(city,x,z,angle){
     city.groundPose={x,z,angle,height:city.root.position.y,quaternion:city.root.quaternion.clone()};
   }else city.root.rotation.set(0,angle,0);
   city.root.updateMatrixWorld(true);
+}
+
+// Simulation asks for the current flesh cargo height before auto-fire. This
+// narrow sync never asks for weapon status, so it cannot recurse into aiming.
+// animateCity caches only the native body solve by all placement/strike inputs;
+// ordinary resident updates remain live when a paused view or district changes.
+export function posePlayerCargo(scene,state){
+  const city=scene.city;if(!city?.cargo||scene.state!==state)return 0;
+  updateDistricts(city,scene.preview?scene.previewDistricts:state.buildings,scene.preview?2:state.rings??1,scene.preview?undefined:state.towerOrder);
+  const battle=state.mode==='battle'&&state.battle,actor=battle?battle.player:state;
+  placeCity(city,actor.x,actor.z,actor.angle);
+  animateCity(city,state.time,battle?!battle.result&&battle.command!=='hold':state.moving,scene.preview?40:state.population);
+  return city.cargoOffsetY;
 }
 
 function impactAnchor(source,target,start,melee,arcHeight=3){
@@ -201,6 +215,7 @@ export class GameScene {
   }
 
   setGame(s,options={}){
+    if(this.state)clearFleshCargoPose(this.state);
     this.cityLighting.reset();
     for(const light of this.impactLights)light.intensity=0;
     // Drop every borrowed site mesh before its owner is disposed. Keep the same
@@ -214,6 +229,7 @@ export class GameScene {
     this.city=makeCity(s.faction,false,s.rings??1,s.variant);this.scene.add(this.city.root);this.state=s;this.preview=!!options.preview;this.previewDistricts=previewBuildings();
     this.cinematic.reset();this.cameraShot=null;this.towerTier=0;this.cameraPrevious.set(s.x,0,s.z);this.lastFootfall=null;
     updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1,this.preview?undefined:s.towerOrder);
+    if(this.city.cargo)bindFleshCargoPose(s,()=>posePlayerCargo(this,s));
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
     this.enemyCities=[];this.labels=[];this.pickables=[];
@@ -383,7 +399,7 @@ export class GameScene {
   }
 
   update(s,dt,selectedSlot){
-    const priorHeight=this.city.verticalLayout?.height??0;this.state=s;updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1,this.preview?undefined:s.towerOrder);
+    const priorHeight=this.city.verticalLayout?.height??0;this.state=s;updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1,this.preview?undefined:s.towerOrder);posePlayerCargo(this,s);
     if(this.city.saddleLayout)this.towerTier=Math.min(this.towerTier??0,Math.max(0,this.city.saddleLayout.floors.length-1));
     if(this.city.verticalLayout){this.towerTier=Math.min(this.towerTier??0,Math.max(0,this.city.verticalLayout.floors.length-1));if(!this.preview&&this.city.verticalLayout.height>priorHeight&&this.view==='city')this.zoom=Math.max(this.zoom,(this.city.verticalLayout.height+12)*this.city.scale*2.85);}
     this.city.expansionGhost.visible=false;
@@ -418,7 +434,7 @@ export class GameScene {
       if(this.view==='people'){
         const floors=(this.city.saddleLayout??this.city.verticalLayout)?.floors??kaijuWalkFloors(this.city.rings??1),floor=floors[Math.min(this.towerTier??0,floors.length-1)]??{y:0};
         focus=this.city.rig.localToWorld(new T.Vector3(tower?0:1.525,this.city.deckY+(tower?floor.y:0)+.85,tower?KAIJU_CENTER.z-3.2:3.55));
-        if(this.city.saddleLayout){const p=this.city.slotPositions[floor.slot]??{x:0,z:-11};focus=this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+floor.y+1.1,p.z));}
+        if(this.city.saddleLayout){const p=this.city.slotPositions[floor.slot]??{x:0,z:-11};focus=(this.city.cargo??this.city.rig).localToWorld(new T.Vector3(p.x,this.city.deckY+floor.y+1.1,p.z));}
       }
       for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;placeCity(city,enemy.x,enemy.z,-.8);animateCity(city,s.time,false);animateWeapons(city,null,s.time);}
       animateWeapons(this.city,null,s.time);
@@ -429,10 +445,10 @@ export class GameScene {
     this.routeLine.visible=!battle&&!!s.target;this.destination.visible=this.routeLine.visible;
     if(s.target&&!battle){const p=this.routeLine.geometry.attributes.position;for(let i=0;i<p.count;i++){const t=i/(p.count-1),x=s.x+(s.target.x-s.x)*t,z=s.z+(s.target.z-s.z)*t;p.setXYZ(i,x,Math.max(.3,terrainHeight(x,z)+.4),z);}p.needsUpdate=true;this.routeLine.geometry.computeBoundingSphere();this.routeLine.computeLineDistances();this.destination.position.set(s.target.x,Math.max(.3,terrainHeight(s.target.x,s.target.z)+.4),s.target.z);}
     this.selection.visible=!battle&&selectedSlot!==null;
-    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35*(this.city.verticalLayout?.heightScale??1),p.z);this.city.rig.updateMatrixWorld();this.city.rig.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(this.city.rig.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
+    if(this.selection.visible){const p=this.city.slotPositions[selectedSlot],v=new T.Vector3(p.x,this.city.deckY+p.y+.35*(this.city.verticalLayout?.heightScale??1),p.z),frame=this.city.cargo??this.city.rig;frame.updateWorldMatrix(true,false);frame.localToWorld(v);this.selection.position.copy(v);this.selection.scale.setScalar(this.city.scale);this.selection.quaternion.copy(frame.getWorldQuaternion(new T.Quaternion())).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     if(this.destination.visible){const normal=terrainNormal(s.target.x,s.target.z);this.destination.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(normal.x,normal.y,normal.z)).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2));}
     const selectedBattery=selectedSlot!==null&&s.buildings[selectedSlot]?.type==='cannon';this.coverage.visible=!battle&&!!selectedBattery;
-    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot],layout=this.city.saddleLayout??this.city.verticalLayout,height=layout?cannonMountProfile(layout).muzzleY:1.8;this.coverage.position.copy(this.city.rig.localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+height,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
+    if(this.coverage.visible){const key=s.faction+':'+selectedSlot+':'+s.buildings[selectedSlot].facing;if(this.coverageKey!==key){this.coverage.geometry.dispose();this.coverage.geometry=arcGeometry(batteryArc(s.faction));this.coverageKey=key;}const p=this.city.slotPositions[selectedSlot],layout=this.city.saddleLayout??this.city.verticalLayout,height=layout?cannonMountProfile(layout).muzzleY:1.8;this.coverage.position.copy((this.city.cargo??this.city.rig).localToWorld(new T.Vector3(p.x,this.city.deckY+p.y+height,p.z)));this.coverage.rotation.y=s.angle+facingOf(s.faction,selectedSlot,s.buildings[selectedSlot]);this.coverage.scale.setScalar(FACTIONS[s.faction].range/7);}
     for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
     animateCity(this.city,s.time,battle?!s.battle.result&&s.battle.command!=='hold':s.moving,this.preview?40:s.population);
     if(battle)settleNativeMeleeContacts(this,s);

@@ -46,7 +46,7 @@ test('native visible skin clears all 20 occupied saddle slabs through stand, wal
       if(moving){x+=Math.sin(heading)*.12;z+=Math.cos(heading)*.12;}
       placeCity(city,x,z,heading);animateCity(city,time,moving,0);city.root.updateMatrixWorld(true);
       if(frame%12!==0)continue;
-      const inverse=city.rig.matrixWorld.clone().invert(),vertices=Array(mesh.geometry.attributes.position.count);
+      const inverse=(city.cargo??city.rig).matrixWorld.clone().invert(),vertices=Array(mesh.geometry.attributes.position.count);
       for(const id of used){mesh.getVertexPosition(id,point).applyMatrix4(mesh.matrixWorld).applyMatrix4(inverse);vertices[id]=point.toArray();}
       const native=collisions(vertices,visibleIndices,.12);
       const nonzero=counts=>counts.flatMap((triangles,tier)=>triangles?[{tier,triangles}]:[]);

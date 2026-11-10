@@ -14,8 +14,8 @@ function category(point,material,inFrame=false){if(inFrame)return{kind:'occupied
  return{kind,nearestTier:nearest,centroidInNearestMount:local};
 }
 export function captureFoundation(c){c.root.updateMatrixWorld(true);const list=meshes(c.foundation);for(const e of list){e.name=e.object.material.name;let p=e.object.parent,inFrame=false;while(p&&p!==c.foundation){inFrame||=p.name==='Occupied pannier load frame';p=p.parent;}e.meta={inFrame};}
- const actual=surface(list,c.rig.matrixWorld);for(let i=0;i<actual.faces.length;i++){const p=[0,1,2].map(k=>actual.vertices[actual.indices[i*3+k]]),centroid=p[0].clone().add(p[1]).add(p[2]).multiplyScalar(1/3);Object.assign(actual.faces[i],category(centroid,actual.faces[i].name,actual.faces[i].inFrame));}
- actual.seeds=componentSeeds(actual);actual.relativeMatrix=c.rig.matrixWorld.clone().invert().multiply(c.foundation.matrixWorld);actual.box=new T.Box3().setFromPoints(actual.vertices);return actual;
+ const actual=surface(list,(c.cargo??c.rig).matrixWorld);for(let i=0;i<actual.faces.length;i++){const p=[0,1,2].map(k=>actual.vertices[actual.indices[i*3+k]]),centroid=p[0].clone().add(p[1]).add(p[2]).multiplyScalar(1/3);Object.assign(actual.faces[i],category(centroid,actual.faces[i].name,actual.faces[i].inFrame));}
+ actual.seeds=componentSeeds(actual);actual.relativeMatrix=(c.cargo??c.rig).matrixWorld.clone().invert().multiply(c.foundation.matrixWorld);actual.box=new T.Box3().setFromPoints(actual.vertices);return actual;
 }
 function bodyWeight(mesh,offset){if(!mesh)return{};const sum={};for(let k=0;k<3;k++){const id=mesh.geometry.index.array[offset+k];for(let j=0;j<4;j++){const w=mesh.geometry.attributes.skinWeight.array[id*4+j];if(w>0){const name=mesh.skeleton.bones[mesh.geometry.attributes.skinIndex.array[id*4+j]].name;sum[name]=(sum[name]??0)+w/3;}}}return sum;}
 export function compareFoundation(actual,skin,mesh){const epsilon=.04,limitSq=epsilon*epsilon,result={actualPairs:0,marginOnlyPairs:0,nearTriangleComparisons:0,categories:{},examples:[]},skinMin=[Infinity,Infinity,Infinity],skinMax=[-Infinity,-Infinity,-Infinity];for(const b of skin.bounds)for(let k=0;k<3;k++){skinMin[k]=Math.min(skinMin[k],b.min[k]);skinMax[k]=Math.max(skinMax[k],b.max[k]);}
@@ -31,12 +31,18 @@ export function compareFoundation(actual,skin,mesh){const epsilon=.04,limitSq=ep
 }
 export function inspectFoundation(city,captured,label){
   city.root.updateMatrixWorld(true);
-  const relative=city.rig.matrixWorld.clone().invert().multiply(city.foundation.matrixWorld);
-  assert.ok(Math.max(...relative.elements.map((v,i)=>Math.abs(v-captured.relativeMatrix.elements[i])))<1e-10,'Foundation moved relative to rig');
+  if(city.cargo){
+    assert.deepEqual(city.cargo.position.toArray(),[0,city.cargoOffsetY,0],'Only the authorized attachment height may move');
+    assert.deepEqual(city.cargo.quaternion.toArray(),[0,0,0,1]);assert.deepEqual(city.cargo.scale.toArray(),[1,1,1]);
+    const cargoInRig=city.rig.matrixWorld.clone().invert().multiply(city.cargo.matrixWorld),expected=new T.Matrix4().makeTranslation(0,city.cargoOffsetY,0);
+    assert.ok(Math.max(...cargoInRig.elements.map((v,i)=>Math.abs(v-expected.elements[i])))<1e-10,'Cargo-local triangles must map to the same actual world geometry');
+  }
+  const relative=(city.cargo??city.rig).matrixWorld.clone().invert().multiply(city.foundation.matrixWorld);
+  assert.ok(Math.max(...relative.elements.map((v,i)=>Math.abs(v-captured.relativeMatrix.elements[i])))<1e-10,'Foundation moved relative to its cargo attachment');
   // Rebuild the rendered surface at each selected pose. A child moving or a
   // geometry replacement must not evade this check through a cached snapshot.
   const actual=captureFoundation(city),mesh=city.meshyCarrier.renderMeshes[0];
-  const skin=posedVisibleSurface(mesh,city.rig),contacts=compareFoundation(actual,skin,mesh);
+  const skin=posedVisibleSurface(mesh,city.cargo??city.rig),contacts=compareFoundation(actual,skin,mesh);
   const slab=saddleSlabCollisions(skin.vertices.map(v=>v?.toArray()),skin.indices,.12);
   return {label,triangles:actual.indices.length/3,
     slabMarginContacts:slab.flatMap((n,tier)=>n?[{tier,triangles:n}]:[]),...contacts};

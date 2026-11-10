@@ -108,7 +108,7 @@ export function setCityRings(city,rings,buildings,order){
     city.meshyCarrier?.saddle?.setLoad(layout);
     // Keep the established body support/strike pose while replacing its cargo.
     city.poseLoadLayout=buildings?createVerticalLayout(buildings,order,city.variant):null;
-    city.foundation=createSaddleFoundation(city.deckY,city.enemy,layout);batchStatic(city.foundation);city.rig.add(city.foundation);city.rings=rings;return;
+    city.foundation=createSaddleFoundation(city.deckY,city.enemy,layout);batchStatic(city.foundation);(city.cargo??city.rig).add(city.foundation);city.rings=rings;return;
   }
   const layout=buildings?createVerticalLayout(buildings,order,city.variant):null;
   if(city.rings===rings&&city.verticalLayout?.signature===layout?.signature)return;
@@ -155,13 +155,21 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   const city={root,rig,frame,deckY,scale,heading:0,limbs,spinners,districts,plots,hitGroup,slots,slotPositions,layout,faction,variant,footprintScale,drill:variantParts.drill??null,drillTip:variantParts.tip??null,drillHinge:variantParts.hinge??null,drillShaft:variantParts.shaft??null,drillPistons:variantParts.pistons??[],envelopes:variantParts.envelopes??[],enemy,stacks,districtStacks:[],batteries:[],signature:'',rings:null,people:createCitizens(rig,deckY,faction,{scale,slotPositions,layout,rings})};
   city.groundSupports=variantParts.groundSupports?.map(p=>p.multiply(new T.Vector3(footprintScale.x,1,footprintScale.z)));
   city.meshyCarrier=variantParts.meshyCarrier??null;
+  if(city.meshyCarrier?.instance.capabilities.nativeQuadruped){
+    const cargo=new T.Group();cargo.name='Dorsal saddle attachment';cargo.userData.noBatch=true;rig.add(cargo);city.cargo=cargo;city.cargoOffsetY=0;
+    for(const part of[city.districts,city.plots,city.hitGroup,city.people.group,city.meshyCarrier.saddle.group])cargo.add(part);
+  }
   city.strikeHand=limbs.find(l=>!l.leg&&l.side>0)?.hand?.marker??null;city.strikeContactTime=.7;city.strikeDuration=1.3;city.strikePhase='idle';city.strikeContactError=Infinity;
   createNativeQuadrupedCityPose(city);
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
 export function animateCity(city,time,moving,populationCount=28){
-  if(city.nativeQuadrupedPresentation){animateNativeQuadrupedCityPose(city,time);animateMeshyMonsterCity(city,time,moving);finishNativeQuadrupedCityPose(city);}
+  if(city.nativeQuadrupedPresentation){
+    city.root.updateWorldMatrix(true,false);
+    const key=[time,moving,city.strikeTime,city.strikeContactTime,city.strikeDuration,city.strikeTarget?.x,city.strikeTarget?.y,city.strikeTarget?.z,city.saddleLayout?.signature,...city.root.matrixWorld.elements];
+    if(!city.nativePoseInput||key.some((value,i)=>value!==city.nativePoseInput[i])){animateNativeQuadrupedCityPose(city,time);animateMeshyMonsterCity(city,time,moving);finishNativeQuadrupedCityPose(city);city.nativePoseInput=key;}
+  }
   else if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);animateMeshyCyborg(city,time,moving);animateMeshyMonsterCity(city,time,moving);}
   else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
   const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;

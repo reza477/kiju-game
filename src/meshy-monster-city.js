@@ -6,6 +6,7 @@ import {getMaterial,box,beam,batchStatic} from './materials.js';
 import {renderedTerrainHeight} from './terrain.js';
 import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
 import {createFleshHarness,NATIVE_GIRDLE_STATIONS} from './saddle-harness.js';
+import {FLESH_SADDLE_PROFILE,fleshSaddleRailY} from './flesh-saddle-profile.js';
 
 export const meshyMonsterReady=()=>meshyCarriersStatus().assets.find(asset=>asset.kind==='flesh')?.state==='ready';
 export const MONSTER_BODY_FIT=Object.freeze({x:-.325,y:-1.8,z:-12,scaleX:16,scaleY:21,scaleZ:16,strikeAdvance:3.3});
@@ -65,16 +66,21 @@ function cradleGeometry(side){
 function createSaddle(rig,meshes){
   const group=new T.Group();group.name='Monster low saddle load cradle';
   const rearFrame=new T.Group();rearFrame.name='Supports for occupied rear wards';rearFrame.userData.noBatch=true;group.add(rearFrame);let rearLoaded=true;
-  const iron=getMaterial('metal',0x454849),brass=getMaterial('gold',0x8c8060),leather=getMaterial('fabric',0x453c36,{vertexColors:true,sheen:.08,roughness:.88,metalness:0});
+  const iron=getMaterial('metal',0x454849),brass=getMaterial('gold',0x8c8060),timber=getMaterial('wood',0x675445),leather=getMaterial('fabric',0x453c36,{vertexColors:true,sheen:.08,roughness:.88,metalness:0});
   rig.add(group);let hierarchy=rig;while(hierarchy.parent)hierarchy=hierarchy.parent;hierarchy.updateMatrixWorld(true);
   const paddedLeather=getMaterial('fabric',0x594a3c,{vertexColors:true,sheen:.08,roughness:.88,metalness:0});
   const supports=[],aprons=[],ray=new T.Raycaster(),origin=new T.Vector3(),down=new T.Vector3(0,-1,0);
   // Pads are anchored to inspected skin triangles, so crouching and breathing
   // cannot leave the castle's load-bearing feet suspended above the back.
-  const saddleHeight=z=>28.7+(z+8.5)/7*5.2;
+  const saddleHeight=fleshSaddleRailY,railX=FLESH_SADDLE_PROFILE.railX;
+  const spar=(parent,a,b,width,depth,material=iron)=>{const p=box(parent,width,1,depth,material),v=new T.Vector3(...b).sub(new T.Vector3(...a));p.position.set(...a).addScaledVector(v,.5);p.scale.y=v.length();p.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());return p;};
   for(const side of [-1,1]){
-    beam(group,[side*3.9,saddleHeight(-6.8),-6.8],[side*3.9,saddleHeight(-10.7),-10.7],.15,iron);
-    beam(rearFrame,[side*3.9,saddleHeight(-10.7),-10.7],[side*3.9,saddleHeight(-17.1),-17.1],.15,iron);
+    // Deep timber bearers, iron shoes and compressed leather form a short
+    // load path. They follow the fitted back instead of an elevated rack.
+    for(let i=1;i<FLESH_SADDLE_PROFILE.railNodes.length;i++){
+      const a=FLESH_SADDLE_PROFILE.railNodes[i-1],b=FLESH_SADDLE_PROFILE.railNodes[i],parent=i>1?rearFrame:group;
+      const member=spar(parent,[side*railX,a[1],a[0]],[side*railX,b[1],b[0]],.42,.48,timber);member.name='Timber saddle bearer';
+    }
     const sideSupports=[];
     for(const z of [-8.5,-15.5]){
       origin.set(side*2,40,z<-12?-16:-12);rig.localToWorld(origin);down.set(0,-1,0).transformDirection(rig.matrixWorld);ray.set(origin,down);
@@ -82,29 +88,35 @@ function createSaddle(rig,meshes){
       if(!hit)throw new Error('Monster saddle has no supporting skin surface');
       const parent=z<-12?rearFrame:group;
       const pad=new T.Mesh(bolsterGeometry(),leather);pad.name='Compressed saddle bolster';pad.castShadow=pad.receiveShadow=true;parent.add(pad);
-      const brace=box(parent,.35,1,.40,iron),diagonal=box(parent,.24,1,.24,iron);
+      const brace=box(parent,.50,1,.55,iron),diagonal=box(parent,.30,1,.32,iron);brace.name='Saddle bearing shoe';diagonal.name='Saddle knee brace';
       for(const part of [pad,brace,diagonal])part.userData.noBatch=true;
-      const crossZ=z<-12?-10.7:-6.8,support={side,z,sampleX:side<0?(z<-12?-.85:-1.70):2,sampleZ:side<0?(z<-12?-14.9:-8.6):z,anchor:captureImpactAnchor(hit),pad,brace,diagonal,top:new T.Vector3(side*3.9,saddleHeight(z),z),cross:new T.Vector3(side*3.9,saddleHeight(crossZ)-.1,crossZ)};
+      const crossZ=z<-12?-17.1:-6.8,support={side,z,sampleX:side<0?(z<-12?-.85:-1.70):2,sampleZ:side<0?(z<-12?-14.9:-8.6):z,anchor:captureImpactAnchor(hit),pad,brace,diagonal,top:new T.Vector3(side*railX,saddleHeight(z),z),cross:new T.Vector3(side*railX,saddleHeight(crossZ)-.1,crossZ)};
       supports.push(support);sideSupports.push(support);
-      box(parent,.50,.27,.46,brass,side*3.9,saddleHeight(z)-.05,z);
+      box(parent,.60,.27,.58,brass,side*railX,saddleHeight(z)-.05,z);
     }
     // A broad padded load cradle visually joins the fixed foundation to its
     // four skin-supported feet. It is harness, with no windows/empty storeys.
     const {geometry,parameters}=cradleGeometry(side);
     const apron=new T.Mesh(geometry,paddedLeather);apron.name='Padded saddle load cradle';apron.userData.noBatch=true;apron.userData.deformingImpactSurface=true;apron.castShadow=true;apron.receiveShadow=true;apron.frustumCulled=false;group.add(apron);
     aprons.push({mesh:apron,parameters,side,supports:sideSupports});
-    // Low forward brackets carry the rendered base guns beside the neck.
-    // Their simulation still fires from the unchanged actor-centre event.
-    const spar=(a,b,width,depth)=>{const p=box(group,width,1,depth,iron),v=new T.Vector3(...b).sub(new T.Vector3(...a));p.position.set(...a).addScaledVector(v,.5);p.scale.y=v.length();p.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),v.normalize());return p;};
-    spar([side*3.9,saddleHeight(-6.8),-6.8],[side*6.1,29.25,-2.4],.42,.50);
-    spar([side*3.9,saddleHeight(-8.5)-1.6,-8.5],[side*6.1,29.25,-2.4],.28,.34);
-    box(group,3.15,.55,3.15,iron,side*6.1,29.30,-2.4);
+    const gun=FLESH_SADDLE_PROFILE.baseGuns.find(g=>Math.sign(g.x)===side),deck=FLESH_SADDLE_PROFILE.baseDeck,seatY=gun.y-deck.weaponOffset;
+    // Carry the gun under the occupied front rim. A straight diagonal from
+    // the dorsal bearer would cut through that district's walking deck.
+    const inner=[side*4.8,24.1,-5.8],outer=[side*8.3,24.1,-5.4],lower=[side*8.3,seatY-.35,-5.4],underSeat=[gun.x,seatY-.35,gun.z];
+    spar(group,[side*railX,saddleHeight(-6.8),-6.8],inner,.36,.40);
+    spar(group,inner,outer,.36,.40);
+    spar(group,outer,lower,.32,.36);
+    spar(group,lower,underSeat,.32,.36);
+    const seat=box(group,deck.width,deck.thickness,deck.depth,iron,gun.x,seatY,gun.z);seat.name='Fitted forward cannon seat';
   }
-  for(const z of [-8.5,-15.5])beam(z<-12?rearFrame:group,[-3.9,saddleHeight(z)+.1,z],[3.9,saddleHeight(z)+.1,z],.15,iron);
+  for(const z of [-8.5,-15.5])spar(z<-12?rearFrame:group,[-railX,saddleHeight(z)+.1,z],[railX,saddleHeight(z)+.1,z],.30,.36);
   applyFleshSaddleFinish(group);batchStatic(rearFrame);batchStatic(group);
   const point=new T.Vector3(),top=new T.Vector3(),bottom=new T.Vector3(),direction=new T.Vector3(),up=new T.Vector3(0,1,0);
   const fit=(beam,a,b)=>{direction.subVectors(b,a);beam.position.copy(a).addScaledVector(direction,.5);beam.scale.y=direction.length();beam.quaternion.setFromUnitVectors(up,direction.normalize());};
-  return {group,supports,rearFrame,setLoad(layout){rearLoaded=!!layout?.rearLoaded;rearFrame.visible=rearLoaded;},fitToPose(){
+  return {group,supports,rearFrame,cargoOffset(){
+    let front=-Infinity;for(const support of supports)if(support.z>-12){rig.worldToLocal(resolveImpactAnchor(support.anchor,point));front=Math.max(front,point.y+.18);}
+    return front-FLESH_SADDLE_PROFILE.dorsalReferenceY;
+  },setLoad(layout){rearLoaded=!!layout?.rearLoaded;rearFrame.visible=rearLoaded;},fitToPose(){
     // Sample after the first real pose/terrain update, not in the imported bind
     // pose. Starting the controller early would cache feet at the wrong origin.
     rig.updateWorldMatrix(true,true);
@@ -115,7 +127,7 @@ function createSaddle(rig,meshes){
       support.anchor=captureImpactAnchor(hit);
     }
   },update(){
-    for(const support of supports){group.worldToLocal(resolveImpactAnchor(support.anchor,point));point.y+=.18;support.pad.position.copy(point);fit(support.brace,point,support.top);fit(support.diagonal,point,support.cross);}
+    for(const support of supports){group.worldToLocal(resolveImpactAnchor(support.anchor,point));point.y+=.18;support.pad.position.copy(point);point.y+=.30;fit(support.brace,point,support.top);fit(support.diagonal,point,support.cross);}
     for(const apron of aprons){
       const geometry=apron.mesh.geometry,position=geometry.attributes.position;
       for(let i=0;i<apron.parameters.length;i++){
@@ -162,6 +174,7 @@ export function animateMeshyMonsterCity(city,time,moving){
   adapter.metrics.visibleStrikeError=status?.strikeError??null;
   adapter.metrics.unreachableStrike=weight>.999&&status?.strikeError>.025;
   if(!adapter.saddleFitted){adapter.saddle.fitToPose();adapter.saddle.harness.fitToPose();adapter.saddleFitted=true;}
+  if(city.cargo){city.cargoOffsetY=adapter.saddle.cargoOffset();city.cargo.position.y=city.cargoOffsetY;city.cargo.updateWorldMatrix(true,true);}
   adapter.saddle.update();
   adapter.saddle.harness.update();
 }

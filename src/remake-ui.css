@@ -204,6 +204,34 @@ h1 em { color: #d6b77e; letter-spacing: .075em; font-weight: 400; }
 #paused-banner { background: #18352def; border-color: #baa36b; color: #e5d0a1; box-shadow: 0 10px 35px #09281e45; }
 #paused-banner span { color: #c5d0ba; }
 
+/* Expedition planning keeps live rows stable while supplies and timers change. */
+.planning-note { margin: 10px 0 6px; color: #aebfa7; font-size: 10px; line-height: 1.5; }
+#destination-list button, .district-roster button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; width: 100%; min-height: 48px; }
+#destination-list button { padding: 10px 3px; }
+#destination-list strong, .district-roster strong { font-size: 11px; color: #e2dcc0; font-weight: 600; }
+#destination-list span, .district-roster span { font-size: 10px; color: #b9c9ad; }
+#destination-list small, .district-roster small { font-size: 10px; color: #a4b89b; line-height: 1.4; }
+#destination-list button.active { border-left: 2px solid #cbb782; padding-left: 7px; background: #b9c2900a; }
+#destination-list button:disabled { opacity: .55; cursor: default; }
+.district-overview { padding: 12px 14px; }
+.district-overview summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.district-overview summary::before { content: '›'; color: #cdbb85; font-size: 16px; }
+.district-overview[open] summary::before { content: '⌄'; }
+#district-count { color: #b8c5a8; font-size: 10px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.district-roster { max-height: 230px; overflow-y: auto; overscroll-behavior: contain; padding-right: 3px; }
+.district-roster button { border: 0; border-bottom: 1px solid #b8c2a622; background: transparent; border-radius: 0; padding: 8px 5px; }
+.district-roster button:hover { background: #d2d6ac0d; }
+.district-roster button[aria-pressed=true] { background: #b9c29013; border-left: 2px solid #cbb782; }
+.district-overview summary:focus-visible, .district-roster button:focus-visible, #destination-list button:focus-visible { outline: 2px solid #e6cb90; outline-offset: 2px; }
+#stop-course { color: #e4d19f; border-color: #c6ac6e55; }
+@media (pointer: coarse) {
+  .district-overview summary { min-height: 44px; }
+  .planning-note, #destination-list small, .district-roster small { font-size: 12px; }
+  #destination-list strong, .district-roster strong { font-size: 14px; }
+  #destination-list span, .district-roster span { font-size: 12px; }
+  .district-roster { max-height: 280px; }
+}
+
 /* Battle and menus belong to the same atlas, with warmer danger accents. */
 .battle-title { border-top-color: #cd9b7480; }
 .battle-title > .eyebrow { color: #d4ad87; }
@@ -243,7 +271,8 @@ dialog::backdrop { background: #061c1ba8; backdrop-filter: none; }
   .resource small { font-size: 8px; letter-spacing: .16em; }
   .topbar .resource strong { font-size: 19px; }
   .left-stack { width: 222px; top: 90px; gap: 8px; }
-  .right-stack { width: 200px; top: 90px; gap: 8px; }
+  .right-stack { width: 200px; top: 90px; gap: 8px; max-height: calc(100vh - 145px); max-height: calc(100dvh - 145px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .right-stack > .panel { flex-shrink: 0; }
   .city-card { padding: 15px; }
   .city-card h2 { font-size: 25px; line-height: 1.12; margin: 8px 0 17px; }
   .city-ledger { font-size: 11px; margin-top: 12px; padding-top: 10px; }

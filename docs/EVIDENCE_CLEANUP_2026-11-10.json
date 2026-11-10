@@ -1,0 +1,91 @@
+{
+  "verifiedAt": "2026-11-10T07:19:09.7574764Z",
+  "removedFilesAbsent": 847,
+  "removedBytes": 933051135,
+  "errors": 0,
+  "retainedOlderSourceAssetOperationalFilesHashVerified": 2641,
+  "retainedOlderBytesHashVerified": 1115495547,
+  "currentGroupRootsExcludedAndPresent": [
+    "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\rig-ground-refresh",
+    "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\flesh-saddle",
+    "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\recent-work-handoff-2026-10-05",
+    "C:\\Users\\user\\.codex\\worktrees\\kaiju-art-remake\\Kiju Game\\artifacts\\art-remake",
+    "C:\\Users\\user\\.codex\\worktrees\\kaiju-art-remake\\Kiju Game\\artifacts\\beast-integration",
+    "C:\\Users\\user\\.codex\\worktrees\\kaiju-art-remake\\Kiju Game\\artifacts\\review-handoff-native-beast-world-final-2026-10-21"
+  ],
+  "currentFinalHandoffFiles": 20,
+  "currentFinalHandoffBytes": 35051171,
+  "noRuntimeOrGameTestChanges": true,
+  "noGameTestsOrBrowserRerun": true,
+  "removedByPath": [
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\carrier-assets",
+      "files": 216,
+      "bytes": 371265711
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-01",
+      "files": 32,
+      "bytes": 3728683
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-02",
+      "files": 30,
+      "bytes": 2904193
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-03",
+      "files": 27,
+      "bytes": 2870967
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-04",
+      "files": 35,
+      "bytes": 3412996
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-carrier-01",
+      "files": 20,
+      "bytes": 2944757
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-carrier-02",
+      "files": 11,
+      "bytes": 1575683
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-carrier-03",
+      "files": 9,
+      "bytes": 1259233
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\critic-round-carrier-04",
+      "files": 12,
+      "bytes": 1720407
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\ground-cover-volume",
+      "files": 151,
+      "bytes": 128723370
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\meshy-tree-coverage",
+      "files": 172,
+      "bytes": 259484960
+    },
+    {
+      "path": "C:\\Users\\user\\.codex\\worktrees\\painterly-phase1\\Kiju Game\\artifacts\\water-polish",
+      "files": 132,
+      "bytes": 153160175
+    }
+  ],
+  "detailedLedger": "artifacts/nov10-retention/cleanup-applied-20261110.json",
+  "detailedLedgerSha256": "dd378e981a22aa8cbd3d8b0c76f74e5fe883aae232c00ac10fa702f57fcc0884",
+  "limits": [
+    "Only exact unchanged files from the prior four-group inventory are candidates.",
+    "Originals, derivatives, source and build checkpoints, operational/save evidence, full source text and ambiguous files are retained.",
+    "Other registered old worktrees had no newly eligible media outside prior protected operational/source paths; no deletion is planned there.",
+    "All current four groups are excluded from the candidate inventory and explicitly protected."
+  ],
+  "deletionMode": "Exact files only. Parent directories remain; removedByPath is an aggregation, not wholesale directory deletion."
+}

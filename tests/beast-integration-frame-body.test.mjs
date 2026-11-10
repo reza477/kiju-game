@@ -9,8 +9,8 @@ const restore=installCPUCarrierEnvironment(),startedAt=new Date().toISOString(),
 const assets=await import('../src/meshy-carriers.js');await assets.loadMeshyCarriers();const{makeCity,animateCity,setCityRings}=await import('../src/carriers.js'),{placeCity,GameScene}=await import('../src/scene.js'),sim=await import('../src/simulation.js');
 function populate(city){const state=sim.createGame('kaiju','flesh');state.rings=2;const added=state.buildings.flatMap((b,i)=>b?[]:[i]);for(const i of added)state.buildings[i]={type:'housing',level:1,remaining:0};state.towerOrder.push(...added);setCityRings(city,2,state.buildings,state.towerOrder);return state;}
 function check(city,label){
- city.root.updateMatrixWorld(true);const skin=posedVisibleSurface(city.meshyCarrier.renderMeshes[0],city.rig);skin.faces=skin.bounds.map((_,i)=>({name:'actual visible body',sourceFace:i}));
- const frame=city.foundation.getObjectByName('Occupied pannier load frame'),frameSurface=surface(meshes(frame),city.rig.matrixWorld),result=contacts(frameSurface,skin,.04);report.samples.push({label,...result});if(result.count)report.failures.push({label,count:result.count,actualAmongExamples:result.examples.filter(e=>e.distance<1e-7).length,examples:result.examples});
+ city.root.updateMatrixWorld(true);const skin=posedVisibleSurface(city.meshyCarrier.renderMeshes[0],city.cargo??city.rig);skin.faces=skin.bounds.map((_,i)=>({name:'actual visible body',sourceFace:i}));
+ const frame=city.foundation.getObjectByName('Occupied pannier load frame'),frameSurface=surface(meshes(frame),(city.cargo??city.rig).matrixWorld),result=contacts(frameSurface,skin,.04);report.samples.push({label,...result});if(result.count)report.failures.push({label,count:result.count,actualAmongExamples:result.examples.filter(e=>e.distance<1e-7).length,examples:result.examples});
  // A closed frame component wholly inside the body must not evade face tests.
  const maxX=Math.ceil(Math.max(...skin.bounds.map(b=>b.max[0]))),ray=new T.Ray(),point=new T.Vector3();
  for(const [link,vertex]of componentSeeds(frameSurface).entries()){

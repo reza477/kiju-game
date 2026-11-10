@@ -3,6 +3,7 @@ import * as T from '../vendor/three.module.js';
 import {getMaterial as m,box,cylinder,sphere,cone,beam,batchStatic} from './materials.js';
 import {batteryArc,normalizeAngle} from './weapon-layout.js';
 import {CANNON_MOUNT as mount,nearestCastleYaw} from './castle-collision.js';
+import {FLESH_SADDLE_PROFILE} from './flesh-saddle-profile.js';
 
 function muzzleMarker(parent,x,y,z){const point=new T.Object3D();point.position.set(x,y,z);parent.add(point);return point;}
 
@@ -67,10 +68,10 @@ export function createBattery(faction,level=1,facing=0,slot=null,finish=null){
 export function addCarrierWeapons(city){
   const weapons=[];
   // Base-gun meshes only: simulation range, damage and timing use actor centres.
-  const coords=city.layout==='saddle'?[[-6.1,29.7,-2.4],[6.1,29.7,-2.4]]:city.faction==='kaiju'?[[-5.1,42.8,1.9],[5.1,42.8,1.9]]:city.faction==='crawler'?[[-5.2,6.1,10.3],[5.2,6.1,10.3]]:[[-8.6,17.5,-5],[8.6,17.5,5]];
+  const coords=city.layout==='saddle'?FLESH_SADDLE_PROFILE.baseGuns.map(({x,y,z})=>[x,y,z]):city.faction==='kaiju'?[[-5.1,42.8,1.9],[5.1,42.8,1.9]]:city.faction==='crawler'?[[-5.2,6.1,10.3],[5.2,6.1,10.3]]:[[-8.6,17.5,-5],[8.6,17.5,5]];
   for(const point of coords){
     const group=createBattery(city.faction,1,0,null,city.layout==='saddle'?'flesh-saddle':null);group.position.set(...point);if(city.faction==='kaiju')group.scale.setScalar(1.22);
-    city.rig.add(group);group.weapon.base=true;batchStatic(group);weapons.push(group.weapon);
+    (city.cargo??city.rig).add(group);group.weapon.base=true;batchStatic(group);weapons.push(group.weapon);
   }
   city.baseWeapons=weapons;return weapons;
 }
@@ -88,8 +89,8 @@ export function animateWeapons(city,target,time){
     if(city.faction==='kaiju'&&!weapon.base){
       const layout=city.saddleLayout??city.verticalLayout;
       const prior=weapon.aimClearance;
-      if(!prior||prior.rings!==city.rings||prior.layout!==layout?.signature||prior.desired!==desired){
-        weapon.aimClearance={rings:city.rings,layout:layout?.signature,desired,physical:nearestCastleYaw({rings:city.rings,layout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y})};
+      if(!prior||prior.rings!==city.rings||prior.layout!==layout?.signature||prior.desired!==desired||prior.cargoOffsetY!==(city.cargoOffsetY??0)){
+        weapon.aimClearance={rings:city.rings,layout:layout?.signature,desired,cargoOffsetY:city.cargoOffsetY??0,physical:nearestCastleYaw({rings:city.rings,layout,slot:weapon.slot,level:weapon.level,yaw:desired,reference:weapon.turret.rotation.y,cargoOffsetY:city.cargoOffsetY??0})};
       }
       weapon.turret.rotation.y=weapon.aimClearance.physical;
     }else weapon.turret.rotation.y=desired;

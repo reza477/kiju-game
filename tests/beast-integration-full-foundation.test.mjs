@@ -12,27 +12,29 @@ const sequence=(first,last)=>Array.from({length:last-first+1},(_,i)=>first+i);
 const gaitChecks=new Set([0,12,13,60,120,180,...sequence(228,240),270,...sequence(299,306),312,324,...sequence(328,336),359,360,384,420]);
 const strikeChecks=new Set([0,12,13,14,15,24,42,64,77,78,79,80,90,120,150]);
 
-test('native saddle fit preserves historical slots, capacity, mount Y/Z and circulation dimensions',()=>{
+test('approved low saddle refit preserves historical slots, capacity and circulation dimensions',()=>{
   const savedOrder=[7,11,13,0,1,2,3,4,5,6,8,9,10,12,14,15,16,17,18,19];
   assert.deepEqual(SADDLE_SLOT_ORDER,savedOrder);
   assert.equal(SADDLE_DECK_Y,34);
   assert.deepEqual(SADDLE_DISTRICT_SIZE,{width:3.45,depth:3.8});
-  // These Y/Z/rotation/zone/side/row records predate the visual X-only fitting.
+  // Owner-approved Nov10 low saddle refit. Exact changed coordinates are
+  // recorded in artifacts/nov10-improvements/saddle/layout-delta.json; IDs,
+  // dimensions, natural residents and construction/save order are preserved.
   const historical=[
-    [29,-9.7,Math.PI,'crown',-1,0],[26,-9.7,-Math.PI/2,'upper-pannier',-1,1],
-    [26,-9.7,Math.PI/2,'upper-pannier',1,1],[29,-9.7,Math.PI,'crown',1,0],
-    [26.5,-6,-Math.PI/2,'upper-pannier',-1,0],[26.5,-6,Math.PI/2,'upper-pannier',1,0],
-    [24.3,-14.8,Math.PI,'crown',-1,1],[24.3,-14.8,Math.PI,'crown',1,1],
+    [25.5,-11.2,Math.PI,'crown',-1,0],[24.9,-9.7,-Math.PI/2,'upper-pannier',-1,1],
+    [24.9,-9.7,Math.PI/2,'upper-pannier',1,1],[25.5,-11.2,Math.PI,'crown',1,0],
+    [25,-6,-Math.PI/2,'upper-pannier',-1,0],[25,-6,Math.PI/2,'upper-pannier',1,0],
+    [24.3,-15.2,Math.PI,'crown',-1,1],[24.3,-15.2,Math.PI,'crown',1,1],
     [23.6,-13.4,-Math.PI/2,'upper-pannier',-1,2],[23.6,-13.4,Math.PI/2,'upper-pannier',1,2],
-    [21,-17.1,-Math.PI/2,'upper-pannier',-1,3],[21,-17.1,Math.PI/2,'upper-pannier',1,3],
-    [22.2,-9.7,-Math.PI/2,'lower-pannier',-1,1],[22.2,-9.7,Math.PI/2,'lower-pannier',1,1],
-    [22.5,-6,-Math.PI/2,'lower-pannier',-1,0],[22.5,-6,Math.PI/2,'lower-pannier',1,0],
-    [19.6,-13.4,-Math.PI/2,'lower-pannier',-1,2],[19.6,-13.4,Math.PI/2,'lower-pannier',1,2],
+    [23.6,-17.1,-Math.PI/2,'upper-pannier',-1,3],[23.6,-17.1,Math.PI/2,'upper-pannier',1,3],
+    [21,-9.7,-Math.PI/2,'lower-pannier',-1,1],[21,-9.7,Math.PI/2,'lower-pannier',1,1],
+    [21.1,-6,-Math.PI/2,'lower-pannier',-1,0],[21.1,-6,Math.PI/2,'lower-pannier',1,0],
+    [20.4,-13.4,-Math.PI/2,'lower-pannier',-1,2],[20.4,-13.4,Math.PI/2,'lower-pannier',1,2],
     [17.2,-17.1,-Math.PI/2,'lower-pannier',-1,3],[17.2,-17.1,Math.PI/2,'lower-pannier',1,3]
   ];
   assert.equal(SADDLE_MOUNTS.length,20);
   SADDLE_MOUNTS.forEach((m,tier)=>assert.deepEqual([m.absoluteY,m.z,m.rotation,m.zone,m.side,m.row],historical[tier]));
-  const x=[-1.83,-6.65,6.65,1.83,-6.9,6.9,-1.83,1.83,-6.65,6.65,-6.65,6.65,-8.4,8.4,-8.4,8.4,-10.5,10.5,-9.6,9.6];
+  const x=[-1.83,-6.65,6.65,1.83,-6.9,6.9,-1.83,1.83,-6.65,6.65,-6.65,6.65,-10.5,10.5,-10.5,10.5,-10.5,10.5,-10.5,10.5];
   assert.deepEqual(SADDLE_MOUNTS.map(m=>m.x),x);
   const width=2*Math.max(...SADDLE_MOUNTS.map(m=>Math.abs(m.x)+Math.abs(Math.cos(m.rotation))*1.73+Math.abs(Math.sin(m.rotation))*1.9));
   assert.ok(Math.abs(width-24.8)<1e-12);
@@ -140,7 +142,7 @@ test('complete saddle foundation clears skin through known gait failures, settli
       dispose(city);dispose(enemy);
     }
     t.diagnostic(JSON.stringify({skinMarginRig:.04,slabMarginRig:.12,gaitFrames:[...gaitChecks],strikeFrames:[...strikeChecks],samples,failures}));
-    assert.deepEqual(failures,[],'All complete rendered foundation surfaces and all20 slabs must clear the actual posed skin');
+    assert.equal(failures.length,0,'All complete rendered foundation surfaces and all20 slabs must clear the actual posed skin; full contacts are retained in the diagnostic');
   }finally{
     for(const city of created)if(city.meshyCarrier){city.meshyCarrier.controller?.dispose();assets.disposeMeshyCarrier(city.meshyCarrier.instance);}
     restore();

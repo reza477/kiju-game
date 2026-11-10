@@ -8,15 +8,40 @@ export {createSaddleLayout} from './saddle-layout.js';
 // requiring a DOM. Material kinds retain the renderer's bevel decisions.
 let geometryMaterials;
 function geometryPalette(){
- if(!geometryMaterials){geometryMaterials={};for(const [name,kind]of Object.entries({wall:'stone',trim:'plaster',roof:'roof',dark:'metal',iron:'metal',wood:'wood',leather:'fabric',cloth:'fabric',glass:'glass',light:'window',brass:'gold',paving:'pavement',soil:'soil',leaves:'foliage'})){const material=new T.MeshBasicMaterial();material.name=kind+' geometry-only';material.userData.shared=true;geometryMaterials[name]=material;}}
+ if(!geometryMaterials){geometryMaterials={};for(const [name,kind]of Object.entries({wall:'stone',brick:'brick',trim:'plaster',roof:'roof',dark:'metal',iron:'metal',wood:'wood',leather:'fabric',cloth:'fabric',glass:'glass',light:'window',brass:'gold',paving:'pavement',soil:'soil',leaves:'foliage'})){const material=new T.MeshBasicMaterial();material.name=kind+' geometry-only';material.userData.shared=true;geometryMaterials[name]=material;}}
  return geometryMaterials;
 }
-function palette(enemy=false){return {wall:getMaterial('stone',0x9ca699),trim:getMaterial('plaster',0xc1bda4),roof:getMaterial('roof',0x454e58),dark:getMaterial('metal',0x303a3b),iron:getMaterial('metal',0x586363),wood:getMaterial('wood',0x77614c),leather:getMaterial('fabric',0x645443,{sheen:.08,roughness:.88,metalness:0}),cloth:getMaterial('fabric',enemy?0x74404a:0x513549),glass:getMaterial('glass',0x6c8588),light:getMaterial('window',0xc5c0a1),brass:getMaterial('gold',0x9d8960),paving:getMaterial('pavement',0xa8a899),soil:getMaterial('soil',0x4e4437),leaves:getMaterial('foliage',0x60794b)};}
+function palette(enemy=false){return {wall:getMaterial('stone',0x9ca699),brick:getMaterial('brick',0x8c7060),trim:getMaterial('plaster',0xc1bda4),roof:getMaterial('roof',0x454e58),dark:getMaterial('metal',0x303a3b),iron:getMaterial('metal',0x586363),wood:getMaterial('wood',0x77614c),leather:getMaterial('fabric',0x645443,{sheen:.08,roughness:.88,metalness:0}),cloth:getMaterial('fabric',enemy?0x74404a:0x513549),glass:getMaterial('glass',0x6c8588),light:getMaterial('window',0xc5c0a1),brass:getMaterial('gold',0x9d8960),paving:getMaterial('pavement',0xa8a899),soil:getMaterial('soil',0x4e4437),leaves:getMaterial('foliage',0x60794b)};}
 function prism(group,points,depth,material,x=0,y=0,z=0){
  const shape=new T.Shape(points.map(p=>new T.Vector2(...p))),geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false});geometry.translate(0,0,-depth/2);
+ // Extruded gables and pannier boards use the same metres-per-tile scale as
+ // boxes, so a small roof does not stretch an entire sheet of slate over it.
+ const scale=material.userData.surfaceScale;
+ if(scale){const p=geometry.attributes.position,n=geometry.attributes.normal,uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){const nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));uv[i*2]=(ny>nx&&ny>nz?p.getX(i):nx>nz?p.getZ(i):p.getX(i))/scale;uv[i*2+1]=(ny>nx&&ny>nz?-p.getZ(i):p.getY(i))/scale;}geometry.setAttribute('uv',new T.BufferAttribute(uv,2));geometry.userData.metricUV=true;}
  const mesh=new T.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;
 }
 function roof(group,w,d,h,material,y,z=0){return prism(group,[[-w/2,0],[-w*.34,h*.43],[0,h],[w*.34,h*.43],[w/2,0]],d,material,0,y,z);}
+function districtRoof(room,type,wallH,p){
+ const y=wallH+.02,z=-.12;
+ if(type==='keep'){
+  prism(room,[[-1.15,0],[-.89,.60],[-.48,.90],[.48,.90],[.89,.60],[1.15,0]],1.93,p.roof,0,y,z);
+  box(room,.98,.075,1.94,p.iron,0,y+.90,z);
+ }else if(type==='sawmill'){
+  prism(room,[[-1.15,0],[-1.15,.24],[-.4,.73],[-.4,.24],[.35,.73],[.35,.24],[1.15,.73],[1.15,0]],1.93,p.roof,0,y,z);
+  for(const x of[-.4,.35,1.15])box(room,.055,.49,1.90,p.iron,x,y+.485,z);
+ }else if(type==='foundry'){
+  const arch=[[-1.15,0],[-1.06,.22],[-.72,.46],[0,.61],[.72,.46],[1.06,.22],[1.15,0]];
+  prism(room,arch,1.93,p.dark,0,y,z);
+  for(const ribZ of[-.78,.55])for(let i=1;i<arch.length;i++)beam(room,[arch[i-1][0],y+arch[i-1][1]+.025,ribZ],[arch[i][0],y+arch[i][1]+.025,ribZ],.022,p.iron);
+ }else{
+  const rise=type==='housing'?.83:.73;roof(room,2.30,1.93,rise,p.roof,y,z);box(room,.08,.08,1.94,p.iron,0,y+rise,z);
+  if(type==='housing')for(const side of[-1,1]){
+   const dormer=new T.Group();dormer.position.set(side*.57,y+.16,.73);room.add(dormer);
+   prism(dormer,[[-.26,0],[-.26,.25],[0,.46],[.26,.25],[.26,0]],.27,p.trim);
+   pointed(dormer,.25,.28,p.glass,0,.06,.16);roof(dormer,.60,.37,.24,p.roof,.25);
+  }
+ }
+}
 function pointed(group,w,h,material,x,y,z){return prism(group,[[-w/2,0],[-w/2,h*.64],[0,h],[w/2,h*.64],[w/2,0]],.055,material,x,y,z);}
 function window(group,x,y,z,p,lit=false){
  pointed(group,.47,.91,p.trim,x,y-.04,z);pointed(group,.34,.75,lit?p.light:p.glass,x,y+.045,z+.04);
@@ -101,9 +126,9 @@ export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geom
   for(const z of[-.9,.82]){beam(room,[-1.05,wallH,z],[0,wallH+.60,z],.048,p.iron);beam(room,[0,wallH+.60,z],[1.05,wallH,z],.048,p.iron);}
   for(const side of[-1,1]){const shade=box(room,1.23,.045,1.76,p.glass,side*.525,wallH+.29,-.04);shade.rotation.z=-side*.52;}
  }else{
-  box(room,2.05,wallH,1.62,p.wall,0,wallH/2,-.12);box(room,2.18,.14,1.78,p.trim,0,.10,-.12);box(room,2.16,.12,1.74,p.trim,0,wallH-.02,-.12);
-  const roofRise=type==='keep'?.90:type==='housing'?.83:.73;
-  roof(room,2.30,1.93,roofRise,p.roof,wallH+.02,-.12);box(room,.08,.08,1.94,p.iron,0,wallH+roofRise+.02,-.12);
+  const wall=type==='foundry'?p.brick:type==='sawmill'?p.trim:p.wall;
+  box(room,2.05,wallH,1.62,wall,0,wallH/2,-.12);box(room,2.18,.14,1.78,p.trim,0,.10,-.12);box(room,2.16,.12,1.74,p.trim,0,wallH-.02,-.12);
+  districtRoof(room,type,wallH,p);
   pointed(room,.69,1.64,p.trim,0,.06,front+.015);pointed(room,.52,1.51,p.wood,0,.075,front+.066);box(room,.06,.78,.027,p.brass,.13,.65,front+.11);
   for(const side of[-1,1]){
    const frontLit=side<0&&(type==='keep'||type==='sawmill')||side>0&&type==='housing';
@@ -119,7 +144,8 @@ export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geom
   if(type==='sawmill'||type==='foundry'){
    const forge=type==='foundry';box(room,.43,.55,.38,forge?p.iron:p.wood,.73,.38,1.0);
    for(let i=0;i<3;i++){const stock=cylinder(room,.09,.09,.64,forge?p.iron:p.wood,-.73,.18+i*.15,1.03,6);stock.rotation.z=Math.PI/2;}
-   if(forge){box(room,.32,.52,.33,p.dark,.60,wallH+.57,-.46);const smoke=new T.Object3D();smoke.position.set(.6,wallH+.87,-.46);smoke.userData.smokestack=true;room.add(smoke);}
+   if(forge){box(room,.32,.68,.33,p.brick,.60,wallH+.49,-.46);box(room,.38,.10,.39,p.iron,.60,wallH+.80,-.46);const smoke=new T.Object3D();smoke.position.set(.6,wallH+.87,-.46);smoke.userData.smokestack=true;room.add(smoke);}
+   else for(const side of[-1,1]){box(room,.10,wallH,.075,p.wood,side*.47,wallH/2,front+.045);beam(room,[side*.50,.28,front+.08],[side*.91,wallH-.18,front+.08],.035,p.wood);}
   }
   if(type==='armor')for(const side of[-1,1]){prism(room,[[-.20,.30],[-.17,-.18],[0,-.34],[.17,-.18],[.20,.30]],.05,p.iron,side*.7,.99,front+.14);beam(room,[side*.7-.15,.55,front+.20],[side*.7+.15,1.48,front+.20],.025,p.brass);}
  }

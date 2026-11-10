@@ -2,6 +2,7 @@ import {kaijuSlotPosition} from './city-layout.js';
 import {verticalOrder} from './vertical-city.js';
 import {CARRIER_VARIANTS,VARIANTS_BY_FACTION,normalizeVariant} from './variants.js';
 import {batterySolution,defaultFacing,normalizeAngle} from './weapon-layout.js';
+import {fleshCargoOffset} from './flesh-cargo-pose.js';
 export const SAVE_KEY = 'colossus-wake-save-v1';
 export const FACTIONS = {
   kaiju: {name:'The Thornbound', city:'Vesper Bastion', type:'Kaiju city', subtitle:'A cathedral on a living titan.', description:'Gothic spires, stone battlements, and a bond older than memory. Close the distance. Let the creature do the talking.', hp:540, speed:11, range:54, damage:15, melee:42, reload:3.3, ability:'Titan rush', abilityHint:'Surge forward. Deal 85 damage in reach.', color:'#b8c989', tag:'MELEE / LIVING CITY'},
@@ -12,8 +13,8 @@ export const BUILDINGS = {
   keep:{name:'Citadel',cost:{wood:0,iron:0},time:0,icon:'♜',description:'The heart of your city. Upgrade for more hull and weapon damage.'},
   housing:{name:'Dwellings',cost:{wood:35,iron:10},time:6,icon:'⌂',description:'+12 population capacity; newcomers join over time.'},
   farm:{name:'Hanging gardens',cost:{wood:30,iron:15},time:7,icon:'❧',description:'+0.8 food per second. Keeps your citizens fed.'},
-  sawmill:{name:'Timber guild',cost:{wood:25,iron:20},time:7,icon:'⚒',description:'Doubles timber gathering near woodland per level.'},
-  foundry:{name:'Ironworks',cost:{wood:35,iron:25},time:8,icon:'⬡',description:'Doubles iron gathering near ruins per level.'},
+  sawmill:{name:'Timber guild',cost:{wood:25,iron:20},time:7,icon:'⚒',description:'Adds 2.5 timber per second near woodland for each completed level.'},
+  foundry:{name:'Ironworks',cost:{wood:35,iron:25},time:8,icon:'⬡',description:'Adds 2.2 iron per second near ruins for each completed level.'},
   cannon:{name:'Gun battery',cost:{wood:25,iron:45},time:9,icon:'✣',description:'+9 ranged damage per level when the battery has range, aim and a clear firing path.'},
   armor:{name:'Bulwark',cost:{wood:30,iron:50},time:8,icon:'◇',description:'+120 maximum hull and repairs that much on completion.'}
 };
@@ -34,6 +35,8 @@ export const levelOf = (s,type)=>s.buildings.filter(b=>b?.type===type && (b.rema
 export const maxHull = s=>FACTIONS[s.faction].hp+levelOf(s,'armor')*120+(levelOf(s,'keep')-1)*80;
 export const capacity = s=>18+levelOf(s,'housing')*12;
 export const income = s=>({food:levelOf(s,'farm')*0.8 - s.population*0.018});
+export const GATHERING_RADIUS = 23;
+export const gatheringRate = (s,node)=>node?.kind==='wood'?2.5*(1+levelOf(s,'sawmill')):node?.kind==='iron'?2.2*(1+levelOf(s,'foundry')):node?.kind==='food'?3.8:0;
 export function note(s,text){s.log.unshift({text,time:s.time});s.log=s.log.slice(0,25);}
 function createRivals(faction,variant){
  const remaining=Object.keys(CARRIER_VARIANTS).filter(id=>id!==variant),ordered=[];
@@ -81,6 +84,7 @@ export function upgrade(s,slot){const b=s.buildings[slot];if(s.mode!=='expeditio
  b.remaining=8;b.upgrading=true;note(s,`Upgrading ${BUILDINGS[b.type].name}.`);return {ok:true};}
 export function repair(s){if(s.mode!=='expedition')return {ok:false,message:'Repairs are available between battles.'};if(s.hp>=maxHull(s))return {ok:false,message:'Your hull is already sound.'};if(!pay(s,{wood:15,iron:20}))return {ok:false,message:'Repair needs 15 wood and 20 iron.'};s.hp=Math.min(maxHull(s),s.hp+150);note(s,'Repair crews restored 150 hull.');return {ok:true};}
 export function travel(s,x,z){if(s.mode!=='expedition')return;s.target={x:clamp(x,-175,175),z:clamp(z,-175,175)};s.gathering=null;}
+export function stopTravel(s){if(s.mode!=='expedition'||!s.target)return false;s.target=null;s.moving=false;s.gathering=null;return true;}
 function move(entity,target,speed,dt,limit=175){const d=distance(entity,target);if(d<0.15)return true;const step=Math.min(d,speed*dt);const dx=(target.x-entity.x)/d,dz=(target.z-entity.z)/d;entity.x=clamp(entity.x+dx*step,-limit,limit);entity.z=clamp(entity.z+dz*step,-limit,limit);entity.angle=Math.atan2(dx,dz);return d<=step+.15;}
 export function startBattle(s,id){const rival=s.enemies.find(e=>e.id===id);if(s.mode!=='expedition'||!rival||rival.defeated)return false;
  if(distance(s,rival)>42){note(s,'Move closer to the rival city before engaging.');return false;}
@@ -105,7 +109,8 @@ export function meleeReach(attacker,target,attackerVariant,targetVariant){
 }
 export function weaponStatus(s){
  const b=s.battle;if(!b)return {batteries:[],active:0,total:0,baseInRange:false,canFire:false};
- const batteries=s.buildings.flatMap((building,slot)=>building?.type==='cannon'?[batterySolution(s,slot,b.player,b.enemy,FACTIONS[s.faction].range)]:[]);
+ const cargoOffsetY=fleshCargoOffset(s);
+ const batteries=s.buildings.flatMap((building,slot)=>building?.type==='cannon'?[batterySolution(s,slot,b.player,b.enemy,FACTIONS[s.faction].range,cargoOffsetY)]:[]);
  const active=batteries.filter(m=>m.active).length,baseInRange=distance(b.player,b.enemy)<=FACTIONS[s.faction].range;
  return {batteries,active,total:batteries.length,baseInRange,canFire:baseInRange||active>0,melee:distance(b.player,b.enemy)<=meleeReach(s.faction,b.enemyFaction,s.variant,b.enemyVariant)};
 }
@@ -135,12 +140,14 @@ export function tick(s,dt,input={x:0,z:0}){
  if(s.mode==='battle'){tickBattle(s,dt,input);return;}
  if(s.ringConstruction){s.ringConstruction.remaining=Math.max(0,s.ringConstruction.remaining-dt);if(s.ringConstruction.remaining===0){s.rings=s.ringConstruction.target;s.ringConstruction=null;s.stats.built++;note(s,s.variant==='flesh'?'Harness reinforced. Fit up to 20 compact districts around the saddle.':'Harness reinforced. Build up to 20 storeys, one district above another.');}}
  for(const b of s.buildings){if(!b||b.remaining<=0)continue;b.remaining=Math.max(0,b.remaining-dt);if(b.remaining===0){if(b.upgrading){b.level++;delete b.upgrading;}s.stats.built++;if(b.type==='armor')s.hp=Math.min(maxHull(s),s.hp+120);if(b.type==='keep')s.hp=Math.min(maxHull(s),s.hp+80);note(s,`${BUILDINGS[b.type].name} is ready.`);}}
- s.resources.food=Math.max(0,s.resources.food+income(s).food*dt);s.starving=s.resources.food<=0;
- if(s.starving)s.population=Math.max(8,s.population-.08*dt);else if(s.population<capacity(s))s.population=Math.min(capacity(s),s.population+.055*dt);
  let moving=false;if(input.x||input.z){const m=Math.max(1,Math.hypot(input.x,input.z));move(s,{x:s.x+input.x/m*100,z:s.z+input.z/m*100},FACTIONS[s.faction].speed,dt);s.target=null;moving=true;}
  else if(s.target){moving=true;if(move(s,s.target,FACTIONS[s.faction].speed,dt)){s.target=null;moving=false;}}
  s.moving=moving;s.gathering=null;
- if(!moving){const node=s.nodes.find(n=>n.amount>0&&distance(s,n)<23);if(node){const rate=node.kind==='wood'?2.5*(1+levelOf(s,'sawmill')):node.kind==='iron'?2.2*(1+levelOf(s,'foundry')):3.8;const n=Math.min(node.amount,rate*dt);node.amount-=n;s.resources[node.kind]+=n;s.stats.gathered+=n;s.gathering=node.id;}}
+ if(!moving){const node=s.nodes.find(n=>n.amount>0&&distance(s,n)<GATHERING_RADIUS);if(node){const n=Math.min(node.amount,gatheringRate(s,node)*dt);node.amount-=n;s.resources[node.kind]+=n;s.stats.gathered+=n;s.gathering=node.id;}}
+ // Credit the current food harvest before deciding whether citizens go hungry.
+ // Rates and population rules are unchanged; finite deposits still cap harvest.
+ s.resources.food=Math.max(0,s.resources.food+income(s).food*dt);s.starving=s.resources.food<=0;
+ if(s.starving)s.population=Math.max(8,s.population-.08*dt);else if(s.population<capacity(s))s.population=Math.min(capacity(s),s.population+.055*dt);
  for(const k of Object.keys(s.resources))s.resources[k]=clamp(s.resources[k],0,9999);
 }
 export function serialize(s){return JSON.stringify(s);}

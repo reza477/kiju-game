@@ -11,14 +11,14 @@ For manual launch, run `node server.mjs` in the game folder, then open [127.0.0.
 ## First expedition
 
 1. Choose **Thornbound** (kaiju), **Commonwealth** (crawler), or **Saffron Courts** (airship), then choose one of its two carrier versions. The title screen previews a developed city; a new expedition starts with three districts.
-2. Build a **Timber guild** from the bottom bar. Gothic cities use **Add above castle**; crawler and airship cities use an empty deck plot or numbered district.
-3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Crews gather wood automatically while stopped near the deposit.
+2. Build a **Timber guild** from the bottom bar. Flesh cities use **Attach next ward**, cyborg cities use **Add above castle**, and crawler/airship cities use an empty deck plot or numbered district.
+3. Open **Resource destinations**, choose **The Sunken Grove**, and wait for arrival. Each destination shows its remaining supply, distance, estimated travel time and gathering rate at 1× speed. Crews gather automatically while stopped nearby; choosing a deposit already in range keeps the city in place. **Stop course** cancels automatic travel.
 4. Add **Hanging gardens** for food, an **Ironworks** for faster iron collection near ruins, and **Dwellings** for population growth. Select a built district to upgrade it, up to level 3.
-5. Every Gothic district becomes a new storey directly above the previous top. Upgrading a lower storey lifts everything above it. **Reinforce castle harness** raises capacity from seven to twenty storeys for 90 wood, 65 iron and 12 seconds; it does not create empty floors. **Inspect castle storey** selects a district for inspection or upgrade in Streets view.
-6. Build **Gun batteries** and **Bulwarks** before battle. Choose each battery's facing. Gothic batteries fire through their storey's outward portal; horizontal cities can use perimeter plots for clearer firing lines. Select a rival on the minimap, approach, then engage. Rivals only attack after you choose to engage.
+5. Flesh wards attach around a low saddle, and their upgrades stay local to that ward. Cyborg districts add storeys above the castle; upgrading a lower storey raises those above it. Reinforcing either harness raises capacity from seven to twenty districts for 90 wood, 65 iron and 12 seconds; it does not create empty floors. Open **Districts** for a roster of levels and construction timers on any carrier. Select a row to inspect or upgrade that district; kaijus also retain their ward/storey selector.
+6. Build **Gun batteries** and **Bulwarks** before battle. Choose each battery's facing. Cyborg batteries fire through castle portals; flesh batteries use their saddle mounts. Horizontal cities can use perimeter plots for clearer firing lines. Select a rival on the minimap, approach, then engage. Rivals only attack after you choose to engage.
 7. Repair between battles. Defeat all five rivals to secure the region. New expeditions include your selected carrier version and the five other versions as opponents; existing saves retain their original opponents.
 
-The cyborg castle has half-height storeys and crown relative to its attachment deck, with its footprint, robot, body weapons and residents retaining their scale. The flesh titan keeps its full-height castle. Both continue to build upward in existing saves.
+The cyborg castle has half-height storeys and crown relative to its attachment deck, with its footprint, robot, body weapons and residents retaining their scale. The flesh beast carries a compact saddle city across its back and flanks. Existing saves retain district identities and construction order when their presentation changes.
 
 ## Controls
 
@@ -45,7 +45,9 @@ Battle buttons provide **Approach**, **Hold position**, and **Keep distance**. W
 
 Completed batteries add damage when the target is in range and within their firing arc. Cannons sweep 150 degrees and can be blocked by buildings, castle masonry or the titan's body. Airship missiles sweep 240 degrees and arc over buildings. Castle guns use open ports with clearance for their barrels. Select a battery between battles to change its facing. Weapons track, recoil and launch projectiles from their actual muzzles; damage lands with visible contact or impact.
 
-Cities support twenty district positions: occupied vertical storeys for Gothic castles and horizontal plots for crawlers and airships. Construction takes time, districts have three upgrade levels, and population depends on food and housing. Upgrading a district retains its existing benefits until completion. Deposits are finite. Ground carriers follow terrain, leave temporary tracks or footprints, and crush ambient trees and rocks; resource sites are protected. Scenery damage persists separately for expeditions and battles, while temporary ground marks are capped at 400.
+Cities support twenty district positions: compact flesh saddle wards, occupied vertical cyborg storeys, or horizontal crawler/airship plots. Construction takes time, districts have three upgrade levels, and population depends on food and housing. Upgrading a district retains its existing benefits until completion. Deposits are finite. Ground carriers follow terrain, leave temporary tracks or footprints, and crush ambient trees and rocks; resource sites are protected. Scenery damage persists separately for expeditions and battles, while temporary ground marks are capped at 400.
+
+The food rate includes gardens, active gathering from a food deposit and citizen consumption. Rates and timers use game seconds at 1×; 2× speed advances them twice as quickly. Food activity pauses with the expedition and is on hold during battle. A food harvest is credited before checking starvation, so citizens do not go hungry while that harvest covers their needs.
 
 ## Camera, graphics and sound
 

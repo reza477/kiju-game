@@ -46,8 +46,10 @@ export function saddleTrianglePaddingHit(a,b,points,pad){
 // Same primitive dimensions, transforms, roofs, rails and pannier framing as
 // the rendered city. Geometry is created once per bounded layout cache entry,
 // without textures/DOM, then only compact triangles and their BVH are retained.
-export function saddleCitySolids(layout){
- const key=layout.signature;if(cache.has(key))return cache.get(key);
+export function saddleCitySolids(layout,cargoOffsetY=0){
+ if(!Number.isFinite(cargoOffsetY))throw new Error('Saddle collision requires a finite cargo offset');
+ const key=layout.signature;
+ if(!cache.has(key)){
  const solids=geometrySolids(createSaddleFoundation(SADDLE_DECK_Y,false,layout,{geometryOnly:true}),'saddle:foundation');
  for(const floor of layout.floors){
   // Preserve the existing rule that unfinished districts grant no occlusion.
@@ -57,5 +59,12 @@ export function saddleCitySolids(layout){
   solids.push(...geometrySolids(group,'saddle:district:'+floor.slot));
  }
  const result=[body,...(solids.length?[tree(solids)]:[])];
- if(cache.size>=12)cache.delete(cache.keys().next().value);cache.set(key,result);return result;
+ if(cache.size>=12)cache.delete(cache.keys().next().value);cache.set(key,result);
+ }
+ const solids=cache.get(key);if(cargoOffsetY===0)return solids;
+ // Queries and district solids stay cargo-local. The canonical beast envelope
+ // stays in its original rig frame, so it moves by -offset in cargo space.
+ // A translated BVH root avoids cloning thousands of body boxes every frame.
+ const offsetY=-cargoOffsetY,shift=p=>[p[0],p[1]+offsetY,p[2]];
+ return [{min:shift(body.min),max:shift(body.max),offsetY,children:[body]},...solids.slice(1)];
 }

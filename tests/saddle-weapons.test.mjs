@@ -65,7 +65,10 @@ test('a legal forward battle emits precisely the clear saddle batteries with ori
  const enemy=s.enemies.find(e=>e.variant==='cyborg');s.x=enemy.x;s.z=enemy.z;assert.ok(sim.startBattle(s,enemy.id));
  s.battle.player={x:-60,z:30,angle:0};s.battle.enemy={x:-60,z:70,angle:Math.PI};s.battle.command='hold';s.battle.enemyReload=999;s.battle.autoFire=false;
  const before=sim.serialize(s),status=sim.weaponStatus(s);assert.equal(sim.serialize(s),before,'Aiming cannot mutate saves');
- assert.equal(status.total,19);assert.equal(new Set(status.batteries.map(b=>JSON.stringify(b.position))).size,19);assert.equal(status.active,9);
+ // The locally raised rear upper seats now clear the deck in front. The
+ // exact additional lanes are slots10/11; damage and timing formulas remain.
+ assert.equal(status.total,19);assert.equal(new Set(status.batteries.map(b=>JSON.stringify(b.position))).size,19);assert.equal(status.active,11);
+ assert.deepEqual(status.batteries.filter(b=>b.active).map(b=>b.slot),[0,1,2,3,4,10,11,12,13,14,15]);
  assert.ok(sim.fire(s));const event=s.battle.events.at(-1),hp=s.battle.enemyHp;
  assert.deepEqual(event.mounts,status.batteries.filter(b=>b.active).map(b=>b.slot));assert.equal(event.damage,sim.FACTIONS.kaiju.damage+status.active*9);assert.equal(s.battle.reload,sim.FACTIONS.kaiju.reload);assert.equal(event.impactAt-event.time,.55);
  s.paused=true;const paused=sim.serialize(s);sim.tick(s,.25);assert.equal(sim.serialize(s),paused);s.paused=false;
@@ -77,7 +80,9 @@ test('forward rail blocks include the actual barrel collar width, not only centr
  try{
   const state=stateFor(20);state.towerOrder=[7,...Array.from({length:20},(_,i)=>i).filter(i=>i!==7)];for(const b of state.buildings)if(b){b.level=1;b.facing=0;}state.battle={enemyFaction:'kaiju'};
   const layout=createSaddleLayout(state.buildings,state.towerOrder),rendered=architecture(layout);rendered.traverse(o=>{if(o.isMesh)for(const material of[o.material].flat())material.side=T.DoubleSide;});
-  for(const slot of[0,1]){
+  // The authorized low profile puts the collar/deck-edge witness at the
+  // second rear pair. The former forward pair now has a clear firing lane.
+  for(const slot of[8,9]){
    const p=layout.positions[slot],status=api.batterySolution(state,slot,{x:-60,z:30,angle:0},{x:-60,z:70},54),battery=createBattery('kaiju',1,status.bearing,slot);battery.position.set(p.x,34+p.y+layout.districtOffset,p.z);battery.updateMatrixWorld(true);
    let intersections=0;battery.traverse(mesh=>{
     if(!mesh.isMesh||mesh.parent!==battery.weapon.recoil||mesh.position.z!==1.8)return;
