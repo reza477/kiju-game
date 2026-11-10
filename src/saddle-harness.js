@@ -43,7 +43,7 @@ function beltGeometry(){
   return geometry;
 }
 
-export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS}={}){
+export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS,originBone=null}={}){
   const group=new T.Group();group.name='Skin-following saddle harness';group.userData.noBatch=true;rig.add(group);
   const leather=getMaterial('fabric',0x504134),edgeMaterial=getMaterial('gold',0x8d7856),iron=getMaterial('metal',0x454a45);
   const inverse=new T.Matrix4(),basis=new T.Matrix4(),relative=new T.Vector3();
@@ -72,8 +72,22 @@ export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS}={}){
       envelope:createSupportingRing(GIRDLE_SECTIONS),depths:Array.from({length:GIRDLE_WIDTH_SAMPLES},()=>createContourDepth()),
       ringPoints:vectors(GIRDLE_SECTIONS),ringNormals:vectors(GIRDLE_SECTIONS),beltNormals:vectors(GIRDLE_SECTIONS*GIRDLE_WIDTH_SAMPLES)};
   });
+  // The native torso can settle several rig units on sloped terrain before
+  // its first rendered frame. Bind the interior selection witness to that
+  // anatomy, rather than assuming the imported witness remains inside it.
+  // Only its in-plane coordinates may move: each transverse station and all
+  // three width tracks retain their exact original slicing planes.
+  rig.updateWorldMatrix(true,true);
+  for(const band of bands){
+    band.referenceOrigin=band.origin.clone();
+    band.originInBone=originBone?originBone.worldToLocal(rig.localToWorld(band.origin.clone())):null;
+  }
   function fitToPose(){
     fitted=false;vertexCaches.clear();rig.updateWorldMatrix(true,true);inverse.copy(rig.matrixWorld).invert();
+    if(originBone)for(const band of bands){
+      relative.copy(band.originInBone);originBone.localToWorld(relative).applyMatrix4(inverse).sub(band.referenceOrigin);
+      band.origin.copy(band.referenceOrigin).addScaledVector(band.u,relative.dot(band.u)).addScaledVector(band.v,relative.dot(band.v));
+    }
     // Preserve the whole indexed skin. Exact triangle-plane intersections,
     // welded across UV seams, choose the single closed torso loop containing
     // the proven interior origin; a remote horn or tail cannot replace it.
@@ -103,7 +117,7 @@ export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS}={}){
       band.contours=contours.map(contour=>contour.anchors.map(capture));band.strip=strip.anchors.map(capture);
       band.anchors=[...band.contours.flat(),...band.strip];band.points=band.anchors.map(anchor=>anchor.point);
       band.contourPoints=band.contours.map(contour=>vectors(contour.length));band.supportPoints=vectors(band.strip.length);
-      band.fitMetadata={contours:contours.map(contour=>contour.metadata),strip:strip.metadata};
+      band.fitMetadata={selectionOrigin:band.origin.toArray(),referenceOrigin:band.referenceOrigin.toArray(),originBone:originBone?.name??null,contours:contours.map(contour=>contour.metadata),strip:strip.metadata};
     }
     fitted=true;update();
   }

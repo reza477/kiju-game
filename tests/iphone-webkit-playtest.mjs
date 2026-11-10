@@ -73,14 +73,23 @@ try{
     const tap=selector=>page.locator(selector).tap();
     const panel=async name=>{if(await page.locator('body').getAttribute('data-mobile-panel')!==name)await tap(`[data-mobile-panel="${name}"]`);};
     const closePanel=async()=>{const button=page.locator('[data-close-panel]:visible').first();if(await button.count())await button.tap();};
-    const snapshot=()=>page.evaluate(()=>{
+    const snapshot=async()=>{
+     const result=await page.evaluate(()=>{
       const {state,scene}=window.__colossus,gl=scene.renderer.getContext(),canvas=scene.renderer.domElement;
       return {variant:state.variant,time:state.time,x:state.x,z:state.z,paused:state.paused,mode:state.mode,target:state.target,
+        renderedVariant:scene.city.variant,actorInScene:scene.city.root.parent===scene.scene,sceneStateMatches:scene.state===state,preview:scene.preview,
         buildings:state.buildings,towerOrder:state.towerOrder,quality:scene.quality,view:scene.view,
         overflow:document.documentElement.scrollWidth>innerWidth+1,canvas:[canvas.width,canvas.height],triangles:scene.renderer.info.render.triangles,renderFrame:scene.renderer.info.render.frame,
         contextLost:gl.isContextLost(),webglVersion:gl.getParameter(gl.VERSION),renderer:gl.getParameter(gl.RENDERER),
         bodyKind:scene.city.meshyCarrier?.kind??null,cargoY:scene.city.cargoOffsetY??null};
-    });
+     });
+     assert.equal(result.renderedVariant,result.variant,'Rendered carrier must match the loaded save, including after reload');
+     assert.equal(result.actorInScene,true,'Loaded carrier must belong to the active scene');
+     assert.equal(result.sceneStateMatches,true,'Renderer and HUD must use the same loaded state');
+     assert.equal(result.preview,false,'Gameplay must not retain the title preview');
+     if(result.variant==='flesh')assert.equal(result.bodyKind,'flesh','Loaded flesh game must render its native beast');
+     return result;
+    };
     const screenshot=async label=>{
       const file=`${variant}-${label}.png`,bytes=await page.screenshot({path:path.join(out,file),fullPage:false});
       const record={file,bytes:bytes.length,sha256:sha(bytes),original:true,phoneEmulation:true,capturedAt:new Date().toISOString()};visit.screenshots.push(record);

@@ -27,7 +27,14 @@ for(const mutualOnly of[false,true])test(mutualOnly?'front and rear girdles and 
   }}
   function checkPose(label){
    if(samples===0)checkAnchorPayload();
-   city.root.updateMatrixWorld(true);const skin=mutualOnly?null:posedVisibleSurface(mesh,city.rig),assemblies=[];
+   city.root.updateMatrixWorld(true);const skin=mutualOnly?null:posedVisibleSurface(mesh,city.rig),assemblies=[],rigToCargo=(city.cargo??city.rig).matrixWorld.clone().invert().multiply(city.rig.matrixWorld);
+   if(city.cargo){
+    assert.deepEqual(city.cargo.position.toArray(),[0,city.cargoOffsetY,0]);assert.deepEqual(city.cargo.quaternion.toArray(),[0,0,0,1]);assert.deepEqual(city.cargo.scale.toArray(),[1,1,1]);
+    const cargoInRig=city.rig.matrixWorld.clone().invert().multiply(city.cargo.matrixWorld),expected=new T.Matrix4().makeTranslation(0,city.cargoOffsetY,0);
+    assert.ok(Math.max(...cargoInRig.elements.map((v,i)=>Math.abs(v-expected.elements[i])))<1e-10,'Cargo attachment must equal the declared Y-only displacement');
+   }
+   const mappedRigWorld=(city.cargo??city.rig).matrixWorld.clone().multiply(rigToCargo);
+   assert.ok(Math.max(...mappedRigWorld.elements.map((v,i)=>Math.abs(v-city.rig.matrixWorld.elements[i])))<1e-10,'Rig-to-cargo conversion must preserve every actual world-space triangle');
    for(const band of harness.bands){
     assert.equal(band.mesh.visible,true);assert.equal(band.mesh.userData.saddleGirdle,true);assert.equal(band.mesh.userData.sections,GIRDLE_SECTIONS);
     const topology=closedGirdleTopology(band.mesh.geometry);assert.equal(topology.vertices,GIRDLE_SECTIONS*GIRDLE_WIDTH_SAMPLES*2);assert.equal(topology.faces,1536);
@@ -37,7 +44,8 @@ for(const mutualOnly of[false,true])test(mutualOnly?'front and rear girdles and 
      const actual=assertSurfaceClearance(display,city.rig,skin,label+'/part-'+part,.04);comparisons+=actual.comparisons;
      for(let i=0;i<actual.indices.length;i+=3){const triangle=[actual.vertices[actual.indices[i]],actual.vertices[actual.indices[i+1]],actual.vertices[actual.indices[i+2]]];
       assert.ok(new T.Triangle(...triangle).getArea()>1e-8,band.mesh.name+' collapsed face at '+label);
-      for(const [tier,deck]of SADDLE_MOUNTS.entries())assert.equal(triangleBoxIntersection(triangle,deck,[1.73,1.9],-.12,.02)||triangleBoxIntersection(triangle,deck,[1.71,1.88],-.01,.09),false,`${band.mesh.name} part ${part} face ${i/3} crosses occupied deck ${tier} at ${label}`);
+      const cargoTriangle=triangle.map(point=>point.clone().applyMatrix4(rigToCargo));
+      for(const [tier,deck]of SADDLE_MOUNTS.entries())assert.equal(triangleBoxIntersection(cargoTriangle,deck,[1.73,1.9],-.12,.02)||triangleBoxIntersection(cargoTriangle,deck,[1.71,1.88],-.01,.09),false,`${band.mesh.name} part ${part} face ${i/3} crosses occupied deck ${tier} at ${label}`);
      }
     }
    }

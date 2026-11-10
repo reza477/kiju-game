@@ -24,8 +24,13 @@ function roof(group,w,d,h,material,y,z=0){return prism(group,[[-w/2,0],[-w*.34,h
 function districtRoof(room,type,wallH,p){
  const y=wallH+.02,z=-.12;
  if(type==='keep'){
-  prism(room,[[-1.15,0],[-.89,.60],[-.48,.90],[.48,.90],[.89,.60],[1.15,0]],1.93,p.roof,0,y,z);
-  box(room,.98,.075,1.94,p.iron,0,y+.90,z);
+  // A low stone chapter-house lantern gives the keep its own silhouette.
+  // The shoulders and broken parapet remain within the prior mansard roof.
+  prism(room,[[-1.15,0],[-.89,.48],[-.50,.60],[.50,.60],[.89,.48],[1.15,0]],1.93,p.roof,0,y,z);
+  box(room,.92,.63,1.28,p.wall,0,y+.53,z);
+  box(room,.96,.075,1.34,p.trim,0,y+.80,z);
+  for(const x of[-.38,0,.38])for(const end of[-1,1])box(room,.16,.13,.16,p.trim,x,y+.87,z+end*.57);
+  for(const end of[-1,1]){const face=new T.Group();face.position.set(0,y+.31,z+end*.648);face.rotation.y=end<0?Math.PI:0;pointed(face,.31,.37,p.dark,0,0,0);pointed(face,.20,.27,p.glass,0,.045,.03);room.add(face);}
  }else if(type==='sawmill'){
   prism(room,[[-1.15,0],[-1.15,.24],[-.4,.73],[-.4,.24],[.35,.73],[.35,.24],[1.15,.73],[1.15,0]],1.93,p.roof,0,y,z);
   for(const x of[-.4,.35,1.15])box(room,.055,.49,1.90,p.iron,x,y+.485,z);
@@ -34,7 +39,7 @@ function districtRoof(room,type,wallH,p){
   prism(room,arch,1.93,p.dark,0,y,z);
   for(const ribZ of[-.78,.55])for(let i=1;i<arch.length;i++)beam(room,[arch[i-1][0],y+arch[i-1][1]+.025,ribZ],[arch[i][0],y+arch[i][1]+.025,ribZ],.022,p.iron);
  }else{
-  const rise=type==='housing'?.83:.73;roof(room,2.30,1.93,rise,p.roof,y,z);box(room,.08,.08,1.94,p.iron,0,y+rise,z);
+  const rise=type==='housing'?.83:.73;roof(room,2.30,1.93,rise,p.roof,y,z);box(room,.08,.08,1.94,type==='housing'?p.trim:p.iron,0,y+rise,z);
   if(type==='housing')for(const side of[-1,1]){
    const dormer=new T.Group();dormer.position.set(side*.57,y+.16,.73);room.add(dormer);
    prism(dormer,[[-.26,0],[-.26,.25],[0,.46],[.26,.25],[.26,0]],.27,p.trim);

@@ -63,6 +63,30 @@ function cradleGeometry(side){
   return {geometry,parameters};
 }
 
+function roundedLoadRib(group,route,material){
+  const path=new T.CurvePath(),points=route.map(p=>new T.Vector3(...p));let start=points[0];
+  for(let i=1;i<points.length-1;i++){
+    const corner=points[i],trim=Math.min(.55,corner.distanceTo(points[i-1])*.22,corner.distanceTo(points[i+1])*.22);
+    const before=corner.clone().addScaledVector(points[i-1].clone().sub(corner).normalize(),trim),after=corner.clone().addScaledVector(points[i+1].clone().sub(corner).normalize(),trim);
+    path.add(new T.LineCurve3(start,before));path.add(new T.QuadraticBezierCurve3(before,corner,after));start=after;
+  }
+  path.add(new T.LineCurve3(start,points.at(-1)));
+  const w=.23,d=.21,c=.055,shape=new T.Shape([[-w+c,-d],[w-c,-d],[w,-d+c],[w,d-c],[w-c,d],[-w+c,d],[-w,d-c],[-w,-d+c]].map(p=>new T.Vector2(...p)));
+  const geometry=new T.ExtrudeGeometry(shape,{steps:36,bevelEnabled:false,extrudePath:path}),rib=new T.Mesh(geometry,material);
+  rib.name='Curved timber cannon load rib';rib.castShadow=rib.receiveShadow=true;group.add(rib);return rib;
+}
+
+function clippedCannonSeat(group,gun,deck,seatY,timber,iron){
+  const w=deck.width/2,d=deck.depth/2,c=.36,outline=[[-w+c,-d],[w-c,-d],[w,-d+c],[w,d-c],[w-c,d],[-w+c,d],[-w,d-c],[-w,-d+c]],positions=[],uv=[],indices=[];
+  for(const [y,scale]of[[-deck.thickness/2,.86],[deck.thickness/2,1]])for(const[x,z]of outline){positions.push(x*scale,y,z*scale);uv.push(x/2,z/2);}
+  for(let i=0;i<8;i++){const j=(i+1)%8;indices.push(i,i+8,j,j,i+8,j+8);}
+  for(let i=1;i<7;i++)indices.push(0,i,i+1,8,8+i+1,8+i);
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geometry.setIndex(indices);geometry.computeVertexNormals();
+  const seat=new T.Mesh(geometry,timber);seat.name='Fitted forward cannon seat';seat.position.set(gun.x,seatY,gun.z);seat.castShadow=seat.receiveShadow=true;group.add(seat);
+  // Flush forged edging stays below the old tray top and within its width.
+  for(let i=0;i<8;i++){const a=new T.Vector3(outline[i][0]*.97,0,outline[i][1]*.97),b=new T.Vector3(outline[(i+1)%8][0]*.97,0,outline[(i+1)%8][1]*.97),edge=box(group,a.distanceTo(b),.07,.085,iron,gun.x+(a.x+b.x)/2,seatY+deck.thickness/2-.035,gun.z+(a.z+b.z)/2);edge.rotation.y=-Math.atan2(b.z-a.z,b.x-a.x);}
+}
+
 function createSaddle(rig,meshes){
   const group=new T.Group();group.name='Monster low saddle load cradle';
   const rearFrame=new T.Group();rearFrame.name='Supports for occupied rear wards';rearFrame.userData.noBatch=true;group.add(rearFrame);let rearLoaded=true;
@@ -102,12 +126,12 @@ function createSaddle(rig,meshes){
     const gun=FLESH_SADDLE_PROFILE.baseGuns.find(g=>Math.sign(g.x)===side),deck=FLESH_SADDLE_PROFILE.baseDeck,seatY=gun.y-deck.weaponOffset;
     // Carry the gun under the occupied front rim. A straight diagonal from
     // the dorsal bearer would cut through that district's walking deck.
-    const inner=[side*4.8,24.1,-5.8],outer=[side*8.3,24.1,-5.4],lower=[side*8.3,seatY-.35,-5.4],underSeat=[gun.x,seatY-.35,gun.z];
-    spar(group,[side*railX,saddleHeight(-6.8),-6.8],inner,.36,.40);
-    spar(group,inner,outer,.36,.40);
-    spar(group,outer,lower,.32,.36);
-    spar(group,lower,underSeat,.32,.36);
-    const seat=box(group,deck.width,deck.thickness,deck.depth,iron,gun.x,seatY,gun.z);seat.name='Fitted forward cannon seat';
+    const inner=[side*4.8,24.1,-5.8],outer=[side*8.3,24.1,-5.4],lower=[side*8.3,seatY-.22,-5.4],underSeat=[gun.x,seatY-.22,gun.z];
+    const root=[side*railX,saddleHeight(-6.8),-6.8];
+    roundedLoadRib(group,[root,inner,outer,lower,underSeat],timber);
+    // Short forged sockets articulate the two bearing ends of the timber rib.
+    for(const [a,b]of[[root,inner],[underSeat,lower]]){const from=new T.Vector3(...a),toward=new T.Vector3(...b).sub(from).normalize();spar(group,from.clone().addScaledVector(toward,.16).toArray(),from.clone().addScaledVector(toward,.38).toArray(),.49,.45,iron);}
+    clippedCannonSeat(group,gun,deck,seatY,timber,iron);
   }
   for(const z of [-8.5,-15.5])spar(z<-12?rearFrame:group,[-railX,saddleHeight(z)+.1,z],[railX,saddleHeight(z)+.1,z],.30,.36);
   applyFleshSaddleFinish(group);batchStatic(rearFrame);batchStatic(group);
@@ -151,7 +175,9 @@ export function createMeshyMonsterCity(rig){
   instance.root.scale.set(fit.scaleX,fit.scaleY,fit.scaleZ);instance.root.position.set(fit.x,fit.y,fit.z);rig.add(instance.root);
   const renderMeshes=[];instance.body.traverse(object=>{if(object.isSkinnedMesh)renderMeshes.push(object);});
   const controller=createMeshyMonsterPose(instance,{groundHeight:renderedTerrainHeight,strideDistance:native?.strideDistance??8.8,supportCrouch:.12});
-  const saddle=createSaddle(rig,renderMeshes),harness=createFleshHarness(rig,renderMeshes,native?{stations:NATIVE_GIRDLE_STATIONS}:undefined),setSaddleLoad=saddle.setLoad.bind(saddle);saddle.update();
+  const originBone=native?renderMeshes[0].skeleton.bones.find(bone=>bone.name===renderMeshes[0].userData.nativeQuadruped.bodyRoot):null;
+  if(native&&!originBone)throw new Error('Native harness interior reference requires its declared body root');
+  const saddle=createSaddle(rig,renderMeshes),harness=createFleshHarness(rig,renderMeshes,native?{stations:NATIVE_GIRDLE_STATIONS,originBone}:undefined),setSaddleLoad=saddle.setLoad.bind(saddle);saddle.update();
   saddle.setLoad=layout=>{setSaddleLoad(layout);harness.setLoad(layout);};
   saddle.harness=harness;
   return {kind:'flesh',instance,controller,renderMeshes,saddle,bodyFit:{...fit},previous:null,metrics:{animation:native?'Distance-driven Meshy quadruped gait with planted feet':'Local four-legged gait on Meshy Smart Rig',visibleStrikeError:null}};

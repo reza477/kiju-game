@@ -17,11 +17,27 @@ The owner requested a mobile game they can install and test on an iPhone, includ
 
 `tests/iphone-webkit-playtest.mjs` completed against the held source candidate from **16:08:19.280 to 16:10:43.763 UTC**. Its completed report records pass/exit code 0 for flesh and the standard crawler: renderer startup, native district upgrade, resource-route tap, movement and stop, portrait/landscape DOM dimensions, native save and reload. There were no captured page/console errors, failed requests or remote requests. Four original PNGs and the full report are under `artifacts/nov10-improvements/iphone/webkit-02/`.
 
-**Visual follow-up remains open:** inspection of those original screenshots shows the game in portrait, but both immediate landscape captures show the HUD over a solid dark-green canvas after rotation. Positive triangle counts and an intact WebGL context did not prove visible landscape rendering. The run's programmatic pass must not be represented as a complete mobile compatibility pass. A further bounded probe must distinguish capture/compositor timing from a persistent rotation failure; the original evidence remains unchanged.
+Inspection of those original screenshots showed the game in portrait, but both immediate landscape captures showed the HUD over a solid dark-green canvas after rotation. Positive triangle counts and an intact WebGL context did not prove visible landscape rendering. That run's programmatic pass must not be represented as a complete mobile compatibility pass. The follow-up below preserves and explains this failure.
 
 The exact runtime source fingerprint was unchanged before/after: `11e3fe99b58728bfee5db7128af0f0e0245115d5df2df263ac71566e983d7053`. Served runtime responses, including the new rigged beast, matched their source hashes. This is **Windows Playwright WebKit phone emulation**, not physical iPhone/Safari or a performance measurement. Service workers were deliberately blocked in this rendering/control check; a final frozen release still needs the independent complete-cache/offline check. Later source changes require final-candidate validation.
 
 The first attempt, `webkit-01`, was interrupted when its execution context disappeared. Its original unfinished report and portrait image remain unchanged, with a separate `webkit-01-interruption.json` recording the incomplete status. No exit code or pass was invented for that attempt.
+
+### Rotation diagnosis and current candidate
+
+`webkit-03` exited 1 because its diagnostic image decoder attempted a `data:` image, which the game's existing CSP correctly rejected. The test was corrected to decode original PNGs in Node using the installed Playwright PNG utility. The game and its CSP were not changed.
+
+`webkit-04` reproduced the blank landscape in pinned Playwright 1.62.1 / Windows WebKit 26.5, exit 1, **16:20:10.612–16:21:33.084 UTC**. Native renderer frames advanced from 156 to 178 to 208 through delay and real World→City taps, but the original landscape screenshots' sampled central pixels stayed one solid color. A normal save/reload restored visible rendering. This matches the confirmed Windows WebKit display-buffer resize defect documented in [Playwright issue 42885](https://github.com/microsoft/playwright/issues/42885), whose fix was merged upstream; it is not evidence of an iPhone-specific failure.
+
+An isolated Playwright **1.65.0** installation under ignored artifacts then ran the same game/test. `webkit-05` passed with **WebKit 27.2, revision 2388**, exit 0, **16:24:54.142–16:26:12.665 UTC**. Its original portrait, immediate landscape, delayed landscape, landscape after native view taps and landscape after save/reload all contain rendered game imagery; the delayed landscape was also visually inspected. The same test retained native district upgrade, resource route, movement/stop and save/reload checks. No production source, project package/lock, renderer behavior or CSP workaround was used to obtain this result.
+
+Both differential runs used the identical runtime fingerprint `79c38aa4b00af199fe94b5c8689008aa987480fdd0d660546498f7dc1177c3f4`. During `webkit-05`, the root agent recorded that already-frozen source in checkpoint `cc296e315351cbd8270108c6205052f78fe1f449`; the runtime hashes did not change. The earlier crawler check is in `webkit-02`; the final differential covered flesh only. This remains patched desktop WebKit phone emulation, not physical Safari, Home Screen installation, thermal testing or a sustained-performance result.
+
+### Local mobile hosting file
+
+The isolated candidate build is **`ed64ab342954ec0a16cd`**, generated from checkpoint `cc296e315351cbd8270108c6205052f78fe1f449`. Build exit code 0 and unchanged source/build-info are recorded in `artifacts/nov10-improvements/iphone/mobile-build-01.json`. It contains 161 runtime files, including the 159-file precache manifest; total emitted runtime size is 121,157,033 bytes.
+
+`artifacts/nov10-improvements/iphone/Colossus-Wake-iPhone-Hosting-ed64ab342954ec0a16cd.zip` contains exactly those 161 files at the hosting root. Every entry was reopened and checked against its source bytes/hash. Archive size: **99,260,856 bytes**. SHA-256: `13693f227255f907e30738a1ecb6ab2cde7e982de4ae2c333c86b19572998396`. The raw archive receipt and corrected byte-total summary are retained beside it. This is **candidate 1**, a hosting file rather than a phone installer; the current game has not been published. Further visual revisions are planned after the first November review, so full offline installation/reopen/repair validation is deferred until the final candidate is frozen. Candidate 1 and its original evidence remain unchanged.
 
 ## Required delivery work
 
