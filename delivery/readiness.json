@@ -1,15 +1,15 @@
 {
   "eligible": false,
-  "reason": "Independent beast-integration round 04 failed at 8.1/10. All four allowed review rounds are exhausted. The final suite remains 432/433 pass: inherited and new moving-skin intersections keep the strict self-crossing test failed. Starter-city scaffold proportions and uneven city/environment finish remain major quality deficits. The latest low flesh saddle, half-height cyborg castle, district IDs/order, saves and game systems are preserved. Private delivery remains Configured but blocked. Do not push or deploy.",
-  "candidateRuntimeFingerprint": "db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a",
-  "candidateBuild": "3f85aa240e9dc7887e67",
-  "candidateTechnicalEvidence": "artifacts/beast-integration/native27-cpu-round04-v1/checks/full-suite-01.json",
-  "candidateBuildEvidence": "artifacts/beast-integration/native27-cpu-round04-v1/checks/build-01.json",
-  "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_04.md",
-  "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md",
-  "reviewedImplementation": "844cef276125957a7542d8c89d6c7889b511554d",
-  "reviewedRuntimeFingerprint": "db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a",
-  "reviewedBuild": "3f85aa240e9dc7887e67",
+  "reason": "Independent November round 04 failed at 8.1/10; all four allowed rounds are exhausted (8.0, 8.2, 8.2, 8.1). The complete suite is 450/451: native connected-body self-crossing remains unresolved. Final independent Windows WebKit inspection also found an initial portrait displaying cyborg while logical state and actor were flesh (N04-E3); later landscape frames were correct, and cause/physical-iPhone relevance remain unknown. The rejected skin repair was not integrated. Physical phone and matching protected-host verification remain unperformed. Private delivery is Configured but blocked. Do not push or deploy.",
+  "candidateRuntimeFingerprint": "18bc3001c928824e99b564df4c41793ea0de8bea453374cf0b61dbe8c40451a1",
+  "candidateBuild": "f8dd2b581ff00a3c6c87",
+  "candidateTechnicalEvidence": "artifacts/nov10-improvements/checks/full-suite-final-03/report.json",
+  "candidateBuildEvidence": "artifacts/nov10-improvements/iphone/mobile-build-02/report.json",
+  "evidence": "art-reviews/NOVEMBER_IMPROVEMENTS_ROUND_04.md",
+  "deliveryEvidence": "docs/IPHONE_DELIVERY_AUDIT_2026-11-10.md",
+  "reviewedImplementation": "c29479b7b21d695fdc804f10c2132bb94fc0fa46",
+  "reviewedRuntimeFingerprint": "18bc3001c928824e99b564df4c41793ea0de8bea453374cf0b61dbe8c40451a1",
+  "reviewedBuild": null,
   "beastIntegrationRounds": [
     7.6,
     8,
@@ -28,8 +28,35 @@
     "evidence": "art-reviews/iphone-pass1-04.md",
     "deliveryEvidence": "docs/INSTALLER_THREAD_REPAIR_2026-09-27.md"
   },
-  "reviewedTechnicalEvidence": "artifacts/beast-integration/native27-cpu-round04-v1/checks/full-suite-01.json",
-  "candidatePerformanceEvidence": "artifacts/beast-integration/native-full-saddle-performance-round04-v1-01/report.json",
+  "reviewedTechnicalEvidence": "artifacts/nov10-improvements/checks/full-suite-final-03/report.json",
+  "candidatePerformanceEvidence": "artifacts/critic-round-04/nov10-improvements/capture/report.json",
   "beastIntegrationReviewLimitReached": true,
-  "reviewedPerformanceEvidence": "artifacts/beast-integration/native-full-saddle-performance-round04-v1-01/report.json"
+  "reviewedPerformanceEvidence": "artifacts/critic-round-04/nov10-improvements/capture/report.json",
+  "previousBeastIntegrationResult": {
+    "reason": "Independent beast-integration round 04 failed at 8.1/10. All four allowed review rounds are exhausted. The final suite remains 432/433 pass: inherited and new moving-skin intersections keep the strict self-crossing test failed. Starter-city scaffold proportions and uneven city/environment finish remain major quality deficits. The latest low flesh saddle, half-height cyborg castle, district IDs/order, saves and game systems are preserved. Private delivery remains Configured but blocked. Do not push or deploy.",
+    "implementation": "844cef276125957a7542d8c89d6c7889b511554d",
+    "runtimeFingerprint": "db30d10d30472fd3a0b68f309fd3ad1aefbc7dfaeb425f78893f87e1f2123e0a",
+    "build": "3f85aa240e9dc7887e67",
+    "evidence": "art-reviews/BEAST_INTEGRATION_ROUND_04.md",
+    "technicalEvidence": "artifacts/beast-integration/native27-cpu-round04-v1/checks/full-suite-01.json",
+    "performanceEvidence": "artifacts/beast-integration/native-full-saddle-performance-round04-v1-01/report.json"
+  },
+  "candidateImplementation": "c29479b7b21d695fdc804f10c2132bb94fc0fa46",
+  "lastRuntimeImplementation": "3e1ca457413f00946bfabc0d48c6ac52ccef018b",
+  "candidateBuildSourceImplementation": "3e1ca457413f00946bfabc0d48c6ac52ccef018b",
+  "performanceLimitations": "Short desktop RAF observations only; no controlled before/after comparison, sustained GPU benchmark or physical-phone performance claim. Source was reviewed; the isolated mobile build was tested separately.",
+  "novemberImprovementRounds": [
+    8.0,
+    8.2,
+    8.2,
+    8.1
+  ],
+  "novemberImprovementReviewLimitReached": true,
+  "nativeRepairEvidence": "artifacts/nov10-improvements/deformation/union-04/CONCLUSION.json",
+  "mobileEvidence": [
+    "artifacts/nov10-improvements/iphone/webkit-check-06/report.json",
+    "artifacts/nov10-improvements/iphone/offline-check-03/report.json",
+    "artifacts/critic-round-04/nov10-improvements/phone-webkit-flesh/report.json"
+  ],
+  "updatedAt": "2026-11-10T18:07:24.8635389Z"
 }

@@ -4,6 +4,8 @@ The mobile version uses the same game and saves as the PC version. The intended 
 
 **Current status: Configured but blocked.** No playable hosted game or physical-iPhone result is currently verified. The designated address is `https://colossus-wake-playtest.vercel.app`; it must not be presented as a working game link until a matching release is verified. The existing failed art/geometry gate remains in force. See [private delivery](docs/PRIVATE_DELIVERY.md) and [the current iPhone delivery audit](docs/IPHONE_DELIVERY_AUDIT_2026-11-10.md).
 
+The final independent review also found an initial Windows WebKit portrait frame showing the wrong carrier, despite correct logical state; subsequent landscape frames showed flesh correctly. This remains unresolved and prevents claiming a complete mobile visual pass. It has not been demonstrated on a physical iPhone.
+
 ## Install after the playable release is verified
 
 1. Open the verified game link in **Safari** on the iPhone and sign in with the authorized account.
@@ -39,6 +41,8 @@ Updates download as complete, verified builds. Use **Save and update** when avai
 
 A mobile **hosting bundle ZIP** contains the complete web runtime, assets, manifest and offline worker for the authorized HTTPS host. It is not an iPhone installer: opening that ZIP or a loose `index.html` in Files does not perform the game's HTTPS/service-worker installation.
 
+The latest local preparation is **candidate 2**, build `f8dd2b581ff00a3c6c87`: `artifacts/nov10-improvements/iphone/Colossus-Wake-iPhone-Hosting-f8dd2b581ff00a3c6c87.zip` (99,263,009 bytes). Its adjacent plain-text README explains installation after approval, checks and limitations. It remains local while the release and hosting gates are blocked.
+
 The portable **save JSON** contains progress, not the game. A native **`.ipa`** would require a separate signed iOS build and an Apple provisioning/distribution path; this Windows web build does not produce one. Apple describes device testing through Xcode in [Developer account overview](https://developer.apple.com/help/account/basics/about-your-developer-account) and signed ad hoc distribution in [Create an ad hoc provisioning profile](https://developer.apple.com/help/account/provisioning-profiles/create-an-ad-hoc-provisioning-profile/).
 
 ## Local build and verification
@@ -53,6 +57,8 @@ The content-addressed output contains playable runtime files only; source histor
 
 Run browser checks serially against a frozen candidate. The existing mobile/offline tests cover touch controls, save transfer, complete-cache verification, offline reopening and repair. Record the exact candidate, command and outcomes. Chrome phone emulation and desktop Playwright WebKit must be labelled separately from physical iPhone/Safari evidence.
 
-On 10 November, the current flesh candidate passed visible portrait/landscape rendering, native district/route controls, movement/stop and save/reload in isolated Windows Playwright 1.65 / WebKit 27.2. The project's older Windows WebKit had a confirmed upstream canvas-resize defect; its failed captures remain preserved, and the newer test engine resolved them with the game unchanged. See [the exact source, engine and evidence audit](docs/IPHONE_DELIVERY_AUDIT_2026-11-10.md). These desktop checks do not establish physical Safari, hosted authentication, Home Screen installation or sustained phone performance.
+On 10 November, frozen candidate 2 passed visible portrait/landscape rendering, native district/route controls, movement/stop and save/reload for flesh and the standard crawler in isolated Windows Playwright 1.65 / WebKit 27.2. A separate desktop Chrome check installed the complete offline cache, actually stopped its server, reopened the saved flesh expedition with networking disabled, moved through touch input, and repaired an intentionally incomplete cache while preserving the save. The current native beast's bytes and loaded actor were verified throughout.
+
+The project's older Windows WebKit had a confirmed upstream canvas-resize defect; its failed captures remain preserved, and the newer test engine resolved them with the game unchanged. The first native offline attempt also retained its scenario mismatch (cyborg title default); the corrected committed runner selects flesh through the real title control. See [the exact source, engine and evidence audit](docs/IPHONE_DELIVERY_AUDIT_2026-11-10.md). These desktop checks do not establish physical Safari, hosted authentication, Home Screen installation or sustained phone performance.
 
 Historical September mobile checks and later delivery repairs remain in [Alpha 1 verification](ALPHA1_VERIFICATION.md), [the installer repair report](docs/INSTALLER_THREAD_REPAIR_2026-09-27.md) and [private delivery](docs/PRIVATE_DELIVERY.md). They do not certify the current November runtime or clear its release gate.
