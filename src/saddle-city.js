@@ -21,7 +21,7 @@ function prism(group,points,depth,material,x=0,y=0,z=0){
  const mesh=new T.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;
 }
 function roof(group,w,d,h,material,y,z=0){return prism(group,[[-w/2,0],[-w*.34,h*.43],[0,h],[w*.34,h*.43],[w/2,0]],d,material,0,y,z);}
-function districtRoof(room,type,wallH,p){
+function districtRoof(room,type,wallH,p,housing){
  const y=wallH+.02,z=-.12;
  if(type==='keep'){
   // A low stone chapter-house lantern gives the keep its own silhouette.
@@ -39,11 +39,11 @@ function districtRoof(room,type,wallH,p){
   prism(room,arch,1.93,p.dark,0,y,z);
   for(const ribZ of[-.78,.55])for(let i=1;i<arch.length;i++)beam(room,[arch[i-1][0],y+arch[i-1][1]+.025,ribZ],[arch[i][0],y+arch[i][1]+.025,ribZ],.022,p.iron);
  }else{
-  const rise=type==='housing'?.83:.73;roof(room,2.30,1.93,rise,p.roof,y,z);box(room,.08,.08,1.94,type==='housing'?p.trim:p.iron,0,y+rise,z);
+  const rise=type==='housing'?.83:.73;roof(room,2.30,1.93,rise,housing?.roof??p.roof,y,z);box(room,.08,.08,1.94,housing?(housing.roof===p.wood?p.wood:p.trim):p.iron,0,y+rise,z);
   if(type==='housing')for(const side of[-1,1]){
    const dormer=new T.Group();dormer.position.set(side*.57,y+.16,.73);room.add(dormer);
-   prism(dormer,[[-.26,0],[-.26,.25],[0,.46],[.26,.25],[.26,0]],.27,p.trim);
-   pointed(dormer,.25,.28,p.glass,0,.06,.16);roof(dormer,.60,.37,.24,p.roof,.25);
+   prism(dormer,[[-.26,0],[-.26,.25],[0,.46],[.26,.25],[.26,0]],.27,housing.wall);
+   pointed(dormer,.25,.28,p.glass,0,.06,.16);roof(dormer,.60,.37,.24,housing.roof,.25);
   }
  }
 }
@@ -119,6 +119,10 @@ export function createSaddleFoundation(deckY=SADDLE_DECK_Y,enemy=false,layout,{g
 
 export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geometryOnly=false}={}){
  const g=new T.Group(),p=geometryOnly?geometryPalette():palette(enemy);g.name=`Gothic saddle ${type}`;level=Math.max(1,Math.min(3,level));const height=saddleDistrictHeight(level),wallH=1.72+.18*(level-1),front=.71;
+ // Construction upgrades replace timber with stone and slate on the same
+ // faces. All three material families use the original unbevelled box shape;
+ // the factory retains its shared metric-UV variants without mutating them.
+ const housing=type==='housing'?{wall:level<3?p.trim:p.wall,frame:level===1?p.wood:p.wall,roof:level===1?p.wood:p.roof}:null;
  // Human doors and circulation remain full sized; upgrades enrich their own
  // small chamber rather than increasing the entire city's height or width.
  const room=new T.Group();room.name='Compact occupied Gothic chamber';g.add(room);
@@ -131,14 +135,14 @@ export function createSaddleDistrict(type,level=1,{enemy=false,zone='crown',geom
   for(const z of[-.9,.82]){beam(room,[-1.05,wallH,z],[0,wallH+.60,z],.048,p.iron);beam(room,[0,wallH+.60,z],[1.05,wallH,z],.048,p.iron);}
   for(const side of[-1,1]){const shade=box(room,1.23,.045,1.76,p.glass,side*.525,wallH+.29,-.04);shade.rotation.z=-side*.52;}
  }else{
-  const wall=type==='foundry'?p.brick:type==='sawmill'?p.trim:p.wall;
-  box(room,2.05,wallH,1.62,wall,0,wallH/2,-.12);box(room,2.18,.14,1.78,p.trim,0,.10,-.12);box(room,2.16,.12,1.74,p.trim,0,wallH-.02,-.12);
-  districtRoof(room,type,wallH,p);
+  const wall=housing?.wall??(type==='foundry'?p.brick:type==='sawmill'?p.trim:p.wall);
+  box(room,2.05,wallH,1.62,wall,0,wallH/2,-.12);box(room,2.18,.14,1.78,housing?.frame??p.trim,0,.10,-.12);box(room,2.16,.12,1.74,housing?.frame??p.trim,0,wallH-.02,-.12);
+  districtRoof(room,type,wallH,p,housing);
   pointed(room,.69,1.64,p.trim,0,.06,front+.015);pointed(room,.52,1.51,p.wood,0,.075,front+.066);box(room,.06,.78,.027,p.brass,.13,.65,front+.11);
   for(const side of[-1,1]){
    const frontLit=side<0&&(type==='keep'||type==='sawmill')||side>0&&type==='housing';
    window(room,side*.76,.53,front+.025,p,frontLit);
-   for(const z of[-.84,.68]){box(room,.16,wallH+.12,.18,p.trim,side*.99,(wallH+.12)/2,z);}
+   for(const z of[-.84,.68]){box(room,.16,wallH+.12,.18,housing?.frame??p.trim,side*.99,(wallH+.12)/2,z);}
    const sideLit=side<0&&type==='housing'||side>0&&type==='foundry';
    const face=new T.Group();face.position.set(side*1.04,0,-.12);face.rotation.y=side*Math.PI/2;window(face,0,.57,0,p,sideLit);room.add(face);
   }

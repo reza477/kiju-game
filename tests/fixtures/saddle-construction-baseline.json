@@ -1,0 +1,1915 @@
+{
+  "commit": "d05c003b3b68b5be76c5dcf7240a336e0cb7b17e",
+  "runtimeFingerprint": "ddb29aae6bb29f86b5c19034b009d6a7935a3e1311c82a8945b8a071b4db9bd0",
+  "sourceSha256": "9ac5eb07ec72c7e79ac545b86075191491d58486ebf69f907791d2acd1117120",
+  "cases": {
+    "rendered/player/keep/1": {
+      "geometry": "1617ba3fcb4b629cc9ba25f92c5dce816f2289347b555cdee73d0a23f54b239e",
+      "uv": "a86f13cffd8d7e215ca3036c7d63da8b29435cb1fa1579f936021e89bfc51344",
+      "materials": "97fdd785f3ecb8528fe9173b17195b87465ba41e3d65320493d44719586c11d1",
+      "triangles": "7f6501580b93c08a8768447bcf53e4e494f9d0aea0052ebd0a463c796785bef9",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.674999997615814,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 42,
+      "vertices": 1394,
+      "indexCount": 1692,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 27,
+      "attributeBytes": 34016
+    },
+    "rendered/player/keep/2": {
+      "geometry": "bcfd0749289ff7a10724b7e458ef92c8036ef9a8b4791191749e0e4cb8cc7d0f",
+      "uv": "919e24e3cd8b936b4f31a1153bc13b47bfdad3c686fd5ddc59761058568f40ce",
+      "materials": "c6f55f3ddd3ff3e80a43719e80abe2a1f46bc3690aeb3d11b7ce79bcfd4c8992",
+      "triangles": "c7752db23bb2d835a1d38e38b137215e645e29043dac9270f18229d0e7160b98",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.8549999976158142,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1442,
+      "indexCount": 1764,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 34856
+    },
+    "rendered/player/keep/3": {
+      "geometry": "5298109a5a4edda1f89570bfd6843f8d02e5ca953bfbe7a0dcf9aad8e3c912e7",
+      "uv": "3ad5caef9c1efba3a7c25c0ad6d7917c46d3756e5ec98352621e7f1920fac007",
+      "materials": "0eb14c2b3067fdfc52b4c67176ce8f8d6bafa3f87fa17d927d6706c1c18e8496",
+      "triangles": "7f509bf1c1ab5c669bfdbb287a936d38df1fad624cdb87efbedd0e3ce7f257b5",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          3.0349999976158144,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 48,
+      "vertices": 1618,
+      "indexCount": 2076,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 30,
+      "attributeBytes": 37984
+    },
+    "rendered/player/housing/1": {
+      "geometry": "89cbe3bf7e8579b2cbeca4a0d375687b71244e3739f662ac292e0fc653ee0a03",
+      "uv": "1b4589192c5cf24ff54e5e9cd7379e908c54d8cbd66f2700136c450bf29aecbb",
+      "materials": "3cdf884625438513f0e6dd42a72a6b596ca81deea41d14aa57ff37690909dd2d",
+      "triangles": "5d07b867e59fa9821d69c6fab07d3884918d66ddf751deb8839d41c8d4261396",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.60999999910593,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1224,
+      "indexCount": 1428,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 32832
+    },
+    "rendered/player/housing/2": {
+      "geometry": "35afa8d59630710b775be7cfb3276efc39bf703bf3b4be0036765325d3b0d899",
+      "uv": "39e2218ab5c32bcae0874ae2b2c66656944e338a09189be6802ebdd74664ac93",
+      "materials": "9eb36fe2dfc1534c13e12fe06bd1b12d572dfc05eaa3f58a44ee0c3e750546da",
+      "triangles": "7c84c81275ca96f7a395ff66d557d22380b61fe5455cfafd8cd02a7540d4c9a8",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.7899999991059303,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1272,
+      "indexCount": 1500,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 26,
+      "attributeBytes": 33672
+    },
+    "rendered/player/housing/3": {
+      "geometry": "31226174c58f31bcec0b96371df8339ad9136bc039e499c381474a13a95eca35",
+      "uv": "12eb6308988f5aaaa813d412b4f9d80bfcc3c6fd2c4ee8c77a534d239dcfa7d8",
+      "materials": "7bb570c0990ffc79b3bfae4faad564c4e99c526804599b91cd9428e1925c7c9b",
+      "triangles": "25bb01bde987030402d7201528819d9c43cf72cb12a0d3ef38763f3e2aa0c6cc",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.9699999991059305,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1448,
+      "indexCount": 1812,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 36800
+    },
+    "rendered/player/farm/1": {
+      "geometry": "11ad5ccbb8ff465e626b043d06ca75ecbc7bb935b64ea453992044b6ba11500b",
+      "uv": "610ea54f151bf72d6ff3c506dcb395229a5c60de6875f1031e80e575b89b92ea",
+      "materials": "afe1262d80bdd70407ccc37de27851755a01190167266fa0e059b08533a147f0",
+      "triangles": "af27b8209352f7d12a4bb713a0a1e3bc3d5ed30f9443eeb523988d740ab3925b",
+      "bounds": {
+        "min": [
+          -1.0875000014901162,
+          -1.4305114759416426e-8,
+          -0.9480000004172325
+        ],
+        "max": [
+          1.0875000014901162,
+          2.3596359193074785,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 30,
+      "vertices": 880,
+      "indexCount": 1224,
+      "materialCount": 5,
+      "textureCount": 7,
+      "geometryCount": 21,
+      "attributeBytes": 17936
+    },
+    "rendered/player/farm/2": {
+      "geometry": "b12d2e3d9169ec15c14ec5abdb388a336d978f52f2d3e3f54dee585fbb428ddc",
+      "uv": "7b789e1abffa956680b4cb397cd6bedadfcc3aaa5a392ef8f3a8b5be8eaab4ee",
+      "materials": "db53d50128d3b9e2113a43c2aa38a2e52ad387a7f04ddcd44d355aa67991ce48",
+      "triangles": "555b2f111c565b669f22bf765aa0ed28cc71e74e0e6f273e6d4d80e55ef3a1db",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          1.1920928910669204e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.5396359193074787,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 32,
+      "vertices": 928,
+      "indexCount": 1296,
+      "materialCount": 6,
+      "textureCount": 8,
+      "geometryCount": 22,
+      "attributeBytes": 18776
+    },
+    "rendered/player/farm/3": {
+      "geometry": "7f4f5033c3017ef6a49afa777aeb3d6063e61eeaa393a97d0e0e229e1dc40eee",
+      "uv": "09fd8fd40c880834453e3395a13c22067e84eba639d0d42406b436f68278147d",
+      "materials": "60a2409697c77eb58c36a97e2367af840d5e3537ee22293bd16bb54a8ee530ac",
+      "triangles": "47cb12ee34d6d7c13106ebd4ca3229cf2d243c21a8780e346ecd8e4e1ec58ecb",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          3.814697269177714e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.7196359193074784,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1104,
+      "indexCount": 1608,
+      "materialCount": 7,
+      "textureCount": 9,
+      "geometryCount": 24,
+      "attributeBytes": 21904
+    },
+    "rendered/player/sawmill/1": {
+      "geometry": "4767da4497f53ba9db6d8b8ce745181c3941c435cc971b4f4221f462e00c40ca",
+      "uv": "cf322929507ee75ddeaec917539353f3285030528b615d7d300899cfacc8422e",
+      "materials": "d9cd512299a8f82606026cec2993faab0fb1f22951093185b23eb46433a01901",
+      "triangles": "f0f9b8d0f5d46908c6246a8f88d032632e8398addff872dc210d8d23e125f84e",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.4700000190734865,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1340,
+      "indexCount": 1812,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 23,
+      "attributeBytes": 30160
+    },
+    "rendered/player/sawmill/2": {
+      "geometry": "b1a58881be22f18aa59ac364f757c792c6c5e2e2d2a081be0e3cf676d7ebdf7e",
+      "uv": "9f1be27471a37053a61a0399f2ee85ace1d05b7af14f90c77f3feb65f4841a10",
+      "materials": "cf41b80b74eb9ad8228296ae56f1cf51dbfb01c1454591379bafa2b7194792ff",
+      "triangles": "e77a48eee31f43aee2c281f7a53c6ef7c3e07c358d27981a3936d111b1dbfaae",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.6500000190734863,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1388,
+      "indexCount": 1884,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 24,
+      "attributeBytes": 31000
+    },
+    "rendered/player/sawmill/3": {
+      "geometry": "d1ded1cc563983da3959352f1ec1cbc000be7f09b212c5334ab4f808b2c1bd09",
+      "uv": "cd3885ede07be17610e79bf7699291a1e9da64620e3d21871a03c9f789ee2ce5",
+      "materials": "ddb8fc8d334e5b681b345e25b31bf56eea84dc038851af1efc963c818350b3f3",
+      "triangles": "8832730bc1ea37835c7be0327daadebb3ad0a8453173c440c958386ab9f29cb0",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.8300000190734864,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1564,
+      "indexCount": 2196,
+      "materialCount": 9,
+      "textureCount": 9,
+      "geometryCount": 26,
+      "attributeBytes": 34128
+    },
+    "rendered/player/foundry/1": {
+      "geometry": "1a8ba8e5b1037ae14cac07e22e6061922a7e9d8b89acc1d21c840d378406d4d7",
+      "uv": "8270ebbdc4b08d0967a66f420266f42e80b14b2269a5e316d4fdebaaf1dcf128",
+      "materials": "ac6fc3a13c86f13541fe75e3bcfa39345e9ed5b05adaed1927a6d03a62165685",
+      "triangles": "c0a3648155aa0b3ba2406bbd06d7ac155074f5b3220d5c4a4f504eed4a7cc692",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.570000000745058,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 45,
+      "vertices": 1968,
+      "indexCount": 3180,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 37232
+    },
+    "rendered/player/foundry/2": {
+      "geometry": "f383ca23e6ec8d50473893bc6dd8076616eed2d66aaa6720eadb12f8c013f442",
+      "uv": "4f438622225e6ccb54ab6bcf741d6e4cb7fedf7d068b32b366ed7fedbc099986",
+      "materials": "7f654413118bcd9eb461efb6ebefd980b0f1ec6cbec6d535bd0236c6b9230aee",
+      "triangles": "ba645e0c1d00b03c79d109689735d30dfec26333a39e742a378814fee9667f92",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.7500000007450582,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 47,
+      "vertices": 2016,
+      "indexCount": 3252,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 26,
+      "attributeBytes": 38072
+    },
+    "rendered/player/foundry/3": {
+      "geometry": "c871426c149a07ed3433fee74578209796ee21c79a2a2fec5e3c869834aafe02",
+      "uv": "296e38f7786930e08c1839eacc5154c2be9d16d2a316fb44922951bec7c6e7f6",
+      "materials": "3adf7f6d9ecd4e503b95426c5aa1adfd688ce6fc3a807171cf19ae801c05c0a0",
+      "triangles": "aea029ec3e5b8320dd6b1b85a25a042cf855208480c4d8c144d9af16ac50696b",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.930000000745058,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 51,
+      "vertices": 2192,
+      "indexCount": 3564,
+      "materialCount": 9,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 41200
+    },
+    "rendered/player/armor/1": {
+      "geometry": "fc2f9d065335f201a50d26509e98315228605fc59d6532ab5645c734e00b0a28",
+      "uv": "c5e5d636ca69282c70d5acd945882dd3efedc1906ee22f19c2a1cc1ba26ab72e",
+      "materials": "534bd67b9dc8099466520fa6917380f54d4c80551b0035be45f95cd1d0bef2e0",
+      "triangles": "34de330d9af933d9af67028ec06cf2643d80dd24b38ed938f310eb2abb52227f",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.50999999910593,
+          0.935000000372529
+        ]
+      },
+      "meshes": 32,
+      "vertices": 1160,
+      "indexCount": 1476,
+      "materialCount": 8,
+      "textureCount": 7,
+      "geometryCount": 22,
+      "attributeBytes": 28976
+    },
+    "rendered/player/armor/2": {
+      "geometry": "ff0b09caaa71147ae06cf5dea27d0a370c63be4a7ed3797329fb2d24c4b68e0b",
+      "uv": "1c8eef528776b57a5b5a50f55551508481beb09a056952388ef49147b4b37a64",
+      "materials": "ed9600218bdd07e6f5706f03f9244a55d1902a00b076c20c672f517cad91c6da",
+      "triangles": "25d49d3d20d3b645347ff18d3c236da5f497880d64ecfce74901f9bf8e35cdda",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.6899999991059302,
+          0.935000000372529
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1208,
+      "indexCount": 1548,
+      "materialCount": 8,
+      "textureCount": 7,
+      "geometryCount": 23,
+      "attributeBytes": 29816
+    },
+    "rendered/player/armor/3": {
+      "geometry": "64e2969b94233e75e0ede823ca6784c85b6d1845945ef2e7fed4b4e7726f1cae",
+      "uv": "946f4d27eaf8180f60e4daa71376317278dcab8452ddfce0b29f4f2b147f2236",
+      "materials": "55450a06f7a4ea14e74f5b6317477b3304d06ec387ec6f7292e8d339c12ac204",
+      "triangles": "43aa7bdd62a234adc1b15ece57e943a3625cc7e46173265a0e39d45ac0de65e1",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.8699999991059304,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1384,
+      "indexCount": 1860,
+      "materialCount": 9,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 32944
+    },
+    "rendered/enemy/keep/1": {
+      "geometry": "1617ba3fcb4b629cc9ba25f92c5dce816f2289347b555cdee73d0a23f54b239e",
+      "uv": "a86f13cffd8d7e215ca3036c7d63da8b29435cb1fa1579f936021e89bfc51344",
+      "materials": "e3b2f9bc624f120896f8ca6e0aebf22ba608e41533b68a7e949406a6b6abf1d6",
+      "triangles": "7f6501580b93c08a8768447bcf53e4e494f9d0aea0052ebd0a463c796785bef9",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.674999997615814,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 42,
+      "vertices": 1394,
+      "indexCount": 1692,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 27,
+      "attributeBytes": 34016
+    },
+    "rendered/enemy/keep/2": {
+      "geometry": "bcfd0749289ff7a10724b7e458ef92c8036ef9a8b4791191749e0e4cb8cc7d0f",
+      "uv": "919e24e3cd8b936b4f31a1153bc13b47bfdad3c686fd5ddc59761058568f40ce",
+      "materials": "80f11cb2e7ca14ba721c4bc984bae5a0cffd4d28b64fec335e36bc2ae615952f",
+      "triangles": "c7752db23bb2d835a1d38e38b137215e645e29043dac9270f18229d0e7160b98",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.8549999976158142,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1442,
+      "indexCount": 1764,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 34856
+    },
+    "rendered/enemy/keep/3": {
+      "geometry": "5298109a5a4edda1f89570bfd6843f8d02e5ca953bfbe7a0dcf9aad8e3c912e7",
+      "uv": "3ad5caef9c1efba3a7c25c0ad6d7917c46d3756e5ec98352621e7f1920fac007",
+      "materials": "d6dc28f5ff10c84370aba8b08c054b75d6baf7cc45ce7281353d4ed786fdffc2",
+      "triangles": "7f509bf1c1ab5c669bfdbb287a936d38df1fad624cdb87efbedd0e3ce7f257b5",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          3.0349999976158144,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 48,
+      "vertices": 1618,
+      "indexCount": 2076,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 30,
+      "attributeBytes": 37984
+    },
+    "rendered/enemy/housing/1": {
+      "geometry": "89cbe3bf7e8579b2cbeca4a0d375687b71244e3739f662ac292e0fc653ee0a03",
+      "uv": "1b4589192c5cf24ff54e5e9cd7379e908c54d8cbd66f2700136c450bf29aecbb",
+      "materials": "3cdf884625438513f0e6dd42a72a6b596ca81deea41d14aa57ff37690909dd2d",
+      "triangles": "5d07b867e59fa9821d69c6fab07d3884918d66ddf751deb8839d41c8d4261396",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.60999999910593,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1224,
+      "indexCount": 1428,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 32832
+    },
+    "rendered/enemy/housing/2": {
+      "geometry": "35afa8d59630710b775be7cfb3276efc39bf703bf3b4be0036765325d3b0d899",
+      "uv": "39e2218ab5c32bcae0874ae2b2c66656944e338a09189be6802ebdd74664ac93",
+      "materials": "9eb36fe2dfc1534c13e12fe06bd1b12d572dfc05eaa3f58a44ee0c3e750546da",
+      "triangles": "7c84c81275ca96f7a395ff66d557d22380b61fe5455cfafd8cd02a7540d4c9a8",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.7899999991059303,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1272,
+      "indexCount": 1500,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 26,
+      "attributeBytes": 33672
+    },
+    "rendered/enemy/housing/3": {
+      "geometry": "31226174c58f31bcec0b96371df8339ad9136bc039e499c381474a13a95eca35",
+      "uv": "12eb6308988f5aaaa813d412b4f9d80bfcc3c6fd2c4ee8c77a534d239dcfa7d8",
+      "materials": "1069e4cf98913c15864f9a7e4a7d731bcf0afd4a1ccf4c73117f6f052109a901",
+      "triangles": "25bb01bde987030402d7201528819d9c43cf72cb12a0d3ef38763f3e2aa0c6cc",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.9699999991059305,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1448,
+      "indexCount": 1812,
+      "materialCount": 10,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 36800
+    },
+    "rendered/enemy/farm/1": {
+      "geometry": "11ad5ccbb8ff465e626b043d06ca75ecbc7bb935b64ea453992044b6ba11500b",
+      "uv": "610ea54f151bf72d6ff3c506dcb395229a5c60de6875f1031e80e575b89b92ea",
+      "materials": "afe1262d80bdd70407ccc37de27851755a01190167266fa0e059b08533a147f0",
+      "triangles": "af27b8209352f7d12a4bb713a0a1e3bc3d5ed30f9443eeb523988d740ab3925b",
+      "bounds": {
+        "min": [
+          -1.0875000014901162,
+          -1.4305114759416426e-8,
+          -0.9480000004172325
+        ],
+        "max": [
+          1.0875000014901162,
+          2.3596359193074785,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 30,
+      "vertices": 880,
+      "indexCount": 1224,
+      "materialCount": 5,
+      "textureCount": 7,
+      "geometryCount": 21,
+      "attributeBytes": 17936
+    },
+    "rendered/enemy/farm/2": {
+      "geometry": "b12d2e3d9169ec15c14ec5abdb388a336d978f52f2d3e3f54dee585fbb428ddc",
+      "uv": "7b789e1abffa956680b4cb397cd6bedadfcc3aaa5a392ef8f3a8b5be8eaab4ee",
+      "materials": "db53d50128d3b9e2113a43c2aa38a2e52ad387a7f04ddcd44d355aa67991ce48",
+      "triangles": "555b2f111c565b669f22bf765aa0ed28cc71e74e0e6f273e6d4d80e55ef3a1db",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          1.1920928910669204e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.5396359193074787,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 32,
+      "vertices": 928,
+      "indexCount": 1296,
+      "materialCount": 6,
+      "textureCount": 8,
+      "geometryCount": 22,
+      "attributeBytes": 18776
+    },
+    "rendered/enemy/farm/3": {
+      "geometry": "7f4f5033c3017ef6a49afa777aeb3d6063e61eeaa393a97d0e0e229e1dc40eee",
+      "uv": "09fd8fd40c880834453e3395a13c22067e84eba639d0d42406b436f68278147d",
+      "materials": "b12900e95adb872196b0847b79a9f07d67028315a4e3510eb0ac950382fd1c95",
+      "triangles": "47cb12ee34d6d7c13106ebd4ca3229cf2d243c21a8780e346ecd8e4e1ec58ecb",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          3.814697269177714e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.7196359193074784,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1104,
+      "indexCount": 1608,
+      "materialCount": 7,
+      "textureCount": 9,
+      "geometryCount": 24,
+      "attributeBytes": 21904
+    },
+    "rendered/enemy/sawmill/1": {
+      "geometry": "4767da4497f53ba9db6d8b8ce745181c3941c435cc971b4f4221f462e00c40ca",
+      "uv": "cf322929507ee75ddeaec917539353f3285030528b615d7d300899cfacc8422e",
+      "materials": "d9cd512299a8f82606026cec2993faab0fb1f22951093185b23eb46433a01901",
+      "triangles": "f0f9b8d0f5d46908c6246a8f88d032632e8398addff872dc210d8d23e125f84e",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.4700000190734865,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1340,
+      "indexCount": 1812,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 23,
+      "attributeBytes": 30160
+    },
+    "rendered/enemy/sawmill/2": {
+      "geometry": "b1a58881be22f18aa59ac364f757c792c6c5e2e2d2a081be0e3cf676d7ebdf7e",
+      "uv": "9f1be27471a37053a61a0399f2ee85ace1d05b7af14f90c77f3feb65f4841a10",
+      "materials": "cf41b80b74eb9ad8228296ae56f1cf51dbfb01c1454591379bafa2b7194792ff",
+      "triangles": "e77a48eee31f43aee2c281f7a53c6ef7c3e07c358d27981a3936d111b1dbfaae",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.6500000190734863,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1388,
+      "indexCount": 1884,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 24,
+      "attributeBytes": 31000
+    },
+    "rendered/enemy/sawmill/3": {
+      "geometry": "d1ded1cc563983da3959352f1ec1cbc000be7f09b212c5334ab4f808b2c1bd09",
+      "uv": "cd3885ede07be17610e79bf7699291a1e9da64620e3d21871a03c9f789ee2ce5",
+      "materials": "9819a00b42aca9195f48e639d259794312b47c7999b4f2087589caca7fa38e05",
+      "triangles": "8832730bc1ea37835c7be0327daadebb3ad0a8453173c440c958386ab9f29cb0",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.8300000190734864,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1564,
+      "indexCount": 2196,
+      "materialCount": 9,
+      "textureCount": 9,
+      "geometryCount": 26,
+      "attributeBytes": 34128
+    },
+    "rendered/enemy/foundry/1": {
+      "geometry": "1a8ba8e5b1037ae14cac07e22e6061922a7e9d8b89acc1d21c840d378406d4d7",
+      "uv": "8270ebbdc4b08d0967a66f420266f42e80b14b2269a5e316d4fdebaaf1dcf128",
+      "materials": "ac6fc3a13c86f13541fe75e3bcfa39345e9ed5b05adaed1927a6d03a62165685",
+      "triangles": "c0a3648155aa0b3ba2406bbd06d7ac155074f5b3220d5c4a4f504eed4a7cc692",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.570000000745058,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 45,
+      "vertices": 1968,
+      "indexCount": 3180,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 37232
+    },
+    "rendered/enemy/foundry/2": {
+      "geometry": "f383ca23e6ec8d50473893bc6dd8076616eed2d66aaa6720eadb12f8c013f442",
+      "uv": "4f438622225e6ccb54ab6bcf741d6e4cb7fedf7d068b32b366ed7fedbc099986",
+      "materials": "7f654413118bcd9eb461efb6ebefd980b0f1ec6cbec6d535bd0236c6b9230aee",
+      "triangles": "ba645e0c1d00b03c79d109689735d30dfec26333a39e742a378814fee9667f92",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.7500000007450582,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 47,
+      "vertices": 2016,
+      "indexCount": 3252,
+      "materialCount": 8,
+      "textureCount": 8,
+      "geometryCount": 26,
+      "attributeBytes": 38072
+    },
+    "rendered/enemy/foundry/3": {
+      "geometry": "c871426c149a07ed3433fee74578209796ee21c79a2a2fec5e3c869834aafe02",
+      "uv": "296e38f7786930e08c1839eacc5154c2be9d16d2a316fb44922951bec7c6e7f6",
+      "materials": "773f682a557e6948270a2bd0bf20cf0f030de941d4f281985753985f48229448",
+      "triangles": "aea029ec3e5b8320dd6b1b85a25a042cf855208480c4d8c144d9af16ac50696b",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.930000000745058,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 51,
+      "vertices": 2192,
+      "indexCount": 3564,
+      "materialCount": 9,
+      "textureCount": 9,
+      "geometryCount": 28,
+      "attributeBytes": 41200
+    },
+    "rendered/enemy/armor/1": {
+      "geometry": "fc2f9d065335f201a50d26509e98315228605fc59d6532ab5645c734e00b0a28",
+      "uv": "c5e5d636ca69282c70d5acd945882dd3efedc1906ee22f19c2a1cc1ba26ab72e",
+      "materials": "534bd67b9dc8099466520fa6917380f54d4c80551b0035be45f95cd1d0bef2e0",
+      "triangles": "34de330d9af933d9af67028ec06cf2643d80dd24b38ed938f310eb2abb52227f",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.50999999910593,
+          0.935000000372529
+        ]
+      },
+      "meshes": 32,
+      "vertices": 1160,
+      "indexCount": 1476,
+      "materialCount": 8,
+      "textureCount": 7,
+      "geometryCount": 22,
+      "attributeBytes": 28976
+    },
+    "rendered/enemy/armor/2": {
+      "geometry": "ff0b09caaa71147ae06cf5dea27d0a370c63be4a7ed3797329fb2d24c4b68e0b",
+      "uv": "1c8eef528776b57a5b5a50f55551508481beb09a056952388ef49147b4b37a64",
+      "materials": "ed9600218bdd07e6f5706f03f9244a55d1902a00b076c20c672f517cad91c6da",
+      "triangles": "25d49d3d20d3b645347ff18d3c236da5f497880d64ecfce74901f9bf8e35cdda",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.6899999991059302,
+          0.935000000372529
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1208,
+      "indexCount": 1548,
+      "materialCount": 8,
+      "textureCount": 7,
+      "geometryCount": 23,
+      "attributeBytes": 29816
+    },
+    "rendered/enemy/armor/3": {
+      "geometry": "64e2969b94233e75e0ede823ca6784c85b6d1845945ef2e7fed4b4e7726f1cae",
+      "uv": "946f4d27eaf8180f60e4daa71376317278dcab8452ddfce0b29f4f2b147f2236",
+      "materials": "3cfe4b3e36c56341e3834e0b312528ecd7222b42a4cfdc65e78fc8e804922e7b",
+      "triangles": "43aa7bdd62a234adc1b15ece57e943a3625cc7e46173265a0e39d45ac0de65e1",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.8699999991059304,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1384,
+      "indexCount": 1860,
+      "materialCount": 9,
+      "textureCount": 8,
+      "geometryCount": 25,
+      "attributeBytes": 32944
+    },
+    "collision/player/keep/1": {
+      "geometry": "1617ba3fcb4b629cc9ba25f92c5dce816f2289347b555cdee73d0a23f54b239e",
+      "uv": "ceccbd1f0fbc310be98fe67871ac936a7c0109773bc9587872effe2d8bd707a1",
+      "materials": "e4adbcaf3b1f800978f3e284500688fb13158aa68c25f52c8ee8b64888998e84",
+      "triangles": "7f6501580b93c08a8768447bcf53e4e494f9d0aea0052ebd0a463c796785bef9",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.674999997615814,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 42,
+      "vertices": 1394,
+      "indexCount": 1692,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 27,
+      "attributeBytes": 34016
+    },
+    "collision/player/keep/2": {
+      "geometry": "bcfd0749289ff7a10724b7e458ef92c8036ef9a8b4791191749e0e4cb8cc7d0f",
+      "uv": "edee11d40b6bad168f30c8fe66408cefa2974446993650c2af69e9afac4cdc8e",
+      "materials": "9318ab4d5adb47d148dd74e58f621b01fab88a886e8f93d7c129bc67174552e0",
+      "triangles": "c7752db23bb2d835a1d38e38b137215e645e29043dac9270f18229d0e7160b98",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.8549999976158142,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1442,
+      "indexCount": 1764,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 34856
+    },
+    "collision/player/keep/3": {
+      "geometry": "5298109a5a4edda1f89570bfd6843f8d02e5ca953bfbe7a0dcf9aad8e3c912e7",
+      "uv": "b39c3dff7c27f75fb6540d45529b0e9d121d318828cea72d051de4d12c6cc0ed",
+      "materials": "3d31f35f0667da874c24d3d68a1a6b075960f2351b992a96a56addf04eeb7f2e",
+      "triangles": "7f509bf1c1ab5c669bfdbb287a936d38df1fad624cdb87efbedd0e3ce7f257b5",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          3.0349999976158144,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 48,
+      "vertices": 1618,
+      "indexCount": 2076,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 30,
+      "attributeBytes": 37984
+    },
+    "collision/player/housing/1": {
+      "geometry": "89cbe3bf7e8579b2cbeca4a0d375687b71244e3739f662ac292e0fc653ee0a03",
+      "uv": "5c52d363cea63d8f66455c34f9cc82834c85d430e2a3b74e5d6275bc0aad7544",
+      "materials": "d579d35d2d6d819cdfa27ae1a081487600b3209648f1d86bc2ad372b59beac71",
+      "triangles": "5d07b867e59fa9821d69c6fab07d3884918d66ddf751deb8839d41c8d4261396",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.60999999910593,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1224,
+      "indexCount": 1428,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 32832
+    },
+    "collision/player/housing/2": {
+      "geometry": "35afa8d59630710b775be7cfb3276efc39bf703bf3b4be0036765325d3b0d899",
+      "uv": "b257395227f5bffa3a79c4fd2403cf845678360b411073fdbdfdca85a106ef1d",
+      "materials": "9a540044406ee23df0addf0066a69bb02e0ebbcd3859cd44be6222480085efdb",
+      "triangles": "7c84c81275ca96f7a395ff66d557d22380b61fe5455cfafd8cd02a7540d4c9a8",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.7899999991059303,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1272,
+      "indexCount": 1500,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 33672
+    },
+    "collision/player/housing/3": {
+      "geometry": "31226174c58f31bcec0b96371df8339ad9136bc039e499c381474a13a95eca35",
+      "uv": "3f384088e37ef606290ed617977265b8688532b1c64751f3e5c7888cc8809104",
+      "materials": "e9bed73410a26fd5846d101e4e00fcfb0558d73edcb87ce1e58a2177138cc0f4",
+      "triangles": "25bb01bde987030402d7201528819d9c43cf72cb12a0d3ef38763f3e2aa0c6cc",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.9699999991059305,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1448,
+      "indexCount": 1812,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 36800
+    },
+    "collision/player/farm/1": {
+      "geometry": "11ad5ccbb8ff465e626b043d06ca75ecbc7bb935b64ea453992044b6ba11500b",
+      "uv": "7db0c1ee622e53d9e204f8d8ff678045cd397518b9f29769a77bc3e497627a59",
+      "materials": "7005ba16df276e64468c49150f0dc613163a7667ac888cc8b91497265879e1b5",
+      "triangles": "af27b8209352f7d12a4bb713a0a1e3bc3d5ed30f9443eeb523988d740ab3925b",
+      "bounds": {
+        "min": [
+          -1.0875000014901162,
+          -1.4305114759416426e-8,
+          -0.9480000004172325
+        ],
+        "max": [
+          1.0875000014901162,
+          2.3596359193074785,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 30,
+      "vertices": 880,
+      "indexCount": 1224,
+      "materialCount": 5,
+      "textureCount": 0,
+      "geometryCount": 21,
+      "attributeBytes": 17936
+    },
+    "collision/player/farm/2": {
+      "geometry": "b12d2e3d9169ec15c14ec5abdb388a336d978f52f2d3e3f54dee585fbb428ddc",
+      "uv": "e8ad00594ea8aec8bd22cfd1d49b78c04abf941cad581fb01267899254a598ca",
+      "materials": "f7f835a5ce033d64770fd09a59ec390da434507f07d941402ff663c96f88ae41",
+      "triangles": "555b2f111c565b669f22bf765aa0ed28cc71e74e0e6f273e6d4d80e55ef3a1db",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          1.1920928910669204e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.5396359193074787,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 32,
+      "vertices": 928,
+      "indexCount": 1296,
+      "materialCount": 6,
+      "textureCount": 0,
+      "geometryCount": 22,
+      "attributeBytes": 18776
+    },
+    "collision/player/farm/3": {
+      "geometry": "7f4f5033c3017ef6a49afa777aeb3d6063e61eeaa393a97d0e0e229e1dc40eee",
+      "uv": "f2c669e33046be4c2a3d85f6f75cc4eb87ff00a13d26fa43bef4b82e3be92007",
+      "materials": "fb0a59bfdcff006095a3608205f50fc763fb94cf2de89f09a84c729ba4b50df3",
+      "triangles": "47cb12ee34d6d7c13106ebd4ca3229cf2d243c21a8780e346ecd8e4e1ec58ecb",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          3.814697269177714e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.7196359193074784,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1104,
+      "indexCount": 1608,
+      "materialCount": 7,
+      "textureCount": 0,
+      "geometryCount": 24,
+      "attributeBytes": 21904
+    },
+    "collision/player/sawmill/1": {
+      "geometry": "4767da4497f53ba9db6d8b8ce745181c3941c435cc971b4f4221f462e00c40ca",
+      "uv": "4f9380cb32155c4c5094e155d9cb87431bb17ec70f49191e01402f672d9140b9",
+      "materials": "16e22c589fb2108030476d7c4b2f26f944b5c3b6f52d4eff65430bc1c0549bb7",
+      "triangles": "f0f9b8d0f5d46908c6246a8f88d032632e8398addff872dc210d8d23e125f84e",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.4700000190734865,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1340,
+      "indexCount": 1812,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 23,
+      "attributeBytes": 30160
+    },
+    "collision/player/sawmill/2": {
+      "geometry": "b1a58881be22f18aa59ac364f757c792c6c5e2e2d2a081be0e3cf676d7ebdf7e",
+      "uv": "9126bed9fb5817601b2b06932f45d0718c2d0926e97491c08daccfe5de954537",
+      "materials": "131db24d92e4bb3e9401bcd62c3e907f1187d474c9ad2bbb45937c0ed76a8aef",
+      "triangles": "e77a48eee31f43aee2c281f7a53c6ef7c3e07c358d27981a3936d111b1dbfaae",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.6500000190734863,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1388,
+      "indexCount": 1884,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 24,
+      "attributeBytes": 31000
+    },
+    "collision/player/sawmill/3": {
+      "geometry": "d1ded1cc563983da3959352f1ec1cbc000be7f09b212c5334ab4f808b2c1bd09",
+      "uv": "f1a608d4b002baeb176cde1d84908f9671b5c9b1d04a3c583c4823d638270e82",
+      "materials": "acf790f8c13cba810f3b64d8f890ceb16c812c97b05083bff7b554b491224246",
+      "triangles": "8832730bc1ea37835c7be0327daadebb3ad0a8453173c440c958386ab9f29cb0",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.8300000190734864,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1564,
+      "indexCount": 2196,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 34128
+    },
+    "collision/player/foundry/1": {
+      "geometry": "1a8ba8e5b1037ae14cac07e22e6061922a7e9d8b89acc1d21c840d378406d4d7",
+      "uv": "cb47f2bf8a203ae3dbb8130d0b866826effd79c619eca0c9603a017500955bfd",
+      "materials": "7f0d1690fec12566165c08e83976967f4badc99d81d28874b25cf48af32ae1ad",
+      "triangles": "c0a3648155aa0b3ba2406bbd06d7ac155074f5b3220d5c4a4f504eed4a7cc692",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.570000000745058,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 45,
+      "vertices": 1968,
+      "indexCount": 3180,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 37232
+    },
+    "collision/player/foundry/2": {
+      "geometry": "f383ca23e6ec8d50473893bc6dd8076616eed2d66aaa6720eadb12f8c013f442",
+      "uv": "24ce996f5c54f7d2a022a4b72aa71029373c0751109f65a6692283c1795d4a67",
+      "materials": "20f3b66a11da4b211a15809d9ff1c21e3952999859ad661d0d6b01460cee8685",
+      "triangles": "ba645e0c1d00b03c79d109689735d30dfec26333a39e742a378814fee9667f92",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.7500000007450582,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 47,
+      "vertices": 2016,
+      "indexCount": 3252,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 38072
+    },
+    "collision/player/foundry/3": {
+      "geometry": "c871426c149a07ed3433fee74578209796ee21c79a2a2fec5e3c869834aafe02",
+      "uv": "cb862817ed9e253c7e5031a6b1f9ddcf8a98b97aaa9b9e62fbb2c587130beb6f",
+      "materials": "37184e9600626b46905bf85bc206427408bfb0f3e685950a95b42941575f57ef",
+      "triangles": "aea029ec3e5b8320dd6b1b85a25a042cf855208480c4d8c144d9af16ac50696b",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.930000000745058,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 51,
+      "vertices": 2192,
+      "indexCount": 3564,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 41200
+    },
+    "collision/player/armor/1": {
+      "geometry": "fc2f9d065335f201a50d26509e98315228605fc59d6532ab5645c734e00b0a28",
+      "uv": "65ccb5bb07bc0061143bcf988fe82720faeebbaa3166d7685fb6567d9795993d",
+      "materials": "8c50d22dbba69fd7ba70006de47a0b6114be36e918c5fcf1487eb8261bb57091",
+      "triangles": "34de330d9af933d9af67028ec06cf2643d80dd24b38ed938f310eb2abb52227f",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.50999999910593,
+          0.935000000372529
+        ]
+      },
+      "meshes": 32,
+      "vertices": 1160,
+      "indexCount": 1476,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 22,
+      "attributeBytes": 28976
+    },
+    "collision/player/armor/2": {
+      "geometry": "ff0b09caaa71147ae06cf5dea27d0a370c63be4a7ed3797329fb2d24c4b68e0b",
+      "uv": "8d75aab9b48cbe8f65d7e85a2defaf73b3bcae3d9bc5d0b76739433456b71d40",
+      "materials": "236bf5f8e58606e4967d77ea810f2dca954132c81ff146d4580ff55b4e5dc281",
+      "triangles": "25d49d3d20d3b645347ff18d3c236da5f497880d64ecfce74901f9bf8e35cdda",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.6899999991059302,
+          0.935000000372529
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1208,
+      "indexCount": 1548,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 23,
+      "attributeBytes": 29816
+    },
+    "collision/player/armor/3": {
+      "geometry": "64e2969b94233e75e0ede823ca6784c85b6d1845945ef2e7fed4b4e7726f1cae",
+      "uv": "9647fb10a39f89a9ff4ba931c71a0d397819f89ded766751262c85e0a4cc48c8",
+      "materials": "c734139be9361bfc80f70891e9a73ff4088b307a8e8def5caa66dea2aaa30bbe",
+      "triangles": "43aa7bdd62a234adc1b15ece57e943a3625cc7e46173265a0e39d45ac0de65e1",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.8699999991059304,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1384,
+      "indexCount": 1860,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 32944
+    },
+    "collision/enemy/keep/1": {
+      "geometry": "1617ba3fcb4b629cc9ba25f92c5dce816f2289347b555cdee73d0a23f54b239e",
+      "uv": "ceccbd1f0fbc310be98fe67871ac936a7c0109773bc9587872effe2d8bd707a1",
+      "materials": "e4adbcaf3b1f800978f3e284500688fb13158aa68c25f52c8ee8b64888998e84",
+      "triangles": "7f6501580b93c08a8768447bcf53e4e494f9d0aea0052ebd0a463c796785bef9",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.674999997615814,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 42,
+      "vertices": 1394,
+      "indexCount": 1692,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 27,
+      "attributeBytes": 34016
+    },
+    "collision/enemy/keep/2": {
+      "geometry": "bcfd0749289ff7a10724b7e458ef92c8036ef9a8b4791191749e0e4cb8cc7d0f",
+      "uv": "edee11d40b6bad168f30c8fe66408cefa2974446993650c2af69e9afac4cdc8e",
+      "materials": "9318ab4d5adb47d148dd74e58f621b01fab88a886e8f93d7c129bc67174552e0",
+      "triangles": "c7752db23bb2d835a1d38e38b137215e645e29043dac9270f18229d0e7160b98",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          2.8549999976158142,
+          0.8625000001862645
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1442,
+      "indexCount": 1764,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 34856
+    },
+    "collision/enemy/keep/3": {
+      "geometry": "5298109a5a4edda1f89570bfd6843f8d02e5ca953bfbe7a0dcf9aad8e3c912e7",
+      "uv": "b39c3dff7c27f75fb6540d45529b0e9d121d318828cea72d051de4d12c6cc0ed",
+      "materials": "3d31f35f0667da874c24d3d68a1a6b075960f2351b992a96a56addf04eeb7f2e",
+      "triangles": "7f509bf1c1ab5c669bfdbb287a936d38df1fad624cdb87efbedd0e3ce7f257b5",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.149999976158142,
+          3.0349999976158144,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 48,
+      "vertices": 1618,
+      "indexCount": 2076,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 30,
+      "attributeBytes": 37984
+    },
+    "collision/enemy/housing/1": {
+      "geometry": "89cbe3bf7e8579b2cbeca4a0d375687b71244e3739f662ac292e0fc653ee0a03",
+      "uv": "5c52d363cea63d8f66455c34f9cc82834c85d430e2a3b74e5d6275bc0aad7544",
+      "materials": "d579d35d2d6d819cdfa27ae1a081487600b3209648f1d86bc2ad372b59beac71",
+      "triangles": "5d07b867e59fa9821d69c6fab07d3884918d66ddf751deb8839d41c8d4261396",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.60999999910593,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1224,
+      "indexCount": 1428,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 32832
+    },
+    "collision/enemy/housing/2": {
+      "geometry": "35afa8d59630710b775be7cfb3276efc39bf703bf3b4be0036765325d3b0d899",
+      "uv": "b257395227f5bffa3a79c4fd2403cf845678360b411073fdbdfdca85a106ef1d",
+      "materials": "9a540044406ee23df0addf0066a69bb02e0ebbcd3859cd44be6222480085efdb",
+      "triangles": "7c84c81275ca96f7a395ff66d557d22380b61fe5455cfafd8cd02a7540d4c9a8",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.7899999991059303,
+          0.9174999998509884
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1272,
+      "indexCount": 1500,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 33672
+    },
+    "collision/enemy/housing/3": {
+      "geometry": "31226174c58f31bcec0b96371df8339ad9136bc039e499c381474a13a95eca35",
+      "uv": "3f384088e37ef606290ed617977265b8688532b1c64751f3e5c7888cc8809104",
+      "materials": "e9bed73410a26fd5846d101e4e00fcfb0558d73edcb87ce1e58a2177138cc0f4",
+      "triangles": "25bb01bde987030402d7201528819d9c43cf72cb12a0d3ef38763f3e2aa0c6cc",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.9699999991059305,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1448,
+      "indexCount": 1812,
+      "materialCount": 10,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 36800
+    },
+    "collision/enemy/farm/1": {
+      "geometry": "11ad5ccbb8ff465e626b043d06ca75ecbc7bb935b64ea453992044b6ba11500b",
+      "uv": "7db0c1ee622e53d9e204f8d8ff678045cd397518b9f29769a77bc3e497627a59",
+      "materials": "7005ba16df276e64468c49150f0dc613163a7667ac888cc8b91497265879e1b5",
+      "triangles": "af27b8209352f7d12a4bb713a0a1e3bc3d5ed30f9443eeb523988d740ab3925b",
+      "bounds": {
+        "min": [
+          -1.0875000014901162,
+          -1.4305114759416426e-8,
+          -0.9480000004172325
+        ],
+        "max": [
+          1.0875000014901162,
+          2.3596359193074785,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 30,
+      "vertices": 880,
+      "indexCount": 1224,
+      "materialCount": 5,
+      "textureCount": 0,
+      "geometryCount": 21,
+      "attributeBytes": 17936
+    },
+    "collision/enemy/farm/2": {
+      "geometry": "b12d2e3d9169ec15c14ec5abdb388a336d978f52f2d3e3f54dee585fbb428ddc",
+      "uv": "e8ad00594ea8aec8bd22cfd1d49b78c04abf941cad581fb01267899254a598ca",
+      "materials": "f7f835a5ce033d64770fd09a59ec390da434507f07d941402ff663c96f88ae41",
+      "triangles": "555b2f111c565b669f22bf765aa0ed28cc71e74e0e6f273e6d4d80e55ef3a1db",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          1.1920928910669204e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.5396359193074787,
+          0.8680000004172325
+        ]
+      },
+      "meshes": 32,
+      "vertices": 928,
+      "indexCount": 1296,
+      "materialCount": 6,
+      "textureCount": 0,
+      "geometryCount": 22,
+      "attributeBytes": 18776
+    },
+    "collision/enemy/farm/3": {
+      "geometry": "7f4f5033c3017ef6a49afa777aeb3d6063e61eeaa393a97d0e0e229e1dc40eee",
+      "uv": "f2c669e33046be4c2a3d85f6f75cc4eb87ff00a13d26fa43bef4b82e3be92007",
+      "materials": "fb0a59bfdcff006095a3608205f50fc763fb94cf2de89f09a84c729ba4b50df3",
+      "triangles": "47cb12ee34d6d7c13106ebd4ca3229cf2d243c21a8780e346ecd8e4e1ec58ecb",
+      "bounds": {
+        "min": [
+          -1.1450000017881394,
+          3.814697269177714e-8,
+          -1.0149999809265138
+        ],
+        "max": [
+          1.1450000017881394,
+          2.7196359193074784,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 36,
+      "vertices": 1104,
+      "indexCount": 1608,
+      "materialCount": 7,
+      "textureCount": 0,
+      "geometryCount": 24,
+      "attributeBytes": 21904
+    },
+    "collision/enemy/sawmill/1": {
+      "geometry": "4767da4497f53ba9db6d8b8ce745181c3941c435cc971b4f4221f462e00c40ca",
+      "uv": "4f9380cb32155c4c5094e155d9cb87431bb17ec70f49191e01402f672d9140b9",
+      "materials": "16e22c589fb2108030476d7c4b2f26f944b5c3b6f52d4eff65430bc1c0549bb7",
+      "triangles": "f0f9b8d0f5d46908c6246a8f88d032632e8398addff872dc210d8d23e125f84e",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.4700000190734865,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1340,
+      "indexCount": 1812,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 23,
+      "attributeBytes": 30160
+    },
+    "collision/enemy/sawmill/2": {
+      "geometry": "b1a58881be22f18aa59ac364f757c792c6c5e2e2d2a081be0e3cf676d7ebdf7e",
+      "uv": "9126bed9fb5817601b2b06932f45d0718c2d0926e97491c08daccfe5de954537",
+      "materials": "131db24d92e4bb3e9401bcd62c3e907f1187d474c9ad2bbb45937c0ed76a8aef",
+      "triangles": "e77a48eee31f43aee2c281f7a53c6ef7c3e07c358d27981a3936d111b1dbfaae",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.6500000190734863,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 40,
+      "vertices": 1388,
+      "indexCount": 1884,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 24,
+      "attributeBytes": 31000
+    },
+    "collision/enemy/sawmill/3": {
+      "geometry": "d1ded1cc563983da3959352f1ec1cbc000be7f09b212c5334ab4f808b2c1bd09",
+      "uv": "f1a608d4b002baeb176cde1d84908f9671b5c9b1d04a3c583c4823d638270e82",
+      "materials": "acf790f8c13cba810f3b64d8f890ceb16c812c97b05083bff7b554b491224246",
+      "triangles": "8832730bc1ea37835c7be0327daadebb3ad0a8453173c440c958386ab9f29cb0",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1774999998509883,
+          2.8300000190734864,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 44,
+      "vertices": 1564,
+      "indexCount": 2196,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 34128
+    },
+    "collision/enemy/foundry/1": {
+      "geometry": "1a8ba8e5b1037ae14cac07e22e6061922a7e9d8b89acc1d21c840d378406d4d7",
+      "uv": "cb47f2bf8a203ae3dbb8130d0b866826effd79c619eca0c9603a017500955bfd",
+      "materials": "7f0d1690fec12566165c08e83976967f4badc99d81d28874b25cf48af32ae1ad",
+      "triangles": "c0a3648155aa0b3ba2406bbd06d7ac155074f5b3220d5c4a4f504eed4a7cc692",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -1.668930060816365e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.570000000745058,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 45,
+      "vertices": 1968,
+      "indexCount": 3180,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 37232
+    },
+    "collision/enemy/foundry/2": {
+      "geometry": "f383ca23e6ec8d50473893bc6dd8076616eed2d66aaa6720eadb12f8c013f442",
+      "uv": "24ce996f5c54f7d2a022a4b72aa71029373c0751109f65a6692283c1795d4a67",
+      "materials": "20f3b66a11da4b211a15809d9ff1c21e3952999859ad661d0d6b01460cee8685",
+      "triangles": "ba645e0c1d00b03c79d109689735d30dfec26333a39e742a378814fee9667f92",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          9.536743172944284e-9,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.7500000007450582,
+          1.1899999976158142
+        ]
+      },
+      "meshes": 47,
+      "vertices": 2016,
+      "indexCount": 3252,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 26,
+      "attributeBytes": 38072
+    },
+    "collision/enemy/foundry/3": {
+      "geometry": "c871426c149a07ed3433fee74578209796ee21c79a2a2fec5e3c869834aafe02",
+      "uv": "cb862817ed9e253c7e5031a6b1f9ddcf8a98b97aaa9b9e62fbb2c587130beb6f",
+      "materials": "37184e9600626b46905bf85bc206427408bfb0f3e685950a95b42941575f57ef",
+      "triangles": "aea029ec3e5b8320dd6b1b85a25a042cf855208480c4d8c144d9af16ac50696b",
+      "bounds": {
+        "min": [
+          -1.1693654450082884,
+          -2.3841857821338408e-8,
+          -1.0849999737739564
+        ],
+        "max": [
+          1.1693654450082884,
+          2.930000000745058,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 51,
+      "vertices": 2192,
+      "indexCount": 3564,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 28,
+      "attributeBytes": 41200
+    },
+    "collision/enemy/armor/1": {
+      "geometry": "fc2f9d065335f201a50d26509e98315228605fc59d6532ab5645c734e00b0a28",
+      "uv": "65ccb5bb07bc0061143bcf988fe82720faeebbaa3166d7685fb6567d9795993d",
+      "materials": "8c50d22dbba69fd7ba70006de47a0b6114be36e918c5fcf1487eb8261bb57091",
+      "triangles": "34de330d9af933d9af67028ec06cf2643d80dd24b38ed938f310eb2abb52227f",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -1.668930060816365e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.50999999910593,
+          0.935000000372529
+        ]
+      },
+      "meshes": 32,
+      "vertices": 1160,
+      "indexCount": 1476,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 22,
+      "attributeBytes": 28976
+    },
+    "collision/enemy/armor/2": {
+      "geometry": "ff0b09caaa71147ae06cf5dea27d0a370c63be4a7ed3797329fb2d24c4b68e0b",
+      "uv": "8d75aab9b48cbe8f65d7e85a2defaf73b3bcae3d9bc5d0b76739433456b71d40",
+      "materials": "236bf5f8e58606e4967d77ea810f2dca954132c81ff146d4580ff55b4e5dc281",
+      "triangles": "25d49d3d20d3b645347ff18d3c236da5f497880d64ecfce74901f9bf8e35cdda",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          9.536743172944284e-9,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.6899999991059302,
+          0.935000000372529
+        ]
+      },
+      "meshes": 34,
+      "vertices": 1208,
+      "indexCount": 1548,
+      "materialCount": 8,
+      "textureCount": 0,
+      "geometryCount": 23,
+      "attributeBytes": 29816
+    },
+    "collision/enemy/armor/3": {
+      "geometry": "64e2969b94233e75e0ede823ca6784c85b6d1845945ef2e7fed4b4e7726f1cae",
+      "uv": "9647fb10a39f89a9ff4ba931c71a0d397819f89ded766751262c85e0a4cc48c8",
+      "materials": "c734139be9361bfc80f70891e9a73ff4088b307a8e8def5caa66dea2aaa30bbe",
+      "triangles": "43aa7bdd62a234adc1b15ece57e943a3625cc7e46173265a0e39d45ac0de65e1",
+      "bounds": {
+        "min": [
+          -1.149999976158142,
+          -2.3841857821338408e-8,
+          -1.0900000286102296
+        ],
+        "max": [
+          1.149999976158142,
+          2.8699999991059304,
+          1.2610603349208813
+        ]
+      },
+      "meshes": 38,
+      "vertices": 1384,
+      "indexCount": 1860,
+      "materialCount": 9,
+      "textureCount": 0,
+      "geometryCount": 25,
+      "attributeBytes": 32944
+    }
+  },
+  "starter": {
+    "before": {
+      "geometry": "3c4fff266230733d0e89baea75842f469062c5a3398491679172b857961ea43f",
+      "uv": "ab028c6f6a5ef711306322c2148ec3e1ef704e58507be85173508647ded30ed7",
+      "materials": "a03f0c2a340a3d6d2bdeeff37661d5520e19a7c80ea3126bdcbb27fc4c4a896a",
+      "triangles": "9abff271e8f44fdcec152d768e461dab3796b27f89771bcc61f76595a566ef37",
+      "bounds": {
+        "min": [
+          -7.567499999850989,
+          25.0399999833107,
+          -12.062500000186263
+        ],
+        "max": [
+          7.518000000417233,
+          28.314999997615814,
+          -8.550000023841857
+        ]
+      },
+      "meshes": 106,
+      "vertices": 3498,
+      "indexCount": 4344,
+      "materialCount": 12,
+      "textureCount": 11,
+      "geometryCount": 66,
+      "attributeBytes": 78904
+    },
+    "batched": {
+      "geometry": "ddd1c9378497d334261010f1e2127200987d117a0dd6cc0c7d756d60623406d9",
+      "uv": "1aeae128aa95750fca9b81a03139a7bd2d5367d7e4b4cb0e43069637e4e7a5b6",
+      "materials": "4ca9c5bc3abf461d62d02d6aee24408560f617d1c240e68dde5b7c4323facbb4",
+      "triangles": "9abff271e8f44fdcec152d768e461dab3796b27f89771bcc61f76595a566ef37",
+      "bounds": {
+        "min": [
+          -7.567500114440918,
+          25.040000915527344,
+          -12.0625
+        ],
+        "max": [
+          7.51800012588501,
+          28.315000534057617,
+          -8.550000190734863
+        ]
+      },
+      "meshes": 12,
+      "vertices": 4344,
+      "indexCount": 4344,
+      "materialCount": 12,
+      "textureCount": 11,
+      "geometryCount": 12,
+      "attributeBytes": 139008
+    },
+    "layoutHash": "1f24b2a3794b79c566e22727d311e3f67df005f4b5ee94b2e8dc1ce2bac69a37",
+    "saveHash": "6db0c30c4a62c6a8dce0b01eaa8b16a4aec98bd6ba9d66460491a5397aa7a5ec"
+  },
+  "full20": {
+    "before": {
+      "geometry": "c41aabd17c7d7412b72fbe8cbe921894dcc88915a062d7f32c1d1f6552656b19",
+      "uv": "326d6aa940fb48d141be7c488f998b5129475fc185867f4880f8535d3dca79b1",
+      "materials": "d0cfe2a9067eec6322df8d23e25a43f76c36f300080cc57865b66fe632e47ff0",
+      "triangles": "2e5ab5c21e8d261a64bda436a70b39f6acd60e94cd2833d54365a65993d92071",
+      "bounds": {
+        "min": [
+          -11.76106033492088,
+          17.339999976158143,
+          -18.249999976158144
+        ],
+        "max": [
+          11.76106033492088,
+          28.35963591930748,
+          -4.850000023841858
+        ]
+      },
+      "meshes": 706,
+      "vertices": 24154,
+      "indexCount": 30288,
+      "materialCount": 12,
+      "textureCount": 11,
+      "geometryCount": 357,
+      "attributeBytes": 462464
+    },
+    "batched": {
+      "geometry": "fdfb21de7b0c76b1daf35ed690d8868373632928ee3b87b197dca1047a4b0fca",
+      "uv": "1440b1829f95d8beb6fb239dbbf7ffeff409c2b687b5a25a6d454207398e6c6f",
+      "materials": "4ca9c5bc3abf461d62d02d6aee24408560f617d1c240e68dde5b7c4323facbb4",
+      "triangles": "2e5ab5c21e8d261a64bda436a70b39f6acd60e94cd2833d54365a65993d92071",
+      "bounds": {
+        "min": [
+          -11.76106071472168,
+          17.34000015258789,
+          -18.25
+        ],
+        "max": [
+          11.76106071472168,
+          28.359636306762695,
+          -4.849999904632568
+        ]
+      },
+      "meshes": 12,
+      "vertices": 30288,
+      "indexCount": 30288,
+      "materialCount": 12,
+      "textureCount": 11,
+      "geometryCount": 12,
+      "attributeBytes": 969216
+    },
+    "layoutHash": "7b854c48a8cbb5561e3d3bff4eba02b68d3fa47979e4fd8445fdda29cc471a4a",
+    "saveHash": "212c516c044b7b77b4fa5f8b0fc6746d8fa4f37c4f5b40b9695e52f5710de5b9"
+  }
+}
