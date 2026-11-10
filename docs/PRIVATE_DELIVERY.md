@@ -2,6 +2,8 @@
 
 ## Current state
 
+**10 November 2026 recheck: Configured but blocked.** The [current iPhone audit](IPHONE_DELIVERY_AUDIT_2026-11-10.md) records a public source repository, unresolved private-repository delivery guards, Vercel connector team access returning 403, and fresh anonymous authentication redirects on the permanent origin. Protected game contents and a matching hosted build remain unverified. Local mobile bundles and Windows browser checks are preparation, not an iPhone installation or a release. The owner requested testing away from home and explicitly retained the no-release-until-pass rule. Later local review evidence belongs in `delivery/readiness.json`; the historical setup results below do not clear it.
+
 **4 October 2026 recheck:** the source repository is now public, following the owner's later source-visibility decision. The September setup descriptions of a private repository below are historical, not its current visibility. The private hosted origin still redirects anonymous requests for `/`, `/release.json` and `/src/main.js` to authentication. This proves protection of those checked routes, not an authenticated playable release. `handoff-playtest.mjs` and `vercel-delivery.mjs` still require a private repository; that mismatch remains unresolved. This tree-asset task does not change repository visibility, weaken those guards or waive release readiness. Current credentials, included-usage balances and an exact hosted game build were not verified.
 
 **Configured but blocked. The permanent address is https://colossus-wake-playtest.vercel.app and is authentication-protected. Its last authenticated setup verification showed an empty setup page; no current playable game deployment is verified.**

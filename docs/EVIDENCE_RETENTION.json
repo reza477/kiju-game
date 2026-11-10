@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-10T07:19:09.7854615Z",
+  "updatedAt": "2026-11-10T17:07:47.0312094Z",
   "ownerAuthorization": "Standing permission to use available Meshy credits for authorized project asset work without further per-use confirmation; no credit purchases or public publishing authorized.",
   "retention": "After every four new evidence-producing owner work requests, retain detailed evidence for the latest four work groups and remove older generated evidence. Follow-ups and review rounds stay in their originating group.",
   "workRequestsSinceCleanup": 0,
@@ -36,6 +36,12 @@
         "artifacts/critic-round-03",
         "artifacts/critic-round-04",
         "artifacts/review-handoff-native-beast-world-final-2026-10-21"
+      ],
+      "excludedNestedWorkGroupRoots": [
+        "artifacts/critic-round-01/nov10-improvements",
+        "artifacts/critic-round-02/nov10-improvements",
+        "artifacts/critic-round-03/nov10-improvements",
+        "artifacts/critic-round-04/nov10-improvements"
       ]
     },
     {
@@ -43,7 +49,14 @@
       "status": "new improvement work in progress; prior failed review findings and release blockers unchanged",
       "group": "nov10-improvements",
       "baselineCommit": "3e060c2a83e5b9db80c0fb5c1581d4b9c5598d36",
-      "request": "Improve remake visuals, add useful features and fix bugs; audit prototype parity; owner approved a genuinely low flesh saddle refit."
+      "request": "Improve remake visuals, add useful features and fix bugs; audit prototype parity; genuinely low flesh saddle refit; iPhone and away-from-home testing follow-ups.",
+      "evidenceRoots": [
+        "artifacts/nov10-improvements",
+        "artifacts/critic-round-01/nov10-improvements",
+        "artifacts/critic-round-02/nov10-improvements",
+        "artifacts/critic-round-03/nov10-improvements",
+        "artifacts/critic-round-04/nov10-improvements"
+      ]
     }
   ],
   "lastCleanup": {
@@ -79,5 +92,6 @@
     "latestReviewBytes": 44029500,
     "ledger": "artifacts/evidence-retention/cleanup-applied-20261004.json",
     "verification": "artifacts/evidence-retention/after-verification-20261004.json"
-  }
+  },
+  "sharedRootRule": "The critic-round directories contain multiple work groups. Classify by the longest matching explicitly owned subtree. Never remove a whole shared critic-round directory while any retained or unfinished nested group remains. Uncertain ownership stays protected."
 }

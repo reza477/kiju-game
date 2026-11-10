@@ -35,22 +35,25 @@ export function getRuinMaterial(kind, color) {
   return material;
 }
 
-export function paintGround(material, {weights, detail, earth=surfaceSet('earth')}) {
+export function paintGround(material, {weights, detail, earth=surfaceSet('earth'), rock=surfaceSet('rock')}) {
   // Maps stay owned by the shared library. Retain discoverable handles for the
   // existing renderer inventory and resource disposal accounting.
   if(earth?.map)material.groundColourMap=earth.map;
+  if(rock?.map)material.groundMineralMap=rock.map;
   material.onBeforeCompile = shader => {
     shader.uniforms.uHabitat={value:weights};
     shader.uniforms.uBrushGrain={value:detail};
     shader.uniforms.uEarthPaint={value:earth?.map??detail};
     shader.uniforms.uEarthPaintReady={value:earth?.map?1:0};
+    shader.uniforms.uGroundMineral={value:rock?.map??detail};
+    shader.uniforms.uGroundMineralReady={value:rock?.map?1:0};
     shader.vertexShader=shader.vertexShader
-      .replace('#include <common>','#include <common>\nvarying vec3 vPaintPoint;attribute float groundMoisture;varying float vPaintWet;')
-      .replace('#include <begin_vertex>','#include <begin_vertex>\nvPaintPoint=position;vPaintWet=groundMoisture;');
+      .replace('#include <common>','#include <common>\nvarying vec3 vPaintPoint,vPaintNormal;attribute float groundMoisture;varying float vPaintWet;')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\nvPaintPoint=position;vPaintNormal=normal;vPaintWet=groundMoisture;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
-      varying vec3 vPaintPoint;varying float vPaintWet;
-      uniform sampler2D uHabitat,uBrushGrain,uEarthPaint;
-      uniform float uEarthPaintReady;
+      varying vec3 vPaintPoint,vPaintNormal;varying float vPaintWet;
+      uniform sampler2D uHabitat,uBrushGrain,uEarthPaint,uGroundMineral;
+      uniform float uEarthPaintReady,uGroundMineralReady;
     `).replace('#include <map_fragment>',`#include <map_fragment>
       float cavity=clamp(diffuseColor.a,.52,1.0);diffuseColor.a=opacity;
       vec4 habitat=texture2D(uHabitat,vec2(vPaintPoint.x+600.0,600.0-vPaintPoint.z)/1200.0);
@@ -76,8 +79,26 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       // One packed normal sample supports close inspection. Its frequency and
       // contrast fade with distance so wide views remain composed and quiet.
       vec4 brush=texture2D(uBrushGrain,vPaintPoint.xz*.0625+vec2(.31,.72));
+      // The packed alpha already contains unequal turf colonies and embedded
+      // soil clods. Give them a quiet tonal presence between the large habitat
+      // masses and physical plants, without another sample or a tiled decal.
+      float turfTone=clamp(1.0+(brush.a-118.0/255.0)*.72,.90,1.16);
+      float turfPresence=(.28+meadow*.48+habitat.a*.22)*(1.0-mineral*.82)*(1.0-wetToe*.78)*closePaint;
+      diffuseColor.rgb*=mix(1.0,turfTone,turfPresence);
       float relief=closePaint*(1.0-wetToe*.84)*(1.0-mineral*.64);
       vec2 groundSlope=(brush.gb*2.0-1.0)*relief*.12;
+      // Steep mineral faces use the same rock source as nearby outcrops. Blend
+      // the two upright projections smoothly across the authored terrain
+      // normals, instead of stretching the horizontal earth painting up cliffs.
+      vec3 slopeNormal=abs(normalize(vPaintNormal));
+      vec2 rockAxes=pow(slopeNormal.xz,vec2(4.0));
+      rockAxes/=max(rockAxes.x+rockAxes.y,.0001);
+      vec3 rockX=texture2D(uGroundMineral,vPaintPoint.zy/4.8).rgb;
+      vec3 rockZ=texture2D(uGroundMineral,vPaintPoint.xy/4.8+vec2(.37,.19)).rgb;
+      float rockTone=dot(rockX*rockAxes.x+rockZ*rockAxes.y,vec3(.2126,.7152,.0722));
+      float rockPigment=mix(.88,1.10,smoothstep(.04,.48,rockTone));
+      float rockPresence=mineral*smoothstep(.12,.52,1.0-slopeNormal.y)*(1.0-smoothstep(140.0,360.0,cameraDistance))*(1.0-wetToe*.72)*uGroundMineralReady;
+      diffuseColor.rgb*=mix(1.0,rockPigment,rockPresence);
       // Broad mineral bedding follows the existing slope, with no fake ledges.
       float bedding=vPaintPoint.y*.29+vPaintPoint.x*.021+vPaintPoint.z*.013;
       diffuseColor.rgb*=mix(1.0,mix(.94,1.045,smoothstep(.16,.82,fract(bedding))),mineral*.58);
@@ -90,7 +111,7 @@ export function paintGround(material, {weights, detail, earth=surfaceSet('earth'
       reflectedLight.indirectDiffuse*=mix(1.0,cavity,.57);
     `);
   };
-  material.customProgramCacheKey=()=> 'painted-world-habitat-v14-landform-masses';
+  material.customProgramCacheKey=()=> 'painted-world-habitat-v15-turf-and-mineral';
 }
 
 export function paintRiver(material,time,ripple,windGLSL) {
