@@ -53,7 +53,7 @@ The food rate includes gardens, active gathering from a food deposit and citizen
 
 ## Camera, graphics and sound
 
-**Detail** cycles High, Balanced and Performance. High uses sharper shadows, contact shading, bloom and higher resolution; Performance reduces resolution and disables dynamic shadows and postprocessing. **Light** previews day, dusk and night without changing resource production or combat.
+**Detail** cycles High, Balanced and Performance. Until you press it, the game lowers the level by itself when the device cannot keep a playable frame rate, and says so; once you choose a level it stays where you put it. High uses sharper shadows, contact shading, bloom and higher resolution; Performance reduces resolution and disables dynamic shadows and postprocessing. **Light** previews day, dusk and night without changing resource production or combat.
 
 **Camera: steady** disables cinematic travel and battle motion. System reduced-motion preferences select it initially, and the choice is saved. Manual orbit takes precedence; close building and Streets views stay steady. Environmental animation freezes when paused.
 
