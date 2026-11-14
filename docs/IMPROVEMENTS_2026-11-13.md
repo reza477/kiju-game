@@ -68,13 +68,14 @@ All on the Mac, Node 22.22.3, arm64. Evidence is under `artifacts/claude-2026-11
 | --- | --- |
 | `checks/mac-baseline-01`: unchanged `fae4252` | 444 of 451. Fails: strict self-crossing, and the six machine differences above. |
 | `checks/suite-02-strike-reveal`: bind-shape strike and interface change | 449 of 451. Fails: strict self-crossing, and one scenery digest test that ran before its fix was saved; it passes alone. |
-| `checks/suite-03-final`: final strike, with the closer bound and the new ceiling test | **451 of 452.** Fails: strict self-crossing only. |
+| `checks/suite-03-final`: final strike, with the closer bound and the new ceiling test | 451 of 452. Fails: strict self-crossing only. |
+| `checks/suite-04-final`: the committed code at `b7de446` | **451 of 452.** Fails: strict self-crossing only. |
 | `tests/browser-smoke.mjs`, headless Chrome | 13 of 13: title, all three factions, build, travel and gather, save, world map, battle, special ability, withdraw, reload and resume, pause, 390 px layout, no remote requests or errors. |
 | `tests/alpha-ui-browser.mjs`, headless Chrome | 6 of 6: failed-save recovery, save and resume, focused selector keys, canvas movement keys, victory and defeat dialogs, restart. |
 | `tests/mobile-playtest.mjs`, headless Chrome with touch emulation | 17 of 17, including save export, import and a simulated renderer failure during import. |
 | `tests/first-frame-interface-browser.mjs`, new | 2 of 2: Begin and Continue keep the title until the new game is drawn. |
 
-The three browser runs in the lower rows were made after one further line changed in `src/main.js` (the interface waits one drawn frame, not two); the four Node test files that read `main.js` were rerun and pass 38 of 38. The full suite was not run again after that line.
+The browser rows were run on the same final code as `suite-04-final`.
 
 Two of those browser scripts needed repairs that are about the scripts, not the game. `alpha-ui-browser.mjs` waited for the game with Playwright's default polling, which runs on `requestAnimationFrame`; the script replaces that function, so the wait hung whenever loading took longer than the first check. It now polls on a timer. The same script expected the arrow key to change a focused dropdown, which Windows does and macOS does not.
 
