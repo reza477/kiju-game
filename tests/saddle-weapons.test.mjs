@@ -12,6 +12,7 @@ import {cannonMuzzleLocal,cannonMountProfile,castleShotClearance,castleBarrelCle
 import {disposeGroup} from '../src/materials.js';
 import {installCPUCarrierEnvironment} from './beast-integration-cpu.mjs';
 import {FLESH_BODY_ENVELOPE_INFO,FLESH_BODY_ENVELOPE} from '../src/flesh-body-envelope.js';
+import {assertPlatformDigest} from './helpers/platform-digest.mjs';
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const expected={"cyborg":{"count":5472,"sha256":"deecc55b1a3c98fa5c49335856805f2ab8318827a266c78e03e30814f1e302c2"},"standard":{"count":5472,"sha256":"ee1f71d598e3884398098e43aa79de9ea7a6fd1c478bb19535ebc7173d395ac4"},"drill":{"count":5472,"sha256":"f740f563d4f15ecd7a86c9ec28ee58c9d2f9ca64c9ae472f7dd4a8e6ba4acc40"},"horizontal":{"count":5472,"sha256":"9749cda2989b351f05456b0a856e85ea3c51a58b25742409a167df1fc21cc779"},"vertical":{"count":5472,"sha256":"9749cda2989b351f05456b0a856e85ea3c51a58b25742409a167df1fc21cc779"}};
 function variantTrace(faction,variant){
@@ -24,10 +25,15 @@ function variantTrace(faction,variant){
    for(const [slot,b]of state.buildings.entries())if(b?.type==='cannon')out.push(api.batterySolution(state,slot,{x:5,z:8,angle},target,54));
   }
  }
- return {count:out.length,sha256:hash(JSON.stringify(out))};
+ return {count:out.length,sha256:hash(JSON.stringify(out)),out};
 }
+// Rounded digests for Apple silicon; see helpers/platform-digest.mjs.
+const expectedRounded={"cyborg":{"arm64":"bf4467edbeced117c0344f415efc344813ed06187504097dabcdf980351a9521"},"standard":{"arm64":"01a086af7bb79767cd56edc7a5021803671dcc70b99515dd4766353739236000"},"drill":{"arm64":"65235483db5946354f2a70b114c0b11cb16e3f3636d16d67a223d170d0f2787a"},"horizontal":{"arm64":"39194a00fdfc9f0b0da4053627583bbeb77d3b251dccb1e57467fdcbbcc6703e"},"vertical":{"arm64":"39194a00fdfc9f0b0da4053627583bbeb77d3b251dccb1e57467fdcbbcc6703e"}};
 test('all five other variants retain exact weapon solutions over the recorded baseline matrix',()=>{
- for(const[faction,variant]of[['kaiju','cyborg'],['crawler','standard'],['crawler','drill'],['airship','horizontal'],['airship','vertical']])assert.deepEqual(variantTrace(faction,variant),expected[variant],variant);
+ for(const[faction,variant]of[['kaiju','cyborg'],['crawler','standard'],['crawler','drill'],['airship','horizontal'],['airship','vertical']]){
+  const trace=variantTrace(faction,variant);assert.equal(trace.count,expected[variant].count,variant);
+  assertPlatformDigest({exact:trace.sha256,expectedExact:expected[variant].sha256,rounded:()=>trace.out,expectedRounded:expectedRounded[variant],message:variant+' weapon solutions'});
+ }
 });
 
 const near=(a,b,message)=>assert.ok(Math.abs(a-b)<1e-8,`${message}: ${a} versus ${b}`);

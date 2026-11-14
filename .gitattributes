@@ -10,3 +10,4 @@ vendor/LICENSE text eol=lf
 *.md text eol=lf
 *.svg text eol=lf
 *.cmd text eol=crlf
+*.command text eol=lf

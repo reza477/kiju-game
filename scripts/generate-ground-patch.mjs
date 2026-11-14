@@ -110,7 +110,25 @@ function png(data){
   if(!decoded.equals(Buffer.from(data)))throw new Error('Lossless PNG Sub-filter round trip changed texture pixels');
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',compressed),chunk('IEND',Buffer.alloc(0))]);
 }
+// Inverse of png() for the bundled files only: one RGBA8 image, Sub filter.
+function pixels(bytes){
+  const parts=[];for(let at=8;at<bytes.length;){const length=bytes.readUInt32BE(at);if(bytes.toString('latin1',at+4,at+8)==='IDAT')parts.push(bytes.subarray(at+8,at+8+length));at+=length+12;}
+  const rows=inflateSync(Buffer.concat(parts)),stride=width*4,out=Buffer.alloc(stride*height);
+  if(rows.length!==(stride+1)*height)throw new Error('Bundled ground material has unexpected dimensions');
+  for(let row=0;row<height;row++){if(rows[row*(stride+1)]!==1)throw new Error('Bundled ground material uses an unexpected PNG filter');for(let c=0;c<stride;c++){const i=row*stride+c;out[i]=(rows[row*(stride+1)+1+c]+(c>=4?out[i-4]:0))&255;}}
+  return out;
+}
 const check=process.argv.includes('--check'),directory=new URL('../assets/materials/',import.meta.url);if(!check)await mkdir(directory,{recursive:true});
-const files=[];
-for(const[name,data]of[['westbank-ground-colour.png',albedo],['westbank-ground-relief.png',relief]]){const bytes=png(data),file=new URL(name,directory);if(check){if(!bytes.equals(await readFile(file)))throw new Error('Ground material is not reproducible: '+name);}else await writeFile(file,bytes);files.push({file:name,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}
-console.log(JSON.stringify({generator:fileURLToPath(import.meta.url),verifiedOnly:check,area,seed:'0x57ba2026',textures:files,losslessPngRoundTrip:true,estimatedMipBytes:2*width*height*4*4/3,physicalGeometryChanged:false},null,2));
+const files=[],recompressed=[];
+for(const[name,data]of[['westbank-ground-colour.png',albedo],['westbank-ground-relief.png',relief]]){const bytes=png(data),file=new URL(name,directory);if(check){
+  const bundled=await readFile(file);
+  if(!bytes.equals(bundled)){
+    // Node builds link different zlib implementations, so the same pixels
+    // can compress to different bytes (Homebrew Node on macOS does). The
+    // generator's output is the pixels: every channel must match exactly.
+    const stored=pixels(bundled);
+    if(!stored.equals(Buffer.from(data)))throw new Error('Ground material is not reproducible: '+name);
+    recompressed.push(name);
+  }
+}else await writeFile(file,bytes);files.push({file:name,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}
+console.log(JSON.stringify({generator:fileURLToPath(import.meta.url),verifiedOnly:check,area,seed:'0x57ba2026',textures:files,losslessPngRoundTrip:true,estimatedMipBytes:2*width*height*4*4/3,physicalGeometryChanged:false,pixelsIdentical:true,...(recompressed.length?{compressedBytesDifferOnThisNodeBuild:recompressed}:{})},null,2));

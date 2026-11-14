@@ -6,6 +6,8 @@
 
 On the owner's Windows PC, double-click **Colossus Wake - Kaiju Game** on the desktop or **Colossus Wake.exe** in the game folder. **Play.cmd** is the fallback. The launcher verifies this folder's game and opens a local app window at `http://127.0.0.1:4178`. It preserves the normal browser profile and does not replace an unrelated service using that port. See [desktop launcher details](../DESKTOP_APP.md) and [server support](../SERVER-NOTES.md).
 
+On a Mac, double-click **Play.command** in the game folder. It checks this folder's game the same way, starts the server if it is not running and opens the game in Chrome, or in the default browser when Chrome is absent.
+
 For manual launch, run `node server.mjs` in the game folder, then open [127.0.0.1:4178](http://127.0.0.1:4178). Chrome or Edge with WebGL2 and hardware acceleration is recommended. Runtime assets and the renderer are included locally. A fresh checkout requires an available Node.js runtime; the owner's launcher can also use the existing bundled Codex runtime.
 
 ## First expedition

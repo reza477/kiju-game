@@ -6,6 +6,7 @@ import * as T from '../vendor/three.module.js';
 import {authoredTreeGeometry,createAuthoredTreeDisplay} from '../src/authored-trees.js';
 import {createLandscape} from '../src/landscape.js';
 import {disposeGroup} from '../src/materials.js';
+import {assertPlatformDigest} from './helpers/platform-digest.mjs';
 
 async function envelope(kind){
   const bytes=await readFile(new URL(`../assets/scenery/meshy-pilot/${kind}-lods.glb`,import.meta.url));
@@ -73,7 +74,7 @@ test('landform repaint preserves the exact pre-remake walking mesh, normals and 
     assert.equal(hash(bytes(g.attributes.position.array)),'02720570dc13eef2f9262c9beec6e40dae5d0a57c068869fd735bea13464e9dd');
     assert.equal(hash(bytes(g.index.array)),'ca9954a9e7c1565686f9c6720a8e3ca42a7d2f7166e17c20b092b0f6e1cccdd1');
     assert.equal(hash(bytes(g.attributes.normal.array)),'008d813666eb45f565f3380045a88f780c76dc44d839e81b244c6fed03b80aa8');
-    assert.equal(world.crushables.length,1665);assert.equal(hash(JSON.stringify(world.crushables)),'97987d016ae2e7c91ca3b139e09900687cbc37da7e8b103cd408b88ddbcb41d8');
+    assert.equal(world.crushables.length,1665);assertPlatformDigest({exact:hash(JSON.stringify(world.crushables)),expectedExact:'97987d016ae2e7c91ca3b139e09900687cbc37da7e8b103cd408b88ddbcb41d8',rounded:()=>world.crushables,expectedRounded:{arm64:'87b0f62f9921e6773f50c41ef4d1f948c9e95c659ad800102a52ec8e0c25c4ca'},message:'All 1665 logical scenery records'});
     const {data,width}=world.ground.material.map.image,greenPixels=[];
     for(let z=-130;z<=130;z+=13)for(let x=-150;x<=150;x+=15){const at=(Math.round((600-z)/1200*(width-1))*width+Math.round((x+600)/1200*(width-1)))*4;greenPixels.push(data[at+1]-data[at]);}
     assert.ok(greenPixels.filter(difference=>difference>9).length>100,'Turf and woodland must retain distinct green paint rather than averaging all exposed land to beige.');

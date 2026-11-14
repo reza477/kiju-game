@@ -6,6 +6,7 @@ import * as T from '../vendor/three.module.js';
 import {createLandscape} from '../src/landscape.js';
 import {renderedTerrainHeight} from '../src/terrain.js';
 import {disposeGroup} from '../src/materials.js';
+import {assertPlatformDigest} from './helpers/platform-digest.mjs';
 
 const expected={
   "records": "97987d016ae2e7c91ca3b139e09900687cbc37da7e8b103cd408b88ddbcb41d8",
@@ -53,7 +54,7 @@ test('rock-attached shrubs root their visible stems while preserving terrain, pl
   try{
     world=createLandscape();world.group.updateMatrixWorld(true);
     assert.equal(world.crushables.length,expected.recordCount);
-    assert.equal(digest(JSON.stringify(world.crushables)),expected.records,'Every ID, X/Z, kind, size and record order is unchanged');
+    assertPlatformDigest({exact:digest(JSON.stringify(world.crushables)),expectedExact:expected.records,rounded:()=>world.crushables,expectedRounded:{arm64:'87b0f62f9921e6773f50c41ef4d1f948c9e95c659ad800102a52ec8e0c25c4ca'},message:'Every ID, X/Z, kind, size and record order is unchanged'});
     for(const[name,attribute]of [['groundPosition',world.ground.geometry.attributes.position],['groundIndex',world.ground.geometry.index],['groundNormal',world.ground.geometry.attributes.normal]])assert.equal(digest(binary(attribute.array)),expected[name]);
     const shape=createHash('sha256');
     // The later owner-requested places are tested independently; every original

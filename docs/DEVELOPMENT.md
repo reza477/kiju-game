@@ -12,7 +12,7 @@ npm test
 npm start
 ```
 
-Open [127.0.0.1:4178](http://127.0.0.1:4178). Runtime libraries, textures and audio generation are local; development dependencies are not fetched during play. The server binds to loopback, allows GET/HEAD for public files and exposes no file-writing endpoint. See [HTTP and launcher boundaries](../SERVER-NOTES.md).
+On a Mac, `Play.command` starts the same server and opens the game. Open [127.0.0.1:4178](http://127.0.0.1:4178). Runtime libraries, textures and audio generation are local; development dependencies are not fetched during play. The server binds to loopback, allows GET/HEAD for public files and exposes no file-writing endpoint. See [HTTP and launcher boundaries](../SERVER-NOTES.md).
 
 For browser testing, use a separate loopback port and a fresh profile. In PowerShell, start the test server in one terminal:
 
@@ -32,6 +32,15 @@ node tests/local-server-qa.mjs
 Browser scripts expect Playwright and installed Chrome. They try a locally available Playwright package, then the existing Codex bundled-runtime path. That fallback is machine-specific; a fresh contributor checkout needs an available Playwright environment. Browser checks are not included in `npm test`. Run GPU/browser suites serially to avoid contention and misleading timeouts or timings.
 
 The opt-in `?test=1` URL exposes `window.__colossus` for state, renderer and time-advance inspection. Keep tests isolated from the owner's normal browser save. A worktree has a different folder identity; the launcher intentionally refuses to reuse a server for another checkout.
+
+### Apple silicon
+
+The working checkout moved to an Apple M2 Mac on 13 November 2026. Two things differ from the x64 PC and CI:
+
+- **Last-digit arithmetic.** V8's arm64 build rounds a small share of `Math.sin`, `Math.exp` and `Math.pow` results one unit in the last place differently from x64. Terrain heights, scenery records and weapon solutions therefore differ near the sixteenth significant digit. Six-decimal values, record counts, IDs, order and every Float32 mesh digest are unaffected. Preservation tests that hash raw doubles keep their exact x64 digests and, on arm64, compare a six-decimal digest recorded on this Mac; see `tests/helpers/platform-digest.mjs`. The arm64 digests have not been cross-checked against an x64 run of the same rounded values.
+- **PNG compression.** Homebrew Node links a different zlib, so `scripts/generate-ground-patch.mjs --check` reproduces identical pixels with different compressed bytes. The check requires exact pixels and reports which files compress differently.
+
+Use Node 22 here. Run the suite with `node --test --test-concurrency=4 tests/*.test.mjs` on a 16 GB machine; the default concurrency pushes it into swap. Browser scripts launch the installed Google Chrome through Playwright's `chrome` channel and need no browser download.
 
 ## Checks and packaging
 

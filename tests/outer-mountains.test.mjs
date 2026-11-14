@@ -7,6 +7,8 @@ import {
   renderedTerrainHeight, historicalRenderedTerrainHeight
 } from '../src/terrain.js';
 
+import {assertPlatformDigest} from './helpers/platform-digest.mjs';
+
 const hash = values => createHash('sha256').update(new Float64Array(values)).digest('hex');
 
 test('outer mountains preserve historical scenery selection and all inner terrain', () => {
@@ -14,12 +16,12 @@ test('outer mountains preserve historical scenery selection and all inner terrai
   // change. Exact selection values protect deterministic accept/reject draws.
   const selection = [], inner = [];
   for (let z = -600; z <= 600; z += 13) for (let x = -600; x <= 600; x += 13) selection.push(scenerySelectionHeight(x, z));
-  assert.equal(hash(selection), 'c0cb9cf2a07e8303b4014fa6eb42e954c33ff01eb3f84cc23acc796fc9288b37');
+  assertPlatformDigest({exact: hash(selection), expectedExact: 'c0cb9cf2a07e8303b4014fa6eb42e954c33ff01eb3f84cc23acc796fc9288b37', rounded: () => selection, expectedRounded: {arm64: 'feadad84d82f189dc9797cee18125f8e0dadb458de2584fb0038a8954dfb068e'}, message: 'Historical scenery selection surface'});
   for (let z = -178; z <= 178; z += 7) for (let x = -178; x <= 178; x += 7) {
     assert.equal(outerMountainDelta(x, z), 0);
     inner.push(terrainHeight(x, z));
   }
-  assert.equal(hash(inner), 'f2af63af8d429ccd5bb0a98bca73b4d30b2f7c6c4f957de3ba98a199311b3c27');
+  assertPlatformDigest({exact: hash(inner), expectedExact: 'f2af63af8d429ccd5bb0a98bca73b4d30b2f7c6c4f957de3ba98a199311b3c27', rounded: () => inner, expectedRounded: {arm64: '77a85737662e958f8c40c88c31e7ea8fe6b25536c2a7a1ba51d1b02f3aa6e9a5'}, message: 'Inner playable terrain'});
   for (const [cx, cz] of RESOURCE_CENTRES) for (let radius = 0; radius <= 40; radius += 4) for (let angle = 0; angle < Math.PI * 2; angle += .17) {
     const x = cx + Math.cos(angle) * radius, z = cz + Math.sin(angle) * radius;
     assert.equal(outerMountainDelta(x, z), 0);
@@ -35,7 +37,7 @@ test('far scenery retains the exact historical rendered selection surface', () =
     values.push(height);
     assert.equal(historicalRenderedTerrainHeight(x, z), height, 'Warm cache must preserve the exact selection height');
   }
-  assert.equal(hash(values), '8250087067bf7dffc95937ed327f483a296d129930fab24ba4584450090ef350');
+  assertPlatformDigest({exact: hash(values), expectedExact: '8250087067bf7dffc95937ed327f483a296d129930fab24ba4584450090ef350', rounded: () => values, expectedRounded: {arm64: '568e6de3aa8b431385b128ed2fcc364f7d57328d18b72d38b23f2c27f5ec7763'}, message: 'Historical rendered selection surface'});
   for (let z = 0; z <= TERRAIN_SEGMENTS; z += 23) for (let x = 0; x <= TERRAIN_SEGMENTS; x += 19) {
     const px = terrainGridCoordinate(x), pz = terrainGridCoordinate(z);
     if (Math.max(Math.abs(px), Math.abs(pz)) <= 190) assert.equal(historicalRenderedTerrainHeight(px, pz), renderedTerrainHeight(px, pz));

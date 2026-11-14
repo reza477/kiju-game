@@ -10,6 +10,14 @@ The app retains `http://127.0.0.1:4178/` and the normal default-browser profile.
 
 The launcher checks the game's health signature and this folder's identity before opening. If another app or an older game copy occupies port 4178, it shows an error and opens nothing. It never terminates that other app or switches to a different save origin. The background game server stays available for reopening; after a PC restart, the next click starts it again.
 
+## On a Mac
+
+Double-click **Play.command** in this game folder. Terminal opens briefly, the launcher starts this folder's game server if it is not already running, and the game opens at `http://127.0.0.1:4178/` in its own Chrome window. Without Chrome it opens in Edge or the default browser. Node.js must already be installed; the launcher installs nothing.
+
+The launcher follows the same rules as the Windows one. It checks the server's health signature and this folder's identity before opening anything. If another app or an older game copy holds port 4178 it says so and stops; it never ends that other app or moves to a different address, because saves belong to the browser and address they were made in. The server keeps running in the background so the game reopens quickly. `./Play.command --stop` in Terminal stops the server this launcher started, and `./Play.command --server-only` starts it without opening a window. Server output goes to the ignored `logs/` folder.
+
+The first time, macOS may ask whether Terminal may run the file. If double-clicking does nothing, run `chmod +x Play.command` once in Terminal from this folder.
+
 ## Local verification, September 12, 2026
 
 - Compiled with the existing Windows .NET Framework compiler; the executable uses the GUI subsystem and launches its PowerShell helper without a console window.

@@ -28,6 +28,8 @@ The flesh city stays low across the beast's back and flanks. The cyborg castle g
 
 ## Play locally
 
+On a Mac, double-click **Play.command** in this game folder. It starts the local game server if needed and opens the game in Chrome; see [launcher details](DESKTOP_APP.md#on-a-mac). Since 13 November 2026 the Mac checkout is the working copy of the game.
+
 On the owner's Windows PC, open **Colossus Wake - Kaiju Game** from the desktop. From this game folder, **Colossus Wake.exe** opens a local game window; **Play.cmd** is the fallback. See [Windows launcher details](DESKTOP_APP.md).
 
 For a checkout with Node.js available:

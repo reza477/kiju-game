@@ -42,7 +42,11 @@ test('bundled atlas is complete RGBA with roughness and bounded optical slopes',
     if(kind==='colour'){assert.ok(rangeMin>=186&&rangeMax<=240);assert.ok(rangeMax-rangeMin>25);}else{assert.ok(rangeMin>=57&&rangeMax<=198);assert.ok(rangeMax-rangeMin>25);}
   }
 });
-test('bundled ground maps reproduce byte-for-byte from the checked-in local generator',()=>{
+// Every pixel must match. The PNG bytes also match where the running Node
+// build compresses like the one that wrote the files; Homebrew Node on macOS
+// links another zlib, and the generator then reports which files differ.
+test('bundled ground maps reproduce pixel-for-pixel from the checked-in local generator',t=>{
   const output=execFileSync(process.execPath,[fileURLToPath(new URL('../scripts/generate-ground-patch.mjs',import.meta.url)),'--check'],{encoding:'utf8'});
-  const report=JSON.parse(output);assert.equal(report.verifiedOnly,true);assert.equal(report.textures.length,2);assert.equal(report.losslessPngRoundTrip,true);assert.equal(report.physicalGeometryChanged,false);
+  const report=JSON.parse(output);assert.equal(report.verifiedOnly,true);assert.equal(report.textures.length,2);assert.equal(report.losslessPngRoundTrip,true);assert.equal(report.physicalGeometryChanged,false);assert.equal(report.pixelsIdentical,true);
+  t.diagnostic(JSON.stringify({compressedBytesDifferOnThisNodeBuild:report.compressedBytesDifferOnThisNodeBuild??[]}));
 });
