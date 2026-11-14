@@ -37,10 +37,13 @@ function chooseFaction(faction,variant){
  $('variant-options').innerHTML=VARIANTS_BY_FACTION[faction].map(id=>`<button data-variant="${id}" class="${id===variant?'active':''}" aria-pressed="${id===variant}"><span>${CARRIER_VARIANTS[id].label}</span><small>${id===variant?'Selected':'Preview this carrier'}</small></button>`).join('');
 }
 function markerSetup(){for(const el of markerEls)el.remove();markerEls.length=0;for(const n of [...state.nodes,...state.enemies]){const e=document.createElement('button');e.className='map-marker'+(n.faction?' rival':'');e.dataset.id=n.id;e.textContent=(n.faction?'◆ ':n.kind==='wood'?'♧ ':n.kind==='iron'?'⬡ ':'❧ ')+n.name;e.addEventListener('click',()=>select(n.faction?{enemy:n.id}:{node:n.id}));$('markers').append(e);markerEls.push(e);} markerLayout.invalidate({markers:true});}
-function beginGame(saved=null){state=saved||createGame(state.faction,state.variant);state.paused=false;started=true;view='city';setMobilePanel();selection=null;selectedSlot=null;selectedBuilding=null;uiSignature='';resultShown=false;audio.reset(state);audio.setPaused(false);void audio.unlock().then(()=>audio.play('confirm')).catch(()=>toast('Sound could not start. Use Sound to try again.'));scene.setGame(state);scene.setView(view);$('hud').classList.add('hidden');$('markers').classList.add('hidden');markerSetup();renderUI();audioLabels();
- // The canvas still holds the previous carrier until this game has been
- // drawn. Present the interface only then, so its panels never sit over a
- // stale image of the title preview or of the game being replaced.
+function beginGame(saved=null){state=saved||createGame(state.faction,state.variant);state.paused=false;started=true;view='city';setMobilePanel();selection=null;selectedSlot=null;selectedBuilding=null;uiSignature='';resultShown=false;audio.reset(state);audio.setPaused(false);void audio.unlock().then(()=>audio.play('confirm')).catch(()=>toast('Sound could not start. Use Sound to try again.'));scene.setGame(state);scene.setView(view);markerSetup();renderUI();audioLabels();
+ // The canvas still holds the title's preview carrier until this game has
+ // been drawn. Swap the title for the interface in the frame that first
+ // draws it, so its panels never sit over that stale image. One frame, not
+ // more: stepped browser audits advance a single frame after Begin and
+ // Continue. A restart or import from inside a game keeps its visible
+ // interface; a browser presents that frame's canvas and panels together.
  const fresh=!saved;revealGame=()=>{$('intro').classList.add('hidden');$('faction-select').classList.add('hidden');$('hud').classList.remove('hidden');$('markers').classList.remove('hidden');renderUI();if(fresh)toast('Your expedition begins. Travel to the grove, or build your first district.');};}
 function changeView(v){if(state.mode==='battle'||v==='carrier'&&state.faction!=='kaiju')return;view=v;scene.setView(v);document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));renderUI();}
 function travelToResource(id){const result=setResourceCourse(state,id);if(result.ok)audio.play('travel');toast(result.message);return result.ok;}
@@ -107,7 +110,7 @@ function updateMarkers(){const layout=markerLayout.read(),occupied=[],objects=[.
 
 function inputVector(){const up=keys.has('w')||keys.has('arrowup')||touch.has('up'),down=keys.has('s')||keys.has('arrowdown')||touch.has('down'),left=keys.has('a')||keys.has('arrowleft')||touch.has('left'),right=keys.has('d')||keys.has('arrowright')||touch.has('right');const f=Number(up)-Number(down),r=Number(right)-Number(left),yaw=scene.yaw;return {x:Math.cos(yaw)*r-Math.sin(yaw)*f,z:-Math.sin(yaw)*r-Math.cos(yaw)*f};}
 function frame(now){const dt=Math.min((now-previous)/1000,.08);previous=now;if(started){const priorHp=state.hp,priorEnemyHp=state.battle?.enemyHp;tick(state,dt,inputVector());uiElapsed+=dt;saveElapsed+=dt;if(uiElapsed>.16||state.hp!==priorHp||state.battle?.enemyHp!==priorEnemyHp){renderUI();uiElapsed=0;}if(saveElapsed>30){save();saveElapsed=0;}}else state.time+=dt;
- scene.update(state,dt,selectedSlot);if(revealGame&&scene.framesSinceGame>=2){const reveal=revealGame;revealGame=null;reveal();}
+ scene.update(state,dt,selectedSlot);if(revealGame&&scene.framesSinceGame>=1){const reveal=revealGame;revealGame=null;reveal();}
  if(started)audio.update(state,scene);updateMarkers();playtest.frame(now);requestAnimationFrame(frame);}
 function setBuild(type){if(state.mode==='battle')return;if(compactTouch())setMobilePanel('city');selectedBuilding=type;selection=null;selectedSlot=null;changeView('city');uiSignature='';renderUI();}
 function pauseToggle(){if($('dialog').open)return;state.paused=!state.paused;audio.setPaused(state.paused);renderUI();}

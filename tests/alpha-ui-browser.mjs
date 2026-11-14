@@ -39,7 +39,9 @@ await page.addInitScript(()=>{
 const step=(count=1)=>page.evaluate(count=>window.__alphaFrames(count),count);
 try{
   await page.goto(new URL('/?test=1',base).href);
-  await page.waitForFunction(()=>!!window.__colossus,null,{timeout:90000});
+  // Poll on a timer: the default polls on requestAnimationFrame, which the
+  // stub above never fires, so a load slower than the first check hung here.
+  await page.waitForFunction(()=>!!window.__colossus,null,{timeout:90000,polling:100});
   await page.locator('#begin').click();await step();
   await page.locator('#save').click();
   const originalSave=await page.evaluate(()=>localStorage.getItem('colossus-wake-save-v1'));
@@ -71,6 +73,10 @@ try{
   await page.locator('#tower-floor').focus();
   const before=await page.evaluate(()=>({x:window.__colossus.state.x,z:window.__colossus.state.z}));
   await page.keyboard.down('ArrowDown');await step(4);await page.keyboard.up('ArrowDown');
+  // Windows and Linux change a focused select with the arrow key. macOS opens
+  // its menu instead; close it and choose the same storey. Either way the
+  // key belongs to the control and must not move the city, checked below.
+  if(process.platform==='darwin'){await page.keyboard.press('Escape');await page.locator('#tower-floor').selectOption('1');await page.locator('#tower-floor').focus();}
   assert.equal(await page.locator('#tower-floor').inputValue(),'1');
   assert.deepEqual(await page.evaluate(()=>({x:window.__colossus.state.x,z:window.__colossus.state.z})),before);
   await page.keyboard.press('p');await page.keyboard.press('2');
