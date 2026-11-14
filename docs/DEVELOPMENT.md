@@ -90,6 +90,7 @@ Choose checks for affected behavior. Each script defines its environment variabl
 | Script in `tests/` | Coverage |
 | --- | --- |
 | `browser-smoke.mjs` | Build, gather, battle, save and responsive gameplay |
+| `first-frame-interface-browser.mjs` | Begin and Continue keep the title until the new game's first frame is drawn |
 | `vertical-growth-browser.mjs` | Public construction, upgrades, save/resume, 20-storey inspection and horizontal carriers; `MIXED_DISTRICTS=1` varies paid late-game orders |
 | `vertical-citizens.mjs` | Floor support, compact rooms, activity contact, lamps, upgrades and pause |
 | `compact-castle-residents.mjs` | Natural-sized residents/workstations, ceiling clearance and support in compact cyborg and flesh rooms |

@@ -2,6 +2,15 @@
 
 This history describes prototype milestones. A version entry records development work, not a public release or art-quality approval. Verification reports retain the evidence and review outcome for their particular revision.
 
+## Unreleased — art remake on the Mac, 13 November 2026
+
+Development moved to an Apple silicon Mac. This is work in progress on the art remake, not a release. See [the session record](docs/IMPROVEMENTS_2026-11-13.md).
+
+- The flesh beast's strike keeps its foreleg in its natural shape and swings it from the shoulder. The leg no longer folds into its own forearm on the way to and from the target, and the beast bounds in to hit with a bent elbow. Self-crossing triangle pairs over the 25 tested poses fall from 19,635 to 5,546; the strict zero-crossing test still fails.
+- Begin and Continue show the game's panels in the frame that first draws the new game, so they no longer appear over the title screen's carrier.
+- `Play.command` opens the game on a Mac.
+- Tests that hash raw doubles recorded on x64 compare six-decimal digests on arm64; the ground-texture check compares pixels.
+
 ## Repository setup — September 24, 2026
 
 Established a maintained private GitHub default branch, organized project documentation, added automated tests/package checks, and prepared a draft Alpha 1 prerelease. Playable hosting remains separate and unconfigured.

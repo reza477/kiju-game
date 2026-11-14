@@ -6,7 +6,7 @@ This is a planning outline for the private Alpha 1 prototype. It records current
 
 Six carrier variants, district construction and upgrades, resource travel/gathering, a five-rival campaign, local save/transfer, original audio, touch layouts and a locally built offline package are implemented. See [playing and scope](PLAYING.md), [Alpha 1 verification](../ALPHA1_VERIFICATION.md), and [development history](../CHANGELOG.md).
 
-The art remake retains those implemented prototype features. Flesh now uses a compact saddle city; cyborg keeps the half-height vertical castle. [November improvements](IMPROVEMENTS_2026-11-10.md) records the active low-saddle refit, native skin repair attempt and expedition/district usability work. These are in progress. The last completed beast review remains 8.1/10 FAIL with a required self-crossing check unresolved; it is not a release-ready baseline.
+The art remake retains those implemented prototype features. Flesh now uses a compact saddle city; cyborg keeps the half-height vertical castle. [November improvements](IMPROVEMENTS_2026-11-10.md) records the active low-saddle refit, native skin repair attempt and expedition/district usability work. The November review cycle ended at 8.1/10 FAIL with a required self-crossing check unresolved; it is not a release-ready baseline. [The 13 November record](IMPROVEMENTS_2026-11-13.md) covers the first work on the Mac: a rebuilt strike, the first-frame interface fix, and what remains of the self-crossing.
 
 Private GitHub source maintenance keeps documentation, checks and backups aligned with completed development. It does not by itself publish a playable mobile build. See [repository maintenance](REPOSITORY_MAINTENANCE.md).
 

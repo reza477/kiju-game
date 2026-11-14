@@ -1,6 +1,12 @@
 {
   "eligible": false,
   "reason": "Independent November round 04 failed at 8.1/10; all four allowed rounds are exhausted (8.0, 8.2, 8.2, 8.1). The complete suite is 450/451: native connected-body self-crossing remains unresolved. Final independent Windows WebKit inspection also found an initial portrait displaying cyborg while logical state and actor were flesh (N04-E3); later landscape frames were correct, and cause/physical-iPhone relevance remain unknown. The rejected skin repair was not integrated. Physical phone and matching protected-host verification remain unperformed. Private delivery is Configured but blocked. Do not push or deploy.",
+  "laterUnreviewedWork": {
+    "date": "2026-11-13",
+    "record": "docs/IMPROVEMENTS_2026-11-13.md",
+    "summary": "Development moved to an Apple silicon Mac. The flesh strike was rebuilt and the interface now waits for the first drawn frame. Native self-crossing pairs over the 25 tested poses fell from 19,635 to 5,546; the strict zero-crossing test still fails. The complete suite is 451/452 on arm64. No independent review, WebKit or physical-phone check has been run on this work. Eligibility is unchanged: do not push or deploy.",
+    "technicalEvidence": "artifacts/claude-2026-11-13/checks/suite-03-final/output.txt"
+  },
   "candidateRuntimeFingerprint": "18bc3001c928824e99b564df4c41793ea0de8bea453374cf0b61dbe8c40451a1",
   "candidateBuild": "f8dd2b581ff00a3c6c87",
   "candidateTechnicalEvidence": "artifacts/nov10-improvements/checks/full-suite-final-03/report.json",
