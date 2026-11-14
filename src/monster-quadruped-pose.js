@@ -1,6 +1,7 @@
 import * as T from '../vendor/three.module.js';
 import {markMeshyCarrierPose} from './meshy-carriers.js';
 import {createNativeSkinCorrective} from './native-skin-corrective.js';
+import {createSkinSampler} from './skin-sampler.js';
 
 // Candidate source. Preview routes this unchanged file at /src/monster-quadruped-pose.js.
 // Simulation owns actor transforms, attack targets, event timing and damage.
@@ -28,6 +29,7 @@ export function inspectMeshyQuadrupedRig(instance) {
 export function createMeshyQuadrupedPose(instance, {groundHeight = () => 0, strideDistance, initialPhase = 0, supportCrouch = .12} = {}) {
   const rig = inspectMeshyQuadrupedRig(instance), {mesh, bones, metadata} = rig;
   const surfaceCorrective=createNativeSkinCorrective(mesh);
+  const skin=createSkinSampler(mesh);
   const stride = strideDistance ?? metadata.strideDistance;
   if (!(stride > 0)) throw new Error('Native quadruped stride must be positive world metres');
   const rest = new Map(Object.entries(metadata.bindPose).map(([name, p]) => [name, {
@@ -220,8 +222,8 @@ export function createMeshyQuadrupedPose(instance, {groundHeight = () => 0, stri
     leg.previousNatural = leg.plant.clone().add(leg.soleOffset.clone().sub(leg.offset).multiply(scale).applyQuaternion(orientation));
   }
   function minimumFootClearance(leg) {
-    let min = Infinity;
-    for (const id of leg.foot.groundSampleVertices) {mesh.getVertexPosition(id, a).applyMatrix4(mesh.matrixWorld); min = Math.min(min, a.y - groundHeight(a.x, a.z));}
+    let min = Infinity; skin.sync();
+    for (const id of leg.foot.groundSampleVertices) {skin.worldPosition(id, a); min = Math.min(min, a.y - groundHeight(a.x, a.z));}
     return min;
   }
   function correctSwingClearance(leg, desired, orientation) {

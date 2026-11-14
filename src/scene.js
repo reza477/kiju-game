@@ -21,12 +21,17 @@ import {surfaceDiagnostics} from './surface-library.js';
 import {combatTexture,addImpactLayers,updateImpactLayers} from './combat-visuals.js';
 import {CameraGesture,GRAPHICS_QUALITY_KEY,initialGraphicsQuality,isGraphicsQuality} from './camera-input.js';
 import {createMovementPreparation} from './movement-preparation.js';
+import {AUTOMATIC_QUALITY_KEY} from './adaptive-quality.js';
 import {bindFleshCargoPose,clearFleshCargoPose} from './flesh-cargo-pose.js';
 export {makeCity,slotPosition};
 
 // The four additional programs traced during the first portrait movement.
 // Borrow only these actual site meshes after batching, retaining their shader
 // shape. This fixed list never prepares an entire resource site or world.
+// World metres from the camera beyond which a standing rival titan is left
+// in its last pose. City view sits 40 to 110 from its focus and the world map
+// 250, so a rival being approached is always live.
+const RIVAL_POSE_DISTANCE=170;
 const movementRuinShapes=new Map([
   ['rock ffffff painted ruin',true],
   ['brick ffffff painted ruin',true],
@@ -174,8 +179,10 @@ function settleNativeMeleeContacts(scene, state) {
 
 export class GameScene {
   constructor(canvas,onSelect){
-    let preferredQuality;try{preferredQuality=localStorage.getItem(GRAPHICS_QUALITY_KEY);}catch{}
-    const initialQuality=initialGraphicsQuality(preferredQuality,matchMedia('(pointer: coarse)').matches);
+    let preferredQuality,automaticQuality;try{preferredQuality=localStorage.getItem(GRAPHICS_QUALITY_KEY);automaticQuality=localStorage.getItem(AUTOMATIC_QUALITY_KEY);}catch{}
+    const initialQuality=initialGraphicsQuality(preferredQuality,matchMedia('(pointer: coarse)').matches,automaticQuality);
+    // The detail governor only adjusts a level the player has not chosen.
+    this.qualityChosen=isGraphicsQuality(preferredQuality);
     this.canvas=canvas;this.onSelect=onSelect;this.scene=new T.Scene();
     this.camera=new T.PerspectiveCamera(42,1,.25,1500);
     this.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
@@ -290,6 +297,21 @@ export class GameScene {
     else if(!backpack&&view==='people')this.yaw=this.state.angle+Math.PI/2;
     else if(backpack&&view==='city'&&prior!==view&&!this.preview)this.yaw=this.state.angle+2.35;
     if(this.city?.saddleLayout&&view==='people'){const floor=this.city.saddleLayout.floors[this.towerTier??0];this.yaw=this.state.angle+(this.city.slotPositions[floor?.slot]?.rotation??Math.PI);}
+  }
+
+  // A standing rival's imported titan is posed on the CPU every frame: skin
+  // correction, planted paws and harness cost about 20 ms for the beast. Its
+  // idle breathing cannot be seen off screen or from far away, so such a
+  // rival keeps its last pose until it is near and in view again. Every
+  // rival is posed once first; hulls and airships are cheap and always move.
+  rivalNeedsPose(city){
+    if(!city.meshyCarrier||!city.posedForGame){city.posedForGame=true;return true;}
+    const bounds=this.rivalBounds??=new T.Sphere(),frustum=this.rivalFrustum??=new T.Frustum(),view=this.rivalView??=new T.Matrix4();
+    bounds.center.copy(city.root.position);bounds.center.y+=25;bounds.radius=60;
+    if(bounds.center.distanceTo(this.camera.position)>RIVAL_POSE_DISTANCE)return false;
+    // Last frame's camera: this frame's is not placed until the actors are.
+    frustum.setFromProjectionMatrix(view.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse));
+    return frustum.intersectsSphere(bounds);
   }
 
   setTowerFloor(tier){this.towerTier=T.MathUtils.clamp(tier,0,Math.max(0,((this.city.saddleLayout??this.city.verticalLayout)?.floors.length??kaijuFloorCount(this.city.rings??1))-1));this.cinematic.manual();this.cameraShot=null;}
@@ -439,7 +461,7 @@ export class GameScene {
         focus=this.city.rig.localToWorld(new T.Vector3(tower?0:1.525,this.city.deckY+(tower?floor.y:0)+.85,tower?KAIJU_CENTER.z-3.2:3.55));
         if(this.city.saddleLayout){const p=this.city.slotPositions[floor.slot]??{x:0,z:-11};focus=(this.city.cargo??this.city.rig).localToWorld(new T.Vector3(p.x,this.city.deckY+floor.y+1.1,p.z));}
       }
-      for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;placeCity(city,enemy.x,enemy.z,-.8);animateCity(city,s.time,false);animateWeapons(city,null,s.time);}
+      for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;placeCity(city,enemy.x,enemy.z,-.8);if(this.rivalNeedsPose(city)){animateCity(city,s.time,false);animateWeapons(city,null,s.time);}}
       animateWeapons(this.city,null,s.time);
       if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.focus.copy(focus);this.snapCamera=true;this.cinematic.reset();}
       actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale,footprintScale:this.city.footprintScale,variant:this.city.variant});

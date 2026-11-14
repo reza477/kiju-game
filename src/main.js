@@ -14,6 +14,7 @@ import {loadMeshyPilot} from './meshy-pilot.js';
 
 import {loadMeshyCarriers} from './meshy-carriers.js';
 import {createPlanningPanels,foodFlow,routeEstimate,durationLabel,setResourceCourse} from './expedition-planning.js';
+import {createDetailGovernor,AUTOMATIC_QUALITY_KEY} from './adaptive-quality.js';
 
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=createGame(),started=false,view='city',selectedSlot=null,selectedBuilding=null,selection=null,scene,keys=new Set(),touch=new Set(),previous=performance.now(),uiElapsed=0,saveElapsed=0,toastTimer,resultShown=false,priorPause=false,uiSignature='';
@@ -25,7 +26,7 @@ const markerEls=[];const mapContext=$('minimap').getContext('2d');
 const markerLayout=createMarkerLayoutCache({markers:()=>markerEls,occluders:()=>document.querySelectorAll('[data-marker-occlusion]')});
 const planningPanels=createPlanningPanels({destinations:$('destination-list'),districts:$('district-roster'),districtCount:$('district-count'),towerSelect:$('tower-floor'),onTravel:id=>{travelToResource(id);renderUI();},onInspect:slot=>{selectedBuilding=null;select({slot});}});
 let cachedSave=null;try{cachedSave=deserialize(localStorage.getItem(SAVE_KEY));}catch{}
-let revealGame=null;
+let revealGame=null,detailGovernor=null;
 function setMobilePanel(panel=''){document.body.dataset.mobilePanel=panel;document.querySelectorAll('[data-mobile-panel]').forEach(b=>b.setAttribute('aria-expanded',String(b.dataset.mobilePanel===panel)));markerLayout.invalidate();}
 function clearInput(){keys.clear();touch.clear();scene?.clearPointerInput?.();document.querySelectorAll('[data-move]').forEach(b=>{for(const id of b._heldPointers??[]){if(b.hasPointerCapture(id))b.releasePointerCapture(id);}b._heldPointers?.clear();});}
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3800);}
@@ -111,6 +112,10 @@ function updateMarkers(){const layout=markerLayout.read(),occupied=[],objects=[.
 function inputVector(){const up=keys.has('w')||keys.has('arrowup')||touch.has('up'),down=keys.has('s')||keys.has('arrowdown')||touch.has('down'),left=keys.has('a')||keys.has('arrowleft')||touch.has('left'),right=keys.has('d')||keys.has('arrowright')||touch.has('right');const f=Number(up)-Number(down),r=Number(right)-Number(left),yaw=scene.yaw;return {x:Math.cos(yaw)*r-Math.sin(yaw)*f,z:-Math.sin(yaw)*r-Math.cos(yaw)*f};}
 function frame(now){const dt=Math.min((now-previous)/1000,.08);previous=now;if(started){const priorHp=state.hp,priorEnemyHp=state.battle?.enemyHp;tick(state,dt,inputVector());uiElapsed+=dt;saveElapsed+=dt;if(uiElapsed>.16||state.hp!==priorHp||state.battle?.enemyHp!==priorEnemyHp){renderUI();uiElapsed=0;}if(saveElapsed>30){save();saveElapsed=0;}}else state.time+=dt;
  scene.update(state,dt,selectedSlot);if(revealGame&&scene.framesSinceGame>=1){const reveal=revealGame;revealGame=null;reveal();}
+ // Step the detail down when this device cannot hold a playable frame rate.
+ // A new game compiles and uploads first, so it is not judged by those frames.
+ if(detailGovernor){if(scene.framesSinceGame<=1)detailGovernor.settle(now);const lower=detailGovernor.frame(now,scene.quality,{hidden:document.hidden});
+  if(lower){scene.setQuality(lower,{persist:false});try{localStorage.setItem(AUTOMATIC_QUALITY_KEY,lower);}catch{}$('quality').textContent=`Detail: ${lower}`;toast(`Detail lowered to ${lower} to keep the game smooth. Change it with the Detail button.`);}}
  if(started)audio.update(state,scene);updateMarkers();playtest.frame(now);requestAnimationFrame(frame);}
 function setBuild(type){if(state.mode==='battle')return;if(compactTouch())setMobilePanel('city');selectedBuilding=type;selection=null;selectedSlot=null;changeView('city');uiSignature='';renderUI();}
 function pauseToggle(){if($('dialog').open)return;state.paused=!state.paused;audio.setPaused(state.paused);renderUI();}
@@ -126,7 +131,7 @@ $('stop-course').addEventListener('click',()=>{if(stopTravel(state))toast('Cours
 $('cancel-build').addEventListener('click',()=>{selectedBuilding=null;uiSignature='';renderUI();});$('pause').addEventListener('click',pauseToggle);$('speed').addEventListener('click',()=>{state.speed=state.speed===1?2:1;renderUI();});$('repair').addEventListener('click',()=>{if(actionResult(repair(state)))audio.play('repair');});$('save').addEventListener('click',()=>save(true));$('help').addEventListener('click',showHelp);$('menu').addEventListener('click',menu);
 $('destinations-toggle').addEventListener('click',()=>$('destinations').classList.toggle('hidden'));
 $('expand-ring').addEventListener('click',()=>actionResult(expandRing(state)));
-$('quality').addEventListener('click',()=>{const options=['high','balanced','performance'];const q=options[(options.indexOf(scene.quality)+1)%options.length];scene.setQuality(q);$('quality').textContent=`Detail: ${q}`;toast(q==='high'?'High detail: full shadows and contact shading.':q==='balanced'?'Balanced detail: lighter shadows and shading.':'Performance mode: lower resolution and simplified shadows.');});
+$('quality').addEventListener('click',()=>{detailGovernor?.disable();const options=['high','balanced','performance'];const q=options[(options.indexOf(scene.quality)+1)%options.length];scene.setQuality(q);$('quality').textContent=`Detail: ${q}`;toast(q==='high'?'High detail: full shadows and contact shading.':q==='balanced'?'Balanced detail: lighter shadows and shading.':'Performance mode: lower resolution and simplified shadows.');});
 $('lighting').addEventListener('click',()=>{const options=['day','dusk','night'];const light=options[(options.indexOf(scene.light)+1)%options.length];scene.setLighting(light);$('lighting').textContent=`Light: ${light}`;});
 function cameraLabel(){$('camera-motion').textContent=`Camera: ${scene.cinematic.mode}`;$('camera-motion').setAttribute('aria-pressed',String(scene.cinematic.mode==='cinematic'));}
 $('camera-motion').addEventListener('click',()=>{scene.setCameraMode(scene.cinematic.mode==='cinematic'?'steady':'cinematic');try{localStorage.setItem('colossus-camera-mode',scene.cinematic.mode);}catch{}cameraLabel();});
@@ -149,6 +154,9 @@ subscribeOfflineStatus(status=>{const label=$('title-update-status');if(label)la
 $('playtest-open').addEventListener('click',()=>playtest.open());
 document.querySelectorAll('[data-mobile-panel]').forEach(button=>button.addEventListener('click',()=>{const panel=button.dataset.mobilePanel;setMobilePanel(document.body.dataset.mobilePanel===panel?'':panel);}));
 $('mobile-menu').addEventListener('click',menu);document.querySelectorAll('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>setMobilePanel()));
-try{await Promise.all([loadMeshyPilot(),loadMeshyCarriers().catch(error=>console.error('Local carrier assets could not load; original carrier visuals retained.',error))]);scene=new GameScene($('world'),select);try{const mode=localStorage.getItem('colossus-camera-mode');if(['steady','cinematic'].includes(mode))scene.setCameraMode(mode);}catch{}cameraLabel();$('quality').textContent='Detail: '+scene.quality;chooseFaction('kaiju');$('loading').classList.add('hidden');$('continue').classList.toggle('hidden',!cachedSave);requestAnimationFrame(frame);
+try{await Promise.all([loadMeshyPilot(),loadMeshyCarriers().catch(error=>console.error('Local carrier assets could not load; original carrier visuals retained.',error))]);scene=new GameScene($('world'),select);try{const mode=localStorage.getItem('colossus-camera-mode');if(['steady','cinematic'].includes(mode))scene.setCameraMode(mode);}catch{}cameraLabel();$('quality').textContent='Detail: '+scene.quality;
+ // Audits drive the game through ?test and fix their own detail level.
+ if(!scene.qualityChosen&&!new URLSearchParams(location.search).has('test'))detailGovernor=createDetailGovernor();
+ chooseFaction('kaiju');$('loading').classList.add('hidden');$('continue').classList.toggle('hidden',!cachedSave);requestAnimationFrame(frame);
  if(new URLSearchParams(location.search).has('test'))window.__colossus={get state(){return state;},get scene(){return scene;},get audio(){return audio;},advance(seconds){for(let t=0;t<seconds;t+=.1)tick(state,.1);renderUI();},refreshMarkers(){updateMarkers();},snapshot(){return JSON.parse(serialize(state));}};
 }catch(error){$('loading').classList.add('hidden');$('error').classList.remove('hidden');$('error').textContent=`The 3D renderer could not start. Open this game in an updated Safari, Chrome or Edge browser with hardware acceleration enabled. Details: ${error.message}`;console.error(error);}

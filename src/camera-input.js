@@ -1,8 +1,10 @@
 export const GRAPHICS_QUALITY_KEY = 'colossus-quality-v1';
 export const isGraphicsQuality = value => ['high', 'balanced', 'performance'].includes(value);
 
-export function initialGraphicsQuality(preference, coarsePointer) {
-  return isGraphicsQuality(preference) ? preference : coarsePointer ? 'performance' : 'high';
+// The player's own choice wins. Without one, start from the level the detail
+// governor last settled on for this device, then from the device default.
+export function initialGraphicsQuality(preference, coarsePointer, automatic) {
+  return isGraphicsQuality(preference) ? preference : isGraphicsQuality(automatic) ? automatic : coarsePointer ? 'performance' : 'high';
 }
 
 // One contact sequence stays ineligible for picking after a pinch or a cancel,
