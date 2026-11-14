@@ -80,7 +80,16 @@ export function createMeshyQuadrupedPose(instance, {groundHeight = () => 0, stri
     const rigidOffsets = new Map(rigidVertices.map(id => [id, mesh.getVertexPosition(id, new T.Vector3()).applyMatrix4(mesh.matrixWorld).applyMatrix4(endInverse)]));
     const side = key.endsWith('Left') ? -1 : 1, lateral = new T.Vector3(side, 0, 0).applyQuaternion(rootQ);
     const segmentMaterialOffsets = points.slice(1).map((point, i) => segmentFrame(point.clone().sub(points[i]), lateral).invert().multiply(chain[i].getWorldQuaternion(new T.Quaternion())));
-    return {key, foot, chain, side, segmentMaterialOffsets, lengths: points.slice(1).map((p, i) => p.distanceTo(points[i])),
+    // The bind limb, in the root's frame, is the one shape known to carry its
+    // skin without folding. A strike swings this shape from the shoulder.
+    const rootInverseQ = rootQ.clone().invert(), strikeClaw = surfacePoint(foot.strike);
+    const strikeRest = {
+      upper: points[1].clone().sub(points[0]).applyQuaternion(rootInverseQ),
+      forearm: points[2].clone().sub(points[1]).applyQuaternion(rootInverseQ),
+      hand: strikeClaw.sub(points[2]).applyQuaternion(rootInverseQ),
+      bones: chain.map(bone => rootInverseQ.clone().multiply(bone.getWorldQuaternion(new T.Quaternion()))),
+    };
+    return {key, foot, chain, side, segmentMaterialOffsets, strikeRest, lengths: points.slice(1).map((p, i) => p.distanceTo(points[i])),
       restingSoleRoot: surfacePoint(foot.sole).applyMatrix4(instance.root.matrixWorld.clone().invert()),
       endRelativeRoot: rootQ.clone().invert().multiply(endQ),
       lastVectorEnd: points[3].clone().sub(points[2]).applyQuaternion(endQ.clone().invert()).divide(endScale),
@@ -145,6 +154,46 @@ export function createMeshyQuadrupedPose(instance, {groundHeight = () => 0, stri
     worldRotation(chain[3], orientation); refresh();
     // Exact rigid source skin witnesses give a direct geometric residual.
     return endTarget.distanceTo(chain[3].getWorldPosition(a));
+  }
+  // A strike keeps the whole limb in its bind shape and aims it from the
+  // shoulder. Only the elbow hinges to fit the distance; the wrist opens, and
+  // only towards straight, when a far target needs the last of the reach.
+  // The former solve aimed the toes along the attack and reached the same
+  // point by folding the wrist, which drove the paw through its own forearm.
+  // The pads now meet the target as they meet the ground. The claw witness,
+  // target, timing and every support paw are unchanged.
+  const STRIKE_MAX_ELBOW = 170 * Math.PI / 180;
+  function solveStrike(leg, target, blend) {
+    const chain = leg.chain, rest = leg.strikeRest;
+    const shoulder = chain[0].getWorldPosition(new T.Vector3()), toward = target.clone().sub(shoulder), reach = toward.length();
+    if (reach < 1e-8) return target.distanceTo(surfacePoint(leg.foot.strike));
+    const upper = rest.upper.clone().applyQuaternion(rootQ), forearm = rest.forearm.clone().applyQuaternion(rootQ), hand = rest.hand.clone().applyQuaternion(rootQ);
+    const l0 = upper.length(), l1 = forearm.length(), lh = hand.length();
+    const hinge = (first, second, change) => {
+      // Rotating the outer link about first x second closes the interior
+      // angle, so a positive change (opening) uses the negative rotation.
+      const axis = first.clone().cross(second);
+      if (axis.lengthSq() < 1e-16) return new T.Quaternion();
+      return new T.Quaternion().setFromAxisAngle(axis.normalize(), -change);
+    };
+    const span = (a, b, angle) => Math.sqrt(Math.max(0, a * a + b * b - 2 * a * b * Math.cos(angle)));
+    const interior = (a, b, c) => Math.acos(clamp((a * a + b * b - c * c) / (2 * a * b), -1, 1));
+    let wristQ = new T.Quaternion(), outer = forearm.clone().add(hand), lo = outer.length();
+    if (reach > span(l0, lo, STRIKE_MAX_ELBOW)) {
+      // Elbow-to-claw length that reaches the target at the widest elbow.
+      const needed = l0 * Math.cos(STRIKE_MAX_ELBOW) + Math.sqrt(Math.max(0, reach * reach - (l0 * Math.sin(STRIKE_MAX_ELBOW)) ** 2));
+      const wanted = interior(l1, lh, Math.min(needed, l1 + lh - 1e-7)), current = Math.PI - forearm.angleTo(hand);
+      if (wanted > current) {wristQ = hinge(forearm, hand, wanted - current); hand.applyQuaternion(wristQ); outer = forearm.clone().add(hand); lo = outer.length();}
+    }
+    const elbowAngle = Math.min(interior(l0, lo, reach), Math.PI - 1e-4), elbowQ = hinge(upper, outer, elbowAngle - (Math.PI - upper.angleTo(outer)));
+    const claw = upper.clone().add(outer.applyQuaternion(elbowQ));
+    const aimQ = new T.Quaternion().setFromUnitVectors(claw.normalize(), toward.divideScalar(reach));
+    const lower = aimQ.clone().multiply(elbowQ), distal = lower.clone().multiply(wristQ);
+    const desired = [aimQ, lower, distal, distal].map((turn, i) => turn.clone().multiply(rootQ).multiply(rest.bones[i]));
+    const current = chain.map(bone => bone.getWorldQuaternion(new T.Quaternion()));
+    for (let i = 0; i < 4; i++) worldRotation(chain[i], blend >= 1 ? desired[i] : current[i].slerp(desired[i], blend));
+    refresh();
+    return target.distanceTo(surfacePoint(leg.foot.strike));
   }
   function lowestRigidSurface(leg) {
     let value = Infinity, vertex = -1;
@@ -377,11 +426,15 @@ export function createMeshyQuadrupedPose(instance, {groundHeight = () => 0, stri
       }
       let strikeSolveTarget = null;
       if (isStrike) {
-        const base = surfacePoint(leg.foot.strike), aim = strikeTarget.clone().sub(leg.chain[0].getWorldPosition(new T.Vector3())).normalize();
-        const forward = new T.Vector3(0, 0, 1).applyQuaternion(rootQ), attackQ = new T.Quaternion().setFromUnitVectors(forward, aim).multiply(rootQ).multiply(leg.endRelativeRoot);
-        const orientation = leg.orientation.clone().slerp(attackQ, w), target = base.lerp(strikeTarget, w);
+        const base = surfacePoint(leg.foot.strike), shoulder = leg.chain[0].getWorldPosition(new T.Vector3());
+        const floor = Math.min(base.distanceTo(shoulder), strikeTarget.distanceTo(shoulder)), target = base.lerp(strikeTarget, w);
+        // A straight chord between two points at arm's length passes close
+        // to the shoulder and crumples the limb. Carry the claw around at
+        // the nearer endpoint's radius; both endpoints remain exact.
+        const outward = target.clone().sub(shoulder), radius = outward.length();
+        if (radius > 1e-8 && radius < floor - 1e-9) target.copy(shoulder).addScaledVector(outward, floor / radius);
         strikeSolveTarget = target.clone();
-        solve(leg, target, orientation, leg.strikeOffset);
+        solveStrike(leg, target, smooth(w / .5));
       }
       const contact = isStrike ? leg.foot.strike : leg.planted ? leg.surface : leg.foot.sole, point = surfacePoint(contact), target = isStrike ? strikeSolveTarget : leg.planted ? leg.plant : point;
       const clearance = minimumFootClearance(leg); leg.previousNatural = surfacePoint(leg.foot.sole);

@@ -1,6 +1,14 @@
 import * as T from '../vendor/three.module.js';
 
 const ease = (a, b, x) => {const t = T.MathUtils.clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t);};
+// A straight path between two points at arm's length cuts close to the
+// shoulder and folds the limb onto itself. Carry the claw around the shoulder
+// at the nearer endpoint's radius instead; both endpoints stay exact.
+function sweep(from, to, amount, shoulder) {
+  const point = from.clone().lerp(to, amount), outward = point.clone().sub(shoulder), radius = outward.length();
+  const floor = Math.min(from.distanceTo(shoulder), to.distanceTo(shoulder));
+  return radius > 1e-8 && radius < floor - 1e-9 ? point.copy(shoulder).addScaledVector(outward, floor / radius) : point;
+}
 
 function clawPoint(city) {
   const mesh = city.meshyCarrier.renderMeshes[0], surface = mesh.userData.nativeQuadruped.feet.frontRight.strike;
@@ -94,9 +102,10 @@ export function animateNativeQuadrupedCityPose(city, time) {
   const start = city.root.localToWorld(pose.strike.startLocal.clone());
   const forward = new T.Vector3(0, 0, 1).applyQuaternion(city.root.getWorldQuaternion(new T.Quaternion())); forward.y = 0; forward.normalize();
   const windup = start.clone().add(new T.Vector3(0, 1.6, 0)).addScaledVector(forward, -.5);
-  let goal = age < .22 ? start.clone().lerp(windup, ease(0, .22, age)) : windup.clone().lerp(city.strikeTarget, ease(.22, contact, age));
+  const shoulderPoint = pose.shoulder.getWorldPosition(new T.Vector3());
+  let goal = age < .22 ? start.clone().lerp(windup, ease(0, .22, age)) : sweep(windup, city.strikeTarget, ease(.22, contact, age), shoulderPoint);
   const release = ease(contact + .22, end, age);
-  if (release > 0) goal = city.strikeTarget.clone().lerp(start, release);
+  if (release > 0) goal = sweep(city.strikeTarget, start, release, shoulderPoint);
   city.strikeHand.position.copy(city.root.worldToLocal(goal));
   pose.lastInput = input;
   city.root.updateMatrixWorld(true);
