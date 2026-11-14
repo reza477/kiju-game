@@ -267,6 +267,9 @@ export class GameScene {
     // Stable cached materials avoid another submission on Continue. A changed
     // resource set still invalidates the key; no per-frame identity allocation.
     this.movementMaterialKey=this.movementMaterials.map(mesh=>mesh.material.uuid).join(':');
+    // Frames drawn since this game's actors replaced the previous ones. The
+    // interface waits for them before it presents the new game.
+    this.framesSinceGame=0;
     this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
     this.setLighting(this.light);
   }
@@ -495,7 +498,7 @@ export class GameScene {
         if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.updateCamera(s,dt,desiredZoom,battle);
-    this.presentation.render(this.scene);
+    this.presentation.render(this.scene);this.framesSinceGame++;
     // Submit only the seven bounded traced debris/site shaders using the real output
     // target and lights, after a normal frame. No draw, simulation or camera
     // warmup, asynchronous transition, readiness wait, or extra resource copies.
