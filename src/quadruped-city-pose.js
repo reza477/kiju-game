@@ -10,6 +10,8 @@ function sweep(from, to, amount, shoulder) {
   return radius > 1e-8 && radius < floor - 1e-9 ? point.copy(shoulder).addScaledVector(outward, floor / radius) : point;
 }
 
+const STRIKE_COMFORT = .78;
+
 function clawPoint(city) {
   const mesh = city.meshyCarrier.renderMeshes[0], surface = mesh.userData.nativeQuadruped.feet.frontRight.strike;
   city.root.updateMatrixWorld(true); mesh.skeleton.update();
@@ -65,16 +67,19 @@ export function animateNativeQuadrupedCityPose(city, time) {
     const mesh = city.meshyCarrier.renderMeshes[0], chain = mesh.userData.nativeQuadruped.chains.frontRight.map(name => mesh.skeleton.bones.find(bone => bone.name === name));
     const joints = chain.map(bone => bone.getWorldPosition(new T.Vector3()));
     const reach = joints.slice(1).reduce((sum, point, i) => sum + point.distanceTo(joints[i]), 0) + clawPoint(city).distanceTo(joints[3]);
+    // Full extension turns the upper arm about 130 degrees from rest and
+    // folds the shoulder skin. The body bounds in so that contact is made
+    // with the elbow still bent, at this share of the limb's length.
     pose.strike = {time: city.strikeTime, startLocal: city.root.worldToLocal(clawPoint(city)),
-      braceAngle: .02 + .04 * ease(0, 4, rise), reach, leap: null, launch: .22};
+      braceAngle: .02 + .04 * ease(0, 4, rise), reach, comfort: reach * STRIKE_COMFORT, leap: null, launch: .22};
   }
   // Gameplay permits changing movement commands after firing. Resolve reach
   // against the refreshed actual target in the current actor frame, so a
   // retreating target cannot outrun a cached visual displacement.
   const delta = city.strikeTarget.clone().sub(pose.shoulder.getWorldPosition(new T.Vector3()));
-  if (pose.strike.leap || delta.length() > pose.strike.reach - .5) {
+  if (pose.strike.leap || delta.length() > pose.strike.comfort + .5) {
     if (!pose.strike.leap) pose.strike.launch = Math.min(Math.max(.22, age), contact - .1);
-    const usable = pose.strike.reach - 1, fraction = Math.max(0, 1 - usable / delta.length());
+    const usable = pose.strike.comfort, fraction = Math.max(0, 1 - usable / delta.length());
     const leap = delta.clone().multiplyScalar(fraction); leap.y = Math.max(.7, leap.y + .35);
     const horizontal = Math.hypot(delta.x, delta.z), vertical = delta.y - leap.y;
     const horizontalReach = Math.sqrt(Math.max(0, usable * usable - vertical * vertical));
