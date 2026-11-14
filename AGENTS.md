@@ -1,3 +1,13 @@
+# Development on the Mac, and the self-crossing check
+
+Recorded on 13 November 2026 from that day's development session. Alex, who directs development with Reza, gave two decisions. They are not Reza's own words; if Reza decides otherwise, his later instruction governs.
+
+**Development moved.** The game is no longer developed with Codex on the Windows PC. The Mac checkout is the working game and Claude develops it. `CLAUDE.md` in this folder holds the working rules. Windows paths, the Codex stewardship schedule and the Codex runtime named below and in older documents describe the previous arrangement.
+
+**The strict self-crossing test is tracked, not a gate.** `tests/beast-integration-native-self.test.mjs` still requires zero crossing triangle pairs across 25 poses, with the same detector and epsilon, and still runs in every suite. While it fails it reports as TODO; it does not fail the suite and does not by itself block an alpha. This replaces the reviews' treatment of that test failure alone (B04-E1, N01-E1) as a blocker. A reviewer who can see a fold, hole or clipping in captures should still record it as a visual error.
+
+The decision changes nothing else here. The visual review gate below, its 8.5 score, the four-round limit and the instruction not to release until a review passes all stand, and `delivery/readiness.json` stays false until they are met or explicitly waived. The count must not rise: the ceiling test in the same file fails if any pose exceeds its recorded figure. Do not weaken the detector, exempt pairs or raise a recorded figure. Lowering the count remains wanted work; `docs/IMPROVEMENTS_2026-11-13.md` lists what is left.
+
 # Design source of truth
 
 Owner clarification, 20 October 2026: always use the most recent version of the game as the design baseline. Verify the latest actual implementation and subsequent owner instructions before making design decisions. Older prototype chats, briefs and rules must not restore a superseded design. At this clarification, flesh uses the low saddle city and cyborg uses the half-height vertical castle. Preserve the latest systems and saves while changing presentation unless the owner requests a design change. This precedence rule does not reset review-round limits or release blockers.

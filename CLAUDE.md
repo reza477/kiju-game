@@ -28,5 +28,6 @@ This supersedes the older note in `../../CLAUDE.md`, which says the runtime stay
 - Never delete or overwrite original art: `assets/`, `asset-sources/`, Meshy originals. Save a new version beside the original.
 - Commit finished work locally on the current branch with a clear message. Do not rewrite history.
 - Local analysis scripts and evidence go under `artifacts/` (ignored by Git). `artifacts/` and `../History` are 20 GB of Codex evidence; search them, do not read them end to end.
+- The strict beast self-crossing test is tracked, not gating, by Alex's decision of 13 November 2026 (see the top of `AGENTS.md`). It reports as TODO. Its ceiling test is the gate: never raise a recorded count, and lower one when a repair earns it.
 - Do not weaken a test to make it pass. If a check is wrong for this machine, say why in the test and keep the original contract where it still applies (see `tests/helpers/platform-digest.mjs`).
 - Alex is new to Claude and is not a programmer. Report in plain language: what changed for a player, what was verified, what is still open.

@@ -54,6 +54,8 @@ Use Node 22 here. Run the suite with `node --test --test-concurrency=4 tests/*.t
 | `npm run test:mobile` | Tablet/phone workflows in desktop Chromium; port 4186 unless `GAME_TEST_URL` is set |
 | `npm run test:offline-browser` | Package installation, offline reopen, save resume and repair on a temporary loopback server |
 
+`npm test` reports one TODO: the strict native self-crossing test, which is tracked instead of gating by the decision at the top of [AGENTS.md](../AGENTS.md). The ceiling test beside it fails if any pose's crossing count rises.
+
 The [Tests and package workflow](../.github/workflows/ci.yml) provides automated repository checks. CI does not substitute for GPU, art-review or physical-device evidence. Read the workflow for its current scope.
 
 The mobile build contains playable runtime files, assets, icons, manifest and offline worker. It excludes Git history, desktop launchers, credentials, tests and captures. The build ID covers runtime bytes and worker behavior; runtime changes require rebuilding, while documentation-only changes do not. Packaging writes the same ID into PC source after completion. Output expects the root of one stable HTTPS origin and does not configure or publish hosting. See [mobile preparation](../MOBILE_PLAYTEST.md).

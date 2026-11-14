@@ -10,7 +10,7 @@ import {nativeSelfIntersections} from './helpers/native-self-intersection.mjs';
 // foreleg in its bind shape and the body began bounding in to a bent-elbow
 // contact (docs/IMPROVEMENTS_2026-11-13.md). They total 5,546. The same
 // detector and poses counted 19,635 before that change. This is a ceiling
-// for the second test below, never a target: the first test still requires
+// for the ceiling test below, never a target: the strict test still requires
 // zero. Lower a figure when a repair lowers the count; never raise one.
 const RECORDED_CROSSINGS=Object.freeze({
  'gait-0':172,'gait-60':496,'gait-120':230,'gait-180':332,'gait-240':310,'gait-299':213,'gait-359':183,
@@ -54,7 +54,14 @@ function scanNativePoses(){
  })();
 }
 
-test('native connected body avoids self-crossing through representative gait and six-target strike/recovery poses',async t=>{
+// Tracked, not gating. On 13 November 2026 the person directing development
+// decided that the remaining crossings, which no review has been able to see,
+// should stop blocking an alpha and be tracked instead (AGENTS.md). The test
+// is unchanged: same detector, same epsilon, same 25 poses, zero required.
+// It runs on every suite and reports as TODO while it fails. The ceiling
+// test below is the gate, and it fails on any pose that gets worse.
+const TRACKED='Tracked target, not a gate: decision of 13 November 2026, see AGENTS.md';
+test('native connected body avoids self-crossing through representative gait and six-target strike/recovery poses',{todo:TRACKED},async t=>{
  const reports=await scanNativePoses();
  t.diagnostic(JSON.stringify({coverage:'All indexed body faces at25 representative actual native poses; not every animation instant',poses:reports.map(({label,checkedSourceFaces,comparisons,intersections,examples})=>({label,checkedSourceFaces,comparisons,intersections,examples})),epsilonRigUnits:1e-7}));
  assert.deepEqual(reports.filter(report=>report.intersections),[],'Native connected anatomy must not fold through itself');

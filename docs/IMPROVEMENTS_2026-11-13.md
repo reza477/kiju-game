@@ -35,7 +35,7 @@ The claw witness, target, attack timing, damage, support paws and saddle are unc
 
 ## What is still wrong with the beast's mesh
 
-The strict test, *native connected body avoids self-crossing*, still fails. It requires zero crossing triangle pairs among 100,400 faces in each of 25 poses. The 5,546 that remain are of three kinds.
+The strict test, *native connected body avoids self-crossing*, still finds crossings. It requires zero crossing triangle pairs among 100,400 faces in each of 25 poses. The 5,546 that remain are of three kinds.
 
 - **Defects in the source model, about 170 in every pose (roughly 4,300 of the total).** The standing pose has 172. They sit inside single body parts: head 38, chest 33, hips 23, left foreleg 22 and others. They come from the Meshy export and do not move with the animation. Codex's four sculpting attempts on 10 November addressed these.
 - **Folds behind the hind knees while walking, up to 324 extra in one pose.** The knee flexes from about 150 degrees in stance to 87 in swing because the body sinks to keep the stance legs in reach, and the crease behind the knee collapses.
@@ -44,6 +44,12 @@ The strict test, *native connected body avoids self-crossing*, still fails. It r
 None of these was reported as visible by the four independent reviews, which found "no new definite skin hole". They are still real geometry defects.
 
 A second test in the same file, *native self-crossing never exceeds its recorded count in any of the 25 poses*, now fails if any pose gets worse than the figures above. It shares the strict test's scan. The strict test and its detector are untouched.
+
+### Decision: tracked, not a gate
+
+At the end of the session Alex was asked whether these remaining crossings should stop blocking the alpha and be tracked instead, and answered yes. The strict test is now marked TODO. It still runs in every suite with the same detector, epsilon and poses, still requires zero, and still prints its counts; while it fails, the suite reports it as TODO and passes. The ceiling test is the gate. The decision is recorded at the top of [AGENTS.md](../AGENTS.md).
+
+It does not waive the visual review gate, the 8.5 score or the phone checks, and `delivery/readiness.json` is unchanged at `eligible: false`.
 
 ## The interface and the first frame
 
@@ -69,7 +75,8 @@ All on the Mac, Node 22.22.3, arm64. Evidence is under `artifacts/claude-2026-11
 | `checks/mac-baseline-01`: unchanged `fae4252` | 444 of 451. Fails: strict self-crossing, and the six machine differences above. |
 | `checks/suite-02-strike-reveal`: bind-shape strike and interface change | 449 of 451. Fails: strict self-crossing, and one scenery digest test that ran before its fix was saved; it passes alone. |
 | `checks/suite-03-final`: final strike, with the closer bound and the new ceiling test | 451 of 452. Fails: strict self-crossing only. |
-| `checks/suite-04-final`: the committed code at `b7de446` | **451 of 452.** Fails: strict self-crossing only. |
+| `checks/suite-04-final`: the committed code at `b7de446` | 451 of 452. Fails: strict self-crossing only. |
+| `checks/suite-05-tracked`: the same game code, with the strict test tracked | **Passes, exit 0:** 451 pass, 0 fail, 1 TODO (the strict self-crossing test, still counting 5,546). |
 | `tests/browser-smoke.mjs`, headless Chrome | 13 of 13: title, all three factions, build, travel and gather, save, world map, battle, special ability, withdraw, reload and resume, pause, 390 px layout, no remote requests or errors. |
 | `tests/alpha-ui-browser.mjs`, headless Chrome | 6 of 6: failed-save recovery, save and resume, focused selector keys, canvas movement keys, victory and defeat dialogs, restart. |
 | `tests/mobile-playtest.mjs`, headless Chrome with touch emulation | 17 of 17, including save export, import and a simulated renderer failure during import. |
@@ -81,7 +88,7 @@ Two of those browser scripts needed repairs that are about the scripts, not the 
 
 ## Open
 
-1. The strict self-crossing test. Reaching zero needs the source mesh's fold-overs repaired and correctives at the hind knees and the striking shoulder. The rig test requires the game's mesh to equal the Meshy original vertex for vertex, so a source repair has to be a declared overlay like the existing skin corrective, not an edit to the model. See above.
+1. The self-crossing count, now tracked. Reaching zero needs the source mesh's fold-overs repaired and correctives at the hind knees and the striking shoulder. The rig test requires the game's mesh to equal the Meshy original vertex for vertex, so a source repair has to be a declared overlay like the existing skin corrective, not an edit to the model. See above.
 2. An independent visual review. The 10 November cycle used its four rounds at 8.1/10 against an 8.5 gate. No new review was run.
 3. Physical iPhone and Safari. Nothing here was tested on WebKit or a phone.
 4. Hosting. Private delivery is still **Configured but blocked**.
