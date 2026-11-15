@@ -164,7 +164,9 @@ export function makeCity(faction,enemy=false,rings=1,variant){
   setCityRings(city,rings);addCarrierWeapons(city);return city;
 }
 
-export function animateCity(city,time,moving,populationCount=28){
+// `citizens:false` leaves the people where they were last posed. A distant
+// rival's carrier keeps moving while its people are refreshed less often.
+export function animateCity(city,time,moving,populationCount=28,{citizens=true}={}){
   if(city.nativeQuadrupedPresentation){
     city.root.updateWorldMatrix(true,false);
     const key=[time,moving,city.strikeTime,city.strikeContactTime,city.strikeDuration,city.strikeTarget?.x,city.strikeTarget?.y,city.strikeTarget?.z,city.saddleLayout?.signature,...city.root.matrixWorld.elements];
@@ -181,6 +183,11 @@ export function animateCity(city,time,moving,populationCount=28){
     }else if(city.faction==='airship'||moving)spinner.obj.rotation[spinner.axis]=time*spinner.speed;
   }
   if(city.drillHinge)animateDrillContact(city,time);
+  if(citizens)animateCityCitizens(city,time,moving,populationCount);
+}
+// The people alone. They walk in the city's own frame, so they can be moved
+// without posing the carrier beneath them.
+export function animateCityCitizens(city,time,moving,populationCount=28){
   animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.saddleLayout??city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
 }
 

@@ -39,6 +39,36 @@ try{
   const again=await observe(60);
   assert.ok(again.cameraDistance>170);assert.equal(again.posed,0,'Leaving stops the posing again: '+JSON.stringify(again));
   report.checks.push('Walking away stops the posing again.');
+  // Far hulls and airships keep moving, but their citizens are refreshed less often than every frame.
+  const people=await page.evaluate(async()=>{
+    const {scene,state}=window.__colossus,rows=[];state.paused=false;
+    const cities=scene.enemyCities.filter(city=>!city.meshyCarrier),last=new Map(cities.map(city=>[city,city.citizenTime])),count=new Map(cities.map(city=>[city,0])),start=scene.framesSinceGame;
+    await new Promise(resolve=>{const wait=()=>{for(const city of cities)if(city.citizenTime!==last.get(city)){last.set(city,city.citizenTime);count.set(city,count.get(city)+1);}scene.framesSinceGame-start>=60?resolve():requestAnimationFrame(wait);};requestAnimationFrame(wait);});
+    for(const city of cities)rows.push({variant:city.variant,refreshes:count.get(city),posed:city.poseTime===state.time||state.time-city.poseTime<.2});
+    return{frames:scene.framesSinceGame-start,rows};
+  });
+  for(const row of people.rows){assert.ok(row.posed,'A far hull or airship still moves every frame: '+JSON.stringify(row));assert.ok(row.refreshes>=1&&row.refreshes<people.frames,'Its citizens refresh, but not every frame: '+JSON.stringify(row)+' in '+people.frames);}
+  report.checks.push(`Far rivals' citizens refreshed ${people.rows.map(row=>row.refreshes).join(', ')} times in ${people.frames} frames.`);
+  // A rival that neither the view nor the sun's shadow volume contains is hidden; one in view is shown.
+  const culling=await page.evaluate(async()=>{
+    const T=await import('/vendor/three.module.js'),{scene,state}=window.__colossus;
+    // Turn the camera to look outward from the valley, so the rivals are behind it.
+    scene.setCameraMode('steady');scene.yaw=Math.atan2(-state.x,-state.z);scene.snapCamera=true;const start=scene.framesSinceGame;
+    await new Promise(resolve=>{const wait=()=>scene.framesSinceGame-start>=6?resolve():requestAnimationFrame(wait);requestAnimationFrame(wait);});
+    const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(scene.camera.projectionMatrix,scene.camera.matrixWorldInverse));
+    return scene.enemyCities.map(city=>{const sphere=new T.Sphere(city.root.position.clone().add(new T.Vector3(0,25,0)),60),shadow=scene.renderer.shadowMap.enabled&&scene.sun.shadow.getFrustum().intersectsSphere(sphere);return{variant:city.variant,visible:city.root.visible,inView:frustum.intersectsSphere(sphere),inShadowVolume:shadow};});
+  });
+  for(const row of culling)assert.equal(row.visible,row.inView||row.inShadowVolume,'Rival visibility follows the view and shadow volumes: '+JSON.stringify(row));
+  assert.ok(culling.some(row=>!row.visible),'At least one rival is outside both volumes here: '+JSON.stringify(culling));
+  report.checks.push(`${culling.filter(row=>!row.visible).length} of ${culling.length} rivals are outside the view and shadow volumes and hidden.`);
+  // When time stops, every rival is brought to that instant once.
+  const frozen=await page.evaluate(async()=>{
+    const {scene,state}=window.__colossus;state.paused=true;const start=scene.framesSinceGame;
+    await new Promise(resolve=>{const wait=()=>scene.framesSinceGame-start>=4?resolve():requestAnimationFrame(wait);requestAnimationFrame(wait);});
+    const rows=scene.enemyCities.map(city=>({variant:city.variant,poseTime:city.poseTime,citizenTime:city.citizenTime}));state.paused=false;return{time:state.time,rows};
+  });
+  for(const row of frozen.rows){assert.equal(row.poseTime,frozen.time,'A paused rival is posed at the paused instant: '+JSON.stringify(row));assert.equal(row.citizenTime,frozen.time,'and so are its citizens: '+JSON.stringify(row));}
+  report.checks.push('Pausing brings every rival and its citizens to the paused instant.');
   assert.deepEqual(report.errors,[]);
 }catch(error){report.failure=String(error?.stack??error);}
 finally{await browser.close();console.log(JSON.stringify(report,null,2));if(report.failure)process.exitCode=1;}

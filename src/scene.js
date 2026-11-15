@@ -4,7 +4,7 @@ import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
 import {nativeMeleeAnchor,nativeMeleeStart,nativeBodyImpactAnchor} from './native-melee-anchor.js';
 import {distance,FACTIONS,weaponStatus,attackDelay} from './simulation.js';
 import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,loadDaylightEnvironment,setWindowLighting} from './materials.js';
-import {makeCity,animateCity,slotPosition,setCityRings} from './carriers.js';
+import {makeCity,animateCity,animateCityCitizens,slotPosition,setCityRings} from './carriers.js';
 import {createDistrict,createVacantPlot,createVerticalDistrict} from './architecture.js';
 import {createSaddleDistrict} from './saddle-city.js';
 import {createLandscape,createResourceSite} from './landscape.js';
@@ -32,6 +32,8 @@ export {makeCity,slotPosition};
 // in its last pose. City view sits 40 to 110 from its focus and the world map
 // 250, so a rival being approached is always live.
 const RIVAL_POSE_DISTANCE=170;
+// Game seconds between refreshes of a far rival's citizens.
+const RIVAL_CITIZEN_INTERVAL=1/15;
 const movementRuinShapes=new Map([
   ['rock ffffff painted ruin',true],
   ['brick ffffff painted ruin',true],
@@ -299,19 +301,66 @@ export class GameScene {
     if(this.city?.saddleLayout&&view==='people'){const floor=this.city.saddleLayout.floors[this.towerTier??0];this.yaw=this.state.angle+(this.city.slotPositions[floor?.slot]?.rotation??Math.PI);}
   }
 
-  // A standing rival's imported titan is posed on the CPU every frame: skin
-  // correction, planted paws and harness cost about 20 ms for the beast. Its
-  // idle breathing cannot be seen off screen or from far away, so such a
-  // rival keeps its last pose until it is near and in view again. Every
-  // rival is posed once first; hulls and airships are cheap and always move.
-  rivalNeedsPose(city){
-    if(!city.meshyCarrier||!city.posedForGame){city.posedForGame=true;return true;}
+  // Is this rival close to the camera and inside the view? Uses last frame's
+  // camera: this frame's is not placed until the actors are. The sphere is
+  // twice a city's real extent, so one frame of camera movement cannot matter.
+  rivalIsNear(city){
     const bounds=this.rivalBounds??=new T.Sphere(),frustum=this.rivalFrustum??=new T.Frustum(),view=this.rivalView??=new T.Matrix4();
     bounds.center.copy(city.root.position);bounds.center.y+=25;bounds.radius=60;
     if(bounds.center.distanceTo(this.camera.position)>RIVAL_POSE_DISTANCE)return false;
-    // Last frame's camera: this frame's is not placed until the actors are.
     frustum.setFromProjectionMatrix(view.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse));
     return frustum.intersectsSphere(bounds);
+  }
+
+  // Standing rivals cost far more than they show. An imported titan is posed
+  // on the CPU: the beast's skin correction, planted paws and harness take
+  // about 20 ms. Every city also walks some thirty articulated citizens. From
+  // far away or off screen none of that can be seen, so:
+  //  - a rival is placed again only when its position changes;
+  //  - a far titan keeps its last pose, and its idle breathing with it;
+  //  - a far hull or airship still turns its propellers and bobs, which is
+  //    cheap;
+  //  - every far rival's citizens are refreshed 15 times a game second;
+  //  - when time stops, every rival catches up to that instant once, so a
+  //    paused picture shows carriers exactly where continuous posing would
+  //    have put them. Citizens keep their own history and may stand a step
+  //    away from where they would otherwise have been.
+  // Every rival is fully posed on its first frame and whenever it is near.
+  updateRivals(s,touched){
+    const frozen=s.time===this.rivalClock;this.rivalClock=s.time;
+    for(const city of this.enemyCities){
+      const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;
+      if(city.placedAt?.x!==enemy.x||city.placedAt.z!==enemy.z){placeCity(city,enemy.x,enemy.z,-.8);city.placedAt={x:enemy.x,z:enemy.z};touched.add(city);}
+      const first=!city.posedForGame,near=first||this.rivalIsNear(city);city.posedForGame=true;
+      if(city.meshyCarrier){
+        if(!near&&!(frozen&&city.poseTime!==s.time)){
+          if(s.time-city.citizenTime>=RIVAL_CITIZEN_INTERVAL){animateCityCitizens(city,s.time,false);city.citizenTime=s.time;}
+          continue;
+        }
+        animateCity(city,s.time,false);city.citizenTime=s.time;
+      }else{
+        const citizens=near||(frozen&&city.citizenTime!==s.time)||s.time-city.citizenTime>=RIVAL_CITIZEN_INTERVAL;
+        animateCity(city,s.time,false,undefined,{citizens});if(citizens)city.citizenTime=s.time;
+      }
+      animateWeapons(city,null,s.time);city.poseTime=s.time;touched.add(city);
+    }
+  }
+
+  // Once this frame's camera and sun are placed: a rival that neither the
+  // view nor the sun's shadow volume can contain is not walked, culled mesh
+  // by mesh or drawn. A city is some 400 to 900 separate meshes, and three
+  // or four of the five rivals are usually behind the camera.
+  cullRivals(){
+    const bounds=this.rivalBounds??=new T.Sphere(),frustum=this.rivalFrustum??=new T.Frustum(),view=this.rivalView??=new T.Matrix4();
+    this.camera.updateMatrixWorld(true);
+    frustum.setFromProjectionMatrix(view.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse));
+    const shadows=this.renderer.shadowMap.enabled&&this.sun.castShadow?this.sun.shadow:null;
+    if(shadows){this.sun.updateMatrixWorld(true);this.sun.target.updateMatrixWorld(true);shadows.updateMatrices(this.sun);}
+    for(const city of this.enemyCities){
+      if(!city.root.visible)continue;
+      bounds.center.copy(city.root.position);bounds.center.y+=25;bounds.radius=60;
+      city.root.visible=frustum.intersectsSphere(bounds)||(!!shadows&&shadows.getFrustum().intersectsSphere(bounds));
+    }
   }
 
   setTowerFloor(tier){this.towerTier=T.MathUtils.clamp(tier,0,Math.max(0,((this.city.saddleLayout??this.city.verticalLayout)?.floors.length??kaijuFloorCount(this.city.rings??1))-1));this.cinematic.manual();this.cameraShot=null;}
@@ -432,11 +481,11 @@ export class GameScene {
     const cutaway=this.city.layout==='tower'&&this.view==='people'&&!battle&&!this.preview;
     this.city.inspectedFloor=cutaway?this.towerTier:undefined;
     this.city.rig.traverse(o=>{if(Number.isInteger(o.userData.towerTier))o.visible=!cutaway||(o.userData.towerTier<=this.towerTier&&!(o.userData.inspectionShell&&o.userData.towerTier===this.towerTier));});
-    const actors=[];
+    const actors=[],touched=new Set();
     if(battle){
       const b=s.battle;placeCity(this.city,b.player.x,b.player.z,b.player.angle);
       const enemy=this.enemyCities.find(c=>c.id===b.enemyId);for(const city of this.enemyCities)city.root.visible=city===enemy;
-      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);
+      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);enemy.placedAt=null;
       for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
       animateCity(enemy,s.time,!b.result);
       animateWeapons(this.city,b.enemy,s.time);animateWeapons(enemy,b.player,s.time);this.city.root.updateMatrixWorld(true);enemy.root.updateMatrixWorld(true);
@@ -461,7 +510,7 @@ export class GameScene {
         focus=this.city.rig.localToWorld(new T.Vector3(tower?0:1.525,this.city.deckY+(tower?floor.y:0)+.85,tower?KAIJU_CENTER.z-3.2:3.55));
         if(this.city.saddleLayout){const p=this.city.slotPositions[floor.slot]??{x:0,z:-11};focus=(this.city.cargo??this.city.rig).localToWorld(new T.Vector3(p.x,this.city.deckY+floor.y+1.1,p.z));}
       }
-      for(const city of this.enemyCities){const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;placeCity(city,enemy.x,enemy.z,-.8);if(this.rivalNeedsPose(city)){animateCity(city,s.time,false);animateWeapons(city,null,s.time);}}
+      this.updateRivals(s,touched);
       animateWeapons(this.city,null,s.time);
       if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.focus.copy(focus);this.snapCamera=true;this.cinematic.reset();}
       actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale,footprintScale:this.city.footprintScale,variant:this.city.variant});
@@ -486,7 +535,9 @@ export class GameScene {
     const worldDt=s.paused||this.preview?0:dt;
     this.landscape.interact?.(actors,worldDt,{mode:battle?'battle':'expedition',damage:s.worldDamage[battle?'battle':'expedition']});
     const environmentDt=s.paused?0:dt*s.speed;this.landscape.update(s.time,environmentDt);
-    const stacks=[];for(const city of [this.city,...this.enemyCities])if(city.root.visible){city.root.updateMatrixWorld(true);for(const point of [...city.stacks,...city.districtStacks])stacks.push(point.getWorldPosition(new T.Vector3()));}
+    // A rival that was neither placed nor posed this frame has no stale
+    // matrix; each chimney still resolves its own world position below.
+    const stacks=[];for(const city of [this.city,...this.enemyCities])if(city.root.visible){if(battle||city===this.city||touched.has(city))city.root.updateMatrixWorld(true);for(const point of [...city.stacks,...city.districtStacks])stacks.push(point.getWorldPosition(new T.Vector3()));}
     const current=this.city.root.position,mode=battle?'battle':'expedition';
     const movingOnGround=this.dustPrevious?.mode===mode&&distance(this.dustPrevious,current)>.015&&s.faction!=='airship'&&!this.preview;
     this.atmosphere.update(s.time,environmentDt,stacks,movingOnGround?new T.Vector3(current.x,current.y+.4,current.z):null);this.dustPrevious={x:current.x,z:current.z,mode};
@@ -520,6 +571,7 @@ export class GameScene {
         if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.updateCamera(s,dt,desiredZoom,battle);
+    if(!battle)this.cullRivals();
     this.presentation.render(this.scene);this.framesSinceGame++;
     // Submit only the seven bounded traced debris/site shaders using the real output
     // target and lights, after a normal frame. No draw, simulation or camera
