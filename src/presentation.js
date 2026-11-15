@@ -25,6 +25,22 @@ if(pcfStart>=0&&pcfEnd>pcfStart){
   if(directional>0&&local.length===3)T.ShaderChunk.lights_fragment_begin=local.join('if ( directLight.visible ) { '+call+' }')+chunk.slice(directional);
   else console.warn('Unlit local lights are not skipped: the renderer\'s light loop has changed.');
 }
+// A lamp that is switched off has a colour of exactly zero, and still had its
+// direction, distance and falloff worked out for every fragment before the
+// test above could discard it: for eight dark lamps, about a tenth of a
+// High-detail frame by day. Its colour is known before any of that, so the
+// whole turn of the loop is skipped. three.js would have multiplied that
+// zero by a finite falloff and found the light not visible.
+{
+  let chunk=T.ShaderChunk.lights_fragment_begin,guarded=0;
+  for(const light of['point','spot']){
+    const fetch=`${light}Light = ${light}Lights[ i ];`,start=chunk.indexOf(fetch),end=chunk.indexOf('\n\t}\n\t#pragma unroll_loop_end',start);
+    if(start<0||end<0||chunk.indexOf(fetch,start+1)>=0)continue;
+    chunk=chunk.slice(0,start)+fetch+`\n\t\tif ( ${light}Light.color != vec3( 0.0 ) ) {`+chunk.slice(start+fetch.length,end)+'\n\t\t}'+chunk.slice(end);guarded++;
+  }
+  if(guarded===2)T.ShaderChunk.lights_fragment_begin=chunk;
+  else console.warn('Dark local lights are not skipped: the renderer\'s light loop has changed.');
+}
 const settingsFor=value=>typeof value==='string'||!value?getLightingPreset(value):value;
 
 export class Presentation {

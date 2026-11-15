@@ -44,7 +44,8 @@ try{
       window.__step=count=>{for(let i=0;i<count;i++){clock+=1000/60;const callback=window.__referenceFrame;window.__referenceFrame=null;callback?.(clock);}};
     });
     await page.goto(new URL('/?test=1',base).href);
-    await page.waitForFunction(()=>!!window.__colossus&&document.querySelector('#loading').classList.contains('hidden'),null,{timeout:180000,polling:100});
+    // A slow machine that has just drawn several hundred heavy frames can take minutes to start the next page.
+    await page.waitForFunction(()=>!!window.__colossus&&document.querySelector('#loading').classList.contains('hidden'),null,{timeout:600000,polling:100});
     const step=count=>page.evaluate(count=>window.__step(count),count);
     // Let asynchronous texture uploads and shader compiles finish between bursts of frames.
     const settle=async(bursts=6)=>{for(let i=0;i<bursts;i++){await step(10);await page.waitForTimeout(250);}await page.waitForFunction(()=>{const scene=window.__colossus.scene;return scene.environmentReady!==false&&(!scene.surfaceDiagnostics||scene.surfaceDiagnostics().pending===0);},null,{timeout:120000,polling:100}).catch(()=>{});await step(4);};
@@ -80,8 +81,10 @@ try{
       await settle(5);
       if(!['walking','strike'].includes(view))await step(300);
       // Freeze the simulation for the picture itself; two frames, same clock state.
-      const info=await page.evaluate(()=>{const {scene,state}=window.__colossus;const was=state.paused;state.paused=true;window.__step(2);state.paused=was;const render=scene.renderer.info.render;return{time:+state.time.toFixed(4),calls:render.calls,triangles:render.triangles,quality:scene.quality,view:scene.view,light:scene.light,canvas:[scene.renderer.domElement.width,scene.renderer.domElement.height]};});
-      const file=`${name}-${detail}.png`;await page.screenshot({path:path.join(out,file)});
+      // Stepped frames are issued faster than a slow graphics chip draws them. Wait for it to catch
+      // up, or the screenshot queues behind several hundred frames and times out.
+      const info=await page.evaluate(()=>{const {scene,state}=window.__colossus;const was=state.paused;state.paused=true;window.__step(2);state.paused=was;scene.renderer.getContext().finish();const render=scene.renderer.info.render;return{time:+state.time.toFixed(4),calls:render.calls,triangles:render.triangles,quality:scene.quality,view:scene.view,light:scene.light,canvas:[scene.renderer.domElement.width,scene.renderer.domElement.height]};});
+      const file=`${name}-${detail}.png`;await page.screenshot({path:path.join(out,file),timeout:180000});
       report.captures.push({file,scene:name,detail,...info});
     }
     await context.close();
