@@ -138,7 +138,7 @@ export function createCitizens(parent,deckY,faction,{scale=1,slotPositions=[],la
  }
  const data=Array.from({length:MAX_PEOPLE},(_,i)=>wardrobe(faction,i));
  const citizens={group,instances,buckets,data,wardrobeNames:[...WARDROBES[faction].names],faction,layout,rings,slotPositions,deckY,carrierScale:scale,humanScale:1/scale,worldHumanHeight:.8,maxPeople:MAX_PEOPLE,populationCount:0,requestedPopulation:0,styleCounts:{},routes:[],
-  scratch:{root:new T.Object3D(),part:new T.Object3D(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler(),groupInverse:new T.Matrix4(),stationMatrix:new T.Matrix4(),rootInverse:new T.Matrix4(),bodyInverse:new T.Quaternion(),leftTarget:new T.Vector3(),rightTarget:new T.Vector3(),stationPoint:new T.Vector3()}};
+  scratch:{root:new T.Object3D(),partPosition:new T.Vector3(),partScale:new T.Vector3(),partQuaternion:new T.Quaternion(),partAngles:new T.Euler(),partMatrix:new T.Matrix4(),matrix:new T.Matrix4(),direction:new T.Vector3(),handPosition:new T.Vector3(),up:new T.Vector3(0,1,0),color:new T.Color(),body:new T.Quaternion(),head:new T.Quaternion(),wrist:new T.Quaternion(),angles:new T.Euler(),groupInverse:new T.Matrix4(),stationMatrix:new T.Matrix4(),rootInverse:new T.Matrix4(),bodyInverse:new T.Quaternion(),leftTarget:new T.Vector3(),rightTarget:new T.Vector3(),stationPoint:new T.Vector3()}};
  group.userData.wardrobeNames=citizens.wardrobeNames;
  group.userData.worldHumanHeight=.8;
  animateCitizens(citizens,0,false,24,{rings,slotPositions,layout});
@@ -243,17 +243,21 @@ function towerCirculate(citizens,time,count,rings,verticalLayout){
  citizens.group.userData.minimumPedestrianSpacing=.44;citizens.group.userData.occupiedFloors=traffic.lanes.filter(l=>l.ids.length).map(l=>l.tier);return routes;
 }
 
-/** Animate articulated people on authored pedestrian routes, with short stops for local errands. */
-export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[],verticalLayout}={}){
+/** Animate articulated people on authored pedestrian routes, with short stops for local errands.
+ * `advanceOnly` moves the single-file traffic of a ward or ring on to `time` and poses nobody: those
+ * walkers carry their place from one call to the next, so a city nobody can see keeps their history
+ * this way at almost no cost. Street and deck walkers are a function of the clock and need no call. */
+export function animateCitizens(citizens,time,moving,populationCount,{rings=citizens.rings,slotPositions=citizens.slotPositions,layout=citizens.layout,visibleFloor,activityStations=[],verticalLayout,advanceOnly=false}={}){
  const circular=['circular','circle','rings'].includes(layout),limit=circular&&rings<2?16:MAX_PEOPLE;
  const supportedWards=layout==='tower'||layout==='saddle';
- if(supportedWards&&verticalLayout)citizens.group.position.y=citizens.deckY+(verticalLayout.floors[0]?.surfaceOffset??.109*(verticalLayout.heightScale??1));
  const requested=Number.isFinite(populationCount)?Math.max(0,Math.floor(populationCount)):24;
  const occupiedFloors=verticalLayout?.floors.filter(f=>!f.underConstruction);
  const count=supportedWards&&occupiedFloors?.length===0?0:Math.min(limit,requested);
+ if(advanceOnly){if(supportedWards)towerCirculate(citizens,time,count,rings,verticalLayout);else if(circular)circulate(citizens,time,count,rings);return;}
+ if(supportedWards&&verticalLayout)citizens.group.position.y=citizens.deckY+(verticalLayout.floors[0]?.surfaceOffset??.109*(verticalLayout.heightScale??1));
  citizens.requestedPopulation=requested;citizens.populationCount=count;citizens.layout=layout;citizens.rings=rings;citizens.slotPositions=slotPositions;citizens.styleCounts={};citizens.routes.length=0;
  const ringRoutes=supportedWards?towerCirculate(citizens,time,count,rings,verticalLayout):circular?circulate(citizens,time,count,rings):null;
- const {root,part,matrix,direction,handPosition,up,color,body,head,wrist,angles,groupInverse,stationMatrix,rootInverse,bodyInverse,leftTarget,rightTarget,stationPoint}=citizens.scratch;
+ const {root,partPosition,partScale,partQuaternion,partAngles,partMatrix,matrix,direction,handPosition,up,color,body,head,wrist,angles,groupInverse,stationMatrix,rootInverse,bodyInverse,leftTarget,rightTarget,stationPoint}=citizens.scratch;
  const routes=Array.from({length:count},(_,i)=>ringRoutes?.[i]??routeFor(citizens,citizens.data[i],time,moving,{rings,slotPositions,layout}));
  const stations=activityStations.filter(s=>s.foot?.parent&&(!occupiedFloors||occupiedFloors.some(f=>f.slot===s.slot))&&(!Number.isFinite(visibleFloor)||s.tier===visibleFloor)).slice(0,Math.min(3,count));
  citizens.group.updateWorldMatrix(true,false);groupInverse.copy(citizens.group.matrixWorld).invert();
@@ -261,30 +265,37 @@ export function animateCitizens(citizens,time,moving,populationCount,{rings=citi
  const activities={walking:0,carrying:0,reading:0,working:0,gardening:0,conversation:0,resting:0};citizens.stationContacts=[];
  const clothPose={morphTargetInfluences:[0,0]};
  for(const bucket of Object.values(citizens.buckets)){bucket.count=0;bucket.colorsChanged=false;}
+ // Every body part of every citizen passes through here, about 1,300 times a
+ // frame. The part is composed from plain vectors: posing a scene node instead
+ // made each call also convert its rotation to Euler angles nobody reads.
  function put(name,x,y,z,sx,sy,sz,tint,rx=0,ry=0,rz=0,quaternion=null){
   const bucket=citizens.buckets[name],n=bucket.count++;
   if(n>=bucket.capacity)throw new Error(`Citizen instance capacity exceeded: ${name}`);
-  part.position.set(x,y,z);part.scale.set(sx,sy,sz);
-  if(quaternion)part.quaternion.copy(quaternion);else part.rotation.set(rx,ry,rz);
+  partPosition.set(x,y,z);partScale.set(sx,sy,sz);
+  if(quaternion){if(quaternion!==partQuaternion)partQuaternion.copy(quaternion);}
+  // An unrotated part, the usual case, is the identity that three angles of
+  // positive zero convert to. A negative zero takes the conversion.
+  else if(Object.is(rx,0)&&Object.is(ry,0)&&Object.is(rz,0))partQuaternion.set(0,0,0,1);
+  else partQuaternion.setFromEuler(partAngles.set(rx,ry,rz));
   // Turn the face and shoulders toward a task while leaving pelvis, legs and
   // planted shoe matrices on the authored route. Tools follow the same pose.
   if(y>.675&&(Math.abs(x)<.07||name==='headwear'||name==='brim'||name==='hair')){
    // Adult head-to-body proportions retain the authored crown height while
    // all face, hair and hat parts stay together as one proportioned volume.
-   part.position.x*=.90;part.position.z*=.90;part.position.y=.805+(part.position.y-.805)*.88;
-   part.scale.set(part.scale.x*.90,part.scale.y*.88,part.scale.z*.90);
-   part.position.y-=.674;part.position.applyQuaternion(head);part.position.y+=.674;part.quaternion.premultiply(head);
+   partPosition.x*=.90;partPosition.z*=.90;partPosition.y=.805+(partPosition.y-.805)*.88;
+   partScale.set(partScale.x*.90,partScale.y*.88,partScale.z*.90);
+   partPosition.y-=.674;partPosition.applyQuaternion(head);partPosition.y+=.674;partQuaternion.premultiply(head);
   }
   if(y>.42||name==='cape'||(Math.abs(x)>.08&&y>.35&&(name==='skin'||name==='hands'||name==='limbs'))){
-   part.position.y-=.415;part.position.applyQuaternion(body);part.position.y+=.415;part.quaternion.premultiply(body);
+   partPosition.y-=.415;partPosition.applyQuaternion(body);partPosition.y+=.415;partQuaternion.premultiply(body);
   }
-  part.updateMatrix();matrix.multiplyMatrices(root.matrix,part.matrix);bucket.mesh.setMatrixAt(n,matrix);
+  partMatrix.compose(partPosition,partQuaternion,partScale);matrix.multiplyMatrices(root.matrix,partMatrix);bucket.mesh.setMatrixAt(n,matrix);
   if(bucket.mesh.geometry.userData.movingCloth)bucket.mesh.setMorphAt(n,clothPose);
   if(bucket.colors[n]!==tint){color.setHex(tint);bucket.mesh.setColorAt(n,color);bucket.colors[n]=tint;bucket.colorsChanged=true;}
  }
  function segment(ax,ay,az,bx,by,bz,width,tint){
-  direction.set(bx-ax,by-ay,bz-az);const length=direction.length();part.quaternion.setFromUnitVectors(up,direction.normalize());
-  put('limbs',(ax+bx)/2,(ay+by)/2,(az+bz)/2,width,length,width,tint,0,0,0,part.quaternion);
+  direction.set(bx-ax,by-ay,bz-az);const length=direction.length();partQuaternion.setFromUnitVectors(up,direction.normalize());
+  put('limbs',(ax+bx)/2,(ay+by)/2,(az+bz)/2,width,length,width,tint,0,0,0,partQuaternion);
  }
  for(let i=0;i<count;i++){
   const p=citizens.data[i],route=routes[i];citizens.routes.push({id:i,...route,station:undefined,stationSlot:route.station?.slot});

@@ -3,6 +3,7 @@ import {getMaterial,box} from './materials.js';
 
 
 import {traceContour,connectedStrip,createSupportingRing,createContourDepth} from './harness-envelope.js';
+import {createSkinSampler} from './skin-sampler.js';
 
 // These are load-bearing belts on the animal, independent of district IDs.
 // The surface is sampled only when fitted; each frame evaluates those same
@@ -50,7 +51,7 @@ export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS,originBo
   const point=new T.Vector3(),a=new T.Vector3(),b=new T.Vector3(),normal=new T.Vector3(),tangent=new T.Vector3(),along=new T.Vector3();
   const center=new T.Vector3(),prior=new T.Vector3(),next=new T.Vector3(),expectedNormal=new T.Vector3();
   const vectors=count=>Array.from({length:count},()=>new T.Vector3());
-  const vertexCaches=new Map();
+  const vertexCaches=new Map();let skinReads=null;
   let fitted=false,rearLoaded=false;
   const bands=stations.map((station,index)=>{
     const mesh=new T.Mesh(beltGeometry(),leather);mesh.name=index?'Rear closed hip harness':'Front closed breast harness';
@@ -83,7 +84,7 @@ export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS,originBo
     band.originInBone=originBone?originBone.worldToLocal(rig.localToWorld(band.origin.clone())):null;
   }
   function fitToPose(){
-    fitted=false;vertexCaches.clear();rig.updateWorldMatrix(true,true);inverse.copy(rig.matrixWorld).invert();
+    fitted=false;vertexCaches.clear();skinReads=null;rig.updateWorldMatrix(true,true);inverse.copy(rig.matrixWorld).invert();
     if(originBone)for(const band of bands){
       relative.copy(band.originInBone);originBone.localToWorld(relative).applyMatrix4(inverse).sub(band.referenceOrigin);
       band.origin.copy(band.referenceOrigin).addScaledVector(band.u,relative.dot(band.u)).addScaledVector(band.v,relative.dot(band.v));
@@ -132,7 +133,18 @@ export function createFleshHarness(rig,meshes,{stations=GIRDLE_STATIONS,originBo
     inverse.copy(rig.matrixWorld).invert();
     // A vertex shared by any contour or strip anchor is skinned and transformed
     // exactly once per frame, even when several source triangles reference it.
-    for(const [object,cache]of vertexCaches)for(const [id,position]of cache)object.getVertexPosition(id,position).applyMatrix4(object.matrixWorld).applyMatrix4(inverse);
+    // A skinned source is read through the sampler, which returns what
+    // getVertexPosition(...).applyMatrix4(matrixWorld) returns without forming
+    // each bone's product again for every vertex.
+    skinReads??=[...vertexCaches].map(([object,cache])=>{
+      let sampler=null;
+      if(object.isSkinnedMesh)try{sampler=createSkinSampler(object);sampler.sync();}catch{sampler=null;}
+      return{object,sampler,ids:Int32Array.from(cache.keys()),positions:[...cache.values()]};
+    });
+    for(const {object,sampler,ids,positions}of skinReads){
+      if(sampler){sampler.sync();for(let i=0;i<ids.length;i++)sampler.worldPosition(ids[i],positions[i]).applyMatrix4(inverse);}
+      else for(let i=0;i<ids.length;i++)object.getVertexPosition(ids[i],positions[i]).applyMatrix4(object.matrixWorld).applyMatrix4(inverse);
+    }
     for(const band of bands){
       band.mesh.visible=!band.rear||rearLoaded;
       for(const anchor of band.anchors){const weights=anchor.surface.weights;anchor.point.copy(anchor.vertices[0]).multiplyScalar(weights.x).addScaledVector(anchor.vertices[1],weights.y).addScaledVector(anchor.vertices[2],weights.z);}

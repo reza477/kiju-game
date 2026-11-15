@@ -68,12 +68,16 @@ export function createSupportingRing(count){
  const nx=new Float64Array(count),ny=new Float64Array(count),support=new Float64Array(count),determinant=new Float64Array(count),normals=[];
  for(let i=0;i<count;i++){const angle=(i-.5)/count*Math.PI*2;nx[i]=Math.cos(angle);ny[i]=Math.sin(angle);}
  for(let i=0;i<count;i++){const next=(i+1)%count;determinant[i]=nx[i]*ny[next]-ny[i]*nx[next];requireGeometry(determinant[i]>0);normals.push(new T.Vector3(nx[i]+nx[next],ny[i]+ny[next],0).normalize());}
- let ready=false;
+ let ready=false,px=new Float64Array(0),py=px;
  return{
+  // Every support line is tested against every point of the strip, each
+  // frame. The points are read once into flat arrays; the products and their
+  // maximum are the ones the point objects gave.
   fit(points){
-   requireGeometry(points.length>=3,'A support ring needs a complete skin outline');
-   for(const p of points)requireGeometry(Number.isFinite(p.x)&&Number.isFinite(p.y),'Non-finite support point');
-   for(let i=0;i<count;i++){let extent=-Infinity;for(const p of points)extent=Math.max(extent,p.x*nx[i]+p.y*ny[i]);support[i]=extent;}
+   const total=points.length;requireGeometry(total>=3,'A support ring needs a complete skin outline');
+   if(px.length<total){px=new Float64Array(total);py=new Float64Array(total);}
+   for(let k=0;k<total;k++){const p=points[k];requireGeometry(Number.isFinite(p.x)&&Number.isFinite(p.y),'Non-finite support point');px[k]=p.x;py[k]=p.y;}
+   for(let i=0;i<count;i++){const x=nx[i],y=ny[i];let extent=-Infinity;for(let k=0;k<total;k++)extent=Math.max(extent,px[k]*x+py[k]*y);support[i]=extent;}
    ready=true;
   },
   write(padding,outputPoints,outputNormals){
@@ -94,7 +98,11 @@ export function createSupportingRing(count){
 // share the support polygon's XY coordinates. The lookup origin follows the
 // posed hull, remaining inside it during a strike or a large torso bend.
 export function createContourDepth(){
- const sorted=[],unique=[],hull=[];let centerX=0,centerY=0;
+ const sorted=[],unique=[],hull=[];let centerX=0,centerY=0,edges=0;
+ // One row per hull edge, filled when the hull is built: its start relative
+ // to the centre, its direction, their cross product, and its depth span.
+ // A frame samples each hull several hundred times.
+ let startX=new Float64Array(0),startY=startX,alongX=startX,alongY=startX,turn=startX,depth=startX,depthSpan=startX;
  const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
  return{
   update(points){
@@ -107,14 +115,20 @@ export function createContourDepth(){
    for(let i=unique.length-2;i>=0;i--){const p=unique[i];while(hull.length>lower&&cross(hull.at(-2),hull.at(-1),p)<=0)hull.pop();hull.push(p);}
    hull.pop();requireGeometry(hull.length>=3,'The posed contour has no enclosed area');
    centerX=hull.reduce((sum,p)=>sum+p.x,0)/hull.length;centerY=hull.reduce((sum,p)=>sum+p.y,0)/hull.length;
+   edges=hull.length;
+   if(startX.length<edges){startX=new Float64Array(edges);startY=new Float64Array(edges);alongX=new Float64Array(edges);alongY=new Float64Array(edges);turn=new Float64Array(edges);depth=new Float64Array(edges);depthSpan=new Float64Array(edges);}
+   for(let i=0;i<edges;i++){
+    const a=hull[i],b=hull[(i+1)%edges],ax=a.x-centerX,ay=a.y-centerY,ex=b.x-a.x,ey=b.y-a.y;
+    startX[i]=ax;startY[i]=ay;alongX[i]=ex;alongY[i]=ey;turn[i]=ax*ey-ay*ex;depth[i]=a.z;depthSpan[i]=b.z-a.z;
+   }
   },
   sample(point){
    const dx=point.x-centerX,dy=point.y-centerY;let radius=Infinity,result;
-   for(let i=0;i<hull.length;i++){
-    const a=hull[i],b=hull[(i+1)%hull.length],ax=a.x-centerX,ay=a.y-centerY,ex=b.x-a.x,ey=b.y-a.y,den=dx*ey-dy*ex;
+   for(let i=0;i<edges;i++){
+    const den=dx*alongY[i]-dy*alongX[i];
     if(Math.abs(den)<1e-12)continue;
-    const r=(ax*ey-ay*ex)/den,t=(ax*dy-ay*dx)/den;
-    if(r>0&&t>=-1e-8&&t<=1+1e-8&&r<radius){radius=r;result=a.z+(b.z-a.z)*t;}
+    const r=turn[i]/den,t=(startX[i]*dy-startY[i]*dx)/den;
+    if(r>0&&t>=-1e-8&&t<=1+1e-8&&r<radius){radius=r;result=depth[i]+depthSpan[i]*t;}
    }
    requireGeometry(Number.isFinite(result),'No positive boundary point on contour depth ray');return result;
   }

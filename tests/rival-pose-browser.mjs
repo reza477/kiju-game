@@ -1,6 +1,8 @@
 // A standing rival titan is posed on the CPU every frame, which costs about
 // 20 ms for the beast. It must keep being posed while it is near and in view,
 // and must be left alone while it is far away, where nobody can see it breathe.
+// A hull or airship is animated only on frames that draw it, and then stands
+// exactly where animating it on every frame would have put it.
 // Usage: GAME_TEST_URL=http://127.0.0.1:4188 node tests/rival-pose-browser.mjs
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
@@ -39,36 +41,56 @@ try{
   const again=await observe(60);
   assert.ok(again.cameraDistance>170);assert.equal(again.posed,0,'Leaving stops the posing again: '+JSON.stringify(again));
   report.checks.push('Walking away stops the posing again.');
-  // Far hulls and airships keep moving, but their citizens are refreshed less often than every frame.
-  const people=await page.evaluate(async()=>{
-    const {scene,state}=window.__colossus,rows=[];state.paused=false;
-    const cities=scene.enemyCities.filter(city=>!city.meshyCarrier),last=new Map(cities.map(city=>[city,city.citizenTime])),count=new Map(cities.map(city=>[city,0])),start=scene.framesSinceGame;
-    await new Promise(resolve=>{const wait=()=>{for(const city of cities)if(city.citizenTime!==last.get(city)){last.set(city,city.citizenTime);count.set(city,count.get(city)+1);}scene.framesSinceGame-start>=60?resolve():requestAnimationFrame(wait);};requestAnimationFrame(wait);});
-    for(const city of cities)rows.push({variant:city.variant,refreshes:count.get(city),posed:city.poseTime===state.time||state.time-city.poseTime<.2});
-    return{frames:scene.framesSinceGame-start,rows};
-  });
-  for(const row of people.rows){assert.ok(row.posed,'A far hull or airship still moves every frame: '+JSON.stringify(row));assert.ok(row.refreshes>=1&&row.refreshes<people.frames,'Its citizens refresh, but not every frame: '+JSON.stringify(row)+' in '+people.frames);}
-  report.checks.push(`Far rivals' citizens refreshed ${people.rows.map(row=>row.refreshes).join(', ')} times in ${people.frames} frames.`);
   // A rival that neither the view nor the sun's shadow volume contains is hidden; one in view is shown.
+  // Turn the camera to look outward from the valley, so that some rivals are behind it.
+  const turn=yaw=>page.evaluate(async yaw=>{const {scene,state}=window.__colossus;scene.setCameraMode('steady');scene.yaw=yaw??Math.atan2(-state.x,-state.z);scene.snapCamera=true;const start=scene.framesSinceGame;
+    await new Promise(resolve=>{const wait=()=>scene.framesSinceGame-start>=6?resolve():requestAnimationFrame(wait);requestAnimationFrame(wait);});return scene.yaw;},yaw);
+  const outward=await turn();
   const culling=await page.evaluate(async()=>{
-    const T=await import('/vendor/three.module.js'),{scene,state}=window.__colossus;
-    // Turn the camera to look outward from the valley, so the rivals are behind it.
-    scene.setCameraMode('steady');scene.yaw=Math.atan2(-state.x,-state.z);scene.snapCamera=true;const start=scene.framesSinceGame;
-    await new Promise(resolve=>{const wait=()=>scene.framesSinceGame-start>=6?resolve():requestAnimationFrame(wait);requestAnimationFrame(wait);});
+    const T=await import('/vendor/three.module.js'),{scene}=window.__colossus;
     const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(scene.camera.projectionMatrix,scene.camera.matrixWorldInverse));
     return scene.enemyCities.map(city=>{const sphere=new T.Sphere(city.root.position.clone().add(new T.Vector3(0,25,0)),60),shadow=scene.renderer.shadowMap.enabled&&scene.sun.shadow.getFrustum().intersectsSphere(sphere);return{variant:city.variant,visible:city.root.visible,inView:frustum.intersectsSphere(sphere),inShadowVolume:shadow};});
   });
   for(const row of culling)assert.equal(row.visible,row.inView||row.inShadowVolume,'Rival visibility follows the view and shadow volumes: '+JSON.stringify(row));
   assert.ok(culling.some(row=>!row.visible),'At least one rival is outside both volumes here: '+JSON.stringify(culling));
   report.checks.push(`${culling.filter(row=>!row.visible).length} of ${culling.length} rivals are outside the view and shadow volumes and hidden.`);
-  // When time stops, every rival is brought to that instant once.
+  // A hull that is drawn is animated on every frame, its citizens less often. One that is not drawn is not
+  // animated at all, but an airship still hovers, because its chimneys and their smoke ride on that.
+  const hulls=await page.evaluate(async()=>{
+    const {scene,state}=window.__colossus;state.paused=false;
+    const cities=scene.enemyCities.filter(city=>!city.meshyCarrier),rows=new Map(cities.map(city=>[city,{variant:city.variant,faction:city.faction,drawn:0,posed:0,citizens:0,hoverWrong:0,lastPose:city.poseTime,lastCitizens:city.citizenTime}])),start=scene.framesSinceGame;let frames=0;
+    await new Promise(resolve=>{const wait=()=>{frames++;for(const city of cities){const row=rows.get(city);if(city.root.visible)row.drawn++;if(city.poseTime!==row.lastPose){row.lastPose=city.poseTime;row.posed++;}if(city.citizenTime!==row.lastCitizens){row.lastCitizens=city.citizenTime;row.citizens++;}
+        if(city.faction==='airship'&&city.rig.position.y!==Math.sin(state.time*.85)*.18)row.hoverWrong++;}
+      scene.framesSinceGame-start>=60?resolve():requestAnimationFrame(wait);};requestAnimationFrame(wait);});
+    return{frames,rows:[...rows.values()].map(({lastPose,lastCitizens,...row})=>row)};
+  });
+  for(const row of hulls.rows){
+    if(row.drawn>=hulls.frames-1){assert.ok(row.posed>=hulls.frames-3,'A drawn hull is animated every frame: '+JSON.stringify(row));assert.ok(row.citizens>=1&&row.citizens<hulls.frames,'Its citizens refresh, but not every frame: '+JSON.stringify(row));}
+    else if(row.drawn===0)assert.equal(row.posed+row.citizens,0,'A hull that is not drawn is not animated: '+JSON.stringify(row));
+    assert.equal(row.hoverWrong,0,'An airship hovers whether or not it is drawn: '+JSON.stringify(row));
+  }
+  assert.ok(hulls.rows.some(row=>row.drawn===0)&&hulls.rows.some(row=>row.drawn>=hulls.frames-1),'This view has a drawn hull and one that is not: '+JSON.stringify(hulls));
+  report.checks.push(`Over ${hulls.frames} frames: ${hulls.rows.map(row=>`${row.variant} drawn ${row.drawn}, animated ${row.posed}, citizens ${row.citizens}`).join('; ')}.`);
+  // Turn back: a hull that was left alone is animated to the present on the frame it is drawn again,
+  // and a propeller stands exactly where continuous animation would have it.
+  await turn(outward+Math.PI);
+  const resumed=await page.evaluate(()=>{const {scene,state}=window.__colossus;return scene.enemyCities.filter(city=>!city.meshyCarrier&&city.root.visible).map(city=>{
+    const spinner=city.spinners.find(s=>!s.drill);return{variant:city.variant,current:city.poseTime===state.time,propeller:city.faction!=='airship'||!spinner||spinner.obj.rotation[spinner.axis]===state.time*spinner.speed};});});
+  assert.ok(resumed.length>0,'A hull is in view after turning back');
+  for(const row of resumed){assert.ok(row.current,'A hull drawn again is animated to the present: '+JSON.stringify(row));assert.ok(row.propeller,'and its propeller is where the clock puts it: '+JSON.stringify(row));}
+  report.checks.push(`Turning back brought ${resumed.length} hull rivals to the present on the frame they were drawn.`);
+  // When time stops, every drawn rival is brought to that instant once; one not drawn waits until it is.
   const frozen=await page.evaluate(async()=>{
     const {scene,state}=window.__colossus;state.paused=true;const start=scene.framesSinceGame;
     await new Promise(resolve=>{const wait=()=>scene.framesSinceGame-start>=4?resolve():requestAnimationFrame(wait);requestAnimationFrame(wait);});
-    const rows=scene.enemyCities.map(city=>({variant:city.variant,poseTime:city.poseTime,citizenTime:city.citizenTime}));state.paused=false;return{time:state.time,rows};
+    return{time:state.time,rows:scene.enemyCities.map(city=>({variant:city.variant,drawn:city.root.visible,poseTime:city.poseTime,citizenTime:city.citizenTime}))};
   });
-  for(const row of frozen.rows){assert.equal(row.poseTime,frozen.time,'A paused rival is posed at the paused instant: '+JSON.stringify(row));assert.equal(row.citizenTime,frozen.time,'and so are its citizens: '+JSON.stringify(row));}
-  report.checks.push('Pausing brings every rival and its citizens to the paused instant.');
+  for(const row of frozen.rows.filter(row=>row.drawn)){assert.equal(row.poseTime,frozen.time,'A drawn rival is posed at the paused instant: '+JSON.stringify(row));assert.equal(row.citizenTime,frozen.time,'and so are its citizens: '+JSON.stringify(row));}
+  await turn(outward);
+  const turned=await page.evaluate(()=>{const {scene,state}=window.__colossus,rows=scene.enemyCities.map(city=>({variant:city.variant,drawn:city.root.visible,poseTime:city.poseTime,citizenTime:city.citizenTime}));const time=state.time;state.paused=false;return{time,rows};});
+  assert.equal(turned.time,frozen.time,'Time stayed stopped');
+  for(const row of turned.rows.filter(row=>row.drawn)){assert.equal(row.poseTime,turned.time,'A rival that comes into view while paused is posed at the paused instant: '+JSON.stringify(row));assert.equal(row.citizenTime,turned.time,'and so are its citizens: '+JSON.stringify(row));}
+  report.checks.push('Pausing brings every drawn rival and its citizens to the paused instant, and so does turning the camera while paused.');
   assert.deepEqual(report.errors,[]);
 }catch(error){report.failure=String(error?.stack??error);}
 finally{await browser.close();console.log(JSON.stringify(report,null,2));if(report.failure)process.exitCode=1;}

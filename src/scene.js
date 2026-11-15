@@ -4,7 +4,7 @@ import {captureImpactAnchor,resolveImpactAnchor} from './impact-anchor.js';
 import {nativeMeleeAnchor,nativeMeleeStart,nativeBodyImpactAnchor} from './native-melee-anchor.js';
 import {distance,FACTIONS,weaponStatus,attackDelay} from './simulation.js';
 import {getMaterial,box,beam,batchStatic,disposeGroup,createEnvironment,loadDaylightEnvironment,setWindowLighting} from './materials.js';
-import {makeCity,animateCity,animateCityCitizens,slotPosition,setCityRings} from './carriers.js';
+import {makeCity,animateCity,animateCityCitizens,settleHull,slotPosition,setCityRings} from './carriers.js';
 import {createDistrict,createVacantPlot,createVerticalDistrict} from './architecture.js';
 import {createSaddleDistrict} from './saddle-city.js';
 import {createLandscape,createResourceSite} from './landscape.js';
@@ -186,6 +186,8 @@ export class GameScene {
     // The detail governor only adjusts a level the player has not chosen.
     this.qualityChosen=isGraphicsQuality(preferredQuality);
     this.canvas=canvas;this.onSelect=onSelect;this.scene=new T.Scene();
+    // update() derives the scene's matrices itself, once, before it renders (deriveMatrices).
+    this.scene.matrixWorldAutoUpdate=false;
     this.camera=new T.PerspectiveCamera(42,1,.25,1500);
     this.renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
     this.renderer.outputColorSpace=T.SRGBColorSpace;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.03;
@@ -208,7 +210,7 @@ export class GameScene {
     this.cityLighting=new CityLighting(this.scene);
     this.impactLights=[new T.PointLight(0xffc58b,0,13,2),new T.PointLight(0xffab73,0,13,2)];
     for(const light of this.impactLights){light.name='Brief surface impact light';light.castShadow=false;this.scene.add(light);}this.impactDirection=new T.Vector3();
-    this.pickables=[];this.labels=[];this.enemyCities=[];this.fx=[];this.lastEvent=0;this.preview=false;
+    this.pickables=[];this.labels=[];this.enemyCities=[];this.rivalRoots=new Map();this.fx=[];this.lastEvent=0;this.preview=false;
     this.view='city';this.yaw=.72;this.pitch=.55;this.zoom=80;this.focus=new T.Vector3();this.ray=new T.Raycaster();this.pointer=new T.Vector2();this.light='day';this.quality=initialQuality;this.routeTarget=null;
     this.cinematic=new CinematicCamera(matchMedia('(prefers-reduced-motion: reduce)').matches?'steady':'cinematic');this.cameraBasePosition=new T.Vector3();this.cameraAim=new T.Vector3();this.cameraDesired=new T.Vector3();this.cameraPrevious=new T.Vector3();this.cameraVelocity=new T.Vector3();
     this.createSelection();this.setLighting('day');this.setQuality(initialQuality,{persist:false});this.addPointer();
@@ -241,7 +243,7 @@ export class GameScene {
     if(this.city.cargo)bindFleshCargoPose(s,()=>posePlayerCargo(this,s));
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
-    this.enemyCities=[];this.labels=[];this.pickables=[];
+    this.enemyCities=[];this.rivalRoots=new Map();this.labels=[];this.pickables=[];
     const movementRuins=new Map();
     for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);
       // Portrait first-use tracing identified this shared instanced metal
@@ -260,7 +262,7 @@ export class GameScene {
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
       const proxyHeight=e.faction==='kaiju'?(city.saddleLayout?56:Math.max(56,city.verticalLayout?.towerTop??82)):e.variant==='vertical'?45:34;
       const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,proxyHeight,e.faction==='kaiju'?34:e.variant==='drill'?52:32),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?proxyHeight/2:20,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
-      this.scene.add(city.root);this.enemyCities.push(city);
+      this.scene.add(city.root);this.enemyCities.push(city);this.rivalRoots.set(city.root,city);city.matricesStale=true;
     }
     // Include one real skinned mesh per shared material. Compiling a static
     // stand-in would omit the skinning program used by these moving bodies.
@@ -314,52 +316,87 @@ export class GameScene {
 
   // Standing rivals cost far more than they show. An imported titan is posed
   // on the CPU: the beast's skin correction, planted paws and harness take
-  // about 20 ms. Every city also walks some thirty articulated citizens. From
-  // far away or off screen none of that can be seen, so:
+  // about 20 ms. Every city also walks some thirty articulated citizens and
+  // is 500 to 1,200 scene nodes. From far away or off screen none of that can
+  // be seen, so:
   //  - a rival is placed again only when its position changes;
+  //  - a rival that this frame neither shows nor shadows is not animated,
+  //    not drawn, and its matrices are left alone. A hull's animation is a
+  //    function of the clock, so it resumes exactly where continuous
+  //    animation would have had it. Only the hover and flinch that carry its
+  //    chimneys are kept up, because its smoke is part of the world;
   //  - a far titan keeps its last pose, and its idle breathing with it;
-  //  - a far hull or airship still turns its propellers and bobs, which is
-  //    cheap;
-  //  - every far rival's citizens are refreshed 15 times a game second;
-  //  - when time stops, every rival catches up to that instant once, so a
-  //    paused picture shows carriers exactly where continuous posing would
+  //  - a far rival's citizens are refreshed 15 times a game second while it
+  //    is drawn. While it is not, a titan's single-file traffic is still
+  //    moved on at that rate, unposed, because it carries its own history;
+  //  - when time stops, every drawn rival catches up to that instant once, so
+  //    a paused picture shows carriers exactly where continuous posing would
   //    have put them. Citizens keep their own history and may stand a step
   //    away from where they would otherwise have been.
-  // Every rival is fully posed on its first frame and whenever it is near.
-  updateRivals(s,touched){
-    const frozen=s.time===this.rivalClock;this.rivalClock=s.time;
+  // Every rival is fully posed on its first frame and whenever it is put
+  // somewhere new, and a titan whenever it is near. `matricesStale` records
+  // that something moved since the rival's world matrices were last derived.
+  updateRivals(s){
+    this.rivalsFrozen=s.time===this.rivalClock;this.rivalClock=s.time;
     for(const city of this.enemyCities){
       const enemy=s.enemies.find(e=>e.id===city.id);city.root.visible=!enemy.defeated;if(enemy.defeated)continue;
-      if(city.placedAt?.x!==enemy.x||city.placedAt.z!==enemy.z){placeCity(city,enemy.x,enemy.z,-.8);city.placedAt={x:enemy.x,z:enemy.z};touched.add(city);}
-      const first=!city.posedForGame,near=first||this.rivalIsNear(city);city.posedForGame=true;
-      if(city.meshyCarrier){
-        if(!near&&!(frozen&&city.poseTime!==s.time)){
-          if(s.time-city.citizenTime>=RIVAL_CITIZEN_INTERVAL){animateCityCitizens(city,s.time,false);city.citizenTime=s.time;}
-          continue;
-        }
-        animateCity(city,s.time,false);city.citizenTime=s.time;
-      }else{
-        const citizens=near||(frozen&&city.citizenTime!==s.time)||s.time-city.citizenTime>=RIVAL_CITIZEN_INTERVAL;
-        animateCity(city,s.time,false,undefined,{citizens});if(citizens)city.citizenTime=s.time;
+      const placed=city.placedAt?.x!==enemy.x||city.placedAt.z!==enemy.z;
+      if(placed){placeCity(city,enemy.x,enemy.z,-.8);city.placedAt={x:enemy.x,z:enemy.z};}
+      const first=!city.posedForGame;city.near=first||this.rivalIsNear(city);city.posedForGame=true;
+      // A rival is posed where it has just been put: after a battle it must not stand on in its last blow.
+      if(first||placed||(city.meshyCarrier&&city.near))this.poseRival(city,s.time,true);
+      else if(!city.meshyCarrier){
+        const rig=city.rig,height=rig.position.y,flinch=rig.rotation.x;settleHull(city,s.time);
+        if(!Object.is(rig.position.y,height)||!Object.is(rig.rotation.x,flinch))city.matricesStale=true;
       }
-      animateWeapons(city,null,s.time);city.poseTime=s.time;touched.add(city);
     }
+  }
+  poseRival(city,time,citizens){
+    animateCity(city,time,false,undefined,{citizens});if(citizens)city.citizenTime=city.citizensShown=time;
+    animateWeapons(city,null,time);city.poseTime=time;city.matricesStale=true;
   }
 
   // Once this frame's camera and sun are placed: a rival that neither the
   // view nor the sun's shadow volume can contain is not walked, culled mesh
-  // by mesh or drawn. A city is some 400 to 900 separate meshes, and three
-  // or four of the five rivals are usually behind the camera.
-  cullRivals(){
+  // by mesh or drawn, and so needs no animation either. The rest are brought
+  // to this instant.
+  cullRivals(s){
     const bounds=this.rivalBounds??=new T.Sphere(),frustum=this.rivalFrustum??=new T.Frustum(),view=this.rivalView??=new T.Matrix4();
     this.camera.updateMatrixWorld(true);
     frustum.setFromProjectionMatrix(view.multiplyMatrices(this.camera.projectionMatrix,this.camera.matrixWorldInverse));
     const shadows=this.renderer.shadowMap.enabled&&this.sun.castShadow?this.sun.shadow:null;
     if(shadows){this.sun.updateMatrixWorld(true);this.sun.target.updateMatrixWorld(true);shadows.updateMatrices(this.sun);}
+    const frozen=this.rivalsFrozen;
     for(const city of this.enemyCities){
       if(!city.root.visible)continue;
       bounds.center.copy(city.root.position);bounds.center.y+=25;bounds.radius=60;
-      city.root.visible=frustum.intersectsSphere(bounds)||(!!shadows&&shadows.getFrustum().intersectsSphere(bounds));
+      const drawn=city.root.visible=frustum.intersectsSphere(bounds)||(!!shadows&&shadows.getFrustum().intersectsSphere(bounds));
+      const citizens=city.near||(frozen&&city.citizenTime!==s.time)||s.time-city.citizenTime>=RIVAL_CITIZEN_INTERVAL;
+      if(!city.meshyCarrier){
+        // A hull already at this instant, as on every frame of a pause, only owes its citizens.
+        if(drawn&&city.poseTime!==s.time)this.poseRival(city,s.time,citizens);
+        else if(drawn&&citizens){animateCityCitizens(city,s.time,false);city.citizenTime=city.citizensShown=s.time;}
+        continue;
+      }
+      if(city.poseTime===s.time)continue;
+      // A titan's citizens walk in single file and carry their places from
+      // one refresh to the next, so their traffic keeps its 15 refreshes a
+      // second whether or not anyone can see it, and is only posed when drawn.
+      if(drawn&&frozen)this.poseRival(city,s.time,true);
+      else if(citizens){animateCityCitizens(city,s.time,false,undefined,{advanceOnly:!drawn});city.citizenTime=s.time;if(drawn)city.citizensShown=s.time;}
+      else if(drawn&&city.citizensShown!==city.citizenTime){animateCityCitizens(city,city.citizenTime,false);city.citizensShown=city.citizenTime;}
+    }
+  }
+
+  // three.js re-derives the matrix of every node in the scene on every
+  // render. The scene does it here instead, and leaves out a rival that is
+  // not being drawn or that nothing has moved since its matrices were last
+  // derived. Rivals are three quarters of the scene's nodes.
+  deriveMatrices(){
+    for(const child of this.scene.children){
+      const rival=this.rivalRoots.get(child);
+      if(rival){if(!child.visible||!rival.matricesStale)continue;rival.matricesStale=false;}
+      child.updateMatrixWorld(true);
     }
   }
 
@@ -481,11 +518,11 @@ export class GameScene {
     const cutaway=this.city.layout==='tower'&&this.view==='people'&&!battle&&!this.preview;
     this.city.inspectedFloor=cutaway?this.towerTier:undefined;
     this.city.rig.traverse(o=>{if(Number.isInteger(o.userData.towerTier))o.visible=!cutaway||(o.userData.towerTier<=this.towerTier&&!(o.userData.inspectionShell&&o.userData.towerTier===this.towerTier));});
-    const actors=[],touched=new Set();
+    const actors=[];
     if(battle){
       const b=s.battle;placeCity(this.city,b.player.x,b.player.z,b.player.angle);
       const enemy=this.enemyCities.find(c=>c.id===b.enemyId);for(const city of this.enemyCities)city.root.visible=city===enemy;
-      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);enemy.placedAt=null;
+      placeCity(enemy,b.enemy.x,b.enemy.z,b.enemy.angle);enemy.placedAt=null;enemy.poseTime=undefined;enemy.matricesStale=true;
       for(const fx of this.fx)if(fx.kind==='impact'&&fx.anchor){refreshImpactAnchor(fx);fx.actor.strikeTarget?.copy(fx.end);}
       animateCity(enemy,s.time,!b.result);
       animateWeapons(this.city,b.enemy,s.time);animateWeapons(enemy,b.player,s.time);this.city.root.updateMatrixWorld(true);enemy.root.updateMatrixWorld(true);
@@ -510,7 +547,7 @@ export class GameScene {
         focus=this.city.rig.localToWorld(new T.Vector3(tower?0:1.525,this.city.deckY+(tower?floor.y:0)+.85,tower?KAIJU_CENTER.z-3.2:3.55));
         if(this.city.saddleLayout){const p=this.city.slotPositions[floor.slot]??{x:0,z:-11};focus=(this.city.cargo??this.city.rig).localToWorld(new T.Vector3(p.x,this.city.deckY+floor.y+1.1,p.z));}
       }
-      this.updateRivals(s,touched);
+      this.updateRivals(s);
       animateWeapons(this.city,null,s.time);
       if(this.lastMode==='battle'){this.yaw=this.savedYaw??.72;this.pitch=this.savedPitch??.55;this.focus.copy(focus);this.snapCamera=true;this.cinematic.reset();}
       actors.push({id:'player',faction:s.faction,x:s.x,z:s.z,angle:s.angle,moving:s.moving&&!this.preview,scale:this.city.scale,footprintScale:this.city.footprintScale,variant:this.city.variant});
@@ -535,9 +572,9 @@ export class GameScene {
     const worldDt=s.paused||this.preview?0:dt;
     this.landscape.interact?.(actors,worldDt,{mode:battle?'battle':'expedition',damage:s.worldDamage[battle?'battle':'expedition']});
     const environmentDt=s.paused?0:dt*s.speed;this.landscape.update(s.time,environmentDt);
-    // A rival that was neither placed nor posed this frame has no stale
-    // matrix; each chimney still resolves its own world position below.
-    const stacks=[];for(const city of [this.city,...this.enemyCities])if(city.root.visible){if(battle||city===this.city||touched.has(city))city.root.updateMatrixWorld(true);for(const point of [...city.stacks,...city.districtStacks])stacks.push(point.getWorldPosition(new T.Vector3()));}
+    // Each chimney resolves its own world position below, so a rival needs
+    // no matrices of its own here.
+    const stacks=[];for(const city of [this.city,...this.enemyCities])if(city.root.visible){if(battle||city===this.city)city.root.updateMatrixWorld(true);for(const point of [...city.stacks,...city.districtStacks])stacks.push(point.getWorldPosition(new T.Vector3()));}
     const current=this.city.root.position,mode=battle?'battle':'expedition';
     const movingOnGround=this.dustPrevious?.mode===mode&&distance(this.dustPrevious,current)>.015&&s.faction!=='airship'&&!this.preview;
     this.atmosphere.update(s.time,environmentDt,stacks,movingOnGround?new T.Vector3(current.x,current.y+.4,current.z):null);this.dustPrevious={x:current.x,z:current.z,mode};
@@ -571,8 +608,8 @@ export class GameScene {
         if(hitAge>1.2){fx.object.removeFromParent();disposeGroup(fx.object);this.fx.splice(i,1);}}
     }
     this.updateCamera(s,dt,desiredZoom,battle);
-    if(!battle)this.cullRivals();
-    this.presentation.render(this.scene);this.framesSinceGame++;
+    if(!battle)this.cullRivals(s);
+    this.deriveMatrices();this.presentation.render(this.scene);this.framesSinceGame++;
     // Submit only the seven bounded traced debris/site shaders using the real output
     // target and lights, after a normal frame. No draw, simulation or camera
     // warmup, asynchronous transition, readiness wait, or extra resource copies.

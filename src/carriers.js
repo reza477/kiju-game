@@ -173,7 +173,7 @@ export function animateCity(city,time,moving,populationCount=28,{citizens=true}=
     if(!city.nativePoseInput||key.some((value,i)=>value!==city.nativePoseInput[i])){animateNativeQuadrupedCityPose(city,time);animateMeshyMonsterCity(city,time,moving);finishNativeQuadrupedCityPose(city);city.nativePoseInput=key;}
   }
   else if(city.faction==='kaiju'){animateTitan(city,time,moving);animateFleshAnatomy(city,time,moving);animateMeshyCyborg(city,time,moving);animateMeshyMonsterCity(city,time,moving);}
-  else{city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);}
+  else settleHull(city,time);
   const dt=Math.max(0,Math.min(.1,time-(city.animationTime??time)));city.animationTime=time;
   for(const spinner of city.spinners){
     if(spinner.drill){
@@ -185,10 +185,16 @@ export function animateCity(city,time,moving,populationCount=28,{citizens=true}=
   if(city.drillHinge)animateDrillContact(city,time);
   if(citizens)animateCityCitizens(city,time,moving,populationCount);
 }
+// The part of a hull's motion that carries the whole craft: an airship's
+// hover and the flinch from a hit. Its chimneys ride on this alone, so a
+// rival that is not being drawn can keep its smoke in the right place.
+export function settleHull(city,time){
+  city.rig.position.y=city.faction==='airship'?Math.sin(time*.85)*.18:0;city.rig.rotation.x=hitReaction(city,time)*(city.faction==='airship'?.025:.008);
+}
 // The people alone. They walk in the city's own frame, so they can be moved
 // without posing the carrier beneath them.
-export function animateCityCitizens(city,time,moving,populationCount=28){
-  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.saddleLayout??city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[]});
+export function animateCityCitizens(city,time,moving,populationCount=28,{advanceOnly=false}={}){
+  animateCitizens(city.people,time,moving,populationCount,{rings:city.rings??2,slotPositions:city.slotPositions,layout:city.layout,verticalLayout:city.saddleLayout??city.verticalLayout,visibleFloor:city.inspectedFloor,activityStations:city.activityStations??[],advanceOnly});
 }
 
 function hitReaction(city,time){const age=time-city.hitAt;return age>=0&&age<.5?Math.sin(age/.5*Math.PI)*Math.exp(-age*4):0;}
