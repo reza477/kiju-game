@@ -12,6 +12,19 @@ if(pcfStart>=0&&pcfEnd>pcfStart){
   const taps=[];for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++)taps.push(`texture(shadowMap,vec3(shadowCoord.xy+vec2(${x}.0,${y}.0)*radius,shadowCoord.z))*${(x===0?2:1)*(y===0?2:1)}.0`);
   T.ShaderChunk.shadowmap_pars_fragment=T.ShaderChunk.shadowmap_pars_fragment.slice(0,pcfStart)+`shadow=(${taps.join('+')})/16.0;`+T.ShaderChunk.shadowmap_pars_fragment.slice(pcfEnd);
 }
+// A point or spot light that contributes nothing still ran its full surface
+// response for every fragment. The city lamps and impact flashes are a fixed
+// pool of eight such lights, dark all day and reaching only a few metres at
+// night, and they cost about a third of a High-detail frame. three.js already
+// computes whether a light reaches the fragment (`visible`: its attenuated
+// colour is not zero); use it. A skipped light would have added exactly zero.
+{
+  const chunk=T.ShaderChunk.lights_fragment_begin,directional=chunk.indexOf('#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct )');
+  const call='RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
+  const local=chunk.slice(0,directional).split(call);
+  if(directional>0&&local.length===3)T.ShaderChunk.lights_fragment_begin=local.join('if ( directLight.visible ) { '+call+' }')+chunk.slice(directional);
+  else console.warn('Unlit local lights are not skipped: the renderer\'s light loop has changed.');
+}
 const settingsFor=value=>typeof value==='string'||!value?getLightingPreset(value):value;
 
 export class Presentation {
