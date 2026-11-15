@@ -14,7 +14,7 @@ import {loadMeshyPilot} from './meshy-pilot.js';
 
 import {loadMeshyCarriers} from './meshy-carriers.js';
 import {createPlanningPanels,foodFlow,routeEstimate,durationLabel,setResourceCourse} from './expedition-planning.js';
-import {createDetailGovernor,AUTOMATIC_QUALITY_KEY} from './adaptive-quality.js';
+import {createDetailGovernor,readTooSlow,AUTOMATIC_QUALITY_KEY,TOO_SLOW_KEY} from './adaptive-quality.js';
 
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state=createGame(),started=false,view='city',selectedSlot=null,selectedBuilding=null,selection=null,scene,keys=new Set(),touch=new Set(),previous=performance.now(),uiElapsed=0,saveElapsed=0,toastTimer,resultShown=false,priorPause=false,uiSignature='';
@@ -112,10 +112,13 @@ function updateMarkers(){const layout=markerLayout.read(),occupied=[],objects=[.
 function inputVector(){const up=keys.has('w')||keys.has('arrowup')||touch.has('up'),down=keys.has('s')||keys.has('arrowdown')||touch.has('down'),left=keys.has('a')||keys.has('arrowleft')||touch.has('left'),right=keys.has('d')||keys.has('arrowright')||touch.has('right');const f=Number(up)-Number(down),r=Number(right)-Number(left),yaw=scene.yaw;return {x:Math.cos(yaw)*r-Math.sin(yaw)*f,z:-Math.sin(yaw)*r-Math.cos(yaw)*f};}
 function frame(now){const dt=Math.min((now-previous)/1000,.08);previous=now;if(started){const priorHp=state.hp,priorEnemyHp=state.battle?.enemyHp;tick(state,dt,inputVector());uiElapsed+=dt;saveElapsed+=dt;if(uiElapsed>.16||state.hp!==priorHp||state.battle?.enemyHp!==priorEnemyHp){renderUI();uiElapsed=0;}if(saveElapsed>30){save();saveElapsed=0;}}else state.time+=dt;
  scene.update(state,dt,selectedSlot);if(revealGame&&scene.framesSinceGame>=1){const reveal=revealGame;revealGame=null;reveal();}
- // Step the detail down when this device cannot hold a playable frame rate.
+ // Keep the detail at the best level this device holds: down when it cannot
+ // keep a playable frame rate, up again once a level runs at full rate.
  // A new game compiles and uploads first, so it is not judged by those frames.
- if(detailGovernor){if(scene.framesSinceGame<=1)detailGovernor.settle(now);const lower=detailGovernor.frame(now,scene.quality,{hidden:document.hidden});
-  if(lower){scene.setQuality(lower,{persist:false});try{localStorage.setItem(AUTOMATIC_QUALITY_KEY,lower);}catch{}$('quality').textContent=`Detail: ${lower}`;toast(`Detail lowered to ${lower} to keep the game smooth. Change it with the Detail button.`);}}
+ if(detailGovernor){if(scene.framesSinceGame<=1)detailGovernor.settle(now);const before=scene.quality,level=detailGovernor.frame(now,before,{hidden:document.hidden});
+  if(level){const raised=['high','balanced','performance'].indexOf(level)<['high','balanced','performance'].indexOf(before);scene.setQuality(level,{persist:false});
+   try{localStorage.setItem(AUTOMATIC_QUALITY_KEY,level);localStorage.setItem(TOO_SLOW_KEY,JSON.stringify(detailGovernor.tooSlow()));}catch{}
+   $('quality').textContent=`Detail: ${level}`;toast(raised?`Detail raised to ${level}: this device has the speed for it. Change it with the Detail button.`:`Detail lowered to ${level} to keep the game smooth. Change it with the Detail button.`);}}
  if(started)audio.update(state,scene);updateMarkers();playtest.frame(now);requestAnimationFrame(frame);}
 function setBuild(type){if(state.mode==='battle')return;if(compactTouch())setMobilePanel('city');selectedBuilding=type;selection=null;selectedSlot=null;changeView('city');uiSignature='';renderUI();}
 function pauseToggle(){if($('dialog').open)return;state.paused=!state.paused;audio.setPaused(state.paused);renderUI();}
@@ -156,7 +159,11 @@ document.querySelectorAll('[data-mobile-panel]').forEach(button=>button.addEvent
 $('mobile-menu').addEventListener('click',menu);document.querySelectorAll('[data-close-panel]').forEach(b=>b.addEventListener('click',()=>setMobilePanel()));
 try{await Promise.all([loadMeshyPilot(),loadMeshyCarriers().catch(error=>console.error('Local carrier assets could not load; original carrier visuals retained.',error))]);scene=new GameScene($('world'),select);try{const mode=localStorage.getItem('colossus-camera-mode');if(['steady','cinematic'].includes(mode))scene.setCameraMode(mode);}catch{}cameraLabel();$('quality').textContent='Detail: '+scene.quality;
  // Audits drive the game through ?test and fix their own detail level.
- if(!scene.qualityChosen&&!new URLSearchParams(location.search).has('test'))detailGovernor=createDetailGovernor();
+ if(!scene.qualityChosen&&!new URLSearchParams(location.search).has('test')){
+  // A touch device starts on Performance for its battery and is not raised above it.
+  let tooSlow={};try{tooSlow=readTooSlow(localStorage.getItem(TOO_SLOW_KEY));}catch{}
+  detailGovernor=createDetailGovernor({ceiling:matchMedia('(pointer: coarse)').matches?'performance':'high',tooSlow});
+ }
  chooseFaction('kaiju');$('loading').classList.add('hidden');$('continue').classList.toggle('hidden',!cachedSave);requestAnimationFrame(frame);
  if(new URLSearchParams(location.search).has('test'))window.__colossus={get state(){return state;},get scene(){return scene;},get audio(){return audio;},advance(seconds){for(let t=0;t<seconds;t+=.1)tick(state,.1);renderUI();},refreshMarkers(){updateMarkers();},snapshot(){return JSON.parse(serialize(state));}};
 }catch(error){$('loading').classList.add('hidden');$('error').classList.remove('hidden');$('error').textContent=`The 3D renderer could not start. Open this game in an updated Safari, Chrome or Edge browser with hardware acceleration enabled. Details: ${error.message}`;console.error(error);}
