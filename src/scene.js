@@ -212,7 +212,7 @@ export class GameScene {
     this.cityLighting=new CityLighting(this.scene);
     this.impactLights=[new T.PointLight(0xffc58b,0,13,2),new T.PointLight(0xffab73,0,13,2)];
     for(const light of this.impactLights){light.name='Brief surface impact light';light.castShadow=false;this.scene.add(light);}this.impactDirection=new T.Vector3();
-    this.pickables=[];this.labels=[];this.enemyCities=[];this.rivalRoots=new Map();this.fx=[];this.lastEvent=0;this.preview=false;
+    this.pickables=[];this.labels=[];this.enemyCities=[];this.fx=[];this.lastEvent=0;this.preview=false;
     this.view='city';this.yaw=.72;this.pitch=.55;this.zoom=80;this.focus=new T.Vector3();this.ray=new T.Raycaster();this.pointer=new T.Vector2();this.light='day';this.quality=initialQuality;this.routeTarget=null;
     this.cinematic=new CinematicCamera(matchMedia('(prefers-reduced-motion: reduce)').matches?'steady':'cinematic');this.cameraBasePosition=new T.Vector3();this.cameraAim=new T.Vector3();this.cameraDesired=new T.Vector3();this.cameraPrevious=new T.Vector3();this.cameraVelocity=new T.Vector3();
     this.createSelection();this.setLighting('day');this.setQuality(initialQuality,{persist:false});this.addPointer();
@@ -245,7 +245,7 @@ export class GameScene {
     if(this.city.cargo)bindFleshCargoPose(s,()=>posePlayerCargo(this,s));
     s.worldDamage??={expedition:[],battle:[]};this.landscape.resetInteractions?.();
     const ghost=new T.Mesh(new T.BoxGeometry(12.6,24.6,11),new T.MeshBasicMaterial({color:0xc7c88d,transparent:true,opacity:.15,wireframe:true}));ghost.position.set(KAIJU_CENTER.x,this.city.deckY+24.6,KAIJU_CENTER.z);ghost.visible=false;this.city.rig.add(ghost);this.city.expansionGhost=ghost;
-    this.enemyCities=[];this.rivalRoots=new Map();this.labels=[];this.pickables=[];
+    this.enemyCities=[];this.labels=[];this.pickables=[];
     const movementRuins=new Map();
     for(const n of s.nodes){const site=createResourceSite(n);site.traverse(o=>{if(o.userData.node)this.pickables.push(o);});batchStatic(site);this.scene.add(site);this.labels.push(site);
       // Portrait first-use tracing identified this shared instanced metal
@@ -264,7 +264,7 @@ export class GameScene {
       updateDistricts(city,sample,2);city.id=e.id;placeCity(city,e.x,e.z,-.8);
       const proxyHeight=e.faction==='kaiju'?(city.saddleLayout?56:Math.max(56,city.verticalLayout?.towerTop??82)):e.variant==='vertical'?45:34;
       const proxy=new T.Mesh(new T.BoxGeometry(e.faction==='airship'?34:24,proxyHeight,e.faction==='kaiju'?34:e.variant==='drill'?52:32),new T.MeshBasicMaterial({visible:false}));proxy.position.set(0,e.faction==='kaiju'?proxyHeight/2:20,e.faction==='kaiju'?-8:0);proxy.userData.enemy=e.id;proxy.userData.noBatch=true;city.root.add(proxy);city.enemyProxy=proxy;
-      this.scene.add(city.root);this.enemyCities.push(city);this.rivalRoots.set(city.root,city);city.matricesStale=true;
+      this.scene.add(city.root);this.enemyCities.push(city);city.matricesStale=true;
     }
     // Include one real skinned mesh per shared material. Compiling a static
     // stand-in would omit the skinning program used by these moving bodies.
@@ -284,12 +284,13 @@ export class GameScene {
     // interface waits for them before it presents the new game.
     this.framesSinceGame=0;
     this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
-    this.setLighting(this.light);this.prepareShaders();
+    this.setLighting(this.light);this.shadersStale=true;
   }
 
-  // New actors or a new detail level bring shaders the driver has not seen.
-  // Submit them all before the next frame waits for the first of them.
-  prepareShaders(){if(this.city)try{this.presentation.prepare(this.scene);}catch(error){console.error('Shader preparation failed; shaders will compile as they are first drawn.',error);}}
+  // New actors or a new detail level bring shaders the driver has not seen
+  // (setGame and setQuality set `shadersStale`). The next frame submits them
+  // all before it waits for the first of them.
+  prepareShaders(){this.shadersStale=false;try{this.presentation.prepare(this.scene);}catch(error){console.error('Shader preparation failed; shaders will compile as they are first drawn.',error);}}
 
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='tower'||this.city?.layout==='saddle';this.view=view;
@@ -399,8 +400,9 @@ export class GameScene {
   // not being drawn or that nothing has moved since its matrices were last
   // derived. Rivals are three quarters of the scene's nodes.
   deriveMatrices(){
+    const rivals=this.rivalRoots??=new Map();rivals.clear();for(const city of this.enemyCities)rivals.set(city.root,city);
     for(const child of this.scene.children){
-      const rival=this.rivalRoots.get(child);
+      const rival=rivals.get(child);
       if(rival){if(!child.visible||!rival.matricesStale)continue;rival.matricesStale=false;}
       child.updateMatrixWorld(true);
     }
@@ -440,7 +442,7 @@ export class GameScene {
     this.renderer.setPixelRatio(dpr);this.renderer.shadowMap.enabled=quality!=='performance';
     const shadowSize=quality==='high'?4096:2048;
     if(this.sun.shadow.mapSize.x!==shadowSize){this.sun.shadow.mapSize.set(shadowSize,shadowSize);if(this.sun.shadow.map){this.sun.shadow.map.dispose();this.sun.shadow.map=null;}}
-    this.presentation.setQuality(quality);this.atmosphere.setQuality(quality);this.landscape.setQuality(quality==='performance'?'retro':quality);this.resize();this.prepareShaders();
+    this.presentation.setQuality(quality);this.atmosphere.setQuality(quality);this.landscape.setQuality(quality==='performance'?'retro':quality);this.resize();this.shadersStale=true;
     if(persist)try{localStorage.setItem(GRAPHICS_QUALITY_KEY,quality);}catch{}
     return true;
   }
@@ -516,6 +518,7 @@ export class GameScene {
   }
 
   update(s,dt,selectedSlot){
+    if(this.shadersStale)this.prepareShaders();
     const priorHeight=this.city.verticalLayout?.height??0;this.state=s;updateDistricts(this.city,this.preview?this.previewDistricts:s.buildings,this.preview?2:s.rings??1,this.preview?undefined:s.towerOrder);posePlayerCargo(this,s);
     if(this.city.saddleLayout)this.towerTier=Math.min(this.towerTier??0,Math.max(0,this.city.saddleLayout.floors.length-1));
     if(this.city.verticalLayout){this.towerTier=Math.min(this.towerTier??0,Math.max(0,this.city.verticalLayout.floors.length-1));if(!this.preview&&this.city.verticalLayout.height>priorHeight&&this.view==='city')this.zoom=Math.max(this.zoom,(this.city.verticalLayout.height+12)*this.city.scale*2.85);}

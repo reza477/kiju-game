@@ -28,10 +28,10 @@ try{
       // What the renderer is about to use, for everything it can draw.
       const drawn=[],all=[];
       for(const child of target.children){const visible=child.visible;child.traverse(node=>{const row={node,local:node.matrix.elements.slice(),world:node.matrixWorld.elements.slice(),flag:node.matrixWorldNeedsUpdate,bind:node.isSkinnedMesh?node.bindMatrixInverse.elements.slice():null};all.push(row);if(visible)drawn.push(row);});
-        const rival=scene.rivalRoots.get(child);if(rival){if(visible)tally.drawnRivalFrames++;else tally.skippedRivalFrames++;}}
+        const rival=scene.enemyCities.find(city=>city.root===child);if(rival){if(visible)tally.drawnRivalFrames++;else tally.skippedRivalFrames++;}}
       // The reference: three's own derivation of the whole scene.
       for(const child of target.children)child.updateMatrixWorld(true);
-      for(const row of drawn){tally.nodes++;if(!same(row.world,row.node.matrixWorld.elements)||!same(row.local,row.node.matrix.elements)||(row.bind&&!same(row.bind,row.node.bindMatrixInverse.elements))){if(tally.wrong.length<12){let top=row.node;while(top.parent&&top.parent!==target)top=top.parent;tally.wrong.push({frame:tally.frames,node:row.node.name||row.node.type,under:top.name||top.type,rival:scene.rivalRoots.get(top)?.variant??null,mode:scene.state.mode,view:scene.view});}}}
+      for(const row of drawn){tally.nodes++;if(!same(row.world,row.node.matrixWorld.elements)||!same(row.local,row.node.matrix.elements)||(row.bind&&!same(row.bind,row.node.bindMatrixInverse.elements))){if(tally.wrong.length<12){let top=row.node;while(top.parent&&top.parent!==target)top=top.parent;tally.wrong.push({frame:tally.frames,node:row.node.name||row.node.type,under:top.name||top.type,rival:scene.enemyCities.find(city=>city.root===top)?.variant??null,mode:scene.state.mode,view:scene.view});}}}
       // Put back exactly what was there.
       for(const row of all){row.node.matrix.elements.splice(0,16,...row.local);row.node.matrixWorld.elements.splice(0,16,...row.world);row.node.matrixWorldNeedsUpdate=row.flag;if(row.bind)row.node.bindMatrixInverse.elements.splice(0,16,...row.bind);}
       tally.frames++;return render(target);
