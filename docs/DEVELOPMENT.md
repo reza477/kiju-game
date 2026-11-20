@@ -93,7 +93,11 @@ Choose checks for affected behavior. Each script defines its environment variabl
 | --- | --- |
 | `browser-smoke.mjs` | Build, gather, battle, save and responsive gameplay |
 | `first-frame-interface-browser.mjs` | Begin and Continue keep the title until the new game's first frame is drawn |
-| `rival-pose-browser.mjs` | A far rival titan is left in its last pose; one that is near and in view is posed every frame |
+| `rival-pose-browser.mjs` | A far rival titan is left in its last pose and one that is near and in view is posed every frame; a rival hull is animated on the frames that draw it and on no others, and is then exactly where the clock puts it |
+| `scene-matrices-browser.mjs` | Every matrix about to be drawn equals the one three.js would derive for the whole scene, on every frame of a title, expedition, pause, world view and battle |
+| `startup-shaders-browser.mjs` | The stand-in and daylight environment maps are the same size, so no lit shader is compiled twice, and the scene's shaders are handed to the driver before the first frame |
+| `city-animation-digest.mjs` | A digest of every node matrix, citizen instance and rewritten geometry attribute over 150 frames for all six carriers, in Node; identical before and after a change that must not alter what the game computes |
+| `visual-reference-capture.mjs`, `visual-reference-compare.mjs` | Repeatable pictures of fixed moments (stepped frames, fixed clock and random numbers) and a pixel-by-pixel comparison of two sets, for checking that a rendering change does not change the picture |
 | `frame-time-benchmark.mjs` | Frames per second and the game's own milliseconds per frame at each detail level, on the machine's real graphics chip |
 | `vertical-growth-browser.mjs` | Public construction, upgrades, save/resume, 20-storey inspection and horizontal carriers; `MIXED_DISTRICTS=1` varies paid late-game orders |
 | `vertical-citizens.mjs` | Floor support, compact rooms, activity contact, lamps, upgrades and pause |

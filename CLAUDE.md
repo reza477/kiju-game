@@ -21,6 +21,8 @@ On 20 November 2026 development became shared. Codex on the Windows PC develops 
 - Play: double-click `Play.command`, or `node server.mjs` and open `http://127.0.0.1:4178`.
 - Tests: `npm test` (about 15 minutes; the Mac has 16 GB, so `node --test --test-concurrency=4 tests/*.test.mjs` is kinder). Only Node 22 from Homebrew works here; the Homebrew Node 24 install is broken.
 - Browser playthrough: `node tests/browser-smoke.mjs` against a server on another port, using the installed Google Chrome.
+- Before timing anything, run `pmset -g | grep lowpowermode`. With macOS Low Power Mode on (it was, on the charger, on 14 and 15 November) the processor and graphics chip are about three times slower, the suite takes 35 to 45 minutes, and a picture capture about three minutes a picture. Label timings with the mode and compare builds by alternating them, not across runs. Do not change the setting; tell Alex.
+- A change that must not alter what the game shows is checked three ways: `tests/city-animation-digest.mjs` (everything a city's animation writes, all six carriers), `tests/scene-matrices-browser.mjs` (every drawn matrix against three.js's own), and `tests/visual-reference-capture.mjs` with `tests/visual-reference-compare.mjs` (pictures).
 - `node_modules` came from Windows. The pure-JavaScript packages work; run `npm ci` only if a package with native code is needed.
 
 ## Rules
