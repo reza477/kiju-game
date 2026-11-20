@@ -194,7 +194,9 @@ export class GameScene {
     this.renderer.shadowMap.enabled=initialQuality!=='performance';this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.info.autoReset=false;
     this.environmentTarget=createEnvironment(this.renderer);this.scene.environment=this.environmentTarget.texture;this.scene.environmentIntensity=.55;
     this.environmentReady=false;this.environmentError=null;
-    loadDaylightEnvironment(this.renderer).then(target=>{const old=this.environmentTarget;this.environmentTarget=target;this.scene.environment=target.texture;this.scene.environmentRotation.y=.75;this.environmentReady=true;old.dispose();}).catch(error=>{this.environmentError=error.message;console.error('Local daylight environment failed to load',error);});
+    loadDaylightEnvironment(this.renderer).then(target=>{const old=this.environmentTarget;
+      if(old.texture.image.width!==target.texture.image.width||old.texture.image.height!==target.texture.image.height)console.warn('The stand-in environment is not the size of the daylight environment, so every lit shader is compiled twice. See createEnvironment.');
+      this.environmentTarget=target;this.scene.environment=target.texture;this.scene.environmentRotation.y=.75;this.environmentReady=true;old.dispose();}).catch(error=>{this.environmentError=error.message;console.error('Local daylight environment failed to load',error);});
     this.sky=createSky();this.scene.add(this.sky);
     this.ambient=new T.HemisphereLight(0xd8edff,0x7b8561,1.45);this.scene.add(this.ambient);
     this.sun=new T.DirectionalLight(0xffdfb8,3.4);this.sun.position.set(-65,95,65);this.sun.castShadow=true;
@@ -282,8 +284,12 @@ export class GameScene {
     // interface waits for them before it presents the new game.
     this.framesSinceGame=0;
     this.lastMode=null;this.lastEvent=0;this.yaw=s.faction==='kaiju'?s.angle+(this.preview?1.1:2.35):.72;this.focus.set(s.x,terrainHeight(s.x,s.z)+this.city.deckY*this.city.scale,s.z);
-    this.setLighting(this.light);
+    this.setLighting(this.light);this.prepareShaders();
   }
+
+  // New actors or a new detail level bring shaders the driver has not seen.
+  // Submit them all before the next frame waits for the first of them.
+  prepareShaders(){if(this.city)try{this.presentation.prepare(this.scene);}catch(error){console.error('Shader preparation failed; shaders will compile as they are first drawn.',error);}}
 
   setView(view){
     const prior=this.view,backpack=this.city?.layout==='tower'||this.city?.layout==='saddle';this.view=view;
@@ -434,7 +440,7 @@ export class GameScene {
     this.renderer.setPixelRatio(dpr);this.renderer.shadowMap.enabled=quality!=='performance';
     const shadowSize=quality==='high'?4096:2048;
     if(this.sun.shadow.mapSize.x!==shadowSize){this.sun.shadow.mapSize.set(shadowSize,shadowSize);if(this.sun.shadow.map){this.sun.shadow.map.dispose();this.sun.shadow.map=null;}}
-    this.presentation.setQuality(quality);this.atmosphere.setQuality(quality);this.landscape.setQuality(quality==='performance'?'retro':quality);this.resize();
+    this.presentation.setQuality(quality);this.atmosphere.setQuality(quality);this.landscape.setQuality(quality==='performance'?'retro':quality);this.resize();this.prepareShaders();
     if(persist)try{localStorage.setItem(GRAPHICS_QUALITY_KEY,quality);}catch{}
     return true;
   }

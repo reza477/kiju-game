@@ -112,6 +112,20 @@ export class Presentation {
     if(this.target.samples!==samples){this.target.samples=samples;this.target.dispose();}
   }
   setLighting(mode){const p=settingsFor(mode);this.material.uniforms.exposure.value=p.exposure;this.material.uniforms.bloomStrength.value=p.bloom;}
+  // Hands every shader the scene will need to the graphics driver now, without
+  // waiting for any of them. Left to itself the renderer compiles each shader
+  // at the moment it first draws with it and waits for it, one at a time; a
+  // cold start then spends many seconds on about a hundred of them in a row.
+  // Submitted together they compile side by side. The state set here is the
+  // state render() sets, so these are the shaders render() will ask for.
+  prepare(scene){
+    const r=this.renderer;if(r.getContext().isContextLost())return;
+    const target=r.getRenderTarget();
+    r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=this.material.uniforms.exposure.value;
+    r.setRenderTarget(this.enabled?this.target:null);r.compile(scene,this.camera);
+    if(this.enabled){r.setRenderTarget(this.bloom.targets[0]);r.compile(this.bloom.scene,this.bloom.camera);r.setRenderTarget(null);r.compile(this.scene,this.camera2d);}
+    r.setRenderTarget(target);
+  }
   render(scene){
     const r=this.renderer;r.info.reset();
     r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=this.material.uniforms.exposure.value;

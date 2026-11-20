@@ -187,8 +187,14 @@ export function disposeGroup(group){
   });
 }
 
+// The stand-in environment that lights the scene until the daylight photograph
+// has loaded. It is drawn at that photograph's size, 1024 by 512, because the
+// size of an environment map is compiled into every lit shader: at the old 512
+// by 256 each of them was compiled for the stand-in and then again for the
+// photograph, which froze the title screen for as long as the first compile.
+// The drawing itself is unchanged; it is scaled up.
 export function createEnvironment(renderer) {
-  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=256;const c=canvas.getContext('2d');
+  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=512;const c=canvas.getContext('2d');c.scale(2,2);
   const gradient=c.createLinearGradient(0,0,0,256);gradient.addColorStop(0,'#5286ad');gradient.addColorStop(.4,'#bfd6df');gradient.addColorStop(.51,'#e3dcc1');gradient.addColorStop(.52,'#8a9b73');gradient.addColorStop(1,'#435849');c.fillStyle=gradient;c.fillRect(0,0,512,256);
   const glow=c.createRadialGradient(105,95,1,105,95,65);glow.addColorStop(0,'rgba(255,242,211,1)');glow.addColorStop(.12,'rgba(255,236,198,.8)');glow.addColorStop(1,'rgba(255,230,180,0)');c.fillStyle=glow;c.fillRect(0,0,512,256);
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;texture.mapping=T.EquirectangularReflectionMapping;
