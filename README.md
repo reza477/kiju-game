@@ -56,7 +56,7 @@ Physical iPad/iPhone testing, Safari on Apple hardware, sustained mobile perform
 
 Progress saves in the browser on your device, with manual export/import and recovery support. Keep an exported backup before clearing browser data or moving between devices. Saves do not synchronize automatically.
 
-The local game has no analytics, advertising, accounts, cloud saves or external runtime services. GitHub holds the private source backup; it does not host a playable game. Repository maintenance and future game hosting are separate workflows. See [repository maintenance](docs/REPOSITORY_MAINTENANCE.md).
+The local game has no analytics, advertising, accounts, cloud saves or external runtime services. GitHub holds the source in a public repository; it does not host a playable game. Repository maintenance and future game hosting are separate workflows. See [repository maintenance](docs/REPOSITORY_MAINTENANCE.md).
 
 ## Working on the project
 

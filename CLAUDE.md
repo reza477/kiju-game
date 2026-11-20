@@ -8,6 +8,8 @@ On 13 November 2026 Alex said the game is no longer developed on the Windows PC 
 
 This supersedes the older note in `../../CLAUDE.md`, which says the runtime stays with Codex. [`../START WITH CLAUDE.md`](<../START WITH CLAUDE.md>) is Codex's handoff and still describes the project layout accurately, except for its Windows paths.
 
+On 20 November 2026 development became shared. Codex on the Windows PC develops the game too, and the two tools build on each other's commits through GitHub. The routine is at the top of [`AGENTS.md`](AGENTS.md): fetch and merge before starting, push the working branch when a piece of work is finished.
+
 ## Start here
 
 1. [`README.md`](README.md), then [`AGENTS.md`](AGENTS.md) for Reza's design rules. Latest design wins: low saddle city on the flesh beast, half-height vertical castle on the cyborg.
@@ -24,9 +26,11 @@ This supersedes the older note in `../../CLAUDE.md`, which says the runtime stay
 ## Rules
 
 - Work in this folder. `../Source snapshot` is an older reference copy.
-- **Ask Alex before pushing to GitHub, deploying, publishing or spending anything.** `delivery/readiness.json` is `eligible: false`; do not flip it without a passing review or Alex's explicit decision.
+- **GitHub is shared with Codex.** Before starting, `git fetch origin` and merge what Codex pushed; after each finished piece of work, commit and `git push origin codex/kaiju-art-remake-20261020`. The full routine is at the top of `AGENTS.md`. The repository is public, so nothing private goes in a commit.
+- **Ask Alex before deploying, merging into `main` or `codex/playtest`, changing the repository's visibility, publishing a playable build or spending anything.** `delivery/readiness.json` is `eligible: false`; do not flip it without a passing review or Alex's explicit decision.
+- More than one Claude session can be working in this folder at once. Before committing, check `git status` and commit only the files you changed; edits you did not make belong to the other session.
 - Never delete or overwrite original art: `assets/`, `asset-sources/`, Meshy originals. Save a new version beside the original.
-- Commit finished work locally on the current branch with a clear message. Do not rewrite history.
+- Commit finished work on the current branch with a clear message. Do not rewrite history or force-push.
 - Local analysis scripts and evidence go under `artifacts/` (ignored by Git). `artifacts/` and `../History` are 20 GB of Codex evidence; search them, do not read them end to end.
 - The strict beast self-crossing test is tracked, not gating, by Alex's decision of 13 November 2026 (see the top of `AGENTS.md`). It reports as TODO. Its ceiling test is the gate: never raise a recorded count, and lower one when a repair earns it.
 - Do not weaken a test to make it pass. If a check is wrong for this machine, say why in the test and keep the original contract where it still applies (see `tests/helpers/platform-digest.mjs`).

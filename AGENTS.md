@@ -1,3 +1,26 @@
+# GitHub is the shared home for the Mac and the PC
+
+Recorded on 20 November 2026 from that day's development session on the Mac. The decision was given in that session and is not recorded in Reza's own words; if Reza decides otherwise, his later instruction governs.
+
+**Development is shared.** Claude on the Mac and Codex on the Windows PC both develop the game, each building on the other's commits. This replaces "the game is no longer developed with Codex on the Windows PC" in the 13 November record below. The rest of that record stands.
+
+**The meeting point is one branch:** `codex/kaiju-art-remake-20261020` at `https://github.com/reza477/kiju-game`. Pushing finished commits to that branch is expected and needs no further permission.
+
+**The repository is public.** The session was offered three choices: make the repository private first, use a second private repository, or push to it as it is. The answer was to push as it is, knowing that this publishes the remake's source, its finished art and the raw art masters under `asset-sources/`. Text below and in older documents that calls the repository private, or says the Meshy originals must stay private, describes the arrangement before this decision. Do not change the repository's visibility unless asked.
+
+The routine, for either tool:
+
+1. **Before starting,** run `git fetch origin` and `git status`. If the branch is behind, bring it up to date with `git merge --ff-only origin/codex/kaiju-art-remake-20261020`. Then read `git log` back to your own last commit: the other tool's commit messages and `CHANGELOG.md` are the handoff.
+2. **If both machines have new commits,** merge with `git merge origin/codex/kaiju-art-remake-20261020`. Resolve conflicts so that both changes survive, run the checks the merged files call for, and say in the merge commit what was reconciled. Never rebase or amend a commit that has been pushed, and never force-push.
+3. **After finishing a piece of work,** run its relevant checks, commit with a message that says what changed and what was verified, and run `git push origin codex/kaiju-art-remake-20261020`. If the push is refused because the other machine pushed first, repeat steps 1 and 2 and push again.
+4. **Leave the checkout clean,** or say what is uncommitted and why. Uncommitted edits are invisible to the other machine and can block its next merge.
+
+Everything pushed is visible to anyone, so no credentials, `.env` files, save exports, logs, personal details or conversation transcripts go in a commit. `artifacts/` stays ignored and local.
+
+**What this does not change.** `delivery/readiness.json` stays false. "Do not push or deploy" there and in the delivery rules below now means: do not merge into or push `main` or `codex/playtest`, and do not deploy. Those still need a passing review or an explicit decision. A push to the working branch starts the Actions run in `.github/workflows/ci.yml`, which tests and builds on every `codex/` branch and deploys only from `codex/playtest`. Report its result, and treat a failure as a finding to fix, not as a reason to stop sharing work.
+
+**The two machines differ.** The Mac is Apple silicon with Node 22; the PC is x64 Windows. Tests that hash raw doubles keep exact digests on x64 and six-decimal digests on arm64 (`tests/helpers/platform-digest.mjs`). If a check fails on one machine only, record which one, and do not re-record a digest for the other architecture without running it there.
+
 # Development on the Mac, and the self-crossing check
 
 Recorded on 13 November 2026 from that day's development session. Alex, who directs development with Reza, gave two decisions. They are not Reza's own words; if Reza decides otherwise, his later instruction governs.
